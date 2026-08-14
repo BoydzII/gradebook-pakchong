@@ -5714,7 +5714,8 @@ function renderFirebaseCard() {
       '<button id="fbSignIn"' + (configured && !signed ? '' : ' disabled') + '>เข้าสู่ระบบด้วย Google</button>' +
       '<button id="fbPushStaff"' + (signed ? '' : ' disabled') + '>ส่งรายชื่อบุคลากรขึ้น</button>' +
       '<button id="fbPushShared"' + (signed ? '' : ' disabled') + '>ส่งห้องเรียน/รายวิชา/ตารางสอนขึ้น</button>' +
-      '<button class="primary" id="fbPushAll"' + (signed ? '' : ' disabled') + '>ส่งข้อมูลทั้งหมดขึ้นครั้งแรก</button></div>' +
+      '<button class="primary" id="fbPushAll"' + (signed ? '' : ' disabled') + '>ส่งข้อมูลทั้งหมดขึ้นครั้งแรก</button>' +
+      '<button id="fbInspect"' + (signed ? '' : ' disabled') + '>ตรวจสอบข้อมูลบนส่วนกลาง</button></div>' +
     '<div id="fbResult" class="hint" style="margin-top:10px"></div>' +
     '<div class="notice" style="margin-top:10px">รอบนี้ซิงก์: บุคลากร • ห้องเรียน • รายวิชา • ปี/ภาค • ตารางสอน • ใบลา • คำขอแลกคาบ<br>' +
       'การเช็กชื่อและคะแนนในสมุดยังเก็บในเครื่องแต่ละคน</div>';
@@ -5723,8 +5724,16 @@ function renderFirebaseCard() {
   const run = async (label, fn) => {
     show('กำลัง' + label + '...');
     try { const n = await fn(); show(label + 'สำเร็จ • ' + n + ' รายการ', 'ok'); renderFirebaseCard(); }
-    catch (e) { show(e.message, 'bad'); }
+    catch (e) { show(fbErrorMessage(e), 'bad'); }
   };
+  $('#fbInspect', box).addEventListener('click', async () => {
+    show('กำลังอ่านข้อมูลจากส่วนกลาง...');
+    try {
+      const rows = await inspectFirebase();
+      $('#fbResult', box).innerHTML = '<div class="tablewrap"><table><thead><tr><th>รายการบนส่วนกลาง</th><th>ที่พบจริง</th></tr></thead><tbody>' +
+        rows.map(r => '<tr><td>' + esc(r[0]) + '</td><td><b>' + esc(r[1]) + '</b></td></tr>').join('') + '</tbody></table></div>';
+    } catch (e) { show(fbErrorMessage(e), 'bad'); }
+  });
   $('#fbSignIn', box).addEventListener('click', async () => {
     try { const r = await firebaseSignIn(); startFirebaseSync(); renderFirebaseCard(); render();
       toast('เข้าสู่ระบบแล้ว • ' + (r.staff.name || r.staff.email), 'ok'); }
@@ -5942,6 +5951,31 @@ function startFirebaseSync() {
 
 function stopFirebaseSync() { fbUnsub.forEach(fn => { try { fn(); } catch (e) { } }); fbUnsub = []; }
 
+/** อ่านข้อมูลจากเซิร์ฟเวอร์ตรง ๆ (ไม่เอาจากแคชในเครื่อง) เพื่อดูว่าส่งขึ้นไปถึงจริงหรือยัง */
+async function inspectFirebase() {
+  if (!firebaseReady() || !fbSignedIn()) throw new Error('ยังไม่ได้เข้าสู่ระบบด้วยบัญชีโรงเรียน');
+  const fromServer = ref => ref.get({ source: 'server' });
+  const rows = [], myId = fbStaffId(DB.cloud.accountEmail || '');
+  const me = await fromServer(fbDb.collection('staff').doc(myId));
+  const roles = me.exists ? (me.data().roles || []) : [];
+  rows.push(['สิทธิ์ของบัญชีนี้ (' + myId + ')', !me.exists ? 'ไม่พบเอกสารของฉันใน staff' :
+    (roles.length ? roles.join(', ') : 'ไม่มีบทบาท') + (roles.indexOf('admin') >= 0 ? ' — ส่งข้อมูลหลักขึ้นได้' : ' — ยังไม่มีสิทธิ์ admin จึงส่งข้อมูลหลักขึ้นไม่ได้')]);
+  const staff = await fromServer(fbDb.collection('staff'));
+  rows.push(['บุคลากร (staff)', staff.size + ' คน']);
+  for (const def of FB_SHARED_DOCS) {
+    const doc = await fromServer(fbDb.collection('shared').doc(def.doc));
+    const value = doc.exists ? doc.data()[def.field] : null;
+    rows.push(['shared/' + def.doc, !doc.exists ? 'ยังไม่มีบนส่วนกลาง' : Array.isArray(value) ? value.length + ' รายการ' : 'มีข้อมูล']);
+  }
+  const tt = await fromServer(fbDb.collection('timetable'));
+  rows.push(['ตารางสอน (timetable)', tt.size ? tt.size + ' ปี/ภาค • ' + tt.docs.reduce((n, d) => n + ((d.data().entries || []).length), 0) + ' คาบ' : 'ยังไม่มีบนส่วนกลาง']);
+  for (const name of ['leaves', 'swaps', 'activities']) {
+    const snap = await fromServer(fbDb.collection(name));
+    rows.push([name === 'leaves' ? 'ใบลา (leaves)' : name === 'swaps' ? 'คำขอแลกคาบ (swaps)' : 'กิจกรรม (activities)', snap.size + ' รายการ']);
+  }
+  return rows;
+}
+
 /** ส่งข้อมูลขึ้นส่วนกลาง — ใช้ตอนตั้งระบบครั้งแรก หรือเมื่อผู้ดูแลระบบแก้ข้อมูลหลัก */
 async function pushToFirebase(what) {
   if (!firebaseReady() || !fbSignedIn()) throw new Error('ยังไม่ได้เข้าสู่ระบบด้วยบัญชีโรงเรียน');
@@ -5951,23 +5985,23 @@ async function pushToFirebase(what) {
     if (!list.length) throw new Error('ครูทุกคนต้องมีอีเมลก่อนจึงจะส่งขึ้นส่วนกลางได้');
     let batch = fbDb.batch(), n = 0;
     list.forEach(t => {
-      batch.set(fbDb.collection('staff').doc(fbStaffId(t.email)), fbTeacherDoc(t), { merge: true });
+      batch.set(fbDb.collection('staff').doc(fbStaffId(t.email)), fbPlain(fbTeacherDoc(t)), { merge: true });
       if (++n % 400 === 0) { jobs.push(batch.commit()); batch = fbDb.batch(); }
     });
     jobs.push(batch.commit());
   }
   if (!what || what === 'shared') {
-    jobs.push(fbDb.collection('shared').doc('classes').set({ items: DB.classes }));
-    jobs.push(fbDb.collection('shared').doc('subjects').set({ items: DB.subjects }));
-    jobs.push(fbDb.collection('shared').doc('periods').set({ items: DB.periods }));
-    jobs.push(fbDb.collection('shared').doc('settings').set({ value: DB.settings }));
+    jobs.push(fbSetDoc(fbDb.collection('shared').doc('classes'), { items: fbPlain(DB.classes) }, 'ห้องเรียน'));
+    jobs.push(fbSetDoc(fbDb.collection('shared').doc('subjects'), { items: fbPlain(DB.subjects) }, 'รายวิชา'));
+    jobs.push(fbSetDoc(fbDb.collection('shared').doc('periods'), { items: fbPlain(DB.periods) }, 'ปี/ภาคเรียน'));
+    jobs.push(fbSetDoc(fbDb.collection('shared').doc('settings'), { value: fbPlain(DB.settings) }, 'ตั้งค่าโรงเรียน'));
   }
   if (!what || what === 'timetable') {
-    DB.periods.forEach(p => jobs.push(fbDb.collection('timetable').doc(p.id).set({
+    DB.periods.forEach(p => jobs.push(fbSetDoc(fbDb.collection('timetable').doc(p.id), fbPlain({
       entries: (DB.timetable.entries || []).filter(e => e.periodId === p.id),
       exceptions: (DB.timetable.exceptions || []).filter(e => e.periodId === p.id),
       term: (DB.timetable.terms || {})[p.id] || null
-    })));
+    }), 'ตารางสอนปี ' + p.academicYear + '/' + p.semester)));
   }
   if (!what || what === 'requests') {
     (DB.timetable.leaveRequests || []).forEach(l => jobs.push(fbDb.collection('leaves').doc(l.id).set(fbPlain(l))));
@@ -5976,6 +6010,14 @@ async function pushToFirebase(what) {
   }
   await Promise.all(jobs);
   return jobs.length;
+}
+
+/** Firestore จำกัดขนาดเอกสารละ 1 MiB — ตรวจก่อนส่งเพื่อบอกได้ว่าชุดไหนใหญ่เกิน */
+function fbSetDoc(ref, data, label) {
+  const size = new Blob([JSON.stringify(data)]).size;
+  if (size > 1000000) return Promise.reject(new Error('ข้อมูล “' + label + '” ใหญ่เกินที่ Firestore รับได้ (' +
+    Math.round(size / 1024) + ' KB จากเพดาน 1024 KB) — ลดรูปตราโรงเรียนหรือแยกข้อมูลก่อนส่ง'));
+  return ref.set(data);
 }
 
 /** Firestore รับเฉพาะข้อมูลธรรมดา จึงตัด undefined และอ็อบเจกต์แปลก ๆ ออกก่อน */
