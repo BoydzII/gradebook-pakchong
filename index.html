@@ -5717,9 +5717,12 @@ function renderFirebaseCard() {
 function renderCentralStaffCard() {
   const box = $('#adminCentralBox'); if (!box) return;
   const url = staffApiUrl(), signedIn = !!staffToken();
-  box.innerHTML = '<div class="row"><div><h3 style="margin:0">ระบบบุคลากรกลาง (เข้าใช้ได้ทุกอุปกรณ์)</h3>' +
-      '<div class="hint">ติดตั้งไฟล์ <b>appsscript-gradebook.gs</b> บน Google Sheet ของโรงเรียน แล้วนำลิงก์เว็บแอปมาวางที่นี่ ' +
-      'ครูจะเข้าสู่ระบบด้วยบัญชี Google ของโรงเรียนจากคอม มือถือ หรือไอแพดก็ได้</div></div>' +
+  // ใช้ Firebase อยู่แล้วก็ไม่ต้องแสดงระบบสำรองนี้ ให้หน้าจอไม่รก
+  if (firebaseConfigured() && !url) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+  box.innerHTML = '<div class="row"><div><h3 style="margin:0">ระบบบุคลากรกลางแบบสำรอง (Apps Script + Google Sheet)</h3>' +
+      '<div class="hint">ใช้เมื่อไม่ได้ใช้ Firebase เท่านั้น — ติดตั้งไฟล์ <b>appsscript-gradebook.gs</b> บน Google Sheet ของโรงเรียน ' +
+      'แล้วนำลิงก์เว็บแอปมาวางที่นี่</div></div>' +
       '<div class="spacer"></div><span class="badge ' + (url ? (signedIn ? 'ok' : 'warn') : '') + '">' +
       (url ? (signedIn ? 'เชื่อมต่อแล้ว' : 'ตั้งค่าแล้ว ยังไม่ได้เข้าสู่ระบบ') : 'ยังไม่ได้ตั้งค่า') + '</span></div>' +
     '<div class="pick" style="margin-top:12px"><label>ลิงก์เว็บแอปของ Apps Script (ลงท้ายด้วย /exec)</label>' +

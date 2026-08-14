@@ -7,3 +7,4 @@ node_modules/
 # ข้อมูลสำรองที่มีข้อมูลนักเรียน ห้ามขึ้น repo
 สำรอง*.json
 *.xlsx
+_preview_server.cjs
