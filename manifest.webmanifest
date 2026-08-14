@@ -1,0 +1,25 @@
+{
+  "name": "ปพ.5 Online — สมุดคะแนนอัจฉริยะ",
+  "short_name": "ปพ.5 Online",
+  "description": "บันทึกคะแนน เวลาเรียน ตารางสอน แลกคาบและการลา สำหรับครูและผู้บริหาร",
+  "lang": "th",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f4f6fa",
+  "theme_color": "#1f6feb",
+  "categories": ["education", "productivity"],
+  "icons": [
+    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "เช็กชื่อวันนี้", "short_name": "เช็กชื่อ", "url": "./?tab=attendance",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "แลกคาบ / การลา", "short_name": "แลกคาบ", "url": "./?tab=exchange",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

@@ -1,0 +1,120 @@
+rules_version = '2';
+/* กติกาความปลอดภัยของ ปพ.5 Online
+   หลักการ: ต้องมีชื่ออยู่ในคอลเลกชัน staff ก่อนจึงจะอ่านหรือเขียนอะไรได้
+   คัดลอกไฟล์นี้ไปวางที่ Firebase Console → Firestore Database → กฎ → เผยแพร่ */
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ---------- ตัวช่วย ---------- */
+    function signedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    // รหัสเอกสารของบุคลากรคืออีเมลตัวพิมพ์เล็ก
+    function myId() {
+      return string(request.auth.token.email).lower();
+    }
+    function myDoc() {
+      return get(/databases/$(database)/documents/staff/$(myId()));
+    }
+    function isStaff() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/staff/$(myId()))
+        && myDoc().data.active != false;
+    }
+    function hasRole(role) {
+      return isStaff() && role in myDoc().data.roles;
+    }
+    function isAdmin()     { return hasRole('admin'); }
+    function isExecutive() { return hasRole('executive'); }
+    function isHead()      { return hasRole('head'); }
+
+    /* ---------- บุคลากร ----------
+       ทุกคนที่อยู่ในระบบอ่านรายชื่อได้ (ต้องใช้หาครูสอนแทนและแสดงภาพรวม)
+       แต่แก้ไขได้เฉพาะผู้ดูแลระบบ ยกเว้นการบันทึกเวลาเข้าใช้ของตัวเอง */
+    match /staff/{staffId} {
+      allow read: if isStaff();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (isStaff() && staffId == myId()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['lastLogin', 'uid']));
+    }
+
+    /* ---------- ข้อมูลหลักของโรงเรียน ----------
+       ห้องเรียน รายวิชา ปี/ภาค ตั้งค่าโรงเรียน — ทุกคนอ่านได้ ผู้ดูแลระบบแก้ */
+    match /shared/{docId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    /* ---------- ตารางสอน ----------
+       ทุกคนอ่านได้ (ใช้หาคาบว่างของครูคนอื่นตอนขอสอนแทน)
+       ผู้ดูแลระบบเท่านั้นที่แก้ เพราะเป็นตารางของทั้งโรงเรียน */
+    match /timetable/{periodId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    /* ---------- ใบลา ----------
+       เจ้าของใบลาสร้างและแก้ของตัวเองได้
+       หัวหน้ากลุ่มสาระให้ความเห็นได้ ผู้บริหารอนุมัติได้ ผู้ดูแลระบบดูได้แต่ไม่อนุมัติแทน */
+    match /leaves/{leaveId} {
+      allow read: if isStaff();
+      allow create: if isStaff() && request.resource.data.teacherId is string;
+      allow update: if isStaff() && (
+           resource.data.teacherId == request.resource.data.teacherId
+        && (
+             // เจ้าของแก้รายละเอียดของตัวเองได้ แต่ห้ามแก้ผลการอนุมัติ
+             (myDoc().data.uid == resource.data.uid
+               && request.resource.data.approval.status != 'approved')
+             // หัวหน้ากลุ่มสาระแก้ได้เฉพาะช่องความเห็นของตน
+             || (isHead() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['headApproval']))
+             // ผู้บริหารแก้ได้เฉพาะช่องอนุมัติ
+             || (isExecutive() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['approval']))
+             // เจ้าของส่งใบลาเข้าสายอนุมัติ
+             || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['approval', 'headApproval', 'requestIds', 'coverageStatus'])
+           ));
+      allow delete: if isAdmin();
+    }
+
+    /* ---------- คำขอแลกคาบ / สอนแทน ----------
+       ครูทุกคนอ่านได้ ผู้ขอสร้างได้ ผู้ถูกขอตอบรับได้ */
+    match /swaps/{swapId} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+      allow update: if isStaff();
+      allow delete: if isAdmin();
+    }
+
+    /* ---------- กิจกรรมนักเรียน ----------
+       ครูทุกคนอ่านได้ เพราะต้องใช้ตั้งสถานะ "กิจกรรม" ในคาบของตน
+       ครูผู้ขอและผู้ดูแลระบบเท่านั้นที่แก้หรือลบได้ */
+    match /activities/{activityId} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+      allow update, delete: if isStaff() && (isAdmin()
+        || resource.data.teacherId == request.resource.data.teacherId);
+    }
+
+    /* ---------- การเช็กชื่อ (เตรียมไว้สำหรับขั้นถัดไป) ----------
+       ครูเขียนได้เฉพาะคาบที่ตนเป็นผู้บันทึก ผู้บริหารและผู้ดูแลระบบอ่านได้ทั้งหมด */
+    match /attendance/{recordId} {
+      allow read: if isStaff();
+      allow create, update: if isStaff()
+        && request.resource.data.teacherEmail == myId();
+      allow delete: if isAdmin();
+    }
+
+    /* ---------- สมุดคะแนนของครูแต่ละคน ----------
+       เจ้าของเท่านั้นที่เข้าถึงได้ ผู้บริหารอ่านได้เพื่อดูภาพรวม */
+    match /books/{ownerId}/{document=**} {
+      allow read: if isStaff() && (ownerId == myId() || isExecutive());
+      allow write: if isStaff() && ownerId == myId();
+    }
+
+    /* ปิดทุกอย่างที่ไม่ได้ระบุไว้ข้างบน */
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

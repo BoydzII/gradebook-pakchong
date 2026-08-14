@@ -1,0 +1,9 @@
+# ไฟล์ระบบและของเครื่อง
+.DS_Store
+Thumbs.db
+.netlify/
+node_modules/
+
+# ข้อมูลสำรองที่มีข้อมูลนักเรียน ห้ามขึ้น repo
+สำรอง*.json
+*.xlsx
