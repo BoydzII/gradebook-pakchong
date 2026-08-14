@@ -4858,11 +4858,12 @@ function normalizeName(value) {
     .replace(/^(นาย|นางสาว|นาง|น\.ส\.|ด\.ช\.|ด\.ญ\.|เด็กชาย|เด็กหญิง|ครู|อาจารย์|ว่าที่ร้อยตรี|ว่าที่ร\.ต\.)/, '')
     .toLowerCase();
 }
-/** แจ้งรายการที่ซ้ำหลังนำเข้า พร้อมบอกว่าซ้ำกับข้อมูลใดในระบบ */
-function duplicateReport(title, columns, list) {
+/** แจ้งรายการที่ซ้ำหลังนำเข้า พร้อมบอกว่าซ้ำกับข้อมูลใดในระบบ
+   ส่ง note มาแทนข้อความมาตรฐานได้ เมื่อรายการนั้นไม่ใช่กรณีข้อมูลซ้ำ */
+function duplicateReport(title, columns, list, note) {
   if (!list.length) return;
   openModal({ title: title, wide: true,
-    bodyHTML: '<div class="notice bad">มี <b>' + list.length + '</b> รายการที่ <b>มีชื่อนี้ในระบบอยู่แล้ว</b> ระบบจึงไม่นำเข้าซ้ำ</div>' +
+    bodyHTML: '<div class="notice bad">' + (note ? note.replace('{n}', '<b>' + list.length + '</b>') : 'มี <b>' + list.length + '</b> รายการที่ <b>มีชื่อนี้ในระบบอยู่แล้ว</b> ระบบจึงไม่นำเข้าซ้ำ') + '</div>' +
       '<div class="tablewrap" style="margin-top:10px;max-height:50vh"><table><thead><tr>' + columns.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>' +
       list.map(r => '<tr>' + r.map(v => '<td>' + esc(v) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>' });
 }
@@ -4873,22 +4874,37 @@ async function importTeachersExcel() {
     const sheets = await readXlsx(await f.arrayBuffer()), rows = (sheets[0] || {}).rows || []; if (rows.length < 2) throw new Error('ไม่พบแถวข้อมูลครู');
     const heads = rows[0].map(x => String(x || '').trim().toLowerCase()), find = names => heads.findIndex(h => names.some(n => h.includes(n)));
     const ix = { name: find(['ชื่อครู','ชื่อ-นามสกุล','name']), email: find(['อีเมล','email']), phone: find(['เบอร์โทร','โทรศัพท์','phone']), roles: find(['บทบาท','role']), room: find(['ห้องที่ปรึกษา','homeroom']), area: find(['กลุ่มสาระ','กลุ่มงาน','learningarea']) };
-    if (ix.name < 0) throw new Error('ไม่พบคอลัมน์ “ชื่อครู”'); let added = 0, skippedRooms = 0;
-    const duplicates = [], batch = new Map();
-    rows.slice(1).forEach((row, i) => { const name = String(row[ix.name] || '').trim(); if (!name) return; const email = ix.email >= 0 ? String(row[ix.email] || '').trim() : '', roomName = ix.room >= 0 ? String(row[ix.room] || '').trim() : '';
-      const key = normalizeName(name);
-      // ชื่อซ้ำกับครูในระบบ หรือซ้ำกันเองในไฟล์ → ไม่นำเข้า และแจ้งให้ตรวจสอบ
-      const existing = DB.teachers.find(x => normalizeName(x.name) === key) || (email ? DB.teachers.find(x => x.email && String(x.email).toLowerCase() === email.toLowerCase()) : null);
-      if (existing) { duplicates.push(['แถว ' + (i + 2), name, email || '—', 'มีอยู่แล้ว: ' + (existing.name || '') + (existing.email ? ' • ' + existing.email : '')]); return; }
-      if (batch.has(key)) { duplicates.push(['แถว ' + (i + 2), name, email || '—', 'ซ้ำกับแถว ' + batch.get(key) + ' ในไฟล์เดียวกัน']); return; }
+    if (ix.name < 0) throw new Error('ไม่พบคอลัมน์ “ชื่อครู”'); let added = 0, updated = 0, homerooms = 0;
+    const attention = [], batch = new Map();
+    rows.slice(1).forEach((row, i) => { const name = String(row[ix.name] || '').trim(); if (!name) return;
+      const email = ix.email >= 0 ? String(row[ix.email] || '').trim() : '', roomName = ix.room >= 0 ? String(row[ix.room] || '').trim() : '',
+        phone = ix.phone >= 0 ? String(row[ix.phone] || '').trim() : '', area = ix.area >= 0 ? learningAreaFromText(row[ix.area]) : '';
+      const key = normalizeName(name), note = (reason) => attention.push(['แถว ' + (i + 2), name, roomName || '—', reason]);
+      if (batch.has(key)) return note('ซ้ำกับแถว ' + batch.get(key) + ' ในไฟล์เดียวกัน จึงข้ามแถวนี้');
       batch.set(key, i + 2);
-      const t = { id: uid('teacher'), name: name, email: email, phone: ix.phone >= 0 ? String(row[ix.phone] || '').trim() : '', learningArea: ix.area >= 0 ? learningAreaFromText(row[ix.area]) : '', homeroomClassId: '', roles: ix.roles >= 0 ? teacherRolesFromText(row[ix.roles]) : ['teacher'] };
-      DB.teachers.push(t); added++;
-      const cls = DB.classes.find(c => c.name === roomName); if (roomName && cls) { const count = DB.teachers.filter(x => x.id !== t.id && x.homeroomClassId === cls.id).length; if (count < 2) t.homeroomClassId = cls.id; else skippedRooms++; }
+      // ครูที่มีอยู่แล้วจะไม่ถูกสร้างซ้ำ แต่ใช้ไฟล์เติมช่องที่ยังว่าง เช่น ห้องที่ปรึกษา เบอร์โทร กลุ่มสาระ
+      let t = DB.teachers.find(x => normalizeName(x.name) === key) || (email ? DB.teachers.find(x => x.email && String(x.email).toLowerCase() === email.toLowerCase()) : null);
+      const isNew = !t; let changed = false;
+      if (isNew) { t = { id: uid('teacher'), name: name, email: email, phone: phone, learningArea: area, homeroomClassId: '', roles: ix.roles >= 0 ? teacherRolesFromText(row[ix.roles]) : ['teacher'] }; DB.teachers.push(t); added++; }
+      else {
+        if (!t.email && email) { t.email = email; changed = true; }
+        if (!t.phone && phone) { t.phone = phone; changed = true; }
+        if (!teacherArea(t) && area) { t.learningArea = area; changed = true; }
+      }
+      if (roomName) {
+        const cls = DB.classes.find(c => c.name === roomName);
+        if (!cls) note('ยังไม่มีห้อง “' + roomName + '” ในระบบ — นำเข้าตารางสอนก่อนแล้วนำเข้าไฟล์นี้ซ้ำ');
+        else if (t.homeroomClassId === cls.id) { /* ผูกไว้อยู่แล้ว ไม่ต้องทำอะไร */ }
+        else if (t.homeroomClassId) note('มีห้องที่ปรึกษาเดิมอยู่แล้ว: ' + ((DB.classes.find(c => c.id === t.homeroomClassId) || {}).name || '') + ' ระบบจึงไม่เปลี่ยนให้');
+        else if (DB.teachers.filter(x => x.id !== t.id && x.homeroomClassId === cls.id).length >= 2) note('ห้อง ' + roomName + ' มีครูที่ปรึกษาครบ 2 คนแล้ว');
+        else { t.homeroomClassId = cls.id; homerooms++; changed = true; }
+      }
+      if (!isNew && changed) updated++;
     });
     if (!DB.ui.teacherId && DB.teachers[0]) DB.ui.teacherId = DB.teachers[0].id; save(true); render();
-    toast('นำเข้าครูใหม่ ' + added + ' คน' + (duplicates.length ? ' • ข้ามชื่อซ้ำ ' + duplicates.length : '') + (skippedRooms ? ' • ห้องเต็ม 2 คน ' + skippedRooms : ''), duplicates.length ? 'warn' : 'ok');
-    duplicateReport('รายชื่อครูที่มีอยู่แล้วในระบบ', ['แถวในไฟล์', 'ชื่อครู', 'อีเมล', 'สาเหตุ'], duplicates);
+    toast('เพิ่มครูใหม่ ' + added + ' คน • อัปเดตข้อมูลเดิม ' + updated + ' คน • ผูกห้องที่ปรึกษา ' + homerooms + ' ห้อง' + (attention.length ? ' • ต้องตรวจสอบ ' + attention.length : ''), attention.length ? 'warn' : 'ok');
+    duplicateReport('รายการที่ต้องตรวจสอบ', ['แถวในไฟล์', 'ชื่อครู', 'ห้องที่ปรึกษา', 'สาเหตุ'], attention,
+      'มี {n} รายการที่ระบบ <b>ไม่ได้เปลี่ยนให้</b> เพื่อไม่ทับข้อมูลเดิม ตรวจสอบแล้วแก้ในศูนย์จัดการระบบได้');
   } catch (e) { toast('นำเข้าไม่สำเร็จ: ' + e.message, 'bad'); }
 }
 
