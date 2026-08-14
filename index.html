@@ -4893,7 +4893,7 @@ async function importTeachersExcel() {
 }
 
 function downloadMultiTeacherTimetableTemplate() {
-  const period = curPeriod() || { academicYear: '', semester: '' }, header = ['ปีการศึกษา', 'ภาคเรียน', 'อีเมลครู', 'ชื่อครู', 'เบอร์โทร', 'วัน', 'คาบ', 'รหัสวิชา', 'ชื่อวิชา', 'ห้องเรียน', 'สถานที่'];
+  const period = curPeriod() || { academicYear: '', semester: '' }, header = ['ปีการศึกษา', 'ภาคเรียน', 'อีเมลครู', 'ชื่อครู', 'เบอร์โทร', 'กลุ่มสาระ', 'วัน', 'คาบ', 'รหัสวิชา', 'ชื่อวิชา', 'ห้องเรียน', 'สถานที่'];
   const teacherRows = DB.teachers.map(t => [t.email || '', t.name || '', t.phone || '']);
   const subjectRows = DB.subjects.map(s => [s.code || '', s.name || '', (s.gradeLevels || []).join(', ')]);
   const classRows = DB.classes.map(c => [c.name || '', (c.students || []).length]);
@@ -4902,12 +4902,13 @@ function downloadMultiTeacherTimetableTemplate() {
   referenceRows.push(...(subjectRows.length ? subjectRows : [['—', 'ยังไม่มีรายวิชา', '']]));
   referenceRows.push([], [{ v: 'ห้องเรียนในระบบ', s: 1 }, { v: '', s: 1 }], [{ v: 'ชื่อห้อง', s: 1 }, { v: 'จำนวนนักเรียน', s: 1 }]);
   referenceRows.push(...(classRows.length ? classRows : [['ยังไม่มีห้องเรียน', 0]]));
+  referenceRows.push([], [{ v: 'กลุ่มสาระ/กลุ่มงานที่ใช้ได้', s: 1 }], ...LEARNING_AREAS.map(a => [a]));
   const sheets = [
-    { name: 'ตารางสอน', cols: [13, 11, 28, 24, 14, 13, 10, 15, 28, 15, 20], freeze: { rows: 1 }, rows: [[...header.map(v => ({ v: v, s: 1 }))]] },
-    { name: 'ตัวอย่าง', cols: [13, 11, 28, 24, 14, 13, 10, 15, 28, 15, 20], freeze: { rows: 1 }, rows: [[...header.map(v => ({ v: v, s: 1 }))],
-      [period.academicYear, period.semester, 'teacher1@school.ac.th', 'นายสมชาย ใจดี', '0812345678', 'จันทร์', 1, 'ว31101', 'วิทยาศาสตร์พื้นฐาน', 'ม.4/4', 'ห้อง 324'],
-      [period.academicYear, period.semester, 'teacher1@school.ac.th', 'นายสมชาย ใจดี', '0812345678', 'จันทร์', 2, 'ว31101', 'วิทยาศาสตร์พื้นฐาน', 'ม.4/4', 'ห้อง 324'],
-      [period.academicYear, period.semester, 'teacher2@school.ac.th', 'นางสาวสุดา ขยัน', '0899999999', 'อังคาร', 3, 'ค31101', 'คณิตศาสตร์พื้นฐาน', 'ม.4/4', 'ห้อง 324']] },
+    { name: 'ตารางสอน', cols: [13, 11, 28, 24, 14, 30, 13, 10, 15, 28, 15, 20], freeze: { rows: 1 }, rows: [[...header.map(v => ({ v: v, s: 1 }))]] },
+    { name: 'ตัวอย่าง', cols: [13, 11, 28, 24, 14, 30, 13, 10, 15, 28, 15, 20], freeze: { rows: 1 }, rows: [[...header.map(v => ({ v: v, s: 1 }))],
+      [period.academicYear, period.semester, 'teacher1@school.ac.th', 'นายสมชาย ใจดี', '0812345678', 'วิทยาศาสตร์และเทคโนโลยี', 'จันทร์', 1, 'ว31101', 'วิทยาศาสตร์พื้นฐาน', 'ม.4/4', 'ห้อง 324'],
+      [period.academicYear, period.semester, 'teacher1@school.ac.th', 'นายสมชาย ใจดี', '0812345678', 'วิทยาศาสตร์และเทคโนโลยี', 'จันทร์', 2, 'ว31101', 'วิทยาศาสตร์พื้นฐาน', 'ม.4/4', 'ห้อง 324'],
+      [period.academicYear, period.semester, 'teacher2@school.ac.th', 'นางสาวสุดา ขยัน', '0899999999', 'คณิตศาสตร์', 'อังคาร', 3, 'ค31101', 'คณิตศาสตร์พื้นฐาน', 'ม.4/4', 'ห้อง 324']] },
     { name: 'คำแนะนำ', cols: [9, 105], rows: [[{ v: 'ลำดับ', s: 1 }, { v: 'วิธีเตรียมข้อมูล', s: 1 }],
       [1, 'กรอกข้อมูลในชีต “ตารางสอน” เท่านั้น โดยหนึ่งแถวเท่ากับหนึ่งคาบของครูหนึ่งคน'],
       [2, 'ใช้ “อีเมลครู” เป็นรหัสหลักเพื่อลดปัญหาครูชื่อซ้ำ หากไม่มีอีเมล ระบบจะเทียบจากชื่อครู'],
@@ -4919,7 +4920,8 @@ function downloadMultiTeacherTimetableTemplate() {
       [8, 'หนึ่งห้องไม่ควรมีครูมากกว่าหนึ่งคนในวันและคาบเดียวกัน เว้นแต่โรงเรียนตั้งใจให้สอนร่วมกัน'],
       [9, 'ปีการศึกษาและภาคเรียนต้องตรงกับปี/ภาคที่เลือกในระบบ'],
       [10, 'ก่อนนำเข้าจริง ระบบจะแสดงตัวอย่าง แถวผิดพลาด และรายการข้อมูลที่ต้องสร้างใหม่ให้ตรวจสอบก่อน'],
-      [11, 'เบอร์โทรไม่บังคับ แต่ถ้ากรอกไว้ ระบบจะเติมให้ครูที่ยังไม่มีเบอร์ และแสดงปุ่มกดโทรให้ครูที่จับคู่กันตอนแลกคาบ/สอนแทน (ไม่ทับเบอร์เดิมที่แก้ไว้ในระบบ)']] },
+      [11, 'เบอร์โทรไม่บังคับ แต่ถ้ากรอกไว้ ระบบจะเติมให้ครูที่ยังไม่มีเบอร์ และแสดงปุ่มกดโทรให้ครูที่จับคู่กันตอนแลกคาบ/สอนแทน (ไม่ทับเบอร์เดิมที่แก้ไว้ในระบบ)'],
+      [12, 'กลุ่มสาระไม่บังคับ แต่ถ้ากรอกไว้ ระบบจะใช้จัดอันดับ “ขอสอนแทน • กลุ่มสาระเดียวกัน” ให้แม่นขึ้น ชื่อที่ใช้ได้อยู่ในชีต “ข้อมูลอ้างอิง”']] },
     { name: 'ข้อมูลอ้างอิง', cols: [30, 30, 22], rows: referenceRows }
   ];
   download(buildXlsx(sheets), 'แม่แบบนำเข้าตารางสอนครูหลายคน_ปี' + String(period.academicYear || '') + '_ภาค' + String(period.semester || '') + '.xlsx');
@@ -4942,12 +4944,12 @@ function normalizeImportHeader(value) { return String(value || '').toLowerCase()
 function analyzeTimetableImport(rows) {
   if (!rows || rows.length < 2) throw new Error('ไม่พบข้อมูลในชีต “ตารางสอน”');
   const headers = rows[0].map(normalizeImportHeader), col = names => headers.findIndex(h => names.some(n => h.includes(normalizeImportHeader(n))));
-  const ix = { year: col(['ปีการศึกษา','ปี']), semester: col(['ภาคเรียน','ภาค']), email: col(['อีเมลครู','email']), teacher: col(['ชื่อครู','ครูผู้สอน','teacher']), phone: col(['เบอร์โทร','โทรศัพท์','phone']), day: col(['วัน','day']), slot: col(['คาบ','period','slot']), code: col(['รหัสวิชา','subjectcode']), subject: col(['ชื่อวิชา','รายวิชา','subjectname']), className: col(['ห้องเรียน','ชั้นเรียน','class']), room: col(['สถานที่','ห้องสอน','room']) };
+  const ix = { year: col(['ปีการศึกษา','ปี']), semester: col(['ภาคเรียน','ภาค']), email: col(['อีเมลครู','email']), teacher: col(['ชื่อครู','ครูผู้สอน','teacher']), phone: col(['เบอร์โทร','โทรศัพท์','phone']), area: col(['กลุ่มสาระ','กลุ่มงาน','learningarea']), day: col(['วัน','day']), slot: col(['คาบ','period','slot']), code: col(['รหัสวิชา','subjectcode']), subject: col(['ชื่อวิชา','รายวิชา','subjectname']), className: col(['ห้องเรียน','ชั้นเรียน','class']), room: col(['สถานที่','ห้องสอน','room']) };
   const required = [['ชื่อครู/อีเมลครู', ix.teacher >= 0 || ix.email >= 0], ['วัน', ix.day >= 0], ['คาบ', ix.slot >= 0], ['รหัสวิชา/ชื่อวิชา', ix.code >= 0 || ix.subject >= 0], ['ห้องเรียน', ix.className >= 0]];
   const missing = required.filter(x => !x[1]).map(x => x[0]); if (missing.length) throw new Error('ขาดคอลัมน์สำคัญ: ' + missing.join(', '));
   const period = curPeriod(), seen = new Set();
   return rows.slice(1).map((row, index) => {
-    const get = i => i >= 0 ? String(row[i] == null ? '' : row[i]).trim() : '', item = { rowNo: index + 2, year: get(ix.year), semester: get(ix.semester), email: get(ix.email).toLowerCase(), teacherName: get(ix.teacher), phone: get(ix.phone), day: timetableImportDay(get(ix.day)), slotId: timetableImportSlot(get(ix.slot)), code: get(ix.code), subjectName: get(ix.subject), className: get(ix.className), room: get(ix.room), errors: [], warnings: [] };
+    const get = i => i >= 0 ? String(row[i] == null ? '' : row[i]).trim() : '', item = { rowNo: index + 2, year: get(ix.year), semester: get(ix.semester), email: get(ix.email).toLowerCase(), teacherName: get(ix.teacher), phone: get(ix.phone), learningArea: ix.area >= 0 ? learningAreaFromText(get(ix.area)) : '', day: timetableImportDay(get(ix.day)), slotId: timetableImportSlot(get(ix.slot)), code: get(ix.code), subjectName: get(ix.subject), className: get(ix.className), room: get(ix.room), errors: [], warnings: [] };
     if (!item.email && !item.teacherName) item.errors.push('ไม่มีชื่อหรืออีเมลครู'); if (!item.day) item.errors.push('วันไม่ถูกต้อง'); if (!item.slotId) item.errors.push('คาบไม่ถูกต้อง'); if (!item.code && !item.subjectName) item.errors.push('ไม่มีรายวิชา'); if (!item.className) item.errors.push('ไม่มีห้องเรียน');
     if (period && item.year && String(item.year) !== String(period.academicYear)) item.errors.push('ปีการศึกษาไม่ตรงกับที่เลือก'); if (period && item.semester && String(item.semester) !== String(period.semester)) item.errors.push('ภาคเรียนไม่ตรงกับที่เลือก');
     const teacher = DB.teachers.find(t => item.email && String(t.email || '').toLowerCase() === item.email) || DB.teachers.find(t => item.teacherName && t.name === item.teacherName), subject = DB.subjects.find(s => item.code && String(s.code || '').toLowerCase() === item.code.toLowerCase()) || DB.subjects.find(s => item.subjectName && s.name === item.subjectName), cls = DB.classes.find(c => c.name === item.className);
@@ -4959,17 +4961,18 @@ function analyzeTimetableImport(rows) {
 }
 
 function commitTimetableImport(items, autoCreate, conflictMode) {
-  let added = 0, updated = 0, skipped = 0, createdTeachers = 0, createdSubjects = 0, createdClasses = 0, conflicts = 0, filledPhones = 0;
+  let added = 0, updated = 0, skipped = 0, createdTeachers = 0, createdSubjects = 0, createdClasses = 0, conflicts = 0, filledPhones = 0, filledAreas = 0;
   items.forEach(item => {
     if (item.errors.length) { skipped++; return; }
     let teacher = DB.teachers.find(t => item.email && String(t.email || '').toLowerCase() === item.email) || DB.teachers.find(t => item.teacherName && t.name === item.teacherName);
     let subject = DB.subjects.find(s => item.code && String(s.code || '').toLowerCase() === item.code.toLowerCase()) || DB.subjects.find(s => item.subjectName && s.name === item.subjectName);
     let cls = DB.classes.find(c => c.name === item.className);
     if ((!teacher || !subject || !cls) && !autoCreate) { skipped++; return; }
-    if (!teacher) { teacher = { id: uid('teacher'), name: item.teacherName || item.email, email: item.email, phone: item.phone || '', homeroomClassId: '', roles: ['teacher'] }; DB.teachers.push(teacher); createdTeachers++; if (item.phone) filledPhones++; }
+    if (!teacher) { teacher = { id: uid('teacher'), name: item.teacherName || item.email, email: item.email, phone: item.phone || '', learningArea: item.learningArea || '', homeroomClassId: '', roles: ['teacher'] }; DB.teachers.push(teacher); createdTeachers++; if (item.phone) filledPhones++; if (item.learningArea) filledAreas++; }
     else { if (!teacher.email && item.email) teacher.email = item.email; if (!teacher.name && item.teacherName) teacher.name = item.teacherName;
-      // เบอร์โทรจากไฟล์ใช้เติมเฉพาะครูที่ยังไม่มีเบอร์ เพื่อไม่ทับข้อมูลที่แก้ไว้ในระบบ
-      if (!teacher.phone && item.phone) { teacher.phone = item.phone; filledPhones++; } }
+      // เบอร์โทรและกลุ่มสาระจากไฟล์ใช้เติมเฉพาะครูที่ยังไม่มีข้อมูล เพื่อไม่ทับที่แก้ไว้ในระบบ
+      if (!teacher.phone && item.phone) { teacher.phone = item.phone; filledPhones++; }
+      if (!teacherArea(teacher) && item.learningArea) { teacher.learningArea = item.learningArea; filledAreas++; } }
     if (!cls) { cls = { id: uid('c'), name: item.className, students: [] }; DB.classes.push(cls); createdClasses++; }
     if (!subject) { subject = { id: uid('s'), code: item.code, name: item.subjectName || item.code, gradeLevels: classLevel(cls.name) ? [classLevel(cls.name)] : [] }; DB.subjects.push(subject); createdSubjects++; }
     else { if (!subject.code && item.code) subject.code = item.code; if (!subject.name && item.subjectName) subject.name = item.subjectName; }
@@ -4983,7 +4986,7 @@ function commitTimetableImport(items, autoCreate, conflictMode) {
   });
   if (!DB.ui.teacherId && DB.teachers[0]) DB.ui.teacherId = DB.teachers[0].id;
   save(true); render();
-  return { added: added, updated: updated, skipped: skipped, conflicts: conflicts, createdTeachers: createdTeachers, createdSubjects: createdSubjects, createdClasses: createdClasses, filledPhones: filledPhones };
+  return { added: added, updated: updated, skipped: skipped, conflicts: conflicts, createdTeachers: createdTeachers, createdSubjects: createdSubjects, createdClasses: createdClasses, filledPhones: filledPhones, filledAreas: filledAreas };
 }
 
 async function importMultiTeacherTimetableExcel() {
@@ -4995,8 +4998,8 @@ async function importMultiTeacherTimetableExcel() {
       '<div class="statgrid"><div class="stat"><div class="v">' + items.length + '</div><div class="k">แถวทั้งหมด</div></div><div class="stat"><div class="v">' + valid.length + '</div><div class="k">รูปแบบถูกต้อง</div></div><div class="stat"><div class="v">' + invalid + '</div><div class="k">แถวผิดพลาด</div></div><div class="stat"><div class="v">' + needsCreate + '</div><div class="k">มีข้อมูลที่ต้องสร้าง</div></div></div>' +
       '<div class="notice" style="margin-top:12px"><b>กฎความปลอดภัย:</b> ระบบจะไม่ให้ครูหนึ่งคนสอนสองห้องในคาบเดียวกัน และจะข้ามแถวที่ชนกับครูคนอื่นในห้องเดียวกัน</div>' +
       '<div class="grid2" style="margin-top:12px"><label class="notice"><input type="checkbox" id="ttImportCreate"> สร้างครู รายวิชา และห้องที่ยังไม่มีอัตโนมัติ</label><div class="pick"><label>เมื่อครูมีคาบนี้อยู่แล้ว</label><select id="ttImportConflict"><option value="update">อัปเดตวิชา/ห้อง/สถานที่จากไฟล์</option><option value="skip">ข้ามข้อมูลเดิม</option></select></div></div>' +
-      '<div class="tablewrap tall" style="margin-top:12px"><table><thead><tr><th>แถว</th><th>ครู</th><th>วัน/คาบ</th><th>วิชา</th><th>ห้อง</th><th>ผลตรวจ</th></tr></thead><tbody>' + (items.length ? items.slice(0, 250).map(x => '<tr><td>' + x.rowNo + '</td><td><b>' + esc(x.teacherName || '—') + '</b><br><span class="hint">' + esc([x.email, x.phone].filter(Boolean).join(' • ')) + '</span></td><td>' + esc((SCHOOL_DAYS.find(d => d.value === x.day) || {}).label || '—') + ' / ' + esc(x.slotId === 'assembly' ? 'เข้าแถว' : 'คาบ ' + x.slotId) + '</td><td>' + esc((x.code ? x.code + ' ' : '') + x.subjectName) + '</td><td>' + esc(x.className) + '</td><td>' + (x.errors.length ? '<span class="badge bad">' + esc(x.errors.join(' • ')) + '</span>' : x.warnings.length ? '<span class="badge warn">' + esc(x.warnings.join(' • ')) + '</span>' : '<span class="badge ok">พร้อมนำเข้า</span>') + '</td></tr>').join('') : '<tr><td colspan="6"><div class="empty">ไม่พบแถวข้อมูล</div></td></tr>') + '</tbody></table></div>' + (items.length > 250 ? '<div class="hint">แสดงตัวอย่าง 250 แถวแรกจากทั้งหมด ' + items.length + ' แถว</div>' : ''),
-      buttons: [{ label: 'ยกเลิก' }, { label: 'นำเข้าข้อมูลที่ผ่าน', cls: 'primary', act(close, root) { if (!valid.length) return toast('ไม่มีแถวที่พร้อมนำเข้า', 'bad'); const result = commitTimetableImport(items, $('#ttImportCreate', root).checked, $('#ttImportConflict', root).value); close(); toast('นำเข้าแล้ว: เพิ่ม ' + result.added + ' • อัปเดต ' + result.updated + ' • ข้าม ' + result.skipped + (result.conflicts ? ' • ห้องชนกัน ' + result.conflicts : '') + (result.filledPhones ? ' • เติมเบอร์โทร ' + result.filledPhones : '') + (result.createdTeachers + result.createdSubjects + result.createdClasses ? ' • สร้างครู/วิชา/ห้อง ' + result.createdTeachers + '/' + result.createdSubjects + '/' + result.createdClasses : ''), 'ok'); } }]
+      '<div class="tablewrap tall" style="margin-top:12px"><table><thead><tr><th>แถว</th><th>ครู</th><th>วัน/คาบ</th><th>วิชา</th><th>ห้อง</th><th>ผลตรวจ</th></tr></thead><tbody>' + (items.length ? items.slice(0, 250).map(x => '<tr><td>' + x.rowNo + '</td><td><b>' + esc(x.teacherName || '—') + '</b><br><span class="hint">' + esc([x.email, x.phone, x.learningArea].filter(Boolean).join(' • ')) + '</span></td><td>' + esc((SCHOOL_DAYS.find(d => d.value === x.day) || {}).label || '—') + ' / ' + esc(x.slotId === 'assembly' ? 'เข้าแถว' : 'คาบ ' + x.slotId) + '</td><td>' + esc((x.code ? x.code + ' ' : '') + x.subjectName) + '</td><td>' + esc(x.className) + '</td><td>' + (x.errors.length ? '<span class="badge bad">' + esc(x.errors.join(' • ')) + '</span>' : x.warnings.length ? '<span class="badge warn">' + esc(x.warnings.join(' • ')) + '</span>' : '<span class="badge ok">พร้อมนำเข้า</span>') + '</td></tr>').join('') : '<tr><td colspan="6"><div class="empty">ไม่พบแถวข้อมูล</div></td></tr>') + '</tbody></table></div>' + (items.length > 250 ? '<div class="hint">แสดงตัวอย่าง 250 แถวแรกจากทั้งหมด ' + items.length + ' แถว</div>' : ''),
+      buttons: [{ label: 'ยกเลิก' }, { label: 'นำเข้าข้อมูลที่ผ่าน', cls: 'primary', act(close, root) { if (!valid.length) return toast('ไม่มีแถวที่พร้อมนำเข้า', 'bad'); const result = commitTimetableImport(items, $('#ttImportCreate', root).checked, $('#ttImportConflict', root).value); close(); toast('นำเข้าแล้ว: เพิ่ม ' + result.added + ' • อัปเดต ' + result.updated + ' • ข้าม ' + result.skipped + (result.conflicts ? ' • ห้องชนกัน ' + result.conflicts : '') + (result.filledPhones ? ' • เติมเบอร์โทร ' + result.filledPhones : '') + (result.filledAreas ? ' • เติมกลุ่มสาระ ' + result.filledAreas : '') + (result.createdTeachers + result.createdSubjects + result.createdClasses ? ' • สร้างครู/วิชา/ห้อง ' + result.createdTeachers + '/' + result.createdSubjects + '/' + result.createdClasses : ''), 'ok'); } }]
     });
   } catch (e) { toast('นำเข้าตารางสอนไม่สำเร็จ: ' + (e.message || e), 'bad'); }
 }
