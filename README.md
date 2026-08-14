@@ -17,7 +17,8 @@
 
 ## การเผยแพร่
 
-เชื่อม repo นี้กับ Netlify ไว้แล้ว — **push ขึ้น GitHub แล้วเว็บอัปเดตเอง** ไม่ต้องลากไฟล์
+เว็บอยู่ที่ **https://boydzii.github.io/gradebook-pakchong/** (GitHub Pages)
+**push ขึ้น GitHub แล้วเว็บอัปเดตเองภายใน 1–2 นาที** ไม่ต้องอัปโหลดไฟล์
 
 ```bash
 git add -A
