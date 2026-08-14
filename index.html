@@ -225,7 +225,6 @@ td.num,th.num{text-align:center}
 .alert-list{display:grid;gap:7px;max-height:280px;overflow:auto}
 .alert-item{display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel)}
 .master-tools{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
-.cloud-status{padding:10px 12px;border-radius:9px;background:var(--panel2);border:1px solid var(--line)}
 .level-tag{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;background:var(--brandSoft);color:var(--brand);font-size:11px;font-weight:800;white-space:nowrap}
 .student-portal{position:fixed;inset:0;z-index:90;background:var(--bg);color:var(--ink);overflow:auto}
 .student-portal[hidden]{display:none}
@@ -526,7 +525,6 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
   <button class="sm" id="btnSearch" title="ค้นหานักเรียนทุกห้อง (Ctrl+K)">⌕ ค้นหานักเรียน</button>
   <button class="sm" id="btnTheme" title="สลับโหมดสี">◐</button>
   <button class="sm" id="btnCourseInfo">ข้อมูล ปพ.5</button>
-  <button class="sm" id="btnCloud">Google / ออนไลน์</button>
   <button class="sm" id="btnStudentPortal">นักเรียนเข้าสู่ระบบ</button>
   <button class="sm" id="btnStaffLogout">ออกจากระบบ</button>
   <button class="sm" id="btnFullscreen">ขยายเต็มหน้าจอ</button>
@@ -1095,7 +1093,7 @@ function defaultSettings() {
 function defaultDB() {
   return { version: 8, settings: defaultSettings(), periods: [], classes: [], subjects: [], teachers: [], books: {},
     studentMaster: [], studentAccounts: {}, timetable: defaultTimetable(),
-    cloud: { clientId: PUBLIC_GOOGLE_CLIENT_ID, spreadsheetId: '', folderId: '', backupFileId: '', accountEmail: '', autoSync: false, lastSync: '' },
+    cloud: { clientId: PUBLIC_GOOGLE_CLIENT_ID, accountEmail: '', staffApiUrl: '', staffToken: '' },
     ui: { periodId: null, classId: null, subjectId: null, teacherId: null, staffMode: 'teacher', tab: 'dashboard' } };
 }
 function defaultBook() {
@@ -1148,8 +1146,10 @@ function loadDB() {
   });
   DB.timetable.terms = DB.timetable.terms || {};
   DB.timetable.attendance = DB.timetable.attendance || {};
-  DB.cloud = Object.assign({ clientId: PUBLIC_GOOGLE_CLIENT_ID, spreadsheetId: '', folderId: '', backupFileId: '', accountEmail: '', autoSync: false, lastSync: '', staffApiUrl: '', staffToken: '' }, DB.cloud || {});
+  DB.cloud = Object.assign({ clientId: PUBLIC_GOOGLE_CLIENT_ID, accountEmail: '', staffApiUrl: '', staffToken: '' }, DB.cloud || {});
   if (!DB.cloud.clientId && PUBLIC_GOOGLE_CLIENT_ID) DB.cloud.clientId = PUBLIC_GOOGLE_CLIENT_ID;
+  // เลิกใช้โหมดซิงก์ Google Sheet/Drive แล้ว ลบค่าที่ค้างอยู่ในเครื่องเดิมทิ้ง
+  ['spreadsheetId', 'folderId', 'backupFileId', 'autoSync', 'lastSync'].forEach(k => delete DB.cloud[k]);
   DB.ui.attendanceDate = DB.ui.attendanceDate || todayISO();
   if (!DB.teachers.some(t => t.id === DB.ui.teacherId)) DB.ui.teacherId = DB.teachers[0] ? DB.teachers[0].id : null;
   const legacyTeacherId = DB.ui.teacherId || (DB.teachers[0] && DB.teachers[0].id) || '';
@@ -1185,7 +1185,6 @@ function save(immediate) {
       el.textContent = '✓ บันทึกแล้ว'; el.classList.add('on');
       clearTimeout(saveFlash);
       saveFlash = setTimeout(() => { el.textContent = ''; el.classList.remove('on'); }, 1600);
-      if (DB.cloud && DB.cloud.autoSync && googleAccessToken) queueCloudSync();
     } catch (e) {
       storageOK = false;
       renderStorageWarn();
@@ -1603,7 +1602,7 @@ function renderDashboard() {
   const atRisk = rows.filter(x => x.att.atRisk).length;
   const assessPending = book ? students.filter(st => assessmentResult((book.assessments.traits || {})[st.sid] || [], assessmentConfig('traits')).level === null || assessmentResult((book.assessments.reading || {})[st.sid] || [], assessmentConfig('reading')).level === null).length : students.length;
   const average = rows.length ? rows.reduce((n, x) => n + x.r.total, 0) / rows.length : 0;
-  const setup = [!!DB.settings.schoolName, DB.classes.length > 0, DB.subjects.length > 0, DB.classes.some(c => (c.students || []).length), scheduleEntries().length > 0, !!(currentTerm(false) && currentTerm(false).openDate), !!(book && book.items.length), !!DB.cloud.spreadsheetId];
+  const setup = [!!DB.settings.schoolName, DB.classes.length > 0, DB.subjects.length > 0, DB.classes.some(c => (c.students || []).length), scheduleEntries().length > 0, !!(currentTerm(false) && currentTerm(false).openDate), !!(book && book.items.length), firebaseReady() && fbSignedIn()];
   const setupPct = Math.round(setup.filter(Boolean).length * 100 / setup.length);
   const hour = new Date().getHours(), greeting = hour < 12 ? 'สวัสดีตอนเช้า' : hour < 17 ? 'สวัสดีตอนบ่าย' : 'สวัสดีตอนเย็น';
   const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
@@ -1626,7 +1625,7 @@ function renderDashboard() {
       (todayEntries.length ? todayEntries.map(e => { const slot = DB.timetable.slots.find(s => s.id === String(e.slotId)), subject = subjectOf(e), c = classOf(e); const current = slot && nowMin >= timeToMinutes(slot.start) && nowMin <= timeToMinutes(slot.end); const checked = !!DB.timetable.attendance[attendanceKey(e.id, today)]; return '<div class="today-card' + (current ? ' current' : '') + '"><div class="today-time"><b>' + esc(slot ? slot.label : '') + '</b>' + esc(slot ? slot.start + '-' + slot.end : '') + '</div><div><b>' + esc((subject.code ? subject.code + ' ' : '') + subject.name) + '</b><div class="hint">' + esc(c.name) + (e.room ? ' • ' + esc(e.room) : '') + '</div></div><div class="spacer"></div>' + (checked ? '<span class="badge ok">เช็กแล้ว</span>' : '<button class="sm primary" data-dash-att="' + e.id + '">เช็กชื่อ</button>') + '</div>'; }).join('') : '<div class="empty">วันนี้ไม่มีคาบสอนในตาราง</div>') + '</div></div>' +
       '<div class="card"><h3>ทางลัดงานประจำ</h3><div class="quick-grid"><button class="quick-action" data-go-tab="scores">✎<b>กรอกคะแนน</b><span>คะแนนเก็บ สอบ และซ่อม</span></button><button class="quick-action" data-go-tab="attendance">◷<b>เช็กเวลาเรียน</b><span>คาบประจำ แลกคาบ สอนแทน และชดเชย</span></button><button class="quick-action" data-go-tab="groups">◉<b>จัดกลุ่มเรียนรู้</b><span>กลุ่มและผู้นำเสนอ</span></button><button class="quick-action" data-go-tab="summary">▤<b>สรุป ปพ.5</b><span>เกรด เวลาเรียน และส่งออก</span></button></div></div></div>' +
       '<div><div class="card"><h3>ผู้ช่วยแนะนำงาน</h3><div class="insight-list">' + insights.map(i => '<button class="insight-item" data-go-tab="' + i.tab + '" style="text-align:left;width:100%"><span class="insight-dot" style="--insight:' + i.color + '"></span><span>' + esc(i.text) + '</span><span class="spacer"></span><span>›</span></button>').join('') + '</div></div>' +
-      '<div class="card"><div class="row"><h3 style="margin:0">ความพร้อมของระบบ</h3><div class="spacer"></div><b>' + setupPct + '%</b></div><div class="setup-progress"><i style="width:' + setupPct + '%"></i></div><div class="hint">สถานศึกษา • ห้อง • วิชา • รายชื่อ • ตารางสอน • ปฏิทิน • หัวข้อคะแนน • Google</div><button class="sm" data-go-tab="settings" style="margin-top:9px">ตรวจสอบการตั้งค่า</button></div></div></div>' + exchangeRequestCard();
+      '<div class="card"><div class="row"><h3 style="margin:0">ความพร้อมของระบบ</h3><div class="spacer"></div><b>' + setupPct + '%</b></div><div class="setup-progress"><i style="width:' + setupPct + '%"></i></div><div class="hint">สถานศึกษา • ห้อง • วิชา • รายชื่อ • ตารางสอน • ปฏิทิน • หัวข้อคะแนน • ฐานข้อมูลกลาง</div><button class="sm" data-go-tab="settings" style="margin-top:9px">ตรวจสอบการตั้งค่า</button></div></div></div>' + exchangeRequestCard();
 
   $$('[data-go-tab]', pane).forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.goTab)));
   $$('[data-dash-att]', pane).forEach(btn => btn.addEventListener('click', () => { const e = todayEntries.find(x => x.id === btn.dataset.dashAtt); if (e) openAttendance(e, today); }));
@@ -5243,7 +5242,7 @@ function renderSettings() {
     return '<tr><td><b>' + esc(c.name) + '</b></td><td>' + (names.length ? names.map(n => '<span class="level-tag">' + esc(n) + '</span>').join(' ') : '<span class="hint">ยังไม่มีครูที่ปรึกษา</span>') + ' <span class="hint">(' + names.length + '/2)</span></td></tr>';
   }).join('');
   pane.innerHTML = '<div class="card"><div class="row"><h3 style="margin:0">ตั้งค่าระบบและเอกสาร ปพ.5</h3><div class="spacer"></div>' +
-    '<button id="settingsCourse"' + (ready() ? '' : ' disabled') + '>ข้อมูลรายวิชา ปพ.5</button><button id="settingsCloud">Google / ออนไลน์</button><button class="primary" id="settingsSave">บันทึกการตั้งค่า</button></div></div>' +
+    '<button id="settingsCourse"' + (ready() ? '' : ' disabled') + '>ข้อมูลรายวิชา ปพ.5</button><button class="primary" id="settingsSave">บันทึกการตั้งค่า</button></div></div>' +
     '<div class="card"><div class="row"><div><h3 style="margin:0">โปรไฟล์ครูและห้อง HomeRoom</h3><div class="hint">ห้องหนึ่งมีครูที่ปรึกษาได้ 1–2 คน ระบบใช้โปรไฟล์ระบุผู้บันทึกเวลาเรียน</div></div><div class="spacer"></div><button id="teacherTemplate">แม่แบบ Excel</button><button id="importTeacherProfile">นำเข้าครู</button><button id="addTeacherProfile">+ เพิ่มโปรไฟล์ครู</button><button class="danger" id="deleteTeacherProfile"' + (teacher ? '' : ' disabled') + '>ลบโปรไฟล์</button></div>' +
       '<div class="grid2" style="margin-top:12px"><div class="pick"><label>ผู้ใช้งานปัจจุบัน</label><select id="setTeacherProfile">' + teacherOpts + '</select></div>' +
       '<div class="pick"><label>ชื่อครู</label><input id="setTeacherName" value="' + esc(teacher ? teacher.name || '' : '') + '"' + (teacher ? '' : ' disabled') + '></div>' +
@@ -5288,7 +5287,6 @@ function renderSettings() {
   };
   $('#settingsSave').addEventListener('click', saveSettings);
   $('#settingsCourse').addEventListener('click', editCourseInfo);
-  $('#settingsCloud').addEventListener('click', openCloudSettings);
   $('#teacherTemplate').addEventListener('click', downloadTeacherTemplate);
   $('#importTeacherProfile').addEventListener('click', importTeachersExcel);
   $('#setTeacherProfile').addEventListener('change', e => {
@@ -5540,12 +5538,10 @@ function renderActivities() {
 }
 
 /* ============================================================================
-   13) Google Login / Google Sheets / Google Drive
+   13) Google Login
    ========================================================================== */
 let googleAccessToken = '';
-let cloudSyncTimer = null;
-let cloudSyncBusy = false;
-const GOOGLE_SCOPES = 'openid email profile https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets';
+const GOOGLE_SCOPES = 'openid email profile';
 /* การเข้าสู่ระบบด้วยบัญชีโรงเรียนต้องการแค่การยืนยันตัวตน ไม่ต้องขอสิทธิ์ Drive/Sheets
    จึงตั้งค่าใน Google Cloud ง่ายกว่า และหน้าขออนุญาตของครูก็สั้นลง */
 const GOOGLE_SCOPES_IDENTITY = 'openid email profile';
@@ -6008,150 +6004,6 @@ function googleLogout() {
   googleAccessToken = ''; googleIdentityToken = '';
 }
 
-async function createCloudStorage() {
-  await googleLogin();
-  const folder = await cloudApi('https://www.googleapis.com/drive/v3/files?fields=id,name', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: 'สมุดคะแนนออนไลน์', mimeType: 'application/vnd.google-apps.folder' })
-  });
-  const title = (DB.settings.schoolName ? DB.settings.schoolName + ' - ' : '') + 'สมุดคะแนนออนไลน์';
-  const sheet = await cloudApi('https://sheets.googleapis.com/v4/spreadsheets', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ properties: { title: title }, sheets: ['Data', 'Students', 'Schedule', 'Attendance'].map(t => ({ properties: { title: t } })) })
-  });
-  await cloudApi('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(sheet.spreadsheetId) + '?addParents=' + encodeURIComponent(folder.id) + '&fields=id,parents', { method: 'PATCH' });
-  DB.cloud.folderId = folder.id; DB.cloud.spreadsheetId = sheet.spreadsheetId; DB.cloud.backupFileId = '';
-  save(true);
-  await syncCloudUpload(true);
-}
-
-function driveMultipart(metadata, content, mime) {
-  const boundary = 'gradebook_' + Math.random().toString(36).slice(2);
-  const body = new Blob([
-    '--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n', JSON.stringify(metadata),
-    '\r\n--' + boundary + '\r\nContent-Type: ' + mime + '\r\n\r\n', content, '\r\n--' + boundary + '--'
-  ]);
-  return { body: body, contentType: 'multipart/related; boundary=' + boundary };
-}
-
-async function updateDriveBackup(json) {
-  if (DB.cloud.backupFileId) {
-    await cloudApi('https://www.googleapis.com/upload/drive/v3/files/' + encodeURIComponent(DB.cloud.backupFileId) + '?uploadType=media', {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: json
-    });
-    return;
-  }
-  const mp = driveMultipart({ name: 'gradebook-backup.json', parents: DB.cloud.folderId ? [DB.cloud.folderId] : [] }, json, 'application/json');
-  const file = await cloudApi('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
-    method: 'POST', headers: { 'Content-Type': mp.contentType }, body: mp.body
-  });
-  DB.cloud.backupFileId = file.id;
-}
-
-function cloudSheetRows() {
-  syncMasterFromClasses();
-  const students = [['เลขที่', 'เลขประจำตัว', 'ชื่อ-นามสกุล', 'ชั้น/ห้อง', 'ใช้งาน']].concat((DB.studentMaster || []).map(m => {
-    const cls = DB.classes.find(c => c.id === m.classId);
-    return [m.no || '', m.sid || '', m.name || '', cls ? cls.name : '', m.active === false ? 'ไม่ใช้งาน' : 'ใช้งาน'];
-  }));
-  const schedule = [['ปี/ภาค', 'ประเภท', 'วันที่', 'วัน', 'ช่วง', 'เริ่ม', 'สิ้นสุด', 'รหัสวิชา', 'ชื่อวิชา', 'ชั้น/ห้อง', 'สถานที่', 'หมายเหตุ']];
-  DB.timetable.entries.forEach(e => {
-    const p = DB.periods.find(x => x.id === e.periodId), s = DB.subjects.find(x => x.id === e.subjectId), c = DB.classes.find(x => x.id === e.classId), slot = DB.timetable.slots.find(x => x.id === String(e.slotId));
-    schedule.push([p ? p.academicYear + '/' + p.semester : '', 'คาบประจำ', '', (SCHOOL_DAYS.find(x => x.value === num(e.day)) || {}).label || '', slot ? slot.label : '', slot ? slot.start : '', slot ? slot.end : '', s ? s.code || '' : '', s ? s.name : '', c ? c.name : '', e.room || '', '']);
-  });
-  (DB.timetable.exceptions || []).forEach(e => {
-    const p = DB.periods.find(x => x.id === e.periodId), s = DB.subjects.find(x => x.id === e.subjectId), c = DB.classes.find(x => x.id === e.classId), slot = DB.timetable.slots.find(x => x.id === String(e.slotId));
-    schedule.push([p ? p.academicYear + '/' + p.semester : '', sessionTypeLabel(e.sessionType), e.date || '', (SCHOOL_DAYS.find(x => x.value === num(e.day)) || {}).label || '', slot ? slot.label : '', slot ? slot.start : '', slot ? slot.end : '', s ? s.code || '' : '', s ? s.name : '', c ? c.name : '', e.room || '', e.note || '']);
-  });
-  const attendance = [['วันที่', 'ประเภท', 'ช่วง', 'รหัสวิชา', 'ชื่อวิชา', 'ชั้น/ห้อง', 'ครูผู้บันทึก', 'เลขประจำตัว', 'ชื่อ-นามสกุล', 'สถานะ', 'หมายเหตุ', 'เวลาบันทึก']];
-  Object.values(DB.timetable.attendance).sort((a, b) => a.date.localeCompare(b.date)).forEach(r => {
-    const s = DB.subjects.find(x => x.id === r.subjectId), c = DB.classes.find(x => x.id === r.classId), slot = DB.timetable.slots.find(x => x.id === String(r.slotId));
-    Object.keys(r.statuses || {}).forEach(sid => {
-      const st = c && (c.students || []).find(x => String(x.sid) === String(sid));
-      const status = ATTENDANCE_STATUSES.find(x => x.value === r.statuses[sid]);
-      const type = sessionTypeLabel(r.sessionType);
-      attendance.push([r.date, type, slot ? slot.label : '', s ? s.code || '' : '', s ? s.name : '', c ? c.name : '', r.teacherName || '', sid, st ? st.name : '', status ? status.label : r.statuses[sid], r.note || '', r.checkedAt || '']);
-    });
-  });
-  return { students: students, schedule: schedule, attendance: attendance };
-}
-
-async function syncCloudUpload(showMessage) {
-  if (cloudSyncBusy) return;
-  if (!DB.cloud.spreadsheetId) throw new Error('ยังไม่ได้สร้างหรือระบุ Google Sheet');
-  cloudSyncBusy = true;
-  try {
-    await ensureGoogleToken();
-    const json = JSON.stringify(DB), chunks = [];
-    for (let i = 0; i < json.length; i += 45000) chunks.push([json.slice(i, i + 45000)]);
-    const rows = cloudSheetRows(), id = encodeURIComponent(DB.cloud.spreadsheetId);
-    await cloudApi('https://sheets.googleapis.com/v4/spreadsheets/' + id + '/values:batchClear', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ranges: ['Data!A:Z', 'Students!A:Z', 'Schedule!A:Z', 'Attendance!A:Z'] })
-    });
-    await cloudApi('https://sheets.googleapis.com/v4/spreadsheets/' + id + '/values:batchUpdate', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ valueInputOption: 'RAW', data: [
-        { range: 'Data!A1', values: [['GRADEBOOK_JSON_V8']].concat(chunks) },
-        { range: 'Students!A1', values: rows.students }, { range: 'Schedule!A1', values: rows.schedule }, { range: 'Attendance!A1', values: rows.attendance }
-      ] })
-    });
-    await updateDriveBackup(json);
-    DB.cloud.lastSync = new Date().toISOString();
-    localStorage.setItem(LS_KEY, JSON.stringify(DB));
-    if (showMessage) toast('ส่งข้อมูลขึ้น Google Sheet และ Drive แล้ว', 'ok');
-  } finally { cloudSyncBusy = false; }
-}
-
-async function syncCloudDownload() {
-  if (!DB.cloud.spreadsheetId) throw new Error('ยังไม่ได้ระบุ Google Sheet');
-  const id = encodeURIComponent(DB.cloud.spreadsheetId);
-  const data = await cloudApi('https://sheets.googleapis.com/v4/spreadsheets/' + id + '/values/' + encodeURIComponent('Data!A2:A'));
-  const json = ((data.values || []).map(r => r[0] || '')).join('');
-  const restored = JSON.parse(json);
-  if (!restored || !Array.isArray(restored.classes)) throw new Error('ข้อมูลในชีตไม่ใช่ฐานข้อมูลของระบบนี้');
-  if (!await confirmBox('ดึงข้อมูลจาก Google Sheet', 'ข้อมูลจากชีตจะทับข้อมูลในเครื่องนี้ กรุณาสำรองข้อมูลก่อนดำเนินการ', 'ดึงและทับข้อมูล')) return;
-  localStorage.setItem(LS_KEY, JSON.stringify(restored));
-  location.reload();
-}
-
-function queueCloudSync() {
-  if (cloudSyncBusy || !DB.cloud || !DB.cloud.autoSync || !DB.cloud.spreadsheetId || !googleAccessToken) return;
-  clearTimeout(cloudSyncTimer);
-  cloudSyncTimer = setTimeout(() => syncCloudUpload(false).catch(e => toast('ซิงก์ Google ไม่สำเร็จ: ' + e.message, 'bad')), 5000);
-}
-
-function openCloudSettings() {
-  const signed = !!googleAccessToken;
-  const m = openModal({
-    title: 'Google / ออนไลน์', wide: true,
-    bodyHTML: '<div class="cloud-status"><b>' + (signed ? 'เชื่อมต่อ Google แล้ว' : 'ยังไม่ได้ลงชื่อเข้าใช้ในรอบนี้') + '</b>' +
-      (DB.cloud.accountEmail ? '<br><span class="hint">บัญชีล่าสุด: ' + esc(DB.cloud.accountEmail) + '</span>' : '') +
-      (DB.cloud.lastSync ? '<br><span class="hint">ซิงก์ล่าสุด: ' + esc(new Date(DB.cloud.lastSync).toLocaleString('th-TH')) + '</span>' : '') + '</div>' +
-      '<div class="card" style="margin-top:12px"><h3>1. ตั้งค่า Google OAuth</h3><div class="pick"><label>OAuth Client ID สำหรับเว็บ</label><input id="cloudClientId" value="' + esc(DB.cloud.clientId || '') + '" placeholder="000000000000-xxxx.apps.googleusercontent.com"></div>' +
-      '<div class="hint" style="margin-top:8px">สร้างใน Google Cloud Console เปิด Google Sheets API และ Google Drive API แล้วเพิ่มลิงก์ https://…netlify.app เป็น Authorized JavaScript origin ไม่ต้องใช้ Client Secret ในไฟล์นี้</div>' +
-      '<div class="row" style="margin-top:10px"><button class="primary" id="cloudLogin">' + (signed ? 'ตรวจสอบบัญชี Google' : 'ลงชื่อเข้าใช้ด้วย Gmail') + '</button><button id="cloudLogout"' + (signed ? '' : ' disabled') + '>ออกจากระบบ</button></div></div>' +
-      '<div class="card"><h3>2. ฐานข้อมูลของบัญชีนี้</h3><div class="grid2"><div class="pick"><label>Google Spreadsheet ID</label><input id="cloudSheetId" value="' + esc(DB.cloud.spreadsheetId || '') + '"></div>' +
-      '<div class="pick"><label>Google Drive Folder ID</label><input id="cloudFolderId" value="' + esc(DB.cloud.folderId || '') + '"></div></div>' +
-      '<label style="display:block;margin-top:10px"><input type="checkbox" id="cloudAuto"' + (DB.cloud.autoSync ? ' checked' : '') + '> ซิงก์อัตโนมัติหลังแก้ข้อมูล (หน่วง 5 วินาที)</label>' +
-      '<div class="row" style="margin-top:12px"><button class="primary" id="cloudCreate">สร้างชีตและโฟลเดอร์ใหม่ใน Drive ของฉัน</button><button id="cloudUpload">ส่งข้อมูลขึ้น Google</button><button id="cloudDownload">ดึงข้อมูลจาก Google</button>' +
-      (DB.cloud.spreadsheetId ? '<a class="button" target="_blank" rel="noopener" href="https://docs.google.com/spreadsheets/d/' + encodeURIComponent(DB.cloud.spreadsheetId) + '">เปิดชีต</a>' : '') + '</div></div>' +
-      '<div class="notice">แต่ละครูลงชื่อด้วย Gmail ของตนเองและสร้างฐานข้อมูลแยกกัน Access Token จะเก็บเฉพาะในหน่วยความจำและหายเมื่อปิดหน้าเว็บ</div>',
-    buttons: [{ label: 'ปิด', cls: 'primary' }],
-    onMount(root, close) {
-      const persist = () => {
-        DB.cloud.clientId = $('#cloudClientId', root).value.trim(); DB.cloud.spreadsheetId = $('#cloudSheetId', root).value.trim();
-        DB.cloud.folderId = $('#cloudFolderId', root).value.trim(); DB.cloud.autoSync = $('#cloudAuto', root).checked; save(true);
-      };
-      $$('input', root).forEach(inp => inp.addEventListener('change', persist));
-      $('#cloudLogin', root).addEventListener('click', async () => { try { persist(); await googleLogin(); close(); openCloudSettings(); toast('ลงชื่อเข้าใช้ Google แล้ว', 'ok'); } catch (e) { toast(e.message, 'bad'); } });
-      $('#cloudLogout', root).addEventListener('click', () => { googleLogout(); close(); openCloudSettings(); });
-      $('#cloudCreate', root).addEventListener('click', async e => { try { persist(); e.target.disabled = true; await createCloudStorage(); close(); openCloudSettings(); } catch (err) { e.target.disabled = false; toast(err.message, 'bad'); } });
-      $('#cloudUpload', root).addEventListener('click', async e => { try { persist(); e.target.disabled = true; await syncCloudUpload(true); close(); openCloudSettings(); } catch (err) { e.target.disabled = false; toast(err.message, 'bad'); } });
-      $('#cloudDownload', root).addEventListener('click', async e => { try { persist(); e.target.disabled = true; await syncCloudDownload(); e.target.disabled = false; } catch (err) { e.target.disabled = false; toast(err.message, 'bad'); } });
-    }
-  });
-  return m;
-}
-
 /* ============================================================================
    12) สำรอง / กู้คืน
    ========================================================================== */
@@ -6183,8 +6035,10 @@ async function restore() {
   DB.timetable = DB.timetable || defaultTimetable();
   DB.timetable.slots = DB.timetable.slots || defaultTimetableSlots('08:30', 55);
   DB.timetable.entries = DB.timetable.entries || []; DB.timetable.exceptions = DB.timetable.exceptions || []; DB.timetable.exchangeRequests = DB.timetable.exchangeRequests || []; DB.timetable.leaveRequests = DB.timetable.leaveRequests || []; DB.timetable.terms = DB.timetable.terms || {}; DB.timetable.attendance = DB.timetable.attendance || {};
-  DB.cloud = Object.assign({ clientId: PUBLIC_GOOGLE_CLIENT_ID, spreadsheetId: '', folderId: '', backupFileId: '', accountEmail: '', autoSync: false, lastSync: '', staffApiUrl: '', staffToken: '' }, DB.cloud || {});
+  DB.cloud = Object.assign({ clientId: PUBLIC_GOOGLE_CLIENT_ID, accountEmail: '', staffApiUrl: '', staffToken: '' }, DB.cloud || {});
   if (!DB.cloud.clientId && PUBLIC_GOOGLE_CLIENT_ID) DB.cloud.clientId = PUBLIC_GOOGLE_CLIENT_ID;
+  // เลิกใช้โหมดซิงก์ Google Sheet/Drive แล้ว ลบค่าที่ค้างอยู่ในเครื่องเดิมทิ้ง
+  ['spreadsheetId', 'folderId', 'backupFileId', 'autoSync', 'lastSync'].forEach(k => delete DB.cloud[k]);
   DB.ui.attendanceDate = DB.ui.attendanceDate || todayISO();
   if (!DB.teachers.some(t => t.id === DB.ui.teacherId)) DB.ui.teacherId = DB.teachers[0] ? DB.teachers[0].id : null;
   const legacyTeacherId = DB.ui.teacherId || (DB.teachers[0] && DB.teachers[0].id) || '';
@@ -6217,7 +6071,7 @@ function showRoleGateway() {
   studentSession = null;
   const portal = $('#studentPortal'); if (portal) { portal.hidden = true; portal.innerHTML = ''; }
   const gateway = $('#roleGateway'); if (!gateway) return;
-  const storageText = DB.cloud && DB.cloud.spreadsheetId ? 'ข้อมูลปัจจุบัน: เครื่องนี้ + Google Sheet/Drive' : 'ข้อมูลปัจจุบัน: บันทึกในเบราว์เซอร์เครื่องนี้';
+  const storageText = firebaseReady() && fbSignedIn() ? 'ข้อมูลปัจจุบัน: เครื่องนี้ + ฐานข้อมูลกลาง' : 'ข้อมูลปัจจุบัน: บันทึกในเบราว์เซอร์เครื่องนี้';
   gateway.hidden = false; document.body.style.overflow = 'hidden';
   const s = DB.settings, logo = s.logoData || './icons/school-logo.png';
   gateway.innerHTML = '<div class="gateway-shell"><div class="gateway-brand">' +
@@ -6527,7 +6381,6 @@ $('#btnPeriods').addEventListener('click', managePeriods);
 $('#btnClasses').addEventListener('click', manageClasses);
 $('#btnSubjects').addEventListener('click', manageSubjects);
 $('#btnCourseInfo').addEventListener('click', editCourseInfo);
-$('#btnCloud').addEventListener('click', openCloudSettings);
 $('#btnStudentPortal').addEventListener('click', openStudentLogin);
 $('#btnStaffLogout').addEventListener('click', staffLogout);
 $('#btnSearch').addEventListener('click', openStudentSearch);
