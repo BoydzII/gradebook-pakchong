@@ -2478,7 +2478,7 @@ function openAttendance(entry, date, singleMode) {
     title: 'เช็กชื่อ' + (groupedEntries.length > 1 ? 'พร้อมกัน ' + groupedEntries.length + ' คาบ' : '') + ' • ' + (subject ? (subject.code ? subject.code + ' ' : '') + subject.name : 'วิชา') + ' • ' + cls.name,
     wide: true,
     bodyHTML: '<div class="row" style="margin-bottom:10px"><span class="badge">' + thaiDate(date) + '</span>' + groupedEntries.map(e => { const sl = DB.timetable.slots.find(s => s.id === String(e.slotId)); return '<span class="badge">' + esc(sl ? sl.label + ' ' + sl.start + '–' + sl.end : '') + '</span>'; }).join('') +
-      '<div class="spacer"></div><button data-bulk-att="present">มาทั้งห้อง</button><button data-bulk-att="late">สายทั้งห้อง</button><button data-bulk-att="leave">ลาทั้งห้อง</button><button data-bulk-att="activity">กิจกรรมทั้งห้อง</button><button data-bulk-att="absent">ขาดทั้งห้อง</button></div>' +
+      '<div class="spacer"></div><button class="primary" data-bulk-att="present">มาทั้งห้อง</button><button data-bulk-att="late">สายทั้งห้อง</button><button data-bulk-att="leave">ลาทั้งห้อง</button><button data-bulk-att="activity">กิจกรรมทั้งห้อง</button><button data-bulk-att="absent">ขาดทั้งห้อง</button></div>' +
       (function () { const names = students.filter(st => activityFor(st.sid, date, entry.slotId));
         return names.length ? '<div class="notice" style="margin-bottom:10px"><b>มีนักเรียน ' + names.length +
           ' คนได้รับอนุญาตให้ทำกิจกรรมในคาบนี้</b> ระบบตั้งสถานะ “กิจกรรม” ให้แล้ว ตรวจสอบและกดบันทึกได้เลย</div>' : ''; })() +
@@ -2492,6 +2492,7 @@ function openAttendance(entry, date, singleMode) {
         return '<tr data-att-sid="' + esc(st.sid) + '" class="att-' + status + '"><td>' + esc(st.no) + '</td><td>' + esc(st.sid) + '</td><td><b>' + esc(st.name) + '</b>' + (onActivity ? '<br><span class="badge">กิจกรรม: ' + esc(onActivity.name) + '</span>' : '') + '</td><td><select class="att-status">' + attendanceStatusOptions(status) + '</select></td>' +
           '<td>' + (att.counts.present + att.counts.late) + '</td><td>' + att.counts.absent + '</td><td>' + att.counts.leave + '</td><td>' + att.counts.activity + '</td><td>' + attendanceOutcomeBadge(att.pct) + '</td></tr>';
       }).join('') + '</tbody></table></div>' : '<div class="empty">ห้องนี้ยังไม่มีรายชื่อ กรุณาดึงรายชื่อจากแท็บฐานนักเรียนก่อน</div>') +
+      '<div class="hint" style="margin-top:8px">แตะที่แถวของนักเรียนเพื่อเปลี่ยนสถานะได้เลย • มา → ขาด → ลา → สาย → กิจกรรม → มา</div>' +
       (old ? '<div class="hint" style="margin-top:8px">เช็กครั้งล่าสุด ' + esc(new Date(old.checkedAt).toLocaleString('th-TH')) + '</div>' : ''),
     buttons: [{ label: 'ยกเลิก' }, { label: 'บันทึกการเช็กชื่อ', cls: 'primary', act(close, root) {
       if (!students.length) return toast('ยังไม่มีรายชื่อนักเรียน', 'bad');
@@ -2512,6 +2513,14 @@ function openAttendance(entry, date, singleMode) {
         const s = ATTENDANCE_STATUSES.find(x => x.value === $('.att-status', tr).value); if (s) tr.classList.add(s.cls);
       }
       $$('[data-att-sid]', root).forEach(tr => $('.att-status', tr).addEventListener('change', () => paint(tr)));
+      // แตะที่แถวเพื่อวนสถานะ ครูจะได้แตะเฉพาะคนที่ไม่ได้มาเรียน
+      const TAP_ORDER = ['present', 'absent', 'leave', 'late', 'activity'];
+      $$('[data-att-sid]', root).forEach(tr => tr.addEventListener('click', e => {
+        if (e.target.closest('select,button,input,a')) return;
+        const sel = $('.att-status', tr), at = TAP_ORDER.indexOf(sel.value);
+        sel.value = TAP_ORDER[(at + 1) % TAP_ORDER.length];
+        paint(tr);
+      }));
       $$('[data-bulk-att]', root).forEach(btn => btn.addEventListener('click', () => {
         $$('[data-att-sid]', root).forEach(tr => { $('.att-status', tr).value = btn.dataset.bulkAtt; paint(tr); });
       }));
@@ -3632,7 +3641,25 @@ const HEAD_PAT = {
   no:   /^(เลขที่|ที่|ลำดับ|ลำดับที่|no\.?|number|ลําดับ)$/i,
   sid:  /(เลขประจำตัว|รหัสนักเรียน|รหัสประจำตัว|เลขประจําตัว|^รหัส$|student\s*id|^id$|^code$)/i,
   name: /(ชื่อ.?-?.?(นามสกุล|สกุล)|^ชื่อ$|ชื่อนักเรียน|full\s*name|^name$)/i,
-  room: /(ชั้น|ห้อง|room|class)/i
+  room: /(ชั้น|ห้อง|room|class)/i,
+  gender: /^(เพศ|sex|gender)$/i,
+  status: /(สถานะ|status)/i
+};
+/* สถานะจากไฟล์ทะเบียน — เอาไว้ตัดคนที่ไม่ได้เรียนอยู่ออกจากห้องอัตโนมัติ */
+const STUDENT_ACTIVE_PAT = /กำลังศึกษา|กําลังศึกษา|ปกติ|active|study/i;
+const STUDENT_INACTIVE_PAT = /พักการเรียน|ลาออก|ย้าย|จำหน่าย|จําหน่าย|พ้นสภาพ|เสียชีวิต|จบการศึกษา|inactive|left/i;
+const studentActiveFromText = value => {
+  const t = String(value == null ? '' : value).trim();
+  if (!t) return true;
+  if (STUDENT_INACTIVE_PAT.test(t)) return false;
+  if (STUDENT_ACTIVE_PAT.test(t)) return true;
+  return true;
+};
+const genderFromText = value => {
+  const t = String(value == null ? '' : value).trim();
+  if (/^(ช|ชาย|ด\.ช|เด็กชาย|นาย|male|m)$/i.test(t)) return 'ชาย';
+  if (/^(ญ|หญิง|ด\.ญ|เด็กหญิง|นางสาว|น\.ส\.|female|f)$/i.test(t)) return 'หญิง';
+  return '';
 };
 
 async function importStudents() {
@@ -3683,7 +3710,10 @@ function masterImportWizard(sheets) {
       '<div class="row" style="margin-top:10px"><div class="pick"><label>เลขที่</label><select id="miNo">' + opts(det.map.no) + '</select></div>' +
       '<div class="pick"><label>เลขประจำตัว</label><select id="miSid">' + opts(det.map.sid) + '</select></div>' +
       '<div class="pick"><label>ชื่อ-นามสกุล</label><select id="miName">' + opts(det.map.name) + '</select></div>' +
-      '<div class="pick"><label>ชั้น/ห้อง</label><select id="miRoom">' + opts(det.map.room) + '</select></div></div>' +
+      '<div class="pick"><label>ชั้น/ห้อง</label><select id="miRoom">' + opts(det.map.room) + '</select></div>' +
+      '<div class="pick"><label>เพศ</label><select id="miGender">' + opts(det.map.gender) + '</select></div>' +
+      '<div class="pick"><label>สถานะ</label><select id="miStatus">' + opts(det.map.status) + '</select></div></div>' +
+      '<div class="hint" style="margin-top:6px">ถ้ามีคอลัมน์สถานะ ระบบจะไม่ดึงคนที่ลาออก ย้าย หรือพักการเรียน เข้าห้องเรียน</div>' +
       '<div class="pick" style="margin-top:10px"><label>ห้องเริ่มต้น เมื่อไฟล์ไม่มีคอลัมน์ห้อง</label><select id="miFallback"><option value="">— ยังไม่จัดห้อง —</option>' + DB.classes.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('') + '</select></div>' +
       '<label style="display:block;margin:10px 0"><input type="checkbox" id="miPull" checked> ดึงรายชื่อเข้าห้องที่ระบุให้ทันที</label>' +
       '<div class="tablewrap" style="max-height:220px"><table><thead><tr>' + Array.from({ length: width }, (_, i) => '<th>' + idxToColRef(i) + '<br><span class="hint">' + esc(String(head[i] == null ? '' : head[i]).slice(0, 16)) + '</span></th>').join('') + '</tr></thead><tbody>' +
@@ -3693,7 +3723,8 @@ function masterImportWizard(sheets) {
     buttons: [{ label: 'ยกเลิก' }, { label: 'นำเข้าฐานนักเรียน', cls: 'primary', act(close, root) {
       const rows = sheets[sheetIndex].rows, headRow = Math.max(0, Math.round(num($('#miHead', root).value)) - 1);
       const cNo = +$('#miNo', root).value, cSid = +$('#miSid', root).value, cName = +$('#miName', root).value, cRoom = +$('#miRoom', root).value;
-      const fallback = $('#miFallback', root).value, affected = new Set(); let added = 0, updated = 0, auto = DB.studentMaster.length + 1;
+      const cGender = +$('#miGender', root).value, cStatus = +$('#miStatus', root).value;
+      const fallback = $('#miFallback', root).value, affected = new Set(); let added = 0, updated = 0, inactive = 0, auto = DB.studentMaster.length + 1;
       if (cName < 0 && cSid < 0) return toast('ต้องเลือกคอลัมน์ชื่อหรือเลขประจำตัวอย่างน้อยหนึ่งช่อง', 'bad');
       // ชื่อซ้ำแต่คนละเลขประจำตัว = เสี่ยงเป็นคนเดียวกันถูกนำเข้าซ้ำ จึงข้ามและแจ้งเตือน
       const duplicates = [], nameIndex = new Map();
@@ -3713,13 +3744,17 @@ function masterImportWizard(sheets) {
         let m = DB.studentMaster.find(x => String(x.sid || '') === sid);
         const nameKey = normalizeName(name), clash = nameKey ? nameIndex.get(nameKey) : null;
         if (!m && clash) { duplicates.push(['แถว ' + (i + 1), name, sid, 'มีอยู่แล้ว: ' + (clash.name || '') + ' • เลขประจำตัว ' + (clash.sid || '—')]); continue; }
-        if (!m) { m = { id: uid('mst'), sid: sid, no: cNo >= 0 ? row[cNo] : '', name: name, classId: classId, active: true }; DB.studentMaster.push(m); if (nameKey) nameIndex.set(nameKey, m); added++; }
-        else { m.no = cNo >= 0 && row[cNo] !== '' ? row[cNo] : m.no; m.name = name || m.name; if (classId) m.classId = classId; m.active = true; updated++; }
+        const gender = cGender >= 0 ? genderFromText(row[cGender]) : '';
+        const active = cStatus >= 0 ? studentActiveFromText(row[cStatus]) : true;
+        const statusText = cStatus >= 0 ? String(row[cStatus] == null ? '' : row[cStatus]).trim() : '';
+        if (!m) { m = { id: uid('mst'), sid: sid, no: cNo >= 0 ? row[cNo] : '', name: name, classId: classId, active: active, gender: gender, statusText: statusText }; DB.studentMaster.push(m); if (nameKey) nameIndex.set(nameKey, m); added++; if (!active) inactive++; }
+        else { m.no = cNo >= 0 && row[cNo] !== '' ? row[cNo] : m.no; m.name = name || m.name; if (classId) m.classId = classId;
+          m.active = active; if (gender) m.gender = gender; if (statusText) m.statusText = statusText; updated++; if (!active) inactive++; }
         if (classId) affected.add(classId);
       }
       if ($('#miPull', root).checked) affected.forEach(id => pullMasterToClass(id));
       save(true); close(); renderTop(); renderStudents();
-      toast('นำเข้าใหม่ ' + added + ' คน • อัปเดต ' + updated + ' คน' + (duplicates.length ? ' • ข้ามชื่อซ้ำ ' + duplicates.length : ''), duplicates.length ? 'warn' : 'ok');
+      toast('นำเข้าใหม่ ' + added + ' คน • อัปเดต ' + updated + ' คน' + (inactive ? ' • ไม่ได้เรียนอยู่ ' + inactive : '') + (duplicates.length ? ' • ข้ามชื่อซ้ำ ' + duplicates.length : ''), duplicates.length ? 'warn' : 'ok');
       duplicateReport('รายชื่อนักเรียนที่มีอยู่แล้วในฐานข้อมูล', ['แถวในไฟล์', 'ชื่อ-นามสกุล', 'เลขประจำตัวในไฟล์', 'สาเหตุ'], duplicates);
     } }],
     onMount(root) {
@@ -3747,7 +3782,7 @@ function detectHeader(rows) {
     (rows[r] || []).forEach((cell, ci) => {
       const t = String(cell == null ? '' : cell).replace(/\s+/g, '').trim();
       if (!t) return;
-      for (const key of ['no', 'sid', 'name', 'room']) {
+      for (const key of ['no', 'sid', 'name', 'room', 'gender', 'status']) {
         if (map[key] === undefined && HEAD_PAT[key].test(t)) { map[key] = ci; score += (key === 'name' ? 2 : 1); }
       }
     });
