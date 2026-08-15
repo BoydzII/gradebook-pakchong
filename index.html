@@ -82,6 +82,8 @@ button{
   padding:7px 12px;cursor:pointer;white-space:nowrap;transition:border-color .18s,background .18s,transform .18s,box-shadow .18s;
 }
 button:hover{border-color:var(--brand);transform:translateY(-1px)}
+/* ระหว่างสลับโหมดสี ให้ทุกอย่างเปลี่ยนทันที กันสีพื้นค้างค่าเดิมจนอ่านตัวหนังสือไม่ออก */
+html.theme-switching *,html.theme-switching *::before,html.theme-switching *::after{transition:none!important;animation:none!important}
 button.primary{background:var(--brand);color:var(--brand-ink);border-color:var(--brand);font-weight:600}
 button.primary:hover{filter:brightness(1.08)}
 button.danger{color:var(--bad);border-color:var(--line)}
@@ -394,6 +396,18 @@ button,.tabs button,a.button,select,input{touch-action:manipulation;-webkit-tap-
 .more-menu button{width:100%;justify-content:flex-start;background:transparent;border:none;padding:9px 10px;border-radius:8px;font-weight:600}
 .more-menu button:hover{background:var(--panel2)}
 .more-title{font-size:11px;font-weight:800;letter-spacing:.04em;color:var(--muted);padding:2px 10px 4px}
+.logout-btn{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 35%,transparent)}
+/* แถวแท็บ: แท็บหลักปักหมุดไว้ ที่เหลืออยู่ในเมนูที่กางออกด้านข้าง */
+.tabsrow{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);padding-right:12px}
+.tabsrow .tabs{flex:1;min-width:0;border-bottom:none}
+.tabs-menu-wrap{flex:0 0 auto}
+#tabsMore{font-weight:700;border-radius:999px;padding:8px 14px}
+#tabsMenu{min-width:230px}
+/* ปุ่มติดตั้งแอป — ไอคอนเล็กมุมล่างขวา เห็นเฉพาะหน้าเข้าสู่ระบบ */
+.install-fab{display:none;position:fixed;right:16px;bottom:16px;z-index:95;width:44px;height:44px;padding:0;
+  border-radius:14px;font-size:19px;font-weight:800;align-items:center;justify-content:center;
+  background:var(--panel);border:1px solid var(--line);box-shadow:0 10px 26px rgba(15,23,42,.18)}
+body.gateway-open .install-fab:not([hidden]){display:inline-flex}
 .more-sep{height:1px;background:var(--line);margin:3px 0}
 
 /* แท็บทรงแคปซูล อ่านง่ายและกดง่ายขึ้น */
@@ -621,25 +635,13 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
   <span class="who-chip" id="whoChip" hidden></span>
   <button class="sm icon-btn" id="btnSearch" title="ค้นหานักเรียนทุกห้อง (Ctrl+K)"><span class="ico">⌕</span><span class="lbl">ค้นหานักเรียน</span></button>
   <button class="sm icon-btn" id="btnTheme" title="สลับโหมดสี">◐</button>
+  <button class="sm icon-btn" id="btnFullscreen" title="ขยายเต็มหน้าจอ" aria-label="ขยายเต็มหน้าจอ">⤢</button>
+  <button class="sm icon-btn logout-btn" id="btnStaffLogout" title="ออกจากระบบ" aria-label="ออกจากระบบ">⏻</button>
   <span class="offline-chip" id="offlineChip" hidden>ออฟไลน์</span>
-  <div class="menu-wrap">
-    <button class="sm icon-btn" id="btnMore" title="เมนูเพิ่มเติม" aria-haspopup="true" aria-expanded="false">⋯</button>
-    <div class="more-menu" id="moreMenu" hidden>
-      <div class="more-title">เมนูเพิ่มเติม</div>
-      <button class="sm" id="btnCourseInfo">ข้อมูล ปพ.5</button>
-      <button class="sm" id="btnStudentPortal">นักเรียนเข้าสู่ระบบ</button>
-      <button class="sm" id="btnFullscreen">ขยายเต็มหน้าจอ</button>
-      <button class="sm" id="btnInstall" hidden>ติดตั้งเป็นแอป</button>
-      <div class="more-sep"></div>
-      <button class="sm" id="btnBackup">สำรองข้อมูล</button>
-      <button class="sm" id="btnRestore">กู้คืน</button>
-      <div class="more-sep"></div>
-      <button class="sm danger" id="btnStaffLogout">ออกจากระบบ</button>
-    </div>
-  </div>
   <div class="savestate" id="saveState"></div>
 </header>
 
+<div class="tabsrow">
 <nav class="tabs" id="tabs">
   <button data-tab="dashboard">ภาพรวม</button>
   <button data-tab="attendance">เช็กชื่อ <span id="missedBadge"></span></button>
@@ -658,6 +660,11 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
   <button data-tab="leaves">การลาและการอนุมัติ <span id="leaveBadge"></span></button>
   <button data-tab="admin">ผู้ดูแลระบบ</button>
 </nav>
+<div class="menu-wrap tabs-menu-wrap">
+  <button class="sm" id="tabsMore" aria-haspopup="true" aria-expanded="false">เมนู ▾</button>
+  <div class="more-menu" id="tabsMenu" hidden></div>
+</div>
+</div>
 </div>
 
 <main>
@@ -680,6 +687,7 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
   <section class="tabpane" id="pane-admin"></section>
 </main>
 <nav class="bottomnav" id="bottomNav" hidden></nav>
+<button class="install-fab" id="btnInstall" hidden title="ติดตั้งเป็นแอปบนเครื่องนี้" aria-label="ติดตั้งเป็นแอป">⤓</button>
 <div id="docSheet" class="doc-sheet" hidden></div>
 
 <div id="studentPortal" class="student-portal" hidden></div>
@@ -1617,7 +1625,26 @@ const PRIMARY_TABS = { teacher: ['dashboard', 'attendance', 'scores', 'exchange'
   executive: ['executive', 'leaves', 'dashboard', 'summary'],
   admin: ['admin', 'students', 'schedule', 'settings'] };
 
-const visibleTabButtons = () => $$('#tabs button').filter(b => !b.hidden);
+/* แท็บที่ปักหมุดไว้บนแถบเสมอ ที่เหลือเก็บในเมนู เพื่อให้แถบบนโล่งและหาของง่าย */
+const PINNED_TABS = ['dashboard', 'attendance', 'scores'];
+const isPinnedTab = (tab, mode) => PINNED_TABS.indexOf(tab) >= 0 || (mode !== 'teacher' && tab === homeTabOfRole(mode));
+/* ทุกหน้าที่บทบาทนี้เข้าได้ (รวมที่อยู่ในเมนู) */
+const allowedTabs = () => $$('#tabs button').map(b => b.dataset.tab).filter(t => canSeeTab(t, DB.ui.staffMode || 'teacher'));
+const visibleTabButtons = () => $$('#tabs button').filter(b => allowedTabs().indexOf(b.dataset.tab) >= 0);
+
+/** เติมรายการหน้าที่เหลือลงในเมนูข้างแถบแท็บ */
+function renderTabsMenu() {
+  const menu = $('#tabsMenu'), btn = $('#tabsMore'); if (!menu || !btn) return;
+  const mode = DB.ui.staffMode || 'teacher';
+  const rest = allowedTabs().filter(t => !isPinnedTab(t, mode));
+  btn.hidden = !rest.length;
+  const active = rest.indexOf(DB.ui.tab) >= 0;
+  btn.classList.toggle('primary', active);
+  btn.textContent = (active ? (TAB_SHORT[DB.ui.tab] || 'เมนู') : 'เมนู') + ' ▾';
+  menu.innerHTML = '<div class="more-title">หน้าอื่นของ' + esc(roleLabel(mode)) + '</div>' +
+    rest.map(t => '<button class="sm" data-menu-tab="' + t + '">' + (TAB_ICON[t] || '▸') + '  ' + esc(TAB_SHORT[t] || t) + '</button>').join('');
+  $$('[data-menu-tab]', menu).forEach(b => b.addEventListener('click', () => { toggleMoreMenu(false); setTab(b.dataset.menuTab); }));
+}
 
 function renderBottomNav() {
   const nav = $('#bottomNav'); if (!nav) return;
@@ -1654,7 +1681,7 @@ function openTabSheet() {
 }
 
 function toggleMoreMenu(open) {
-  const menu = $('#moreMenu'), btn = $('#btnMore'); if (!menu) return;
+  const menu = $('#tabsMenu'), btn = $('#tabsMore'); if (!menu) return;
   const show = open === undefined ? menu.hidden : open;
   menu.hidden = !show;
   if (btn) btn.setAttribute('aria-expanded', show ? 'true' : 'false');
@@ -1678,16 +1705,23 @@ function renderWhoChip() {
   chip.innerHTML = '<b>' + esc(me.name || me.email || 'ผู้ใช้งาน') + '</b> • ' + esc(roleLabel(DB.ui.staffMode || 'teacher'));
 }
 
+/* แอดมินเข้าได้ทุกหน้า • หัวหน้ากลุ่มสาระและผู้บริหารก็สอนหนังสือ จึงเห็นงานของครูด้วย
+   ส่วนหน้าที่เป็นของบทบาทเฉพาะ จะเห็นเมื่อสวมบทบาทนั้นเท่านั้น */
+function canSeeTab(tab, mode) {
+  return mode === 'admin' || roleOfTab(tab) === mode || roleOfTab(tab) === 'teacher';
+}
+
 function applyRoleVisibility() {
   const mode = DB.ui.staffMode || 'teacher';
-  // แอดมินเข้าได้ทุกหน้า • หัวหน้ากลุ่มสาระและผู้บริหารก็สอนหนังสือ จึงเห็นงานของครูด้วย
-  //   ส่วนหน้าที่เป็นของบทบาทเฉพาะ จะเห็นเมื่อสวมบทบาทนั้นเท่านั้น
-  const canSee = tab => mode === 'admin' || roleOfTab(tab) === mode || roleOfTab(tab) === 'teacher';
+  const canSee = tab => canSeeTab(tab, mode);
   if (!canSee(DB.ui.tab || 'dashboard')) DB.ui.tab = homeTabOfRole(mode);
   $$('#tabs button').forEach(btn => {
-    btn.hidden = !canSee(btn.dataset.tab);
-    btn.classList.toggle('active', btn.dataset.tab === DB.ui.tab);
+    const tab = btn.dataset.tab;
+    // แถบแท็บโชว์เฉพาะงานหลัก ที่เหลืออยู่ในเมนูข้าง ๆ
+    btn.hidden = !canSee(tab) || !isPinnedTab(tab, mode);
+    btn.classList.toggle('active', tab === DB.ui.tab);
   });
+  renderTabsMenu();
   $$('section.tabpane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + DB.ui.tab));
   // ข้อมูลหลักของโรงเรียน (ปี/ภาค ชั้นเรียน รายวิชา) แก้ได้เฉพาะผู้ดูแลระบบ
   ['#btnPeriods', '#btnClasses', '#btnSubjects'].forEach(sel => { const el = $(sel); if (el) el.hidden = mode !== 'admin'; });
@@ -1778,7 +1812,12 @@ function gateMsg(needSubject) {
 
 function applyTheme(theme) {
   const value = theme === 'dark' ? 'dark' : 'light';
-  document.documentElement.dataset.theme = value;
+  // ปิดเอฟเฟกต์ค่อย ๆ เปลี่ยนสีระหว่างสลับธีมชั่วขณะ
+  // ไม่งั้นสีพื้นของปุ่มที่กำลังเปลี่ยนอยู่จะค้างค่าเดิม กลายเป็นตัวหนังสือสีขาวบนพื้นขาวจนอ่านไม่ออก
+  const root = document.documentElement;
+  root.classList.add('theme-switching');
+  root.dataset.theme = value;
+  requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('theme-switching')));
   const btn = $('#btnTheme'); if (btn) { btn.textContent = value === 'dark' ? '☀' : '◐'; btn.title = value === 'dark' ? 'ใช้โหมดสว่าง' : 'ใช้โหมดมืด'; }
 }
 
@@ -4603,13 +4642,31 @@ function summaryRows(b, sts, classId, subjectId) {
   return sts.map(st => ({ st: st, r: calcRow(b, st), att: attendanceStudentResult(classId, subjectId, st) }));
 }
 
+/** กล่องเครื่องมือท้ายหน้า สรุป/ส่งออก — ข้อมูลหน้าปก ปพ.5 และการสำรอง/กู้คืน */
+function summaryToolsCard() {
+  return '<div class="card"><div class="row"><div><h3 style="margin:0">ข้อมูลรายวิชาและการสำรองข้อมูล</h3>' +
+    '<div class="hint">ข้อมูลสำหรับหน้าปก ปพ.5 และการสำรอง/กู้คืนข้อมูลทั้งหมดของเครื่องนี้</div></div></div>' +
+    '<div class="row" style="margin-top:12px;flex-wrap:wrap">' +
+      '<button class="sm" data-sum-act="courseinfo">ข้อมูล ปพ.5</button>' +
+      '<button class="sm primary" data-sum-act="backup">สำรองข้อมูล</button>' +
+      '<button class="sm" data-sum-act="restore">กู้คืนข้อมูล</button></div>' +
+    '<div class="hint" style="margin-top:9px">คะแนนและการเช็กชื่อเก็บอยู่ในเครื่องนี้เท่านั้น ' +
+    'แนะนำให้กดสำรองข้อมูลทุกสัปดาห์แล้วเก็บไฟล์ไว้ในที่ปลอดภัย</div></div>';
+}
+function bindSummaryTools(pane) {
+  $$('[data-sum-act]', pane).forEach(btn => btn.addEventListener('click', () => {
+    const act = btn.dataset.sumAct;
+    if (act === 'courseinfo') editCourseInfo(); else if (act === 'backup') backup(); else restore();
+  }));
+}
+
 function renderSummary() {
   const pane = $('#pane-summary');
   const gate = gateMsg(true);
-  if (gate) { pane.innerHTML = '<div class="card">' + gate + '</div>'; return; }
+  if (gate) { pane.innerHTML = '<div class="card">' + gate + '</div>' + summaryToolsCard(); bindSummaryTools(pane); return; }
   const b = curBook(true);
   const sts = curStudents().slice().sort((a, c) => a.no - c.no);
-  if (!sts.length) { pane.innerHTML = '<div class="card"><div class="empty">ยังไม่มีรายชื่อนักเรียน</div></div>'; return; }
+  if (!sts.length) { pane.innerHTML = '<div class="card"><div class="empty">ยังไม่มีรายชื่อนักเรียน</div></div>' + summaryToolsCard(); bindSummaryTools(pane); return; }
 
   const rows = summaryRows(b, sts, curClass().id, curSubject().id);
   const pcts = rows.map(x => x.r.total);
@@ -4758,6 +4815,8 @@ function renderSummary() {
       '</tbody></table></div>' +
     '</div>';
 
+  pane.insertAdjacentHTML('beforeend', summaryToolsCard());
+  bindSummaryTools(pane);
   $$('.s-note').forEach(inp => inp.addEventListener('change', () => {
     const sid = inp.closest('tr').dataset.sid;
     const v = inp.value.trim();
@@ -6502,7 +6561,7 @@ const STAFF_SESSION_KEY = 'gradebook.staff.sessionRole';
 
 function hideRoleGateway() {
   const gateway = $('#roleGateway'); if (gateway) gateway.hidden = true;
-  document.body.style.overflow = '';
+  document.body.style.overflow = ''; document.body.classList.remove('gateway-open');
 }
 
 function showRoleGateway() {
@@ -6510,7 +6569,7 @@ function showRoleGateway() {
   const portal = $('#studentPortal'); if (portal) { portal.hidden = true; portal.innerHTML = ''; }
   const gateway = $('#roleGateway'); if (!gateway) return;
   const storageText = firebaseReady() && fbSignedIn() ? 'ข้อมูลปัจจุบัน: เครื่องนี้ + ฐานข้อมูลกลาง' : 'ข้อมูลปัจจุบัน: บันทึกในเบราว์เซอร์เครื่องนี้';
-  gateway.hidden = false; document.body.style.overflow = 'hidden';
+  gateway.hidden = false; document.body.style.overflow = 'hidden'; document.body.classList.add('gateway-open');
   const s = DB.settings, logo = s.logoData || './icons/school-logo.png';
   gateway.innerHTML = '<div class="gateway-shell"><div class="gateway-brand">' +
       '<img class="brand-logo" src="' + esc(logo) + '" alt="ตราโรงเรียน" onerror="this.style.display=\'none\'">' +
@@ -6818,19 +6877,14 @@ $('#selStaffMode').addEventListener('change', e => setStaffMode(e.target.value))
 $('#btnPeriods').addEventListener('click', managePeriods);
 $('#btnClasses').addEventListener('click', manageClasses);
 $('#btnSubjects').addEventListener('click', manageSubjects);
-$('#btnMore').addEventListener('click', e => { e.stopPropagation(); toggleMoreMenu(); });
-$$('#moreMenu button').forEach(b => b.addEventListener('click', () => toggleMoreMenu(false)));
+$('#tabsMore').addEventListener('click', e => { e.stopPropagation(); toggleMoreMenu(); });
 document.addEventListener('click', e => { if (!e.target.closest('.menu-wrap')) toggleMoreMenu(false); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { toggleMoreMenu(false); const sh = $('.tabsheet'); if (sh) sh.remove(); } });
-$('#btnCourseInfo').addEventListener('click', editCourseInfo);
-$('#btnStudentPortal').addEventListener('click', openStudentLogin);
 $('#btnStaffLogout').addEventListener('click', staffLogout);
 $('#btnSearch').addEventListener('click', openStudentSearch);
 $('#btnTheme').addEventListener('click', toggleTheme);
 $('#btnFullscreen').addEventListener('click', toggleFullscreen);
 document.addEventListener('fullscreenchange', updateFullscreenButton);
-$('#btnBackup').addEventListener('click', backup);
-$('#btnRestore').addEventListener('click', restore);
 $$('#tabs button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openStudentSearch(); }
