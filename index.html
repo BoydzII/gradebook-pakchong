@@ -1308,6 +1308,7 @@ function save(immediate) {
       el.textContent = '✓ บันทึกแล้ว'; el.classList.add('on');
       clearTimeout(saveFlash);
       saveFlash = setTimeout(() => { el.textContent = ''; el.classList.remove('on'); }, 1600);
+      if (typeof queueBookSync === 'function') queueBookSync();
     } catch (e) {
       storageOK = false;
       renderStorageWarn();
@@ -1910,6 +1911,14 @@ function pendingApprovals() {
   if (myDraft.length) list.push({ tone: 'warn', icon: '✈', role: 'teacher', tab: 'exchange',
     title: 'ใบลาของคุณยังไม่ได้ส่งให้ผู้บริหาร ' + myDraft.length + ' ใบ',
     detail: myDraft.slice(0, 3).map(l => thaiDate(l.fromDate)).join(' • ') });
+
+  // --- เตือนสำรองข้อมูล เพราะคะแนนและการเช็กชื่อยังอยู่ในเครื่องนี้ ---
+  const lastBackup = DB.settings.lastBackupAt ? new Date(DB.settings.lastBackupAt).getTime() : 0;
+  const backupDays = lastBackup ? Math.floor((Date.now() - lastBackup) / 86400000) : 999;
+  if (!bookSyncOn() && backupDays >= 7 && Object.keys(DB.books || {}).length)
+    list.push({ tone: 'warn', icon: '⤓', role: 'teacher', tab: 'summary',
+      title: lastBackup ? 'ไม่ได้สำรองข้อมูลมา ' + backupDays + ' วันแล้ว' : 'ยังไม่เคยสำรองข้อมูลในเครื่องนี้',
+      detail: 'คะแนนและการเช็กชื่อเก็บอยู่ในเครื่องนี้เท่านั้น ถ้าล้างเบราว์เซอร์หรือเปลี่ยนเครื่องจะหายทั้งหมด' });
 
   // --- งานของหัวหน้ากลุ่มสาระ ---
   if (teacherHasRole(me, 'head')) {
@@ -4937,14 +4946,57 @@ function summaryToolsCard() {
       '<button class="sm" data-sum-act="courseinfo">ข้อมูล ปพ.5</button>' +
       '<button class="sm primary" data-sum-act="backup">สำรองข้อมูล</button>' +
       '<button class="sm" data-sum-act="restore">กู้คืนข้อมูล</button></div>' +
-    '<div class="hint" style="margin-top:9px">คะแนนและการเช็กชื่อเก็บอยู่ในเครื่องนี้เท่านั้น ' +
-    'แนะนำให้กดสำรองข้อมูลทุกสัปดาห์แล้วเก็บไฟล์ไว้ในที่ปลอดภัย</div></div>';
+    '<div class="hint" style="margin-top:9px">' + esc(backupAgeText()) + '</div></div>' + bookSyncCard();
 }
+/** ข้อความบอกว่าสำรองข้อมูลครั้งล่าสุดเมื่อไร */
+function backupAgeText() {
+  const last = DB.settings.lastBackupAt;
+  if (!last) return 'ยังไม่เคยสำรองข้อมูลในเครื่องนี้ • คะแนนและการเช็กชื่อเก็บอยู่ในเครื่องนี้เท่านั้น แนะนำให้กดสำรองข้อมูลทุกสัปดาห์';
+  const days = Math.floor((Date.now() - new Date(last).getTime()) / 86400000);
+  return 'สำรองข้อมูลล่าสุด ' + new Date(last).toLocaleString('th-TH') + (days > 0 ? ' • ผ่านมาแล้ว ' + days + ' วัน' : ' • วันนี้');
+}
+
+/** กล่องเปิด/ปิดการซิงก์สมุดคะแนนของตัวเองขึ้นส่วนกลาง */
+function bookSyncCard() {
+  const ready = firebaseReady() && fbSignedIn(), email = myEmailForSync();
+  const last = DB.cloud.lastBookSync ? new Date(DB.cloud.lastBookSync).toLocaleString('th-TH') : 'ยังไม่เคยซิงก์';
+  return '<div class="card"><div class="row"><div><h3 style="margin:0">ซิงก์สมุดคะแนนของฉันขึ้นส่วนกลาง</h3>' +
+    '<div class="hint">คะแนน การเช็กชื่อ และผลคุณลักษณะของคุณจะตามไปทุกเครื่องที่เข้าสู่ระบบด้วยบัญชีเดียวกัน • ครูท่านอื่นเปิดดูไม่ได้</div></div>' +
+    '<div class="spacer"></div><span class="badge ' + (bookSyncOn() ? 'ok' : '') + '">' + (bookSyncOn() ? 'เปิดใช้งาน' : 'ปิดอยู่') + '</span></div>' +
+    (!ready ? '<div class="notice bad" style="margin-top:12px">ต้องเข้าสู่ระบบด้วยบัญชี Google ของโรงเรียนก่อน จึงจะซิงก์ได้</div>' :
+      !email ? '<div class="notice bad" style="margin-top:12px">โปรไฟล์ครูของคุณยังไม่มีอีเมล ให้ผู้ดูแลระบบเพิ่มอีเมลก่อน</div>' :
+      '<label class="notice" style="margin-top:12px;display:block"><input type="checkbox" id="bookSyncOn"' + (bookSyncOn() ? ' checked' : '') + '> ' +
+      'ส่งขึ้นอัตโนมัติหลังแก้ข้อมูล (หน่วง 8 วินาที)</label>' +
+      '<div class="row" style="margin-top:10px;flex-wrap:wrap"><button class="sm primary" data-sum-act="pushbooks">ส่งขึ้นตอนนี้</button>' +
+      '<button class="sm" data-sum-act="pullbooks">ดึงจากส่วนกลางมาทับเครื่องนี้</button>' +
+      '<span class="hint">ซิงก์ล่าสุด: ' + esc(last) + '</span></div>') + '</div>';
+}
+
 function bindSummaryTools(pane) {
-  $$('[data-sum-act]', pane).forEach(btn => btn.addEventListener('click', () => {
+  $$('[data-sum-act]', pane).forEach(btn => btn.addEventListener('click', async () => {
     const act = btn.dataset.sumAct;
-    if (act === 'courseinfo') editCourseInfo(); else if (act === 'backup') backup(); else restore();
+    if (act === 'courseinfo') return editCourseInfo();
+    if (act === 'backup') return backup();
+    if (act === 'restore') return restore();
+    if (act === 'pushbooks') {
+      btn.disabled = true;
+      try { const n = await pushMyBooks(); toast('ส่งสมุดคะแนนขึ้นส่วนกลางแล้ว ' + n + ' รายการ', 'ok'); renderSummary(); }
+      catch (e) { toast(fbErrorMessage(e), 'bad'); btn.disabled = false; }
+      return;
+    }
+    if (act === 'pullbooks') {
+      if (!await confirmBox('ดึงจากส่วนกลาง', 'คะแนนและการเช็กชื่อในเครื่องนี้จะถูกทับด้วยข้อมูลบนส่วนกลาง ควรกดสำรองข้อมูลก่อน', 'ดึงและทับข้อมูล')) return;
+      btn.disabled = true;
+      try { const n = await pullMyBooks(); toast('ดึงข้อมูลลงเครื่องแล้ว ' + n + ' รายการ', 'ok'); }
+      catch (e) { toast(fbErrorMessage(e), 'bad'); btn.disabled = false; }
+    }
   }));
+  const toggle = $('#bookSyncOn', pane);
+  if (toggle) toggle.addEventListener('change', () => {
+    DB.cloud.syncBooks = toggle.checked; save(true);
+    toast(toggle.checked ? 'เปิดการซิงก์แล้ว ระบบจะส่งขึ้นให้อัตโนมัติ' : 'ปิดการซิงก์แล้ว', toggle.checked ? 'ok' : '');
+    renderSummary();
+  });
 }
 
 function renderSummary() {
@@ -6691,6 +6743,80 @@ function startFirebaseSync() {
 
 function stopFirebaseSync() { fbUnsub.forEach(fn => { try { fn(); } catch (e) { } }); fbUnsub = []; }
 
+/* ---------- สมุดคะแนนและการเช็กชื่อของครูแต่ละคน --------------------------
+   เก็บแยกรายบุคคลใต้ books/{อีเมลของครู} ตามกฎความปลอดภัย เจ้าของเท่านั้นที่เข้าถึงได้
+   เปิดใช้เองได้ที่หน้า สรุป/ส่งออก เพื่อให้ครูควบคุมข้อมูลของตัวเอง */
+const bookSyncOn = () => !!(DB.cloud && DB.cloud.syncBooks);
+const myEmailForSync = () => String((curTeacher() || {}).email || DB.cloud.accountEmail || '').trim().toLowerCase();
+const bookDocId = key => String(key).replace(/[^A-Za-z0-9_-]/g, '_');
+function myBookRoot() {
+  const email = myEmailForSync();
+  if (!firebaseReady() || !fbSignedIn() || !email) return null;
+  return fbDb.collection('books').doc(fbStaffId(email));
+}
+
+/** การเช็กชื่อของฉัน แยกเก็บเป็นรายเดือน กันเอกสารใหญ่เกินเพดานของ Firestore */
+function myAttendanceByMonth() {
+  const me = curTeacher() || {}, out = {};
+  Object.keys(DB.timetable.attendance || {}).forEach(key => {
+    const rec = DB.timetable.attendance[key];
+    if (!rec || (rec.teacherId && rec.teacherId !== me.id)) return;
+    const month = String(rec.date || '').slice(0, 7) || 'ไม่ระบุเดือน';
+    (out[month] = out[month] || {})[key] = rec;
+  });
+  return out;
+}
+
+async function pushMyBooks() {
+  const root = myBookRoot();
+  if (!root) throw new Error('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียน และมีอีเมลในโปรไฟล์ครูก่อน');
+  const stamp = new Date().toISOString(), jobs = [];
+  Object.keys(DB.books || {}).forEach(key => {
+    jobs.push(fbSetDoc(root.collection('items').doc(bookDocId(key)),
+      { key: key, book: fbPlain(DB.books[key]), updatedAt: stamp }, 'สมุดคะแนน ' + key));
+  });
+  const months = myAttendanceByMonth();
+  Object.keys(months).forEach(month => {
+    jobs.push(fbSetDoc(root.collection('attendance').doc(month),
+      { month: month, records: fbPlain(months[month]), updatedAt: stamp }, 'การเช็กชื่อเดือน ' + month));
+  });
+  jobs.push(root.set({ email: myEmailForSync(), name: (curTeacher() || {}).name || '', updatedAt: stamp }, { merge: true }));
+  await Promise.all(jobs);
+  DB.cloud.lastBookSync = stamp; save(true);
+  return jobs.length;
+}
+
+async function pullMyBooks() {
+  const root = myBookRoot();
+  if (!root) throw new Error('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อน');
+  const items = await root.collection('items').get({ source: 'server' });
+  let books = 0, records = 0;
+  items.docs.forEach(doc => {
+    const data = doc.data() || {};
+    if (data.key && data.book) { DB.books[data.key] = normalizeBook(data.book); books++; }
+  });
+  const months = await root.collection('attendance').get({ source: 'server' });
+  months.docs.forEach(doc => {
+    const recs = (doc.data() || {}).records || {};
+    Object.keys(recs).forEach(k => { DB.timetable.attendance[k] = recs[k]; records++; });
+  });
+  DB.cloud.lastBookSync = new Date().toISOString();
+  save(true); render();
+  return books + records;
+}
+
+let bookSyncTimer = null, bookSyncBusy = false;
+/** ส่งขึ้นอัตโนมัติแบบหน่วงเวลา เพื่อไม่ให้ยิงทุกครั้งที่พิมพ์คะแนน */
+function queueBookSync() {
+  if (!bookSyncOn() || bookSyncBusy || fbApplying || !myBookRoot()) return;
+  clearTimeout(bookSyncTimer);
+  bookSyncTimer = setTimeout(() => {
+    bookSyncBusy = true;
+    pushMyBooks().catch(e => toast('ซิงก์สมุดคะแนนไม่สำเร็จ: ' + fbErrorMessage(e), 'bad'))
+      .then(() => { bookSyncBusy = false; });
+  }, 8000);
+}
+
 /** อ่านข้อมูลจากเซิร์ฟเวอร์ตรง ๆ (ไม่เอาจากแคชในเครื่อง) เพื่อดูว่าส่งขึ้นไปถึงจริงหรือยัง */
 async function inspectFirebase() {
   if (!firebaseReady() || !fbSignedIn()) throw new Error('ยังไม่ได้เข้าสู่ระบบด้วยบัญชีโรงเรียน');
@@ -6794,6 +6920,7 @@ function backup() {
   const d = new Date();
   const p = n => String(n).padStart(2, '0');
   download(blob, 'สำรองคะแนน_' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '_' + p(d.getHours()) + p(d.getMinutes()) + '.json');
+  DB.settings.lastBackupAt = new Date().toISOString(); save(true);
   toast('สำรองข้อมูลแล้ว', 'ok');
 }
 async function restore() {
