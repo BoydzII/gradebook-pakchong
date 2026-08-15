@@ -355,6 +355,73 @@ td.num,th.num{text-align:center}
 }
 @media(max-width:800px){.timetable{min-width:1040px}.tt-cell{min-height:60px}}
 .right-dragging{cursor:ew-resize!important;user-select:none!important}
+
+/* ---------- ปรับหน้าตาให้ใช้ง่ายขึ้นทั้งคอม ไอแพด และมือถือ ---------- */
+/* แตะแล้วตอบสนองทันที ไม่มีไฮไลต์สีฟ้าแบบเบราว์เซอร์มือถือ */
+button,.tabs button,a.button,select,input{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.tablewrap{-webkit-overflow-scrolling:touch}
+
+/* ชิปบอกว่ากำลังใช้งานเป็นใคร บทบาทอะไร */
+.who-chip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--brand);
+  background:color-mix(in srgb,var(--brand) 10%,transparent);border:1px solid color-mix(in srgb,var(--brand) 28%,transparent);
+  border-radius:999px;padding:4px 11px;white-space:nowrap;max-width:42vw;overflow:hidden;text-overflow:ellipsis}
+.who-chip b{font-weight:800}
+
+/* เมนู ⋯ รวมปุ่มที่ไม่ได้ใช้บ่อย ให้แถบบนโล่ง */
+.menu-wrap{position:relative}
+.icon-btn{min-width:38px;justify-content:center}
+.more-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:60;display:grid;gap:4px;min-width:210px;
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;box-shadow:0 16px 40px rgba(15,23,42,.18)}
+.more-menu button{width:100%;justify-content:flex-start;background:transparent;border:none;padding:9px 10px;border-radius:8px;font-weight:600}
+.more-menu button:hover{background:var(--panel2)}
+.more-title{font-size:11px;font-weight:800;letter-spacing:.04em;color:var(--muted);padding:2px 10px 4px}
+.more-sep{height:1px;background:var(--line);margin:3px 0}
+
+/* แท็บทรงแคปซูล อ่านง่ายและกดง่ายขึ้น */
+.tabs{gap:6px;padding:8px 14px;border-bottom:1px solid var(--line);scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{border-radius:999px;border-bottom:none;padding:8px 15px;white-space:nowrap;font-weight:700;
+  background:transparent;transition:background .15s,color .15s}
+.tabs button.active{background:var(--brand);color:#fff;border-bottom-color:transparent;box-shadow:0 6px 16px rgba(31,111,235,.24)}
+.tabs button:hover:not(.active){background:var(--panel2);color:var(--ink)}
+
+/* แถบล่างบนมือถือ — เข้าถึงงานหลัก 5 อย่างด้วยนิ้วโป้ง */
+.bottomnav{display:none;position:fixed;left:0;right:0;bottom:0;z-index:50;
+  background:color-mix(in srgb,var(--panel) 96%,transparent);backdrop-filter:blur(14px);
+  border-top:1px solid var(--line);padding:6px 4px calc(6px + env(safe-area-inset-bottom));
+  grid-template-columns:repeat(5,1fr);gap:2px}
+.bottomnav button{display:grid;gap:2px;justify-items:center;background:none;border:none;padding:6px 2px;
+  border-radius:12px;color:var(--muted);font-size:11px;font-weight:700;line-height:1.25;min-height:52px}
+.bottomnav button .bn-ico{font-size:19px;line-height:1}
+.bottomnav button.active{color:var(--brand);background:color-mix(in srgb,var(--brand) 10%,transparent)}
+.bottomnav .bn-dot{position:absolute;transform:translate(14px,-4px);width:7px;height:7px;border-radius:50%;background:var(--bad)}
+
+/* แผ่นเมนูรวมทุกหน้า เปิดจากปุ่ม "เพิ่มเติม" */
+.tabsheet{position:fixed;inset:0;z-index:70;background:rgba(15,23,42,.45);display:grid;align-items:end}
+.tabsheet-inner{background:var(--panel);border-radius:18px 18px 0 0;padding:14px 14px calc(18px + env(safe-area-inset-bottom));
+  max-height:78vh;overflow:auto;display:grid;gap:8px}
+.tabsheet-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tabsheet-grid button{justify-content:flex-start;padding:14px 12px;border-radius:12px;font-weight:700;text-align:left}
+.tabsheet-grid button.active{border-color:var(--brand);color:var(--brand);background:color-mix(in srgb,var(--brand) 8%,transparent)}
+.tabsheet-handle{width:44px;height:4px;border-radius:999px;background:var(--line);margin:0 auto 4px}
+
+@media(max-width:720px){
+  /* iOS จะซูมเองถ้าตัวอักษรในช่องกรอกเล็กกว่า 16px */
+  input,select,textarea{font-size:16px}
+  .topbar{padding:8px 10px;gap:6px}
+  .brand{font-size:15px}.brand small{display:none}
+  .pickers{width:100%;gap:6px}.pickers .pick{flex:1 1 46%}
+  .pick label{display:none}
+  .icon-btn .lbl{display:none}
+  .tabs{display:none}
+  .bottomnav{display:grid}
+  main{padding-bottom:calc(80px + env(safe-area-inset-bottom))}
+  .who-chip{max-width:38vw}
+  button.sm{min-height:36px}
+}
+@media(min-width:721px) and (max-width:1100px){
+  .pickers .pick{flex:1 1 auto}.tabs button{padding:8px 12px;font-size:13.5px}
+}
 .school-logo{width:76px;height:76px;object-fit:contain;display:block;margin:0 auto 6px}
 .cover-approvals{margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;font-size:11px}
 .approval-line{border-bottom:1px dotted #555;min-height:30px;padding:4px 2px}
@@ -528,16 +595,25 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
     </div>
   </div>
   <div class="spacer"></div>
-  <button class="sm" id="btnSearch" title="ค้นหานักเรียนทุกห้อง (Ctrl+K)">⌕ ค้นหานักเรียน</button>
-  <button class="sm" id="btnTheme" title="สลับโหมดสี">◐</button>
-  <button class="sm" id="btnCourseInfo">ข้อมูล ปพ.5</button>
-  <button class="sm" id="btnStudentPortal">นักเรียนเข้าสู่ระบบ</button>
-  <button class="sm" id="btnStaffLogout">ออกจากระบบ</button>
-  <button class="sm" id="btnFullscreen">ขยายเต็มหน้าจอ</button>
-  <button class="sm" id="btnInstall" hidden>ติดตั้งเป็นแอป</button>
+  <span class="who-chip" id="whoChip" hidden></span>
+  <button class="sm icon-btn" id="btnSearch" title="ค้นหานักเรียนทุกห้อง (Ctrl+K)"><span class="ico">⌕</span><span class="lbl">ค้นหานักเรียน</span></button>
+  <button class="sm icon-btn" id="btnTheme" title="สลับโหมดสี">◐</button>
   <span class="offline-chip" id="offlineChip" hidden>ออฟไลน์</span>
-  <button class="sm" id="btnBackup">สำรองข้อมูล</button>
-  <button class="sm" id="btnRestore">กู้คืน</button>
+  <div class="menu-wrap">
+    <button class="sm icon-btn" id="btnMore" title="เมนูเพิ่มเติม" aria-haspopup="true" aria-expanded="false">⋯</button>
+    <div class="more-menu" id="moreMenu" hidden>
+      <div class="more-title">เมนูเพิ่มเติม</div>
+      <button class="sm" id="btnCourseInfo">ข้อมูล ปพ.5</button>
+      <button class="sm" id="btnStudentPortal">นักเรียนเข้าสู่ระบบ</button>
+      <button class="sm" id="btnFullscreen">ขยายเต็มหน้าจอ</button>
+      <button class="sm" id="btnInstall" hidden>ติดตั้งเป็นแอป</button>
+      <div class="more-sep"></div>
+      <button class="sm" id="btnBackup">สำรองข้อมูล</button>
+      <button class="sm" id="btnRestore">กู้คืน</button>
+      <div class="more-sep"></div>
+      <button class="sm danger" id="btnStaffLogout">ออกจากระบบ</button>
+    </div>
+  </div>
   <div class="savestate" id="saveState"></div>
 </header>
 
@@ -580,6 +656,7 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
   <section class="tabpane" id="pane-leaves"></section>
   <section class="tabpane" id="pane-admin"></section>
 </main>
+<nav class="bottomnav" id="bottomNav" hidden></nav>
 <div id="docSheet" class="doc-sheet" hidden></div>
 
 <div id="studentPortal" class="student-portal" hidden></div>
@@ -1501,15 +1578,89 @@ const TAB_ROLE = { settings: 'admin', students: 'admin', admin: 'admin', executi
 const roleOfTab = tab => TAB_ROLE[tab] || 'teacher';
 const homeTabOfRole = role => role === 'executive' ? 'executive' : role === 'admin' ? 'admin' : role === 'head' ? 'head' : 'dashboard';
 
+/* ---------- เมนูและการนำทาง ----------------------------------------------
+   แถบบนเหลือเฉพาะสิ่งที่ใช้บ่อย ปุ่มอื่นย้ายเข้าเมนู ⋯
+   บนมือถือใช้แถบล่าง 5 ปุ่ม ส่วนหน้าที่เหลือเปิดจากปุ่ม "เพิ่มเติม" */
+const TAB_SHORT = { dashboard: 'ภาพรวม', attendance: 'เช็กชื่อ', exchange: 'แลกคาบ', scores: 'คะแนน',
+  groups: 'กลุ่ม', assess: 'คุณลักษณะ', summary: 'สรุป ปพ.5', settings: 'ตั้งค่า', students: 'นักเรียน',
+  schedule: 'ตารางสอน', items: 'หัวข้อคะแนน', activities: 'กิจกรรม', head: 'กลุ่มสาระ',
+  executive: 'ผู้บริหาร', leaves: 'อนุมัติลา', admin: 'ผู้ดูแลระบบ' };
+const TAB_ICON = { dashboard: '◈', attendance: '◷', exchange: '⇄', scores: '✎', groups: '◉', assess: '☑',
+  summary: '▤', settings: '⚙', students: '☺', schedule: '▦', items: '☰', activities: '★', head: '◆',
+  executive: '◎', leaves: '✈', admin: '⚙' };
+/* งานหลักของแต่ละบทบาท ใช้จัดปุ่มบนแถบล่างของมือถือ */
+const PRIMARY_TABS = { teacher: ['dashboard', 'attendance', 'scores', 'exchange'],
+  head: ['head', 'dashboard', 'attendance', 'scores'],
+  executive: ['executive', 'leaves', 'dashboard', 'summary'],
+  admin: ['admin', 'students', 'schedule', 'settings'] };
+
+const visibleTabButtons = () => $$('#tabs button').filter(b => !b.hidden);
+
+function renderBottomNav() {
+  const nav = $('#bottomNav'); if (!nav) return;
+  const visible = visibleTabButtons().map(b => b.dataset.tab);
+  if (!visible.length) { nav.hidden = true; nav.innerHTML = ''; return; }
+  const mode = DB.ui.staffMode || 'teacher';
+  const primary = (PRIMARY_TABS[mode] || PRIMARY_TABS.teacher).filter(t => visible.indexOf(t) >= 0).slice(0, 4);
+  visible.forEach(t => { if (primary.length < 4 && primary.indexOf(t) < 0) primary.push(t); });
+  const badgeOf = tab => {
+    const btn = $$('#tabs button').find(b => b.dataset.tab === tab), span = btn && btn.querySelector('span');
+    return span && span.textContent.trim() ? '<span class="bn-dot"></span>' : '';
+  };
+  nav.hidden = false;
+  nav.innerHTML = primary.map(t => '<button data-bottom-tab="' + t + '"' + (t === DB.ui.tab ? ' class="active"' : '') + '>' +
+      '<span class="bn-ico">' + (TAB_ICON[t] || '▸') + badgeOf(t) + '</span>' + esc(TAB_SHORT[t] || t) + '</button>').join('') +
+    '<button data-tab-sheet="1"' + (primary.indexOf(DB.ui.tab) < 0 ? ' class="active"' : '') + '><span class="bn-ico">☰</span>เพิ่มเติม</button>';
+  $$('[data-bottom-tab]', nav).forEach(b => b.addEventListener('click', () => setTab(b.dataset.bottomTab)));
+  $('[data-tab-sheet]', nav).addEventListener('click', openTabSheet);
+}
+
+/** แผ่นเมนูรวมทุกหน้าที่บทบาทนี้เข้าได้ */
+function openTabSheet() {
+  const old = $('.tabsheet'); if (old) old.remove();
+  const sheet = document.createElement('div');
+  sheet.className = 'tabsheet';
+  sheet.innerHTML = '<div class="tabsheet-inner"><div class="tabsheet-handle"></div>' +
+    '<div class="more-title">ไปที่หน้า • ' + esc(roleLabel(DB.ui.staffMode || 'teacher')) + '</div><div class="tabsheet-grid">' +
+    visibleTabButtons().map(b => '<button data-goto="' + b.dataset.tab + '"' + (b.dataset.tab === DB.ui.tab ? ' class="active"' : '') + '>' +
+      (TAB_ICON[b.dataset.tab] || '▸') + '  ' + esc(TAB_SHORT[b.dataset.tab] || b.textContent.trim()) + '</button>').join('') +
+    '</div></div>';
+  document.body.appendChild(sheet);
+  sheet.addEventListener('click', e => { if (e.target === sheet) sheet.remove(); });
+  $$('[data-goto]', sheet).forEach(b => b.addEventListener('click', () => { sheet.remove(); setTab(b.dataset.goto); }));
+}
+
+function toggleMoreMenu(open) {
+  const menu = $('#moreMenu'), btn = $('#btnMore'); if (!menu) return;
+  const show = open === undefined ? menu.hidden : open;
+  menu.hidden = !show;
+  if (btn) btn.setAttribute('aria-expanded', show ? 'true' : 'false');
+}
+
+/** ชิปบอกว่ากำลังใช้งานเป็นใครและบทบาทอะไร */
+function renderWhoChip() {
+  const chip = $('#whoChip'); if (!chip) return;
+  const me = curTeacher();
+  if (!me) { chip.hidden = true; return; }
+  chip.hidden = false;
+  chip.innerHTML = '<b>' + esc(me.name || me.email || 'ผู้ใช้งาน') + '</b> • ' + esc(roleLabel(DB.ui.staffMode || 'teacher'));
+}
+
 function applyRoleVisibility() {
   const mode = DB.ui.staffMode || 'teacher';
-  const canSee = tab => mode === 'admin' || roleOfTab(tab) === mode;   // แอดมินเข้าดูได้ทุกหน้า
+  // แอดมินเข้าได้ทุกหน้า • หัวหน้ากลุ่มสาระและผู้บริหารก็สอนหนังสือ จึงเห็นงานของครูด้วย
+  //   ส่วนหน้าที่เป็นของบทบาทเฉพาะ จะเห็นเมื่อสวมบทบาทนั้นเท่านั้น
+  const canSee = tab => mode === 'admin' || roleOfTab(tab) === mode || roleOfTab(tab) === 'teacher';
   if (!canSee(DB.ui.tab || 'dashboard')) DB.ui.tab = homeTabOfRole(mode);
   $$('#tabs button').forEach(btn => {
     btn.hidden = !canSee(btn.dataset.tab);
     btn.classList.toggle('active', btn.dataset.tab === DB.ui.tab);
   });
   $$('section.tabpane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + DB.ui.tab));
+  // ข้อมูลหลักของโรงเรียน (ปี/ภาค ชั้นเรียน รายวิชา) แก้ได้เฉพาะผู้ดูแลระบบ
+  ['#btnPeriods', '#btnClasses', '#btnSubjects'].forEach(sel => { const el = $(sel); if (el) el.hidden = mode !== 'admin'; });
+  renderWhoChip();
+  renderBottomNav();
 }
 
 function setStaffMode(mode) {
@@ -1523,6 +1674,8 @@ function setTab(t) {
   DB.ui.tab = t; save();
   $$('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
   $$('section.tabpane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + t));
+  toggleMoreMenu(false);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
   render();
 }
 
@@ -2198,7 +2351,9 @@ function renderSchedule() {
   const entries = scheduleEntries(), term = currentTerm(true), selectedDate = todayISO();
   const subjectText = e => { const s = DB.subjects.find(x => x.id === e.subjectId); return s ? s : { code: '', name: 'ไม่พบวิชา' }; };
   const classText = e => { const c = DB.classes.find(x => x.id === e.classId); return c ? c.name : 'ไม่พบห้อง'; };
-  pane.innerHTML = '<div class="card noprint"><div class="row"><div><h3 style="margin:0">ตั้งค่าตารางสอน <span class="sub">ปี ' + esc(curPeriod().academicYear) + ' • ภาค ' + esc(curPeriod().semester) + '</span></h3><div class="hint">คลิกช่องว่างเพื่อเพิ่มคาบ • คลิกวิชาที่มีอยู่เพื่อแก้ไข</div></div>' +
+  const scheduleReadOnly = (DB.ui.staffMode || 'teacher') !== 'admin';
+  pane.innerHTML = (scheduleReadOnly ? '<div class="notice" style="margin-bottom:12px">ตารางสอนของทั้งโรงเรียนดูแลโดย<b>ผู้ดูแลระบบ</b> การแก้ไขที่หน้านี้จะมีผลเฉพาะเครื่องนี้ และจะถูกเขียนทับเมื่อส่วนกลางอัปเดต<br><span class="hint">ถ้าตารางไม่ตรง แจ้งผู้ดูแลระบบให้แก้แล้วส่งขึ้นส่วนกลางอีกครั้ง</span></div>' : '') +
+    '<div class="card noprint"><div class="row"><div><h3 style="margin:0">ตั้งค่าตารางสอน <span class="sub">ปี ' + esc(curPeriod().academicYear) + ' • ภาค ' + esc(curPeriod().semester) + '</span></h3><div class="hint">คลิกช่องว่างเพื่อเพิ่มคาบ • คลิกวิชาที่มีอยู่เพื่อแก้ไข</div></div>' +
     '<div class="spacer"></div><button id="ttMultiTemplate">แม่แบบ Excel หลายครู</button><button id="ttMultiImport">นำเข้าตารางสอนหลายครู</button><button id="ttPrint">พิมพ์ตาราง 1 หน้า</button><button class="primary" id="ttSettings">ตั้งค่าเวลา/ปฏิทิน</button></div>' +
     (!term.openDate || !term.closeDate ? '<div class="notice bad" style="margin-top:10px">กรุณากำหนดวันเปิด–ปิดภาคเรียน เพื่อให้ระบบคำนวณวันเรียน คาบเรียน และแจ้งเตือนคาบที่ยังไม่เช็กได้</div>' :
       '<div class="hint" style="margin-top:8px">เปิดภาคเรียน ' + thaiDate(term.openDate) + ' ถึง ' + thaiDate(term.closeDate) + ' • วันหยุด ' + (term.holidays || []).length + ' วัน • เกณฑ์เวลาเรียน ' + fmt(term.minAttendance) + '%</div>') + '</div>' +
@@ -6603,6 +6758,10 @@ $('#selStaffMode').addEventListener('change', e => setStaffMode(e.target.value))
 $('#btnPeriods').addEventListener('click', managePeriods);
 $('#btnClasses').addEventListener('click', manageClasses);
 $('#btnSubjects').addEventListener('click', manageSubjects);
+$('#btnMore').addEventListener('click', e => { e.stopPropagation(); toggleMoreMenu(); });
+$$('#moreMenu button').forEach(b => b.addEventListener('click', () => toggleMoreMenu(false)));
+document.addEventListener('click', e => { if (!e.target.closest('.menu-wrap')) toggleMoreMenu(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { toggleMoreMenu(false); const sh = $('.tabsheet'); if (sh) sh.remove(); } });
 $('#btnCourseInfo').addEventListener('click', editCourseInfo);
 $('#btnStudentPortal').addEventListener('click', openStudentLogin);
 $('#btnStaffLogout').addEventListener('click', staffLogout);
