@@ -360,6 +360,14 @@ td.num,th.num{text-align:center}
 .slot-legend i.busy{background:var(--bad-bg);border-color:var(--bad)}
 .slot-legend i.swap{background:var(--group);border-color:var(--group)}
 .audit-item{border-left:3px solid var(--bad)}
+/* การ์ดแจ้งเตือนงานที่รอเราดำเนินการ */
+.alert-card{border-left:4px solid var(--bad)}
+.approval-item{align-items:flex-start;gap:10px}
+.approval-item.bad{border-color:color-mix(in srgb,var(--bad) 45%,var(--line));background:color-mix(in srgb,var(--bad-bg) 60%,var(--panel))}
+.approval-item.warn{border-color:color-mix(in srgb,var(--warn) 45%,var(--line));background:color-mix(in srgb,var(--warn-bg) 60%,var(--panel))}
+.approval-ico{width:28px;height:28px;flex:0 0 28px;display:grid;place-items:center;border-radius:9px;
+  background:var(--panel);border:1px solid var(--line);font-weight:800}
+.alert-bell{position:relative;font-size:14px}
 @media(max-width:960px){.exchange-layout{grid-template-columns:1fr}}
 @media(max-width:900px){.executive-grid{grid-template-columns:1fr}.pie-wrap{grid-template-columns:1fr}.pie-chart{margin:auto}}
 @media(max-width:1050px){.dash-metrics{grid-template-columns:repeat(2,1fr)}.dash-columns{grid-template-columns:1fr}.quick-grid{grid-template-columns:repeat(2,1fr)}}
@@ -633,6 +641,7 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
   </div>
   <div class="spacer"></div>
   <span class="who-chip" id="whoChip" hidden></span>
+  <button class="sm icon-btn alert-bell" id="btnAlerts" hidden title="งานที่รอคุณดำเนินการ">🔔<span id="alertCount"></span></button>
   <button class="sm icon-btn" id="btnSearch" title="ค้นหานักเรียนทุกห้อง (Ctrl+K)"><span class="ico">⌕</span><span class="lbl">ค้นหานักเรียน</span></button>
   <button class="sm icon-btn" id="btnTheme" title="สลับโหมดสี">◐</button>
   <button class="sm icon-btn" id="btnFullscreen" title="ขยายเต็มหน้าจอ" aria-label="ขยายเต็มหน้าจอ">⤢</button>
@@ -1601,6 +1610,11 @@ function renderTop() {
     if (teacher && !teacherHasRole(teacher, DB.ui.staffMode)) DB.ui.staffMode = teacher.roles[0] || 'teacher';
     mode.value = DB.ui.staffMode || 'teacher';
   }
+  const bell = $('#btnAlerts'), count = $('#alertCount');
+  if (bell && count) {
+    const n = pendingApprovals().length;
+    bell.hidden = !n; count.textContent = n ? ' ' + n : '';
+  }
   applyRoleVisibility();
 }
 
@@ -1855,6 +1869,108 @@ function openStudentSearch() {
   return modal;
 }
 
+/* ---------- ศูนย์แจ้งเตือน: งานที่รอเราอนุญาต รับรอง หรือตอบรับ -------------
+   ครู เห็นคำขอที่ส่งถึงตัวเองและกิจกรรมที่กระทบคาบสอนของตัวเอง
+   หัวหน้ากลุ่มสาระ เห็นใบลาที่รอความเห็น • ผู้บริหาร เห็นใบลาที่รออนุมัติ
+   ทุกคนเห็นรายการของบทบาทที่ตนมี โดยไม่ต้องสลับบทบาทไปหาเอง */
+const teacherNameOf = id => (DB.teachers.find(t => t.id === id) || {}).name || 'ครู';
+
+/** ครูที่สอนคาบซึ่งถูกกิจกรรมนี้ดึงนักเรียนออกไป */
+function activityTeacherIds(act) {
+  const ids = new Set();
+  (act.students || []).forEach(st => lessonsForStudent(st, act.date, act.slotIds || []).forEach(e => { if (e.teacherId) ids.add(e.teacherId); }));
+  return Array.from(ids);
+}
+const activityAcked = (act, teacherId) => !!((act.ack || {})[teacherId]);
+
+/** กดรับทราบกิจกรรมที่มาดึงนักเรียนในคาบของเรา */
+function acknowledgeActivity(id) {
+  const act = (DB.timetable.activities || []).find(a => a.id === id); if (!act) return;
+  const me = curTeacher(); if (!me) return;
+  act.ack = Object.assign({}, act.ack || {}); act.ack[me.id] = new Date().toISOString();
+  saveActivity(act); render();
+  toast('รับทราบกิจกรรมแล้ว', 'ok');
+}
+
+function pendingApprovals() {
+  const me = curTeacher(); if (!me || !curPeriod()) return [];
+  const swaps = DB.timetable.exchangeRequests || [], leaves = DB.timetable.leaveRequests || [];
+  const list = [];
+
+  // --- งานของครูทุกคน ---
+  const incoming = swaps.filter(r => r.targetTeacherId === me.id && r.status === 'pending');
+  if (incoming.length) list.push({ tone: 'bad', icon: '⇄', role: 'teacher', tab: 'exchange',
+    title: 'คำขอแลกคาบ/สอนแทนรอคุณตอบรับ ' + incoming.length + ' รายการ',
+    detail: incoming.slice(0, 3).map(r => 'จาก ' + teacherNameOf(r.requesterTeacherId) + ' • ' + thaiDate(r.sourceDate || r.date)).join(' • ') });
+
+  const acts = (DB.timetable.activities || []).filter(a => a.periodId === DB.ui.periodId &&
+    activityTeacherIds(a).indexOf(me.id) >= 0 && a.teacherId !== me.id && !activityAcked(a, me.id));
+  acts.forEach(a => list.push({ tone: 'warn', icon: '★', role: 'teacher', tab: 'activities',
+    title: 'กิจกรรม “' + (a.name || 'ไม่ระบุชื่อ') + '” ขอเวลาเรียนในคาบของคุณ',
+    detail: thaiDate(a.date) + ' • ผู้ขอ ' + teacherNameOf(a.teacherId) + ' • นักเรียน ' + (a.students || []).length + ' คน',
+    ackId: a.id }));
+
+  const myBroken = swaps.filter(r => r.requesterTeacherId === me.id && (r.status === 'rejected' || r.status === 'unassigned'));
+  if (myBroken.length) list.push({ tone: 'bad', icon: '!', role: 'teacher', tab: 'exchange',
+    title: 'คำขอของคุณยังไม่มีผู้รับ ' + myBroken.length + ' คาบ',
+    detail: 'ถูกปฏิเสธหรือยังหาครูไม่ได้ กรุณาเลือกครูท่านอื่น' });
+
+  const myDraft = leaves.filter(l => l.teacherId === me.id && ['draft', 'rejected'].indexOf((l.approval || {}).status || 'draft') >= 0);
+  if (myDraft.length) list.push({ tone: 'warn', icon: '✈', role: 'teacher', tab: 'exchange',
+    title: 'ใบลาของคุณยังไม่ได้ส่งให้ผู้บริหาร ' + myDraft.length + ' ใบ',
+    detail: myDraft.slice(0, 3).map(l => thaiDate(l.fromDate)).join(' • ') });
+
+  // --- งานของหัวหน้ากลุ่มสาระ ---
+  if (teacherHasRole(me, 'head')) {
+    const area = teacherArea(me);
+    const waiting = leaves.filter(l => (l.headApproval || {}).status === 'waiting' &&
+      teacherArea(DB.teachers.find(t => t.id === l.teacherId)) === area);
+    if (waiting.length) list.push({ tone: 'warn', icon: '◆', role: 'head', tab: 'head',
+      title: 'ใบลารอความเห็นหัวหน้ากลุ่มสาระ ' + waiting.length + ' ใบ',
+      detail: waiting.slice(0, 3).map(l => teacherNameOf(l.teacherId) + ' • ' + thaiDate(l.fromDate)).join(' • ') });
+  }
+
+  // --- งานของผู้บริหาร ---
+  if (teacherHasRole(me, 'executive')) {
+    const submitted = leaves.filter(l => (l.approval || {}).status === 'submitted');
+    if (submitted.length) list.push({ tone: 'bad', icon: '✓', role: 'executive', tab: 'leaves',
+      title: 'ใบลารอผู้บริหารอนุมัติ ' + submitted.length + ' ใบ',
+      detail: submitted.slice(0, 3).map(l => teacherNameOf(l.teacherId) + ' • ' + thaiDate(l.fromDate)).join(' • ') });
+    const unassigned = swaps.filter(r => r.status === 'unassigned');
+    if (unassigned.length) list.push({ tone: 'warn', icon: '◎', role: 'executive', tab: 'leaves',
+      title: 'คาบที่ยังไม่มีครูดูแล ' + unassigned.length + ' คาบ',
+      detail: 'ต้องจัดครูสอนแทนให้ครบก่อนถึงวันลา' });
+  }
+  return list;
+}
+
+function approvalCardHtml() {
+  const items = pendingApprovals();
+  if (!items.length) return '';
+  return '<div class="card alert-card"><div class="row"><div><h3 style="margin:0">แจ้งเตือนที่ต้องดำเนินการ</h3>' +
+      '<div class="hint">รายการที่รอคุณอนุญาต รับรอง หรือตอบรับ</div></div><div class="spacer"></div>' +
+      '<span class="badge bad">' + items.length + ' รายการ</span></div>' +
+    '<div class="alert-list" style="margin-top:12px">' + items.map((x, i) =>
+      '<div class="alert-item approval-item ' + x.tone + '"><span class="approval-ico">' + x.icon + '</span>' +
+      '<div><b>' + esc(x.title) + '</b>' + (x.detail ? '<div class="hint">' + esc(x.detail) + '</div>' : '') + '</div>' +
+      '<div class="spacer"></div>' +
+      (x.ackId ? '<button class="sm" data-ack-act="' + x.ackId + '">รับทราบ</button>' : '') +
+      '<button class="sm primary" data-approval-go="' + i + '">ไปจัดการ</button></div>').join('') + '</div></div>';
+}
+
+function bindApprovalCard(pane) {
+  const items = pendingApprovals();
+  $$('[data-approval-go]', pane).forEach(btn => btn.addEventListener('click', () => {
+    const x = items[num(btn.dataset.approvalGo)]; if (!x) return;
+    const me = curTeacher();
+    if (x.role !== 'teacher' && me && teacherHasRole(me, x.role) && (DB.ui.staffMode || 'teacher') !== x.role) {
+      DB.ui.staffMode = x.role;   // สลับบทบาทให้อัตโนมัติ จะได้ไม่ต้องหาเอง
+    }
+    setTab(x.tab);
+  }));
+  $$('[data-ack-act]', pane).forEach(btn => btn.addEventListener('click', () => acknowledgeActivity(btn.dataset.ackAct)));
+}
+
 function renderDashboard() {
   const pane = $('#pane-dashboard'), period = curPeriod(), cls = curClass(), sub = curSubject(), teacher = curTeacher(), homeroom = teacher ? DB.classes.find(c => c.id === teacher.homeroomClassId) : null;
   const students = cls ? (cls.students || []).slice().sort((a, b) => num(a.no) - num(b.no)) : [];
@@ -1887,12 +2003,14 @@ function renderDashboard() {
       '<div class="metric-card" style="--metric:var(--bad)"><div class="metric-icon">⏱</div><div class="metric-value">' + missed.length + '</div><div class="metric-label">คาบค้างเช็กชื่อ</div></div>' +
       '<div class="metric-card" style="--metric:var(--ok)"><div class="metric-icon">✓</div><div class="metric-value">' + completeScores + '/' + students.length + '</div><div class="metric-label">คะแนนครบทุกส่วน</div></div>' +
       '<div class="metric-card" style="--metric:var(--group)"><div class="metric-icon">◎</div><div class="metric-value">' + fmt(average, 1) + '</div><div class="metric-label">คะแนนเฉลี่ยปัจจุบัน</div></div></div>' +
+    approvalCardHtml() +
     '<div class="dash-columns"><div><div class="card"><div class="row"><h3 style="margin:0">ตารางสอนวันนี้</h3><div class="spacer"></div><button class="sm" data-go-tab="schedule">ดูตารางทั้งหมด</button></div><div class="today-list" style="margin-top:10px">' +
       (todayEntries.length ? todayEntries.map(e => { const slot = DB.timetable.slots.find(s => s.id === String(e.slotId)), subject = subjectOf(e), c = classOf(e); const current = slot && nowMin >= timeToMinutes(slot.start) && nowMin <= timeToMinutes(slot.end); const checked = !!DB.timetable.attendance[attendanceKey(e.id, today)]; return '<div class="today-card' + (current ? ' current' : '') + '"><div class="today-time"><b>' + esc(slot ? slot.label : '') + '</b>' + esc(slot ? slot.start + '-' + slot.end : '') + '</div><div><b>' + esc((subject.code ? subject.code + ' ' : '') + subject.name) + '</b><div class="hint">' + esc(c.name) + (e.room ? ' • ' + esc(e.room) : '') + '</div></div><div class="spacer"></div>' + (checked ? '<span class="badge ok">เช็กแล้ว</span>' : '<button class="sm primary" data-dash-att="' + e.id + '">เช็กชื่อ</button>') + '</div>'; }).join('') : '<div class="empty">วันนี้ไม่มีคาบสอนในตาราง</div>') + '</div></div>' +
       '<div class="card"><h3>ทางลัดงานประจำ</h3><div class="quick-grid"><button class="quick-action" data-go-tab="scores">✎<b>กรอกคะแนน</b><span>คะแนนเก็บ สอบ และซ่อม</span></button><button class="quick-action" data-go-tab="attendance">◷<b>เช็กเวลาเรียน</b><span>คาบประจำ แลกคาบ สอนแทน และชดเชย</span></button><button class="quick-action" data-go-tab="groups">◉<b>จัดกลุ่มเรียนรู้</b><span>กลุ่มและผู้นำเสนอ</span></button><button class="quick-action" data-go-tab="summary">▤<b>สรุป ปพ.5</b><span>เกรด เวลาเรียน และส่งออก</span></button></div></div></div>' +
       '<div><div class="card"><h3>ผู้ช่วยแนะนำงาน</h3><div class="insight-list">' + insights.map(i => '<button class="insight-item" data-go-tab="' + i.tab + '" style="text-align:left;width:100%"><span class="insight-dot" style="--insight:' + i.color + '"></span><span>' + esc(i.text) + '</span><span class="spacer"></span><span>›</span></button>').join('') + '</div></div>' +
       '<div class="card"><div class="row"><h3 style="margin:0">ความพร้อมของระบบ</h3><div class="spacer"></div><b>' + setupPct + '%</b></div><div class="setup-progress"><i style="width:' + setupPct + '%"></i></div><div class="hint">สถานศึกษา • ห้อง • วิชา • รายชื่อ • ตารางสอน • ปฏิทิน • หัวข้อคะแนน • ฐานข้อมูลกลาง</div><button class="sm" data-go-tab="settings" style="margin-top:9px">ตรวจสอบการตั้งค่า</button></div></div></div>' + exchangeRequestCard();
 
+  bindApprovalCard(pane);
   $$('[data-go-tab]', pane).forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.goTab)));
   $$('[data-dash-att]', pane).forEach(btn => btn.addEventListener('click', () => { const e = todayEntries.find(x => x.id === btn.dataset.dashAtt); if (e) openAttendance(e, today); }));
   $$('[data-swap-accept]', pane).forEach(btn => btn.addEventListener('click', () => respondExchangeRequest(btn.dataset.swapAccept, true)));
@@ -6880,6 +6998,7 @@ $('#btnSubjects').addEventListener('click', manageSubjects);
 $('#tabsMore').addEventListener('click', e => { e.stopPropagation(); toggleMoreMenu(); });
 document.addEventListener('click', e => { if (!e.target.closest('.menu-wrap')) toggleMoreMenu(false); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { toggleMoreMenu(false); const sh = $('.tabsheet'); if (sh) sh.remove(); } });
+$('#btnAlerts').addEventListener('click', () => { setTab('dashboard'); setTimeout(() => { const c = $('.alert-card'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 120); });
 $('#btnStaffLogout').addEventListener('click', staffLogout);
 $('#btnSearch').addEventListener('click', openStudentSearch);
 $('#btnTheme').addEventListener('click', toggleTheme);
