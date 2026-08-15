@@ -392,25 +392,13 @@ button,.tabs button,a.button,select,input{touch-action:manipulation;-webkit-tap-
 .who-chip b{font-weight:800}
 
 /* เมนู ⋯ รวมปุ่มที่ไม่ได้ใช้บ่อย ให้แถบบนโล่ง */
-.menu-wrap{position:relative}
 .icon-btn{min-width:38px;justify-content:center}
-.more-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:60;display:grid;gap:4px;min-width:210px;
-  max-height:min(70vh,520px);overflow:auto;
-  background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;box-shadow:0 16px 40px rgba(15,23,42,.18)}
-/* ฉากหลังโปร่งใสคลุมทั้งจอ เพื่อให้แตะที่ไหนก็ปิดเมนูได้เสมอ
-   จำเป็นเพราะปุ่มบางปุ่มในหน้าหยุดการส่งต่อคลิก และ iOS ไม่ส่ง click จากพื้นที่ว่าง
-   ต้องอยู่ใต้แถบบน (z-index 40) ไม่งั้นฉากหลังจะบังปุ่ม ⋯ เอง กดปิดแล้วเมนูเด้งเปิดใหม่จนดูเหมือนค้าง */
-.menu-backdrop{position:fixed;inset:0;z-index:35;background:transparent}
-.more-menu button{width:100%;justify-content:flex-start;background:transparent;border:none;padding:9px 10px;border-radius:8px;font-weight:600}
-.more-menu button:hover{background:var(--panel2)}
 .more-title{font-size:11px;font-weight:800;letter-spacing:.04em;color:var(--muted);padding:2px 10px 4px}
 .logout-btn{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 35%,transparent)}
 /* แถวแท็บ: แท็บหลักปักหมุดไว้ ที่เหลืออยู่ในเมนูที่กางออกด้านข้าง */
 .tabsrow{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);padding-right:12px}
 .tabsrow .tabs{flex:1;min-width:0;border-bottom:none}
-.tabs-menu-wrap{flex:0 0 auto}
-#tabsMore{font-weight:700;border-radius:999px;padding:8px 14px}
-#tabsMenu{min-width:230px}
+.tabs-more-btn{flex:0 0 auto;font-size:17px;line-height:1;padding:7px 13px;border-radius:11px;font-weight:700}
 /* ปุ่มติดตั้งแอป — ไอคอนเล็กมุมล่างขวา เห็นเฉพาะหน้าเข้าสู่ระบบ */
 .install-fab{display:none;position:fixed;right:16px;bottom:16px;z-index:95;width:44px;height:44px;padding:0;
   border-radius:14px;font-size:19px;font-weight:800;align-items:center;justify-content:center;
@@ -438,9 +426,17 @@ body.gateway-open .install-fab:not([hidden]){display:inline-flex}
 .bottomnav .bn-dot{position:absolute;transform:translate(14px,-4px);width:7px;height:7px;border-radius:50%;background:var(--bad)}
 
 /* แผ่นเมนูรวมทุกหน้า เปิดจากปุ่ม "เพิ่มเติม" */
-.tabsheet{position:fixed;inset:0;z-index:70;background:rgba(15,23,42,.45);display:grid;align-items:end}
+.tabsheet{position:fixed;inset:0;z-index:120;background:rgba(15,23,42,.45);display:grid;align-items:end;justify-items:stretch}
 .tabsheet-inner{background:var(--panel);border-radius:18px 18px 0 0;padding:14px 14px calc(18px + env(safe-area-inset-bottom));
   max-height:78vh;overflow:auto;display:grid;gap:8px}
+.tabsheet-head{display:flex;align-items:center;gap:8px}
+.tabsheet-head b{font-size:15px}
+.tabsheet-close{margin-left:auto;min-width:38px;height:38px;border-radius:10px;font-size:17px;font-weight:800}
+@media(min-width:721px){
+  .tabsheet{align-items:start;justify-items:end;padding:70px 16px 16px}
+  .tabsheet-inner{border-radius:16px;max-width:520px;padding:14px;box-shadow:0 24px 60px rgba(15,23,42,.28)}
+  .tabsheet-handle{display:none}
+}
 .tabsheet-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .tabsheet-grid button{justify-content:flex-start;padding:14px 12px;border-radius:12px;font-weight:700;text-align:left}
 .tabsheet-grid button.active{border-color:var(--brand);color:var(--brand);background:color-mix(in srgb,var(--brand) 8%,transparent)}
@@ -454,15 +450,12 @@ body.gateway-open .install-fab:not([hidden]){display:inline-flex}
   .pickers{width:100%;gap:6px}.pickers .pick{flex:1 1 46%}
   .pick label{display:none}
   .icon-btn .lbl{display:none}
-  .tabs{display:none}
+  .tabsrow{display:none}
   .bottomnav{display:grid}
   main{padding-bottom:calc(80px + env(safe-area-inset-bottom))}
   .who-chip{max-width:38vw}
   button.sm{min-height:36px}
   /* บนมือถือให้เมนูเป็นแผ่นด้านล่าง กดง่ายด้วยนิ้วโป้ง */
-  .more-menu{position:fixed;left:10px;right:10px;top:auto;bottom:calc(10px + env(safe-area-inset-bottom));min-width:0;border-radius:16px;padding:10px}
-  .more-menu button{padding:12px 12px}
-  .menu-backdrop{background:rgba(15,23,42,.38)}
 }
 @media(min-width:721px) and (max-width:1100px){
   .pickers .pick{flex:1 1 auto}.tabs button{padding:8px 12px;font-size:13.5px}
@@ -669,10 +662,7 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
   <button data-tab="leaves">การลาและการอนุมัติ <span id="leaveBadge"></span></button>
   <button data-tab="admin">ผู้ดูแลระบบ</button>
 </nav>
-<div class="menu-wrap tabs-menu-wrap">
-  <button class="sm" id="tabsMore" aria-haspopup="true" aria-expanded="false">เมนู ▾</button>
-  <div class="more-menu" id="tabsMenu" hidden></div>
-</div>
+<button class="sm tabs-more-btn" id="tabsMore" aria-haspopup="dialog" title="หน้าอื่นทั้งหมด" aria-label="หน้าอื่นทั้งหมด">☰</button>
 </div>
 </div>
 
@@ -1646,18 +1636,12 @@ const isPinnedTab = (tab, mode) => PINNED_TABS.indexOf(tab) >= 0 || (mode !== 't
 const allowedTabs = () => $$('#tabs button').map(b => b.dataset.tab).filter(t => canSeeTab(t, DB.ui.staffMode || 'teacher'));
 const visibleTabButtons = () => $$('#tabs button').filter(b => allowedTabs().indexOf(b.dataset.tab) >= 0);
 
-/** เติมรายการหน้าที่เหลือลงในเมนูข้างแถบแท็บ */
+/** ปุ่ม ☰ ข้างแถบแท็บ — โชว์เฉพาะเมื่อมีหน้าอื่นให้ไป */
 function renderTabsMenu() {
-  const menu = $('#tabsMenu'), btn = $('#tabsMore'); if (!menu || !btn) return;
+  const btn = $('#tabsMore'); if (!btn) return;
   const mode = DB.ui.staffMode || 'teacher';
-  const rest = allowedTabs().filter(t => !isPinnedTab(t, mode));
-  btn.hidden = !rest.length;
-  const active = rest.indexOf(DB.ui.tab) >= 0;
-  btn.classList.toggle('primary', active);
-  btn.textContent = (active ? (TAB_SHORT[DB.ui.tab] || 'เมนู') : 'เมนู') + ' ▾';
-  menu.innerHTML = '<div class="more-title">หน้าอื่นของ' + esc(roleLabel(mode)) + '</div>' +
-    rest.map(t => '<button class="sm" data-menu-tab="' + t + '">' + (TAB_ICON[t] || '▸') + '  ' + esc(TAB_SHORT[t] || t) + '</button>').join('');
-  $$('[data-menu-tab]', menu).forEach(b => b.addEventListener('click', () => { toggleMoreMenu(false); setTab(b.dataset.menuTab); }));
+  btn.hidden = !allowedTabs().filter(t => !isPinnedTab(t, mode)).length;
+  btn.classList.toggle('primary', allowedTabs().indexOf(DB.ui.tab) >= 0 && !isPinnedTab(DB.ui.tab, mode));
 }
 
 function renderBottomNav() {
@@ -1679,35 +1663,35 @@ function renderBottomNav() {
   $('[data-tab-sheet]', nav).addEventListener('click', openTabSheet);
 }
 
-/** แผ่นเมนูรวมทุกหน้าที่บทบาทนี้เข้าได้ */
+/** แผ่นเมนูรวมทุกหน้าที่บทบาทนี้เข้าได้
+   สร้างเป็นชั้นบนสุดของหน้าและลบทิ้งเมื่อปิด จึงไม่มีทางค้างอยู่ใต้ส่วนอื่น */
 function openTabSheet() {
-  const old = $('.tabsheet'); if (old) old.remove();
+  closeTabSheet();
+  const tabs = allowedTabs();
   const sheet = document.createElement('div');
   sheet.className = 'tabsheet';
   sheet.innerHTML = '<div class="tabsheet-inner"><div class="tabsheet-handle"></div>' +
-    '<div class="more-title">ไปที่หน้า • ' + esc(roleLabel(DB.ui.staffMode || 'teacher')) + '</div><div class="tabsheet-grid">' +
-    visibleTabButtons().map(b => '<button data-goto="' + b.dataset.tab + '"' + (b.dataset.tab === DB.ui.tab ? ' class="active"' : '') + '>' +
-      (TAB_ICON[b.dataset.tab] || '▸') + '  ' + esc(TAB_SHORT[b.dataset.tab] || b.textContent.trim()) + '</button>').join('') +
-    '</div></div>';
+    '<div class="tabsheet-head"><b>ไปที่หน้า</b><span class="hint">' + esc(roleLabel(DB.ui.staffMode || 'teacher')) + '</span>' +
+    '<button class="sm tabsheet-close" data-sheet-close="1" aria-label="ปิดเมนู">✕</button></div>' +
+    '<div class="tabsheet-grid">' +
+    tabs.map(t => '<button data-goto="' + t + '"' + (t === DB.ui.tab ? ' class="active"' : '') + '>' +
+      esc(TAB_SHORT[t] || t) + '</button>').join('') + '</div></div>';
   document.body.appendChild(sheet);
-  sheet.addEventListener('click', e => { if (e.target === sheet) sheet.remove(); });
-  $$('[data-goto]', sheet).forEach(b => b.addEventListener('click', () => { sheet.remove(); setTab(b.dataset.goto); }));
+  const btn = $('#tabsMore'); if (btn) btn.setAttribute('aria-expanded', 'true');
+  sheet.addEventListener('pointerdown', e => { if (e.target === sheet) closeTabSheet(); });
+  sheet.addEventListener('click', e => { if (e.target === sheet) closeTabSheet(); });
+  $$('[data-sheet-close]', sheet).forEach(b => b.addEventListener('click', closeTabSheet));
+  $$('[data-goto]', sheet).forEach(b => b.addEventListener('click', () => { closeTabSheet(); setTab(b.dataset.goto); }));
 }
 
+/** ปิดแผ่นเมนูถ้าเปิดค้างอยู่ — เรียกได้ทุกที่โดยไม่ต้องรู้ว่าเปิดอยู่ไหม */
 function toggleMoreMenu(open) {
-  const menu = $('#tabsMenu'), btn = $('#tabsMore'); if (!menu) return;
-  const show = open === undefined ? menu.hidden : open;
-  menu.hidden = !show;
-  if (btn) btn.setAttribute('aria-expanded', show ? 'true' : 'false');
-  const existing = $('#moreBackdrop');
-  if (show) {
-    if (!existing) {
-      const back = document.createElement('div');
-      back.id = 'moreBackdrop'; back.className = 'menu-backdrop';
-      back.addEventListener('pointerdown', e => { e.preventDefault(); toggleMoreMenu(false); });
-      document.body.appendChild(back);
-    }
-  } else if (existing) existing.remove();
+  if (open === false) { closeTabSheet(); return; }
+  if ($('.tabsheet')) closeTabSheet(); else openTabSheet();
+}
+function closeTabSheet() {
+  const sheet = $('.tabsheet'); if (sheet) sheet.remove();
+  const btn = $('#tabsMore'); if (btn) btn.setAttribute('aria-expanded', 'false');
 }
 
 /** ชิปบอกว่ากำลังใช้งานเป็นใครและบทบาทอะไร */
@@ -1754,7 +1738,7 @@ function setTab(t) {
   DB.ui.tab = t; save();
   $$('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
   $$('section.tabpane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + t));
-  toggleMoreMenu(false);
+  closeTabSheet();
   window.scrollTo({ top: 0, behavior: 'smooth' });
   render();
 }
@@ -6996,8 +6980,7 @@ $('#btnPeriods').addEventListener('click', managePeriods);
 $('#btnClasses').addEventListener('click', manageClasses);
 $('#btnSubjects').addEventListener('click', manageSubjects);
 $('#tabsMore').addEventListener('click', e => { e.stopPropagation(); toggleMoreMenu(); });
-document.addEventListener('click', e => { if (!e.target.closest('.menu-wrap')) toggleMoreMenu(false); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { toggleMoreMenu(false); const sh = $('.tabsheet'); if (sh) sh.remove(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTabSheet(); });
 $('#btnAlerts').addEventListener('click', () => { setTab('dashboard'); setTimeout(() => { const c = $('.alert-card'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 120); });
 $('#btnStaffLogout').addEventListener('click', staffLogout);
 $('#btnSearch').addEventListener('click', openStudentSearch);
