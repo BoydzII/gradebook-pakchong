@@ -354,6 +354,10 @@ td.num,th.num{text-align:center}
 .slot-box.busy{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,transparent);background:var(--bad-bg)}
 .slot-box.swap{color:#fff;background:var(--group);border-color:var(--group);box-shadow:0 3px 10px color-mix(in srgb,var(--group) 40%,transparent)}
 .slot-count{font-size:11.5px;font-weight:700;color:var(--muted);margin-left:4px}
+/* ชิปเลือกคาบที่จะแลกเอง */
+.pick-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}
+.pick-chips .chip{padding:5px 11px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--panel2)}
+.pick-chips .chip.on{background:var(--group);color:#fff;border-color:var(--group)}
 .slot-legend{display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:11.5px;font-weight:700;color:var(--muted);margin-top:8px}
 .slot-legend span.k{display:inline-flex;align-items:center;gap:5px}
 .slot-legend i{width:13px;height:13px;border-radius:5px;border:1.5px solid;display:inline-block}
@@ -2744,6 +2748,19 @@ function slotLegendHtml() {
     '<span class="k"><i class="swap"></i>คาบที่จะแลก/สอนแทน</span></div>';
 }
 
+/** รวมตัวเลือกของครูคนเดียวกันไว้การ์ดเดียว แล้วให้ครูคลิกเลือกคาบเองได้
+   เดิมครูคนหนึ่งขึ้นหลายการ์ดตามจำนวนคาบที่แลกได้ ทำให้รายการยาวและดูซ้ำ */
+function candidateGroups(list) {
+  const picks = DB.ui.exchangeChoice || {}, groups = [], byTeacher = {};
+  (list || []).forEach(c => {
+    const id = c.teacher.id;
+    if (!byTeacher[id]) { byTeacher[id] = { teacherId: id, options: [], pick: 0 }; groups.push(byTeacher[id]); }
+    byTeacher[id].options.push(c);
+  });
+  groups.forEach(g => { const want = num(picks[g.teacherId]); g.pick = want >= 0 && want < g.options.length ? want : 0; });
+  return groups;
+}
+
 function sourceEntryText(entry, date) {
   const subject = DB.subjects.find(s => s.id === entry.subjectId), cls = DB.classes.find(c => c.id === entry.classId), slot = DB.timetable.slots.find(s => s.id === String(entry.slotId));
   return thaiDate(date) + ' • ' + (slot ? slot.label : '') + ' • ' + (cls ? cls.name : 'ไม่พบห้อง') + ' • ' + (subject ? (subject.code ? subject.code + ' ' : '') + subject.name : 'ไม่พบวิชา');
@@ -3247,13 +3264,21 @@ function renderExchangeCenter() {
       '<div class="card leave-card"><h3>แจ้งการลา / ขออนุญาตไปราชการ</h3>' +
       '<div class="hint" style="margin-bottom:8px">เลือกช่วงวันที่แล้วกดบันทึก ระบบจะหาครูดูแลให้ทุกคาบในช่วงนั้นโดยอัตโนมัติ (ยกเว้นคาบเข้าแถว/โฮมรูม)<br>เลือก “ไปราชการ” ระบบจะไม่นับเป็นวันลา และพิมพ์เป็นบันทึกขออนุญาตไปราชการแทนใบลา</div>' +
       '<div class="grid2"><div class="pick"><label>ตั้งแต่วันที่</label><input type="date" id="leaveFrom" value="' + date + '"></div><div class="pick"><label>ถึงวันที่</label><input type="date" id="leaveTo" value="' + date + '"></div><div class="pick"><label>ประเภทการลา</label><select id="leaveReason">' + reasonOptions + '</select></div><div class="pick"><label>กรณีอื่นๆ โปรดระบุ</label><input id="leaveOther"></div></div><div class="pick" style="margin-top:10px"><label>รายละเอียด</label><input id="leaveNote" style="width:100%"></div><button class="primary" id="submitLeave" style="margin-top:12px;width:100%">บันทึกการลาและส่งหาครูดูแลทุกคาบ</button><div class="hint" style="margin-top:8px">ระบบจะตรวจทุกคาบของคุณในช่วงวันที่ลา แล้วส่งคำขอตามลำดับความเหมาะสมอัตโนมัติ</div></div></div>' +
-    '<div><div class="card"><div class="row"><div><h3 style="margin:0">2. ครูที่ระบบแนะนำ</h3><div class="hint">เรียงจากเงื่อนไขที่เหมาะสมที่สุด • ดูแถบคาบเพื่อเทียบภาระงานก่อนส่งคำขอ</div></div><div class="spacer"></div><span class="badge group">' + candidates.length + ' คน</span></div>' + slotLegendHtml() + '<div class="candidate-list" style="margin-top:12px">' + (source ? candidates.length ? candidates.map((c, i) => { const targetText = c.targetEntry ? sourceEntryText(c.targetEntry, c.targetDate) : 'ว่างตรง ' + sourceEntryText(source, date); return '<div class="candidate-card' + (i === 0 ? ' recommended' : '') + '"><div><div class="candidate-rank">' + (i === 0 ? 'แนะนำอันดับ 1 • ' : '') + esc(c.tier) + '</div><b>' + esc(c.teacher.name || c.teacher.email || 'ไม่ระบุชื่อ') + '</b> ' + teacherPhoneHtml(c.teacher) + '<div class="hint">' + esc(c.mode === 'exchange' ? (c.kind.label + ' • ' + targetText) : targetText) + '</div>' +
+    '<div><div class="card"><div class="row"><div><h3 style="margin:0">2. ครูที่ระบบแนะนำ</h3><div class="hint">เรียงจากเงื่อนไขที่เหมาะสมที่สุด • ดูแถบคาบเพื่อเทียบภาระงานก่อนส่งคำขอ</div></div><div class="spacer"></div><span class="badge group">' + candidateGroups(candidates).length + ' ครู</span></div>' + slotLegendHtml() +
+      '<div class="hint" style="margin-top:6px">คลิกเลือกคาบที่จะแลกได้เอง ถ้าตกลงกับครูไว้แล้ว</div>' +
+      '<div class="candidate-list" style="margin-top:12px">' + (source ? candidates.length ? candidateGroups(candidates).map((g, gi) => {
+        const c = g.options[g.pick] || g.options[0];
+        const targetText = c.targetEntry ? sourceEntryText(c.targetEntry, c.targetDate) : 'ว่างตรง ' + sourceEntryText(source, date);
+        return '<div class="candidate-card' + (gi === 0 ? ' recommended' : '') + '"><div><div class="candidate-rank">' + (gi === 0 ? 'แนะนำอันดับ 1 • ' : '') + esc(c.tier) + '</div><b>' + esc(c.teacher.name || c.teacher.email || 'ไม่ระบุชื่อ') + '</b> ' + teacherPhoneHtml(c.teacher) + '<div class="hint">' + esc(c.mode === 'exchange' ? (c.kind.label + ' • ' + targetText) : targetText) + '</div>' +
+        (g.options.length > 1 ? '<div class="hint" style="margin-top:7px">เลือกคาบที่จะแลก (' + g.options.length + ' ตัวเลือก)</div><div class="pick-chips">' +
+          g.options.map((o, oi) => '<button class="chip' + (oi === g.pick ? ' on' : '') + '" data-pick-teacher="' + g.teacherId + '" data-pick-index="' + oi + '">' +
+            esc(thaiDate(o.targetDate) + ' • คาบ ' + o.targetEntry.slotId) + '</button>').join('') + '</div>' : '') +
         '<div class="hint" style="margin-top:7px">คาบของครูท่านนี้ • ' + esc(thaiDate(date)) + '</div>' +
         slotStripHtml(c.teacher.id, date, [String(source.slotId)]) +
         (c.mode === 'exchange' && c.targetEntry && c.targetDate !== date ?
           '<div class="hint" style="margin-top:7px">คาบของฉันที่ต้องไปสอนแทน • ' + esc(thaiDate(c.targetDate)) + '</div>' +
           slotStripHtml(me.id, c.targetDate, [String(c.targetEntry.slotId)]) : '') +
-        '</div><button class="sm primary" data-send-candidate="' + i + '">' + (c.mode === 'exchange' ? 'ส่งคำขอแลก' : 'ขอสอนแทน') + '</button></div>'; }).join('') : '<div class="empty">ยังไม่พบครูว่างในคาบนี้ ระบบจะเก็บเป็นรายการรอผู้ดูแลจัดครูแทน</div>' : '<div class="empty">วันที่เลือกไม่มีคาบสอนของคุณ</div>') + '</div></div>' +
+        '</div><button class="sm primary" data-send-candidate="' + candidates.indexOf(c) + '">' + (c.mode === 'exchange' ? 'ส่งคำขอแลก' : 'ขอสอนแทน') + '</button></div>'; }).join('') : '<div class="empty">ยังไม่พบครูว่างในคาบนี้ ระบบจะเก็บเป็นรายการรอผู้ดูแลจัดครูแทน</div>' : '<div class="empty">วันที่เลือกไม่มีคาบสอนของคุณ</div>') + '</div></div>' +
       '<div class="card"><h3>ประวัติการลาและเอกสาร</h3>' + (leaves.length ? '<div class="alert-list">' + leaves.slice(0, 20).map(l => {
         const approval = (l.approval || {}).status || 'draft', head = (l.headApproval || {}).status || 'none';
         return '<div class="alert-item"><div><b>' + esc(exchangeReasonLabel(l)) + '</b> <span class="badge ' + (isOfficialTrip(l) ? 'group' : '') + '">' + esc(leaveKindLabel(l)) + '</span><div class="hint">' + thaiDate(l.fromDate) + (l.toDate !== l.fromDate ? ' ถึง ' + thaiDate(l.toDate) : '') + ' • รวม ' + leaveDays(l) + ' วัน' + (isOfficialTrip(l) ? ' (ไม่นับเป็นวันลา)' : '') + ' • ' + l.requestIds.length + ' คาบ' + (l.note ? '<br>' + esc(l.note) : '') +
@@ -3266,6 +3291,11 @@ function renderExchangeCenter() {
       }).join('') + '</div>' : '<div class="empty">ยังไม่มีประวัติการลา</div>') + '</div></div></div>' + exchangeRequestCard(30);
   $('#exchangeDate').addEventListener('change', e => { DB.ui.exchangeDate = e.target.value || todayISO(); DB.ui.exchangeSourceEntryId = ''; save(); renderExchangeCenter(); });
   $('#exchangeSource').addEventListener('change', e => { DB.ui.exchangeSourceEntryId = e.target.value; save(); renderExchangeCenter(); });
+  $$('[data-pick-teacher]', pane).forEach(btn => btn.addEventListener('click', () => {
+    DB.ui.exchangeChoice = DB.ui.exchangeChoice || {};
+    DB.ui.exchangeChoice[btn.dataset.pickTeacher] = num(btn.dataset.pickIndex);
+    save(); renderExchangeCenter();
+  }));
   $$('[data-send-candidate]', pane).forEach(btn => btn.addEventListener('click', () => { if (blockAdminApproval()) return; const reason = $('#exchangeReason').value, other = $('#exchangeOther').value.trim(); if (reason === 'other' && !other) return toast('กรุณาระบุเหตุผลอื่นๆ', 'bad'); const newReq = createCoverageRequest(source, date, candidates[num(btn.dataset.sendCandidate)], reason, other, $('#exchangeNote').value.trim(), ''); save(true); pushRequestDoc('swap', newReq); renderExchangeCenter(); renderTop(); toast('ส่งคำขอเรียบร้อย', 'ok'); }));
   $('#submitLeave').addEventListener('click', () => submitLeaveRequest(pane));
   $$('[data-swap-accept]', pane).forEach(btn => btn.addEventListener('click', () => respondExchangeRequest(btn.dataset.swapAccept, true)));
@@ -3861,6 +3891,88 @@ function openItemKsaConfig(item) {
   });
 }
 
+/* ---------- นำรูปแบบหัวข้อคะแนนไปใช้ซ้ำ ------------------------------------
+   สมุดคะแนนหนึ่งเล่มผูกกับ ห้อง + วิชา + ปี/ภาค จึงคัดลอกข้ามห้องและข้ามครูได้
+   ตราบใดที่เป็นวิชาเดียวกัน */
+function bookKeyOf(classId, subjectId, periodId) { return classId + '::' + subjectId + '::' + periodId; }
+
+/** เล่มอื่นที่เป็นวิชาเดียวกันและมีหัวข้อคะแนนแล้ว ใช้เป็นต้นแบบได้ */
+function itemTemplateSources() {
+  const subjectId = DB.ui.subjectId, here = bookKey(), out = [];
+  Object.keys(DB.books || {}).forEach(key => {
+    const parts = key.split('::'); if (parts[1] !== subjectId || key === here) return;
+    const book = DB.books[key]; if (!book || !(book.items || []).length) return;
+    const cls = DB.classes.find(c => c.id === parts[0]), period = DB.periods.find(x => x.id === parts[2]);
+    out.push({ key: key, label: (cls ? cls.name : 'ห้องที่ถูกลบ') + (period ? ' • ปี ' + period.academicYear + '/' + period.semester : '') +
+      ' • ' + (book.items || []).length + ' หัวข้อ' + (book.meta && book.meta.teacherName ? ' • ' + book.meta.teacherName : ''), items: (book.items || []).length });
+  });
+  return out;
+}
+
+/** ห้องอื่นที่เรียนวิชานี้ในปี/ภาคเดียวกัน จากตารางสอนของทั้งโรงเรียน */
+function classesSharingSubject() {
+  const subjectId = DB.ui.subjectId, periodId = DB.ui.periodId, ids = new Set();
+  (DB.timetable.entries || []).filter(e => e.periodId === periodId && e.subjectId === subjectId).forEach(e => ids.add(e.classId));
+  return Array.from(ids).map(id => DB.classes.find(c => c.id === id)).filter(c => c && c.id !== DB.ui.classId);
+}
+
+function copyItemsToClasses(classIds) {
+  const from = curBook(true); if (!from) return 0;
+  let n = 0;
+  classIds.forEach(cid => {
+    const key = bookKeyOf(cid, DB.ui.subjectId, DB.ui.periodId);
+    const target = DB.books[key] = normalizeBook(DB.books[key] || defaultBook());
+    target.items = fbPlain(from.items);
+    target.weights = fbPlain(from.weights);
+    target.exams = fbPlain(from.exams);
+    target.passPercent = from.passPercent;
+    target.gradeScale = fbPlain(from.gradeScale);
+    n++;
+  });
+  save(true);
+  return n;
+}
+
+function openItemReuse() {
+  const targets = classesSharingSubject(), sources = itemTemplateSources();
+  openModal({ title: 'นำหัวข้อคะแนนไปใช้ซ้ำ', wide: true,
+    bodyHTML: '<div class="card"><h3 style="margin:0 0 8px">คัดลอกของห้องนี้ไปห้องอื่น</h3>' +
+      '<div class="hint">คัดลอกหัวข้อคะแนน สัดส่วนคะแนน คะแนนสอบ และเกณฑ์ตัดเกรด ไปยังห้องอื่นที่เรียนวิชาเดียวกัน • คะแนนของนักเรียนไม่ถูกคัดลอก</div>' +
+      (targets.length ? '<div class="tablewrap" style="margin-top:10px;max-height:220px"><table><tbody>' +
+        targets.map(c => '<tr><td style="width:34px"><input type="checkbox" class="copy-class" value="' + c.id + '"></td><td>' + esc(c.name) + '</td><td>' +
+          ((DB.books[bookKeyOf(c.id, DB.ui.subjectId, DB.ui.periodId)] || {}).items || []).length + ' หัวข้อเดิม</td></tr>').join('') +
+        '</tbody></table></div><div class="row" style="margin-top:10px"><button class="sm" id="copyAll">เลือกทั้งหมด</button>' +
+        '<button class="sm primary" id="doCopy">คัดลอกไปห้องที่เลือก</button></div>'
+        : '<div class="empty" style="margin-top:10px">ไม่พบห้องอื่นที่เรียนวิชานี้ในตารางสอน</div>') + '</div>' +
+      '<div class="card"><h3 style="margin:0 0 8px">ใช้รูปแบบที่มีอยู่แล้วเป็นต้นแบบ</h3>' +
+      '<div class="hint">ดึงหัวข้อคะแนนจากห้องอื่นหรือของครูท่านอื่นที่สอนวิชาเดียวกันมาใช้กับห้องนี้ • ของเดิมในห้องนี้จะถูกแทนที่</div>' +
+      (sources.length ? '<div class="pick" style="margin-top:10px"><label>เลือกต้นแบบ</label><select id="tplSource" style="width:100%">' +
+        sources.map(x => '<option value="' + esc(x.key) + '">' + esc(x.label) + '</option>').join('') + '</select></div>' +
+        '<div class="row" style="margin-top:10px"><button class="sm primary" id="useTpl">ใช้รูปแบบนี้</button></div>'
+        : '<div class="empty" style="margin-top:10px">ยังไม่มีรูปแบบของวิชานี้ในเครื่องนี้<br><span class="hint">รูปแบบของครูท่านอื่นจะเห็นได้เมื่อเปิดใช้การซิงก์สมุดคะแนนขึ้นส่วนกลาง</span></div>') + '</div>',
+    buttons: [{ label: 'ปิด', cls: 'primary' }],
+    onMount(root, close) {
+      const all = $('#copyAll', root);
+      if (all) all.addEventListener('click', () => $$('.copy-class', root).forEach(x => { x.checked = true; }));
+      const doCopy = $('#doCopy', root);
+      if (doCopy) doCopy.addEventListener('click', async () => {
+        const ids = $$('.copy-class', root).filter(x => x.checked).map(x => x.value);
+        if (!ids.length) return toast('กรุณาเลือกห้องปลายทางอย่างน้อย 1 ห้อง', 'bad');
+        if (!await confirmBox('คัดลอกหัวข้อคะแนน', 'หัวข้อคะแนนเดิมของห้องที่เลือกจะถูกแทนที่ทั้งหมด คะแนนที่กรอกไว้แล้วจะยังอยู่แต่จะไม่ตรงกับหัวข้อใหม่', 'คัดลอก')) return;
+        const n = copyItemsToClasses(ids); close(); render(); toast('คัดลอกไป ' + n + ' ห้องแล้ว', 'ok');
+      });
+      const useTpl = $('#useTpl', root);
+      if (useTpl) useTpl.addEventListener('click', async () => {
+        const key = $('#tplSource', root).value, src = DB.books[key]; if (!src) return;
+        if (!await confirmBox('ใช้รูปแบบนี้', 'หัวข้อคะแนนของห้องนี้จะถูกแทนที่ด้วยรูปแบบที่เลือก', 'ใช้รูปแบบ')) return;
+        const b = curBook(true);
+        b.items = fbPlain(src.items); b.weights = fbPlain(src.weights); b.exams = fbPlain(src.exams);
+        b.passPercent = src.passPercent; b.gradeScale = fbPlain(src.gradeScale);
+        save(true); close(); render(); toast('ใช้รูปแบบเรียบร้อย ' + (b.items || []).length + ' หัวข้อ', 'ok');
+      });
+    } });
+}
+
 function renderItems() {
   const pane = $('#pane-items');
   const gate = gateMsg(true);
@@ -3881,6 +3993,7 @@ function renderItems() {
       '<div class="row" style="margin-bottom:10px">' +
         '<button class="primary" id="btnAddItem">+ เพิ่มหัวข้อ</button>' +
         '<button id="btnAddMany">เพิ่มหลายหัวข้อ</button>' +
+        '<button id="btnReuseItems">นำไปใช้ซ้ำ / ใช้รูปแบบของห้องอื่น</button>' +
         '<span class="hint">เลือก “สอบวัดผลรายหน่วย” เพื่อเปิดช่องซ่อมอัตโนมัติเฉพาะผู้ที่ได้ต่ำกว่าเกณฑ์รายส่วน</span>' +
       '</div>' +
       (b.items.length ?
@@ -3946,11 +4059,24 @@ function renderItems() {
       '<button class="sm" id="btnResetGrade">คืนค่าเกณฑ์มาตรฐาน</button></div>' +
     '</div>';
 
+  // ตัวชี้วัด/ผลการเรียนรู้ — ยังไม่เปิดใช้ บอกไว้ให้ครูเห็นแผนล่วงหน้า
+  pane.insertAdjacentHTML('beforeend',
+    '<div class="card"><div class="row"><div><h3 style="margin:0">ตัวชี้วัด / ผลการเรียนรู้</h3>' +
+    '<div class="hint">ผูกตัวชี้วัดกับเวลาเรียนและคะแนนของแต่ละหัวข้อ</div></div><div class="spacer"></div>' +
+    '<span class="badge warn">รออัปเดต</span></div>' +
+    '<div class="notice" style="margin-top:12px">กำลังพัฒนา • แผนที่จะทำ<br>' +
+    '• ตารางกรอก ตัวชี้วัด/ผลการเรียนรู้ • เวลา (ชั่วโมง) • คะแนน<br>' +
+    '• วางข้อมูลจาก Excel ได้ทั้งตาราง และนำเข้าไฟล์ .xlsx<br>' +
+    '• ผูกตัวชี้วัดเข้ากับหัวข้อคะแนนด้านบน เพื่อพิมพ์ลงเอกสาร ปพ.5 ให้อัตโนมัติ<br>' +
+    '• แก้ไขเพิ่มเติมภายหลังได้ตลอดภาคเรียน</div>' +
+    '<div class="hint" style="margin-top:8px">ถ้ามีไฟล์โครงสร้างรายวิชาหรือแบบฟอร์มตัวชี้วัดของโรงเรียน ส่งให้ผู้พัฒนาเพื่อทำให้ตรงแบบได้</div></div>');
+
   /* --- เหตุการณ์ --- */
   $('#btnAddItem').addEventListener('click', () => {
     b.items.push({ id: uid('it'), name: 'หัวข้อ ' + (b.items.length + 1), max: 10, kind: 'individual', groupSetId: '', components: [], scoreSection: 'before' });
     save(true); renderItems();
   });
+  $('#btnReuseItems').addEventListener('click', openItemReuse);
   $('#btnAddMany').addEventListener('click', () => {
     openModal({
       title: 'เพิ่มหลายหัวข้อพร้อมกัน',
