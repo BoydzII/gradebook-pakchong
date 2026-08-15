@@ -338,6 +338,12 @@ td.num,th.num{text-align:center}
 /* เบอร์โทรครูที่จับคู่กันได้ตอนแลกคาบ/สอนแทน — แตะเพื่อโทรได้บนมือถือ */
 .phone-link{display:inline-flex;align-items:center;gap:4px;font-weight:800;color:var(--group);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:1px 8px;background:var(--panel)}
 .phone-link:hover{border-color:var(--group)}
+/* ย่อ/ขยายกล่อง — ปุ่มลูกศรมุมหัวข้อ จำสถานะไว้ให้ผู้ใช้ */
+.card-collapse{margin-left:8px;padding:0 7px;line-height:1.6;border-radius:8px;font-size:12px}
+.card.collapsed > *:not(:first-child){display:none}
+.card.collapsed .card-collapse{transform:rotate(-90deg)}
+.request-pick{margin-right:8px;transform:scale(1.15)}
+.audit-item{border-left:3px solid var(--bad)}
 @media(max-width:960px){.exchange-layout{grid-template-columns:1fr}}
 @media(max-width:900px){.executive-grid{grid-template-columns:1fr}.pie-wrap{grid-template-columns:1fr}.pie-chart{margin:auto}}
 @media(max-width:1050px){.dash-metrics{grid-template-columns:repeat(2,1fr)}.dash-columns{grid-template-columns:1fr}.quick-grid{grid-template-columns:repeat(2,1fr)}}
@@ -1094,6 +1100,7 @@ function defaultDB() {
   return { version: 8, settings: defaultSettings(), periods: [], classes: [], subjects: [], teachers: [], books: {},
     studentMaster: [], studentAccounts: {}, timetable: defaultTimetable(),
     cloud: { clientId: PUBLIC_GOOGLE_CLIENT_ID, accountEmail: '', staffApiUrl: '', staffToken: '' },
+    auditLog: [],
     ui: { periodId: null, classId: null, subjectId: null, teacherId: null, staffMode: 'teacher', tab: 'dashboard' } };
 }
 function defaultBook() {
@@ -1150,6 +1157,8 @@ function loadDB() {
   if (!DB.cloud.clientId && PUBLIC_GOOGLE_CLIENT_ID) DB.cloud.clientId = PUBLIC_GOOGLE_CLIENT_ID;
   // เลิกใช้โหมดซิงก์ Google Sheet/Drive แล้ว ลบค่าที่ค้างอยู่ในเครื่องเดิมทิ้ง
   ['spreadsheetId', 'folderId', 'backupFileId', 'autoSync', 'lastSync'].forEach(k => delete DB.cloud[k]);
+  DB.auditLog = Array.isArray(DB.auditLog) ? DB.auditLog : [];
+  DB.ui.collapsed = DB.ui.collapsed && typeof DB.ui.collapsed === 'object' ? DB.ui.collapsed : {};
   DB.ui.attendanceDate = DB.ui.attendanceDate || todayISO();
   if (!DB.teachers.some(t => t.id === DB.ui.teacherId)) DB.ui.teacherId = DB.teachers[0] ? DB.teachers[0].id : null;
   const legacyTeacherId = DB.ui.teacherId || (DB.teachers[0] && DB.teachers[0].id) || '';
@@ -1517,6 +1526,38 @@ function setTab(t) {
   render();
 }
 
+/** ปุ่มพิมพ์เอกสารรวม — ใช้ได้ทั้งหน้าภาพรวมและศูนย์แลกคาบ */
+function bindMergeDocButton(root) {
+  const btn = $('#swapMergeDoc', root); if (!btn) return;
+  btn.addEventListener('click', () => {
+    const ids = $$('[data-swap-pick]', root).filter(x => x.checked).map(x => x.dataset.swapPick);
+    if (!ids.length) return toast('ติ๊กเลือกคำขอที่ต้องการรวมก่อน', 'bad');
+    openMergedExchangeDocument(ids);
+  });
+}
+
+/** ย่อ/ขยายกล่องได้ทุกกล่องที่มีหัวข้อ และจำสถานะไว้ */
+function initCollapsibles(root) {
+  $$('.card', root || document).forEach(card => {
+    if (card.dataset.collapsible) return;
+    const head = card.querySelector(':scope > h3') || card.querySelector(':scope > .row h3');
+    if (!head) return;
+    const key = (DB.ui.tab || '') + '::' + head.textContent.trim().slice(0, 40);
+    card.dataset.collapsible = key;
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'sm card-collapse'; btn.textContent = '▾'; btn.title = 'ย่อ/ขยายกล่องนี้';
+    head.appendChild(btn);
+    if ((DB.ui.collapsed || {})[key]) card.classList.add('collapsed');
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const on = card.classList.toggle('collapsed');
+      DB.ui.collapsed = DB.ui.collapsed || {};
+      if (on) DB.ui.collapsed[key] = true; else delete DB.ui.collapsed[key];
+      save();
+    });
+  });
+}
+
 function render() {
   renderTop();
   const t = DB.ui.tab || 'dashboard';
@@ -1536,6 +1577,7 @@ function render() {
   else if (t === 'executive') renderExecutive();
   else if (t === 'leaves') renderLeaveApprovals();
   else if (t === 'admin') renderAdmin();
+  initCollapsibles();
 }
 
 /** ข้อความเมื่อยังไม่เลือกชั้น/วิชา */
@@ -1631,6 +1673,9 @@ function renderDashboard() {
   $$('[data-dash-att]', pane).forEach(btn => btn.addEventListener('click', () => { const e = todayEntries.find(x => x.id === btn.dataset.dashAtt); if (e) openAttendance(e, today); }));
   $$('[data-swap-accept]', pane).forEach(btn => btn.addEventListener('click', () => respondExchangeRequest(btn.dataset.swapAccept, true)));
   $$('[data-swap-reject]', pane).forEach(btn => btn.addEventListener('click', () => respondExchangeRequest(btn.dataset.swapReject, false)));
+  $$('[data-swap-delete]', pane).forEach(btn => btn.addEventListener('click', () => deleteExchangeRequest(btn.dataset.swapDelete)));
+  $$('[data-swap-doc]', pane).forEach(btn => btn.addEventListener('click', () => openExchangeDocument(btn.dataset.swapDoc)));
+  bindMergeDocButton(pane);
   $('#dashSearch').addEventListener('click', openStudentSearch);
 }
 
@@ -2374,14 +2419,120 @@ function respondExchangeRequest(id, accept) {
   render(); toast(accept ? ((req.type || 'exchange') === 'exchange' ? 'ยอมรับคำขอและปรับตารางแล้ว' : 'รับสอนแทนและเพิ่มคาบแล้ว') : 'ปฏิเสธคำขอแล้ว', accept ? 'ok' : '');
 }
 
+/* ---------- ลบคำขอ พร้อมเก็บหลักฐาน ---------------------------------------
+   ลบแล้วรายการหายจากทุกหน้าจอ แต่ยังตรวจสอบย้อนหลังได้ว่าใครลบ เมื่อไร เพราะอะไร
+   บนส่วนกลางใช้การทำเครื่องหมาย deleted เพื่อไม่ให้ข้อมูลไหลกลับลงมาตอนซิงก์ */
+function logAudit(action, summary, detail) {
+  const me = curTeacher() || {};
+  const entry = { id: uid('audit'), at: new Date().toISOString(), action: action, summary: summary || '',
+    byId: me.id || '', byName: me.name || '', byEmail: me.email || DB.cloud.accountEmail || '', detail: detail || {} };
+  DB.auditLog = (DB.auditLog || []).concat([entry]);
+  if (DB.auditLog.length > 500) DB.auditLog = DB.auditLog.slice(-500);
+  if (firebaseReady() && fbSignedIn()) fbDb.collection('audits').doc(entry.id).set(fbPlain(entry)).catch(() => {});
+  return entry;
+}
+
+function markDeletedOnCloud(kind, item, reason) {
+  if (!firebaseReady() || !fbSignedIn() || !item || !item.id) return;
+  const me = curTeacher() || {};
+  fbDb.collection(kind === 'leave' ? 'leaves' : 'swaps').doc(item.id)
+    .set({ status: 'deleted', deletedAt: new Date().toISOString(), deletedBy: me.name || me.email || '', deleteReason: reason || '' }, { merge: true })
+    .catch(e => toast('ลบบนส่วนกลางไม่สำเร็จ: ' + fbErrorMessage(e), 'bad'));
+}
+
+/** ลบได้เมื่อเป็นเจ้าของคำขอ หรือเป็นผู้ดูแลระบบ — ผู้ดูแลระบบต้องระบุเหตุผล */
+function canDeleteRequest(ownerTeacherId) {
+  const me = curTeacher(); if (!me) return { ok: false };
+  const mine = ownerTeacherId === me.id, admin = teacherHasRole(me, 'admin');
+  return { ok: mine || admin, mine: mine, admin: admin, needReason: !mine };
+}
+
+function askDeleteReason(title, warnHTML, needReason, onConfirm) {
+  openModal({ title: title,
+    bodyHTML: (warnHTML || '') +
+      '<div class="pick" style="margin-top:10px"><label>เหตุผลในการลบ' + (needReason ? ' (จำเป็น)' : ' (ไม่บังคับ)') + '</label>' +
+      '<input id="deleteReason" style="width:100%" placeholder="เช่น ส่งผิดคาบ / ครูยกเลิกการลา"></div>' +
+      '<div class="hint" style="margin-top:8px">ระบบจะบันทึกชื่อผู้ลบ วันเวลา และเหตุผลไว้เป็นหลักฐานในประวัติการลบ</div>',
+    buttons: [{ label: 'ยกเลิก' }, { label: 'ยืนยันการลบ', cls: 'danger', act(close, root) {
+      const reason = $('#deleteReason', root).value.trim();
+      if (needReason && !reason) return toast('ผู้ดูแลระบบต้องระบุเหตุผลก่อนลบ', 'bad');
+      close(); onConfirm(reason);
+    } }],
+    onMount(root) { $('#deleteReason', root).focus(); } });
+}
+
+function deleteExchangeRequest(id) {
+  const req = (DB.timetable.exchangeRequests || []).find(r => r.id === id); if (!req) return;
+  const perm = canDeleteRequest(req.requesterTeacherId);
+  if (!perm.ok) return toast('ลบได้เฉพาะคำขอของตัวเอง หรือโดยผู้ดูแลระบบ', 'bad');
+  const owner = (DB.teachers.find(t => t.id === req.requesterTeacherId) || {}).name || 'ครู';
+  const kind = (req.type || 'exchange') === 'exchange' ? 'แลกคาบ' : 'สอนแทน';
+  const entry = DB.timetable.entries.find(e => e.id === req.requesterEntryId);
+  const accepted = req.status === 'accepted';
+  askDeleteReason('ลบคำขอ' + kind,
+    '<div class="notice' + (accepted ? ' bad' : '') + '">ผู้ขอ: <b>' + esc(owner) + '</b>' +
+      (entry ? '<br>' + esc(sourceEntryText(entry, req.sourceDate || req.date)) : '') +
+      (accepted ? '<br><b>คำขอนี้ยอมรับแล้ว</b> การลบจะคืนตารางสอนของวันนั้นกลับเป็นคาบเดิม' : '') + '</div>',
+    perm.needReason, function (reason) {
+      DB.timetable.exceptions = (DB.timetable.exceptions || []).filter(e => e.exchangeRequestId !== req.id);
+      DB.timetable.exchangeRequests = (DB.timetable.exchangeRequests || []).filter(r => r.id !== req.id);
+      const leave = req.leaveRequestId ? (DB.timetable.leaveRequests || []).find(l => l.id === req.leaveRequestId) : null;
+      if (leave) leave.requestIds = (leave.requestIds || []).filter(x => x !== req.id);
+      logAudit('ลบคำขอ' + kind, 'คำขอของ ' + owner + ' วันที่ ' + thaiDate(req.sourceDate || req.date) + (reason ? ' • เหตุผล: ' + reason : ''),
+        { requestId: req.id, type: req.type || 'exchange', date: req.sourceDate || req.date, status: req.status, requester: owner,
+          target: (DB.teachers.find(t => t.id === req.targetTeacherId) || {}).name || '', reason: reason });
+      markDeletedOnCloud('swap', req, reason);
+      save(true); render(); toast('ลบคำขอแล้ว • บันทึกหลักฐานไว้ในประวัติการลบ', 'ok');
+    });
+}
+
+function deleteLeaveRequest(id) {
+  const leave = (DB.timetable.leaveRequests || []).find(l => l.id === id); if (!leave) return;
+  const perm = canDeleteRequest(leave.teacherId);
+  if (!perm.ok) return toast('ลบได้เฉพาะใบลาของตัวเอง หรือโดยผู้ดูแลระบบ', 'bad');
+  const owner = (DB.teachers.find(t => t.id === leave.teacherId) || {}).name || 'ครู';
+  const linked = (DB.timetable.exchangeRequests || []).filter(r => r.leaveRequestId === leave.id);
+  askDeleteReason('ลบใบลา',
+    '<div class="notice bad">ใบลาของ <b>' + esc(owner) + '</b> • ' + esc(thaiDate(leave.fromDate)) +
+      (leave.toDate !== leave.fromDate ? ' ถึง ' + esc(thaiDate(leave.toDate)) : '') +
+      (linked.length ? '<br>คำขอแลกคาบ/สอนแทนที่ผูกกับใบลานี้อีก <b>' + linked.length + '</b> รายการจะถูกลบไปด้วย' : '') + '</div>',
+    perm.needReason, function (reason) {
+      linked.forEach(r => {
+        DB.timetable.exceptions = (DB.timetable.exceptions || []).filter(e => e.exchangeRequestId !== r.id);
+        markDeletedOnCloud('swap', r, reason);
+      });
+      DB.timetable.exchangeRequests = (DB.timetable.exchangeRequests || []).filter(r => r.leaveRequestId !== leave.id);
+      DB.timetable.leaveRequests = (DB.timetable.leaveRequests || []).filter(l => l.id !== leave.id);
+      logAudit('ลบใบลา', 'ใบลาของ ' + owner + ' ' + thaiDate(leave.fromDate) + ' • พร้อมคำขอที่ผูกไว้ ' + linked.length + ' รายการ' + (reason ? ' • เหตุผล: ' + reason : ''),
+        { leaveId: leave.id, teacher: owner, from: leave.fromDate, to: leave.toDate, linkedRequests: linked.length, reason: reason });
+      markDeletedOnCloud('leave', leave, reason);
+      save(true); render(); toast('ลบใบลาแล้ว • บันทึกหลักฐานไว้ในประวัติการลบ', 'ok');
+    });
+}
+
+/** พิมพ์บันทึกข้อความรวมหลายคำขอเป็นเอกสารชุดเดียว */
+function openMergedExchangeDocument(ids) {
+  const list = (DB.timetable.exchangeRequests || []).filter(r => ids.indexOf(r.id) >= 0);
+  if (!list.length) return toast('กรุณาเลือกคำขออย่างน้อย 1 รายการ', 'bad');
+  const leaveIds = Array.from(new Set(list.map(r => r.leaveRequestId).filter(Boolean)));
+  const leave = leaveIds.length === 1 ? (DB.timetable.leaveRequests || []).find(l => l.id === leaveIds[0]) : null;
+  openDocumentPreview('บันทึกข้อความแลกคาบ • รวม ' + list.length + ' คาบ', exchangeMemoHtml(list, leave));
+}
+
 function exchangeRequestCard(limit) {
   const me = curTeacher(); if (!me) return '';
   const requests = (DB.timetable.exchangeRequests || []).filter(r => r.requesterTeacherId === me.id || r.targetTeacherId === me.id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   if (!requests.length) return '';
   const entryLabel = (id, date) => { const e = DB.timetable.entries.find(x => x.id === id); return e ? sourceEntryText(e, date) : 'คาบถูกลบ'; };
-  return '<div class="card"><div class="row"><h3 style="margin:0">คำขอแลกคาบและสอนแทน</h3><div class="spacer"></div><span class="badge">' + requests.filter(r => r.status === 'pending' && r.targetTeacherId === me.id).length + ' รอตอบรับ</span></div><div class="alert-list" style="margin-top:10px">' + requests.slice(0, limit || 12).map(r => {
+  return '<div class="card"><div class="row"><h3 style="margin:0">คำขอแลกคาบและสอนแทน</h3><div class="spacer"></div>' +
+    '<button class="sm" id="swapMergeDoc" title="ติ๊กเลือกหลายคำขอ แล้วพิมพ์รวมเป็นเอกสารชุดเดียว">พิมพ์เอกสารรวมที่เลือก</button>' +
+    '<span class="badge">' + requests.filter(r => r.status === 'pending' && r.targetTeacherId === me.id).length + ' รอตอบรับ</span></div><div class="alert-list" style="margin-top:10px">' + requests.slice(0, limit || 12).map(r => {
     const incoming = r.targetTeacherId === me.id, other = DB.teachers.find(t => t.id === (incoming ? r.requesterTeacherId : r.targetTeacherId)), type = (r.type || 'exchange') === 'exchange' ? 'แลกคาบ' : 'สอนแทน', status = r.status === 'pending' ? 'รอดำเนินการ' : r.status === 'accepted' ? 'ยอมรับแล้ว' : r.status === 'unassigned' ? 'ยังไม่พบครู' : 'ปฏิเสธแล้ว', sourceDate = r.sourceDate || r.date;
-    return '<div class="alert-item exchange-request"><div><b>' + esc(type + ' • ' + (incoming ? 'คำขอจาก ' + ((other || {}).name || 'ครู') : r.targetTeacherId ? 'ส่งถึง ' + ((other || {}).name || 'ครู') : 'รอจัดผู้สอน')) + '</b> ' + (other ? teacherPhoneHtml(other) : '') + '<div class="hint">' + esc(entryLabel(r.requesterEntryId, sourceDate)) + ((r.type || 'exchange') === 'exchange' && r.targetEntryId ? '<br>⇄ ' + esc(entryLabel(r.targetEntryId, r.targetDate || sourceDate)) : '') + '<br><b>เหตุผล:</b> ' + esc(exchangeReasonLabel(r)) + (r.note ? ' • ' + esc(r.note) : '') + '<br>' + esc(r.tier || '') + '</div></div><div class="spacer"></div>' + (incoming && r.status === 'pending' && canApprove() ? '<button class="sm" data-swap-reject="' + r.id + '">ปฏิเสธ</button><button class="sm primary" data-swap-accept="' + r.id + '">ยอมรับ</button>' : '<span class="badge ' + (r.status === 'accepted' ? 'ok' : r.status === 'rejected' || r.status === 'unassigned' ? 'bad' : 'warn') + '">' + status + '</span>') + '<button class="sm" data-swap-doc="' + r.id + '">พิมพ์เอกสาร</button></div>';
+    const canDel = canDeleteRequest(r.requesterTeacherId);
+    return '<div class="alert-item exchange-request">' +
+      '<input type="checkbox" class="request-pick" data-swap-pick="' + r.id + '" title="เลือกเพื่อพิมพ์รวมเป็นเอกสารชุดเดียว">' +
+      '<div><b>' + esc(type + ' • ' + (incoming ? 'คำขอจาก ' + ((other || {}).name || 'ครู') : r.targetTeacherId ? 'ส่งถึง ' + ((other || {}).name || 'ครู') : 'รอจัดผู้สอน')) + '</b> ' + (other ? teacherPhoneHtml(other) : '') + '<div class="hint">' + esc(entryLabel(r.requesterEntryId, sourceDate)) + ((r.type || 'exchange') === 'exchange' && r.targetEntryId ? '<br>⇄ ' + esc(entryLabel(r.targetEntryId, r.targetDate || sourceDate)) : '') + '<br><b>เหตุผล:</b> ' + esc(exchangeReasonLabel(r)) + (r.note ? ' • ' + esc(r.note) : '') + '<br>' + esc(r.tier || '') + '</div></div><div class="spacer"></div>' + (incoming && r.status === 'pending' && canApprove() ? '<button class="sm" data-swap-reject="' + r.id + '">ปฏิเสธ</button><button class="sm primary" data-swap-accept="' + r.id + '">ยอมรับ</button>' : '<span class="badge ' + (r.status === 'accepted' ? 'ok' : r.status === 'rejected' || r.status === 'unassigned' ? 'bad' : 'warn') + '">' + status + '</span>') + '<button class="sm" data-swap-doc="' + r.id + '">พิมพ์เอกสาร</button>' +
+      (canDel.ok ? '<button class="sm danger" data-swap-delete="' + r.id + '" title="' + (canDel.mine ? 'ลบคำขอของตัวเอง' : 'ผู้ดูแลระบบลบ ต้องระบุเหตุผล') + '">ลบ</button>' : '') + '</div>';
   }).join('') + '</div></div>';
 }
 
@@ -2695,7 +2846,8 @@ function renderExchangeCenter() {
           (head === 'endorsed' ? ' • หัวหน้ากลุ่มสาระเห็นควรอนุญาต' : head === 'waiting' ? ' • รอหัวหน้ากลุ่มสาระ' : head === 'rejected' ? ' • หัวหน้ากลุ่มสาระไม่เห็นชอบ' : '') + '</div></div><div class="spacer"></div>' +
           leaveApprovalBadge(approval) + '<button class="sm" data-leave-doc="' + l.id + '">พิมพ์ใบลา</button>' +
           (l.requestIds && l.requestIds.length ? '<button class="sm" data-leave-memo="' + l.id + '">พิมพ์บันทึกแลกคาบ</button>' : '') +
-          ((approval === 'draft' || approval === 'rejected') && canApprove() ? '<button class="sm primary" data-leave-submit="' + l.id + '">ส่งให้ผู้บริหารอนุมัติ</button>' : '') + '</div>';
+          ((approval === 'draft' || approval === 'rejected') && canApprove() ? '<button class="sm primary" data-leave-submit="' + l.id + '">ส่งให้ผู้บริหารอนุมัติ</button>' : '') +
+          (canDeleteRequest(l.teacherId).ok ? '<button class="sm danger" data-leave-delete="' + l.id + '">ลบใบลา</button>' : '') + '</div>';
       }).join('') + '</div>' : '<div class="empty">ยังไม่มีประวัติการลา</div>') + '</div></div></div>' + exchangeRequestCard(30);
   $('#exchangeDate').addEventListener('change', e => { DB.ui.exchangeDate = e.target.value || todayISO(); DB.ui.exchangeSourceEntryId = ''; save(); renderExchangeCenter(); });
   $('#exchangeSource').addEventListener('change', e => { DB.ui.exchangeSourceEntryId = e.target.value; save(); renderExchangeCenter(); });
@@ -2707,6 +2859,9 @@ function renderExchangeCenter() {
   $$('[data-leave-memo]', pane).forEach(btn => btn.addEventListener('click', () => openLeaveExchangeMemo(btn.dataset.leaveMemo)));
   $$('[data-leave-submit]', pane).forEach(btn => btn.addEventListener('click', () => submitLeaveForApproval(btn.dataset.leaveSubmit)));
   $$('[data-swap-doc]', pane).forEach(btn => btn.addEventListener('click', () => openExchangeDocument(btn.dataset.swapDoc)));
+  $$('[data-swap-delete]', pane).forEach(btn => btn.addEventListener('click', () => deleteExchangeRequest(btn.dataset.swapDelete)));
+  $$('[data-leave-delete]', pane).forEach(btn => btn.addEventListener('click', () => deleteLeaveRequest(btn.dataset.leaveDelete)));
+  bindMergeDocButton(pane);
 }
 
 function renderAttendancePage() {
@@ -5193,6 +5348,7 @@ function renderAdmin() {
       '<div class="tablewrap" style="margin-top:8px"><table><thead><tr>' + ADMIN_COLUMNS.map(c => '<th' + (c.key ? ' class="sortable" data-admin-sort="' + c.key + '" title="คลิกเพื่อเรียงลำดับ"' : '') + '>' + esc(c.label) + (c.key && adminSortKey() === c.key ? (DB.ui.adminSortDir === 'desc' ? ' ▼' : ' ▲') : '') + '</th>').join('') + '</tr></thead><tbody id="adminTeacherRows"></tbody></table></div>' +
       '<div class="row" style="margin-top:12px"><div class="spacer"></div><button class="primary" id="adminTeacherSave">บันทึกข้อมูลครูทั้งหมด</button></div></div>' +
     '<div class="card" id="adminFirebaseBox"></div>' +
+    '<div class="card" id="adminAuditBox"></div>' +
     '<div class="card" id="adminCentralBox"></div>' +
     '<div class="card" id="adminHolidayBox"></div>' +
     '<div class="card"><div class="row"><div><h3 style="margin:0">งานอื่นของผู้ดูแลระบบ</h3><div class="hint">ตั้งค่าระบบ/เอกสาร ปพ.5 และฐานข้อมูลนักเรียน ย้ายมาอยู่ในบทบาทนี้แล้ว</div></div><div class="spacer"></div><button id="adminGoSettings">ไปหน้าตั้งค่า</button><button id="adminGoStudents">ไปหน้านักเรียน / ฐานนักเรียน</button></div>' +
@@ -5219,6 +5375,7 @@ function renderAdmin() {
   });
   renderAdminHolidays();
   renderFirebaseCard();
+  renderAuditCard();
   renderCentralStaffCard();
   renderAdminTeacherRows();
   const search = $('#adminSearch', pane);
@@ -5688,6 +5845,28 @@ async function loginWithCentralStaff(preferRole) {
   return { teacher: me, role: preferRole && teacherHasRole(me, preferRole) ? preferRole : me.roles[0] };
 }
 
+/** ประวัติการลบคำขอ — หลักฐานว่าใครลบอะไร เมื่อไร เพราะอะไร */
+function renderAuditCard() {
+  const box = $('#adminAuditBox'); if (!box) return;
+  const list = (DB.auditLog || []).slice().reverse();
+  box.innerHTML = '<div class="row"><div><h3 style="margin:0">ประวัติการลบคำขอ</h3>' +
+      '<div class="hint">บันทึกทุกครั้งที่มีการลบคำขอแลกคาบ สอนแทน หรือใบลา • เก็บไว้ล่าสุด 500 รายการ</div></div>' +
+      '<div class="spacer"></div><span class="badge">' + list.length + ' รายการ</span>' +
+      (list.length ? '<button class="sm" id="auditExport">ส่งออกเป็นไฟล์ CSV</button>' : '') + '</div>' +
+    (list.length ? '<div class="tablewrap" style="margin-top:12px;max-height:340px"><table><thead><tr><th>วันเวลา</th><th>ผู้ลบ</th><th>รายการ</th><th>รายละเอียดและเหตุผล</th></tr></thead><tbody>' +
+      list.slice(0, 200).map(a => '<tr><td>' + esc(new Date(a.at).toLocaleString('th-TH')) + '</td><td>' + esc(a.byName || a.byEmail || '—') +
+        '</td><td>' + esc(a.action || '') + '</td><td>' + esc(a.summary || '') + '</td></tr>').join('') +
+      '</tbody></table></div>' : '<div class="empty" style="margin-top:12px">ยังไม่มีการลบคำขอ</div>');
+  if (!list.length) return;
+  $('#auditExport', box).addEventListener('click', () => {
+    const rows = [['วันเวลา', 'ผู้ลบ', 'อีเมลผู้ลบ', 'รายการ', 'รายละเอียดและเหตุผล']].concat(
+      list.map(a => [new Date(a.at).toLocaleString('th-TH'), a.byName || '', a.byEmail || '', a.action || '', a.summary || '']));
+    const csv = '\ufeff' + rows.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\r\n');
+    download(new Blob([csv], { type: 'text/csv;charset=utf-8' }), 'ประวัติการลบคำขอ.csv');
+    toast('ส่งออกประวัติการลบแล้ว', 'ok');
+  });
+}
+
 /** การ์ดตั้งค่า Firebase ในหน้าผู้ดูแลระบบ */
 function renderFirebaseCard() {
   const box = $('#adminFirebaseBox'); if (!box) return;
@@ -5943,7 +6122,7 @@ function startFirebaseSync() {
 
   [['leaves', 'leaveRequests'], ['swaps', 'exchangeRequests']].forEach(pair => {
     fbUnsub.push(fbDb.collection(pair[0]).onSnapshot(snap => apply(() => {
-      DB.timetable[pair[1]] = snap.docs.map(d => Object.assign({}, d.data(), { id: d.id }));
+      DB.timetable[pair[1]] = snap.docs.map(d => Object.assign({}, d.data(), { id: d.id })).filter(x => x.status !== 'deleted');
       save(true); render();
     }), quiet));
   });
@@ -6081,6 +6260,8 @@ async function restore() {
   if (!DB.cloud.clientId && PUBLIC_GOOGLE_CLIENT_ID) DB.cloud.clientId = PUBLIC_GOOGLE_CLIENT_ID;
   // เลิกใช้โหมดซิงก์ Google Sheet/Drive แล้ว ลบค่าที่ค้างอยู่ในเครื่องเดิมทิ้ง
   ['spreadsheetId', 'folderId', 'backupFileId', 'autoSync', 'lastSync'].forEach(k => delete DB.cloud[k]);
+  DB.auditLog = Array.isArray(DB.auditLog) ? DB.auditLog : [];
+  DB.ui.collapsed = DB.ui.collapsed && typeof DB.ui.collapsed === 'object' ? DB.ui.collapsed : {};
   DB.ui.attendanceDate = DB.ui.attendanceDate || todayISO();
   if (!DB.teachers.some(t => t.id === DB.ui.teacherId)) DB.ui.teacherId = DB.teachers[0] ? DB.teachers[0].id : null;
   const legacyTeacherId = DB.ui.teacherId || (DB.teachers[0] && DB.teachers[0].id) || '';

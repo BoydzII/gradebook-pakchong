@@ -73,6 +73,8 @@ service cloud.firestore {
              || (isExecutive() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['approval']))
              // เจ้าของส่งใบลาเข้าสายอนุมัติ
              || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['approval', 'headApproval', 'requestIds', 'coverageStatus'])
+             // ทำเครื่องหมายว่าลบแล้ว พร้อมชื่อผู้ลบและเหตุผล (หลักฐานอยู่ในคอลเลกชัน audits)
+             || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'deletedAt', 'deletedBy', 'deleteReason'])
            ));
       allow delete: if isAdmin();
     }
@@ -94,6 +96,15 @@ service cloud.firestore {
       allow create: if isStaff();
       allow update, delete: if isStaff() && (isAdmin()
         || resource.data.teacherId == request.resource.data.teacherId);
+    }
+
+    /* ---------- หลักฐานการลบคำขอ ----------
+       ครูทุกคนบันทึกได้เมื่อมีการลบ อ่านได้ทุกคนเพื่อตรวจสอบย้อนหลัง
+       แก้ไขและลบไม่ได้เลยแม้แต่ผู้ดูแลระบบ เพื่อให้เป็นหลักฐานที่เชื่อถือได้ */
+    match /audits/{auditId} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+      allow update, delete: if false;
     }
 
     /* ---------- การเช็กชื่อ (เตรียมไว้สำหรับขั้นถัดไป) ----------
