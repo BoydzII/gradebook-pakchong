@@ -4261,11 +4261,11 @@ function copyItemsToClasses(classIds) {
   classIds.forEach(cid => {
     const key = bookKeyOf(cid, DB.ui.subjectId, DB.ui.periodId);
     const target = DB.books[key] = normalizeBook(DB.books[key] || defaultBook());
-    target.items = fbPlain(from.items);
-    target.weights = fbPlain(from.weights);
-    target.exams = fbPlain(from.exams);
+    target.items = deepCopy(from.items);
+    target.weights = deepCopy(from.weights);
+    target.exams = deepCopy(from.exams);
     target.passPercent = from.passPercent;
-    target.gradeScale = fbPlain(from.gradeScale);
+    target.gradeScale = deepCopy(from.gradeScale);
     n++;
   });
   save(true);
@@ -4281,16 +4281,16 @@ const itemSyncReady = () => !!(firebaseReady() && fbSignedIn() && myEmailForSync
 
 /** โครงที่ส่งขึ้น — หัวข้อ สัดส่วน คะแนนสอบ เกณฑ์ผ่าน และเกณฑ์ตัดเกรด */
 function itemTemplatePayload(book) {
-  return { items: fbPlain(book.items || []), weights: fbPlain(book.weights || {}),
-    exams: fbPlain(book.exams || {}), passPercent: book.passPercent,
-    gradeScale: fbPlain(book.gradeScale || []), partialMode: !!book.partialMode };
+  return { items: deepCopy(book.items || []), weights: deepCopy(book.weights || {}),
+    exams: deepCopy(book.exams || {}), passPercent: book.passPercent,
+    gradeScale: deepCopy(book.gradeScale || []), partialMode: !!book.partialMode };
 }
 function applyItemTemplate(book, tpl) {
-  book.items = fbPlain(tpl.items || []);
-  if (tpl.weights) book.weights = fbPlain(tpl.weights);
-  if (tpl.exams) book.exams = fbPlain(tpl.exams);
+  book.items = deepCopy(tpl.items || []);
+  if (tpl.weights) book.weights = deepCopy(tpl.weights);
+  if (tpl.exams) book.exams = deepCopy(tpl.exams);
   if (tpl.passPercent !== undefined) book.passPercent = tpl.passPercent;
-  if (tpl.gradeScale) book.gradeScale = fbPlain(tpl.gradeScale);
+  if (tpl.gradeScale && tpl.gradeScale.length) book.gradeScale = deepCopy(tpl.gradeScale);
   if (tpl.partialMode !== undefined) book.partialMode = !!tpl.partialMode;
 }
 
@@ -4322,7 +4322,7 @@ async function openItemTemplateCloud() {
   let docs = [];
   try {
     const snap = await fbDb.collection('itemTemplates').get({ source: 'server' });
-    docs = snap.docs.map(d => d.data() || {}).filter(x =>
+    docs = snap.docs.map(d => fbDecodeNested(d.data() || {})).filter(x =>
       x.subjectId === DB.ui.subjectId || (x.subjectCode && sub.code && x.subjectCode === sub.code));
   } catch (e) { return toast(fbErrorMessage(e), 'bad'); }
   docs.sort((a, b) => (a.ownerId === me ? -1 : 0) - (b.ownerId === me ? -1 : 0) ||
@@ -4397,8 +4397,8 @@ function openItemReuse() {
         const key = $('#tplSource', root).value, src = DB.books[key]; if (!src) return;
         if (!await confirmBox('ใช้รูปแบบนี้', 'หัวข้อคะแนนของห้องนี้จะถูกแทนที่ด้วยรูปแบบที่เลือก', 'ใช้รูปแบบ')) return;
         const b = curBook(true);
-        b.items = fbPlain(src.items); b.weights = fbPlain(src.weights); b.exams = fbPlain(src.exams);
-        b.passPercent = src.passPercent; b.gradeScale = fbPlain(src.gradeScale);
+        b.items = deepCopy(src.items); b.weights = deepCopy(src.weights); b.exams = deepCopy(src.exams);
+        b.passPercent = src.passPercent; b.gradeScale = deepCopy(src.gradeScale);
         save(true); close(); render(); toast('ใช้รูปแบบเรียบร้อย ' + (b.items || []).length + ' หัวข้อ', 'ok');
       });
     } });
@@ -4708,7 +4708,7 @@ async function openIndicatorFromTeachers() {
   let docs = [];
   try {
     const snap = await fbDb.collection('indicatorSets').get({ source: 'server' });
-    docs = snap.docs.map(d => d.data() || {}).filter(x => x.ownerId !== me &&
+    docs = snap.docs.map(d => fbDecodeNested(d.data() || {})).filter(x => x.ownerId !== me &&
       (x.subjectId === DB.ui.subjectId || (x.subjectCode && sub.code && x.subjectCode === sub.code)));
   } catch (e) { return toast(fbErrorMessage(e), 'bad'); }
   docs.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
@@ -6856,7 +6856,7 @@ async function pullPendingResults() {
   const byId = new Map((DB.pendingResults || []).map(r => [r.id, r]));
   let added = 0, updated = 0;
   snap.docs.forEach(d => {
-    const data = d.data() || {}; if (!data.id) data.id = d.id;
+    const data = fbDecodeNested(d.data() || {}); if (!data.id) data.id = d.id;
     const old = byId.get(data.id);
     if (!old) { DB.pendingResults.push(data); byId.set(data.id, data); added++; return; }
     // ของคนอื่นเชื่อส่วนกลางเสมอ ของตัวเองเชื่อเครื่องนี้ถ้าแก้ทีหลัง
@@ -8569,7 +8569,7 @@ function startFirebaseSync() {
 
   FB_SHARED_DOCS.forEach(def => {
     fbUnsub.push(fbDb.collection('shared').doc(def.doc).onSnapshot(doc => apply(() => {
-      const data = doc.exists ? doc.data()[def.field] : null;
+      const data = doc.exists ? fbDecodeNested(doc.data()[def.field]) : null;
       if (data == null) return;
       if (def.key === 'settings') DB.settings = Object.assign(defaultSettings(), DB.settings, data);
       else if (Array.isArray(data)) DB[def.key] = data;
@@ -8580,7 +8580,7 @@ function startFirebaseSync() {
 
   fbUnsub.push(fbDb.collection('timetable').onSnapshot(snap => apply(() => {
     snap.docs.forEach(d => {
-      const t = d.data() || {};
+      const t = fbDecodeNested(d.data() || {});
       DB.timetable.entries = (DB.timetable.entries || []).filter(e => e.periodId !== d.id).concat(t.entries || []);
       DB.timetable.exceptions = (DB.timetable.exceptions || []).filter(e => e.periodId !== d.id).concat(t.exceptions || []);
       if (t.term) DB.timetable.terms[d.id] = t.term;
@@ -8590,14 +8590,14 @@ function startFirebaseSync() {
   }), quiet));
 
   fbUnsub.push(fbDb.collection('activities').onSnapshot(snap => apply(() => {
-    DB.timetable.activities = snap.docs.map(d => Object.assign({}, d.data(), { id: d.id }));
+    DB.timetable.activities = snap.docs.map(d => Object.assign({}, fbDecodeNested(d.data()), { id: d.id }));
     applyStoredTeacherIdMap();
     save(true); render();
   }), quiet));
 
   [['leaves', 'leaveRequests'], ['swaps', 'exchangeRequests']].forEach(pair => {
     fbUnsub.push(fbDb.collection(pair[0]).onSnapshot(snap => apply(() => {
-      DB.timetable[pair[1]] = snap.docs.map(d => Object.assign({}, d.data(), { id: d.id })).filter(x => x.status !== 'deleted');
+      DB.timetable[pair[1]] = snap.docs.map(d => Object.assign({}, fbDecodeNested(d.data()), { id: d.id })).filter(x => x.status !== 'deleted');
       applyStoredTeacherIdMap();
       save(true); render();
     }), quiet));
@@ -8656,11 +8656,11 @@ async function pullMyBooks() {
   let books = 0, records = 0;
   items.docs.forEach(doc => {
     const data = doc.data() || {};
-    if (data.key && data.book) { DB.books[data.key] = normalizeBook(data.book); books++; }
+    if (data.key && data.book) { DB.books[data.key] = normalizeBook(fbDecodeNested(data.book)); books++; }
   });
   const months = await root.collection('attendance').get({ source: 'server' });
   months.docs.forEach(doc => {
-    const recs = (doc.data() || {}).records || {};
+    const recs = fbDecodeNested((doc.data() || {}).records || {});
     Object.keys(recs).forEach(k => { DB.timetable.attendance[k] = recs[k]; records++; });
   });
   DB.cloud.lastBookSync = new Date().toISOString();
@@ -8750,14 +8750,36 @@ async function pushToFirebase(what) {
 
 /** Firestore จำกัดขนาดเอกสารละ 1 MiB — ตรวจก่อนส่งเพื่อบอกได้ว่าชุดไหนใหญ่เกิน */
 function fbSetDoc(ref, data, label) {
+  // กันพลาดซ้ำ: ถ้ามีอาร์เรย์ซ้อนหลุดมาถึงตรงนี้ แปลว่าลืมเรียก fbPlain
+  data = fbEncodeNested(data);
   const size = new Blob([JSON.stringify(data)]).size;
   if (size > 1000000) return Promise.reject(new Error('ข้อมูล “' + label + '” ใหญ่เกินที่ Firestore รับได้ (' +
     Math.round(size / 1024) + ' KB จากเพดาน 1024 KB) — ลดรูปตราโรงเรียนหรือแยกข้อมูลก่อนส่ง'));
   return ref.set(data);
 }
 
-/** Firestore รับเฉพาะข้อมูลธรรมดา จึงตัด undefined และอ็อบเจกต์แปลก ๆ ออกก่อน */
-function fbPlain(obj) { return JSON.parse(JSON.stringify(obj)); }
+/* Firestore ไม่รับ "อาร์เรย์ซ้อนอาร์เรย์" เลย เช่นเกณฑ์ตัดเกรดที่เก็บเป็น
+   [[80,'4'],[75,'3.5']] ทำให้การส่งสมุดคะแนนและรูปแบบหัวข้อคะแนนล้มทั้งก้อน
+   ด้วยข้อความ "Nested arrays are not supported"
+   แก้โดยห่ออาร์เรย์ชั้นในไว้ในอ็อบเจกต์ตอนส่ง แล้วแกะกลับตอนอ่าน
+   ทำที่จุดเดียวนี้ ทุกที่ที่เรียก fbPlain จึงปลอดภัยพร้อมกันหมด */
+function fbEncodeNested(v) {
+  if (Array.isArray(v)) return v.map(x => Array.isArray(x) ? { __arr: fbEncodeNested(x) } : fbEncodeNested(x));
+  if (v && typeof v === 'object') { const o = {}; Object.keys(v).forEach(k => { o[k] = fbEncodeNested(v[k]); }); return o; }
+  return v;
+}
+function fbDecodeNested(v) {
+  if (Array.isArray(v)) return v.map(fbDecodeNested);
+  if (v && typeof v === 'object') {
+    if (Array.isArray(v.__arr)) return fbDecodeNested(v.__arr);
+    const o = {}; Object.keys(v).forEach(k => { o[k] = fbDecodeNested(v[k]); }); return o;
+  }
+  return v;
+}
+/** คัดลอกข้อมูลไว้ใช้ในเครื่อง — คงรูปแบบเดิมทุกอย่าง ห้ามใช้ตอนส่งขึ้นส่วนกลาง */
+function deepCopy(obj) { return JSON.parse(JSON.stringify(obj)); }
+/** Firestore รับเฉพาะข้อมูลธรรมดา จึงตัด undefined อ็อบเจกต์แปลก ๆ และอาร์เรย์ซ้อนออกก่อน */
+function fbPlain(obj) { return fbEncodeNested(JSON.parse(JSON.stringify(obj))); }
 
 /** ส่งกิจกรรมนักเรียนขึ้นส่วนกลาง เพื่อให้ครูเจ้าของคาบเห็นด้วย */
 function pushActivityDoc(act) {
