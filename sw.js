@@ -5,7 +5,7 @@
    วิธีอัปเดตแอปหลังแก้โค้ด: เปลี่ยนเลขเวอร์ชันที่ CACHE_VERSION แล้วอัปโหลดใหม่
    ผู้ใช้จะเห็นแถบแจ้ง "มีเวอร์ชันใหม่" ให้กดอัปเดต */
 
-const CACHE_VERSION = 'v41';
+const CACHE_VERSION = 'v42';
 const CACHE_NAME = 'gradebook-' + CACHE_VERSION;
 
 /* ไฟล์แกนของแอป โหลดไว้ล่วงหน้าให้เปิดออฟไลน์ได้ */
@@ -43,6 +43,8 @@ self.addEventListener('activate', event => {
 /* ให้หน้าเว็บสั่งข้ามคิวรอได้ เมื่อผู้ใช้กดปุ่มอัปเดต */
 self.addEventListener('message', event => {
   if (event.data === 'skip-waiting') self.skipWaiting();
+  // ให้หน้าเว็บถามเลขเวอร์ชันได้ ใช้ตอนติดตั้งเป็นแอปแล้วอยากรู้ว่าตอนนี้ใช้เวอร์ชันอะไร
+  if (event.data === 'get-version' && event.source) event.source.postMessage({ type: 'version', version: CACHE_VERSION });
 });
 
 self.addEventListener('fetch', event => {

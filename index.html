@@ -570,6 +570,7 @@ body.gateway-open .sync-fab{display:none}
 .tabsheet-grid button{justify-content:flex-start;padding:14px 12px;border-radius:12px;font-weight:700;text-align:left}
 .tabsheet-grid button.active{border-color:var(--brand);color:var(--brand);background:color-mix(in srgb,var(--brand) 8%,transparent)}
 .tabsheet-handle{width:44px;height:4px;border-radius:999px;background:var(--line);margin:0 auto 4px}
+.tabsheet-foot{display:flex;align-items:center;gap:10px;margin-top:12px;padding-top:11px;border-top:1px solid var(--line)}
 
 @media(max-width:720px){
   /* iOS จะซูมเองถ้าตัวอักษรในช่องกรอกเล็กกว่า 16px */
@@ -1809,13 +1810,18 @@ function openTabSheet() {
     '<button class="sm tabsheet-close" data-sheet-close="1" aria-label="ปิดเมนู">✕</button></div>' +
     '<div class="tabsheet-grid">' +
     tabs.map(t => '<button data-goto="' + t + '"' + (t === DB.ui.tab ? ' class="active"' : '') + '>' +
-      esc(TAB_SHORT[t] || t) + '</button>').join('') + '</div></div>';
+      esc(TAB_SHORT[t] || t) + '</button>').join('') + '</div>' +
+    '<div class="tabsheet-foot"><span class="hint" data-app-version></span><div class="spacer"></div>' +
+    '<button class="sm" id="sheetRefresh">ตรวจหาเวอร์ชันใหม่</button></div></div>';
   document.body.appendChild(sheet);
   const btn = $('#tabsMore'); if (btn) btn.setAttribute('aria-expanded', 'true');
   sheet.addEventListener('pointerdown', e => { if (e.target === sheet) closeTabSheet(); });
   sheet.addEventListener('click', e => { if (e.target === sheet) closeTabSheet(); });
   $$('[data-sheet-close]', sheet).forEach(b => b.addEventListener('click', closeTabSheet));
   $$('[data-goto]', sheet).forEach(b => b.addEventListener('click', () => { closeTabSheet(); setTab(b.dataset.goto); }));
+  const refresh = $('#sheetRefresh', sheet);
+  if (refresh) refresh.addEventListener('click', () => forceAppRefresh(refresh));
+  renderAppVersionChips(); askAppVersion();
 }
 
 /** ปิดแผ่นเมนูถ้าเปิดค้างอยู่ — เรียกได้ทุกที่โดยไม่ต้องรู้ว่าเปิดอยู่ไหม */
@@ -6899,43 +6905,56 @@ function updateSyncFab() {
   el.classList.toggle('has-count', n > 0);
   el.classList.toggle('dirty', ready && n > 0);
   $('.sync-count', el).textContent = n > 99 ? '99+' : String(n);
-  const text = !ready ? (n ? 'มีข้อมูลคงค้าง ' + n + ' รายการรอส่ง — ยังไม่ได้เข้าสู่ระบบส่วนกลาง' : 'ยังไม่ได้เข้าสู่ระบบส่วนกลาง')
-    : n ? 'ส่งข้อมูลคงค้าง ' + n + ' รายการขึ้นส่วนกลาง'
-    : last ? 'ซิงก์ล่าสุด ' + last : 'ซิงก์ข้อมูลคงค้างกับส่วนกลาง';
+  const text = !ready ? (n ? 'มีข้อมูล ' + n + ' รายการรอส่ง — ยังไม่ได้เข้าสู่ระบบส่วนกลาง' : 'ยังไม่ได้เข้าสู่ระบบส่วนกลาง')
+    : n ? 'ส่งคะแนนและข้อมูลคงค้าง ' + n + ' รายการขึ้นส่วนกลาง'
+    : last ? 'ซิงก์ข้อมูลของฉัน • ล่าสุด ' + last : 'ซิงก์คะแนนและข้อมูลของฉันขึ้นส่วนกลาง';
   $('.sync-label', el).textContent = text;
   el.title = text; el.setAttribute('aria-label', text);
 }
 
-/** แจ้งเตือนและสรุปให้ดูก่อน แล้วค่อยซิงก์ */
+/** แจ้งเตือนและสรุปให้ดูก่อน แล้วค่อยซิงก์
+    ส่งขึ้นทั้งคะแนน/การเช็กชื่อของตัวเอง และผลการเรียนคงค้าง
+    ส่วนการดึงกลับทำเฉพาะผลการเรียนคงค้าง เพราะการดึงคะแนนลงมาจะทับของในเครื่อง
+    ต้องกดเองที่หน้าสรุปเมื่อตั้งใจจริงเท่านั้น */
 async function openPendingSyncDialog() {
   if (!pendingSyncReady()) return toast('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อน จึงจะซิงก์ขึ้นส่วนกลางได้', 'bad');
   const me = myEmailForSync(), mine = myPendingRecords(), n = pendingUnsyncedCount();
   const others = (DB.pendingResults || []).filter(r => pendingOwnerId(r) && pendingOwnerId(r) !== me);
   const ownerCount = new Set(others.map(pendingOwnerId)).size;
   const last = (DB.cloud || {}).lastPendingSync ? new Date(DB.cloud.lastPendingSync).toLocaleString('th-TH') : 'ยังไม่เคยซิงก์';
-  const ok = await confirmBox('ซิงก์ข้อมูลนักเรียนคงค้าง',
-    '<div class="exec-note">ระบบจะส่งรายการคงค้างของคุณขึ้นส่วนกลาง แล้วดึงของครูทุกคนลงมารวมกัน ' +
-    'หน้าภาพรวมผู้บริหารจึงจะเห็นยอดของทั้งโรงเรียน ไม่ใช่เฉพาะเครื่องนี้</div>' +
-    '<div class="exec-sum"><span>ส่งขึ้น <b>' + mine.length + '</b> รายการ' + (n ? ' (ใหม่หรือแก้ไข ' + n + ')' : '') + '</span>' +
-    '<span>มีของครูอื่นในเครื่องแล้ว <b>' + others.length + '</b> รายการ จาก <b>' + ownerCount + '</b> คน</span>' +
-    '<span>ซิงก์ล่าสุด <b>' + esc(last) + '</b></span></div>' +
-    '<div class="hint">รายการที่ส่งขึ้นจะมองเห็นได้โดยครูและผู้บริหารทุกคนในระบบ • รายการที่คุณลบในเครื่องนี้จะถูกลบบนส่วนกลางด้วย</div>',
+  const bookCount = Object.keys(DB.books || {}).length;
+  const attCount = Object.keys(myAttendanceByMonth()).length;
+  const lastBook = DB.cloud.lastBookSync ? new Date(DB.cloud.lastBookSync).toLocaleString('th-TH') : 'ยังไม่เคยซิงก์';
+  const ok = await confirmBox('ซิงก์ข้อมูลของฉันขึ้นส่วนกลาง',
+    '<div class="exec-note">ส่งขึ้นทั้งคะแนนและการเช็กชื่อของคุณ กับรายการนักเรียนคงค้าง ' +
+    'แล้วดึงรายการคงค้างของครูทุกคนลงมารวมกัน เพื่อให้หน้าภาพรวมผู้บริหารเห็นยอดทั้งโรงเรียน<br>' +
+    '<b>คะแนนของคุณครูท่านอื่นเปิดดูไม่ได้</b> และการดึงคะแนนกลับมาทับเครื่องนี้ต้องกดเองที่หน้าสรุป/ส่งออก</div>' +
+    '<div class="exec-sum"><span>สมุดคะแนน <b>' + bookCount + '</b> เล่ม</span>' +
+    '<span>การเช็กชื่อ <b>' + attCount + '</b> เดือน</span>' +
+    '<span>คงค้าง <b>' + mine.length + '</b> รายการ' + (n ? ' (ใหม่ ' + n + ')' : '') + '</span></div>' +
+    '<div class="exec-sum"><span>คะแนนซิงก์ล่าสุด <b>' + esc(lastBook) + '</b></span>' +
+    '<span>คงค้างซิงก์ล่าสุด <b>' + esc(last) + '</b></span>' +
+    (others.length ? '<span>มีของครูอื่นในเครื่อง <b>' + others.length + '</b> รายการ จาก <b>' + ownerCount + '</b> คน</span>' : '') + '</div>' +
+    '<div class="hint">รายการคงค้างที่ส่งขึ้นจะมองเห็นได้โดยครูและผู้บริหารทุกคน • รายการที่คุณลบในเครื่องนี้จะถูกลบบนส่วนกลางด้วย</div>',
     'ซิงก์เลย');
   if (!ok) return;
   const el = syncFabEl();
   el.classList.add('busy'); el.disabled = true;
+  const done = [], failed = [];
+  try { const nb = await pushMyBooks(); done.push('คะแนนและการเช็กชื่อ ' + nb + ' ชุด'); }
+  catch (e) { failed.push('คะแนน: ' + fbErrorMessage(e)); }
   try {
     const pushed = await pushPendingResults();
     const got = await pullPendingResults();
-    DB.cloud.lastPendingSync = new Date().toISOString(); save(true);
-    el.classList.remove('busy'); flashSyncDone(el);
-    toast('ซิงก์แล้ว • ส่งขึ้น ' + pushed + ' รายการ • รวมทั้งโรงเรียน ' + got.total + ' รายการ', 'ok');
-    render();
-  } catch (e) {
-    el.classList.remove('busy');
-    toast(fbErrorMessage(e), 'bad');
-  }
-  el.disabled = false;
+    DB.cloud.lastPendingSync = new Date().toISOString();
+    done.push('คงค้างส่งขึ้น ' + pushed + ' • รวมทั้งโรงเรียน ' + got.total + ' รายการ');
+  } catch (e) { failed.push('คงค้าง: ' + fbErrorMessage(e)); }
+  save(true);
+  el.classList.remove('busy'); el.disabled = false;
+  if (done.length) flashSyncDone(el);
+  if (failed.length) toast('ซิงก์ไม่ครบ • ' + failed.join(' | '), 'bad');
+  else toast('ซิงก์แล้ว • ' + done.join(' • '), 'ok');
+  render();
 }
 
 function flashSyncDone(el) {
@@ -9254,6 +9273,54 @@ async function installApp() {
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstallPrompt = e; updateInstallButton(); });
 window.addEventListener('appinstalled', () => { deferredInstallPrompt = null; updateInstallButton(); toast('ติดตั้งแอปเรียบร้อย', 'ok'); });
 
+/* ---------- ตรวจหาเวอร์ชันใหม่เอง ------------------------------------------
+   เมื่อติดตั้งเป็นแอป จะไม่มีปุ่มรีเฟรชของเบราว์เซอร์ให้กด ถ้า service worker
+   ยังไม่ทันเจอไฟล์ใหม่ ผู้ใช้จะติดอยู่กับเวอร์ชันเก่าโดยไม่มีทางออก
+   ปุ่มนี้บังคับตรวจ ถ้ามีเวอร์ชันใหม่รออยู่ก็ข้ามคิวให้เลย ถ้าไม่มีก็ล้างแคชแล้วโหลดใหม่ */
+let appVersionText = '';
+function askAppVersion() {
+  if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) return;
+  navigator.serviceWorker.controller.postMessage('get-version');
+}
+if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => {
+  const d = e.data || {};
+  if (d.type === 'version' && d.version) { appVersionText = d.version; renderAppVersionChips(); }
+});
+function renderAppVersionChips() {
+  $$('[data-app-version]').forEach(el => { el.textContent = appVersionText ? 'เวอร์ชัน ' + appVersionText : ''; });
+}
+
+async function forceAppRefresh(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'กำลังตรวจ...'; }
+  let updated = false;
+  try {
+    const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
+    if (reg) {
+      await reg.update();
+      const waiting = reg.waiting || reg.installing;
+      if (waiting) {
+        // มีเวอร์ชันใหม่รออยู่แล้ว ข้ามคิวให้ทันที
+        if (reg.waiting) reg.waiting.postMessage('skip-waiting');
+        else await new Promise(r => { waiting.addEventListener('statechange', function h() {
+          if (waiting.state === 'installed') { reg.waiting && reg.waiting.postMessage('skip-waiting'); waiting.removeEventListener('statechange', h); r(); }
+        }); setTimeout(r, 4000); });
+        updated = true;
+      }
+    }
+    // ไม่มีเวอร์ชันใหม่รออยู่ ล้างแคชของแอปแล้วโหลดใหม่ให้แน่ใจ
+    // ทำเฉพาะตอนออนไลน์ ไม่งั้นจะเหลือแต่หน้าเปล่าเพราะไม่มีไฟล์ในเครื่องแล้ว
+    if (!updated && navigator.onLine && window.caches) {
+      const keys = await caches.keys();
+      await Promise.all(keys.filter(k => k.indexOf('gradebook-') === 0).map(k => caches.delete(k)));
+    }
+  } catch (e) { /* ตรวจไม่ได้ก็ยังโหลดหน้าใหม่ได้ */ }
+  if (!navigator.onLine) {
+    if (btn) { btn.disabled = false; btn.textContent = 'ตรวจหาเวอร์ชันใหม่'; }
+    return toast('ออฟไลน์อยู่ ต้องต่อเน็ตก่อนจึงจะดึงเวอร์ชันใหม่ได้', 'bad');
+  }
+  location.reload();
+}
+
 /** แจ้งเมื่อมีเวอร์ชันใหม่รออยู่ ให้ผู้ใช้เลือกเวลาที่จะอัปเดตเอง */
 function showUpdateBar(worker) {
   if ($('#updateBar')) return;
@@ -9269,6 +9336,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').then(reg => {
       if (reg.waiting) showUpdateBar(reg.waiting);
+      askAppVersion(); setTimeout(askAppVersion, 1200);
       reg.addEventListener('updatefound', () => {
         const sw = reg.installing; if (!sw) return;
         sw.addEventListener('statechange', () => {
