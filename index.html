@@ -362,6 +362,9 @@ td.num,th.num{text-align:center}
 .cap-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:var(--capc,var(--ok))}
 .cap-bar.over i{background:var(--group)}
 .numcell{text-align:right;font-variant-numeric:tabular-nums}
+/* กล่องรายการยาว ๆ ย่อให้เหลือความสูงพอดีจอ แล้วเลื่อนอ่านข้างในแทน */
+.listbox.folded{max-height:340px;overflow:auto}
+.listbox.folded thead th{position:sticky;top:0;z-index:1;background:var(--panel)}
 .exec-note{font-size:12px;color:var(--muted);margin:0 0 10px;padding:8px 11px;border-radius:9px;background:var(--panel2);border:1px dashed var(--line)}
 .exec-more{margin-top:10px}
 .exec-more>summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted);padding:6px 2px;list-style:none}
@@ -508,10 +511,16 @@ button,.tabs button,a.button,select,input{touch-action:manipulation;-webkit-tap-
 .tabsrow .tabs{flex:1;min-width:0;border-bottom:none}
 .tabs-more-btn{flex:0 0 auto;font-size:17px;line-height:1;padding:7px 13px;border-radius:11px;font-weight:700}
 /* ปุ่มติดตั้งแอป — ไอคอนเล็กมุมล่างขวา เห็นเฉพาะหน้าเข้าสู่ระบบ */
-.install-fab{display:none;position:fixed;right:16px;bottom:16px;z-index:95;width:44px;height:44px;padding:0;
-  border-radius:14px;font-size:19px;font-weight:800;align-items:center;justify-content:center;
-  background:var(--panel);border:1px solid var(--line);box-shadow:0 10px 26px rgba(15,23,42,.18)}
-body.gateway-open .install-fab:not([hidden]){display:inline-flex}
+.install-fab{display:none;position:fixed;right:24px;bottom:calc(26px + env(safe-area-inset-bottom));z-index:95;
+  width:46px;height:46px;padding:0;border-radius:14px;font-size:20px;font-weight:800;align-items:center;justify-content:center;
+  background:var(--panel);border:1px solid var(--line);color:var(--brand);box-shadow:0 10px 26px rgba(15,23,42,.18)}
+.install-fab:not([hidden]){display:inline-flex}
+.install-fab:hover{border-color:var(--brand);transform:translateY(-2px)}
+/* เมื่อปุ่มซิงก์โผล่อยู่ ให้ปุ่มติดตั้งขยับขึ้นไปวางซ้อนกันเป็นแถว ไม่ทับกัน */
+body.has-syncfab .install-fab{bottom:calc(26px + 74px + env(safe-area-inset-bottom))}
+@media(max-width:720px){.install-fab{right:18px;bottom:calc(82px + env(safe-area-inset-bottom))}
+  body.has-syncfab .install-fab{bottom:calc(82px + 68px + env(safe-area-inset-bottom))}}
+body.gateway-open .sync-fab{display:none}
 .more-sep{height:1px;background:var(--line);margin:3px 0}
 
 /* แท็บทรงแคปซูล อ่านง่ายและกดง่ายขึ้น */
@@ -1857,6 +1866,18 @@ function setTab(t) {
 /** ปุ่มพิมพ์เอกสารรวม — ใช้ได้ทั้งหน้าภาพรวมและศูนย์แลกคาบ */
 function bindMergeDocButton(root) {
   const btn = $('#swapMergeDoc', root); if (!btn) return;
+  const picks = $$('[data-swap-pick]', root), all = $('#swapPickAll', root), count = $('#swapPickCount', root);
+  const sync = () => {
+    const n = picks.filter(x => x.checked).length;
+    if (count) count.textContent = n ? '(' + n + ')' : '';
+    if (all) all.textContent = n === picks.length && picks.length ? 'ล้างที่เลือก' : 'เลือกทั้งหมด (' + picks.length + ')';
+  };
+  picks.forEach(x => x.addEventListener('change', sync));
+  if (all) all.addEventListener('click', () => {
+    const turnOn = picks.filter(x => x.checked).length < picks.length;
+    picks.forEach(x => { x.checked = turnOn; }); sync();
+  });
+  sync();
   btn.addEventListener('click', () => {
     const ids = $$('[data-swap-pick]', root).filter(x => x.checked).map(x => x.dataset.swapPick);
     if (!ids.length) return toast('ติ๊กเลือกคำขอที่ต้องการรวมก่อน', 'bad');
@@ -2120,12 +2141,12 @@ function renderDashboard() {
       '<div class="metric-card" style="--metric:var(--bad)"><div class="metric-icon">⏱</div><div class="metric-value">' + missed.length + '</div><div class="metric-label">คาบค้างเช็กชื่อ</div></div>' +
       '<div class="metric-card" style="--metric:var(--ok)"><div class="metric-icon">✓</div><div class="metric-value">' + completeScores + '/' + students.length + '</div><div class="metric-label">คะแนนครบทุกส่วน</div></div>' +
       '<div class="metric-card" style="--metric:var(--group)"><div class="metric-icon">◎</div><div class="metric-value">' + fmt(average, 1) + '</div><div class="metric-label">คะแนนเฉลี่ยปัจจุบัน</div></div></div>' +
-    approvalCardHtml() + '<div class="card" id="pendingBox"></div>' +
+    approvalCardHtml() +
     '<div class="dash-columns"><div><div class="card"><div class="row"><h3 style="margin:0">ตารางสอนวันนี้</h3><div class="spacer"></div><button class="sm" data-go-tab="schedule">ดูตารางทั้งหมด</button></div><div class="today-list" style="margin-top:10px">' +
       (todayEntries.length ? todayEntries.map(e => { const slot = DB.timetable.slots.find(s => s.id === String(e.slotId)), subject = subjectOf(e), c = classOf(e); const current = slot && nowMin >= timeToMinutes(slot.start) && nowMin <= timeToMinutes(slot.end); const checked = !!DB.timetable.attendance[attendanceKey(e.id, today)]; return '<div class="today-card' + (current ? ' current' : '') + '"><div class="today-time"><b>' + esc(slot ? slot.label : '') + '</b>' + esc(slot ? slot.start + '-' + slot.end : '') + '</div><div><b>' + esc((subject.code ? subject.code + ' ' : '') + subject.name) + '</b><div class="hint">' + esc(c.name) + (e.room ? ' • ' + esc(e.room) : '') + '</div></div><div class="spacer"></div>' + (checked ? '<span class="badge ok">เช็กแล้ว</span>' : '<button class="sm primary" data-dash-att="' + e.id + '">เช็กชื่อ</button>') + '</div>'; }).join('') : '<div class="empty">วันนี้ไม่มีคาบสอนในตาราง</div>') + '</div></div>' +
       '<div class="card"><h3>ทางลัดงานประจำ</h3><div class="quick-grid"><button class="quick-action" data-go-tab="scores">✎<b>กรอกคะแนน</b><span>คะแนนเก็บ สอบ และซ่อม</span></button><button class="quick-action" data-go-tab="attendance">◷<b>เช็กเวลาเรียน</b><span>คาบประจำ แลกคาบ สอนแทน และชดเชย</span></button><button class="quick-action" data-go-tab="groups">◉<b>จัดกลุ่มเรียนรู้</b><span>กลุ่มและผู้นำเสนอ</span></button><button class="quick-action" data-go-tab="summary">▤<b>สรุป ปพ.5</b><span>เกรด เวลาเรียน และส่งออก</span></button></div></div></div>' +
       '<div><div class="card"><h3>ผู้ช่วยแนะนำงาน</h3><div class="insight-list">' + insights.map(i => '<button class="insight-item" data-go-tab="' + i.tab + '" style="text-align:left;width:100%"><span class="insight-dot" style="--insight:' + i.color + '"></span><span>' + esc(i.text) + '</span><span class="spacer"></span><span>›</span></button>').join('') + '</div></div>' +
-      '<div class="card"><div class="row"><h3 style="margin:0">ความพร้อมของระบบ</h3><div class="spacer"></div><b>' + setupPct + '%</b></div><div class="setup-progress"><i style="width:' + setupPct + '%"></i></div><div class="hint">สถานศึกษา • ห้อง • วิชา • รายชื่อ • ตารางสอน • ปฏิทิน • หัวข้อคะแนน • ฐานข้อมูลกลาง</div><button class="sm" data-go-tab="settings" style="margin-top:9px">ตรวจสอบการตั้งค่า</button></div></div></div>' + exchangeRequestCard();
+      '<div class="card"><div class="row"><h3 style="margin:0">ความพร้อมของระบบ</h3><div class="spacer"></div><b>' + setupPct + '%</b></div><div class="setup-progress"><i style="width:' + setupPct + '%"></i></div><div class="hint">สถานศึกษา • ห้อง • วิชา • รายชื่อ • ตารางสอน • ปฏิทิน • หัวข้อคะแนน • ฐานข้อมูลกลาง</div><button class="sm" data-go-tab="settings" style="margin-top:9px">ตรวจสอบการตั้งค่า</button></div></div></div>' + exchangeRequestCard() + '<div class="card" id="pendingBox"></div>';
 
   bindApprovalCard(pane);
   renderPendingCard(pane);
@@ -2670,7 +2691,9 @@ function renderSchedule() {
   const scheduleReadOnly = (DB.ui.staffMode || 'teacher') !== 'admin';
   pane.innerHTML = (scheduleReadOnly ? '<div class="notice" style="margin-bottom:12px">ตารางสอนของทั้งโรงเรียนดูแลโดย<b>ผู้ดูแลระบบ</b> การแก้ไขที่หน้านี้จะมีผลเฉพาะเครื่องนี้ และจะถูกเขียนทับเมื่อส่วนกลางอัปเดต<br><span class="hint">ถ้าตารางไม่ตรง แจ้งผู้ดูแลระบบให้แก้แล้วส่งขึ้นส่วนกลางอีกครั้ง</span></div>' : '') +
     '<div class="card noprint"><div class="row"><div><h3 style="margin:0">ตั้งค่าตารางสอน <span class="sub">ปี ' + esc(curPeriod().academicYear) + ' • ภาค ' + esc(curPeriod().semester) + '</span></h3><div class="hint">คลิกช่องว่างเพื่อเพิ่มคาบ • คลิกวิชาที่มีอยู่เพื่อแก้ไข</div></div>' +
-    '<div class="spacer"></div><button id="ttMultiTemplate">แม่แบบ Excel หลายครู</button><button id="ttMultiImport">นำเข้าตารางสอนหลายครู</button><button id="ttPrint">พิมพ์ตาราง 1 หน้า</button><button class="primary" id="ttSettings">ตั้งค่าเวลา/ปฏิทิน</button></div>' +
+    '<div class="spacer"></div>' + (scheduleReadOnly ? '' :
+      '<button id="ttMultiTemplate">แม่แบบ Excel หลายครู</button><button id="ttMultiImport">นำเข้าตารางสอนหลายครู</button>' +
+      '<button id="ttPrint">พิมพ์ตาราง 1 หน้า</button><button class="primary" id="ttSettings">ตั้งค่าเวลา/ปฏิทิน</button>') + '</div>' +
     (!term.openDate || !term.closeDate ? '<div class="notice bad" style="margin-top:10px">กรุณากำหนดวันเปิด–ปิดภาคเรียน เพื่อให้ระบบคำนวณวันเรียน คาบเรียน และแจ้งเตือนคาบที่ยังไม่เช็กได้</div>' :
       '<div class="hint" style="margin-top:8px">เปิดภาคเรียน ' + thaiDate(term.openDate) + ' ถึง ' + thaiDate(term.closeDate) + ' • วันหยุด ' + (term.holidays || []).length + ' วัน • เกณฑ์เวลาเรียน ' + fmt(term.minAttendance) + '%</div>') + '</div>' +
     '<div class="card schedule-sheet"><div class="printonly" style="text-align:center;margin-bottom:5px"><b>ตารางสอน</b> ' + esc(DB.settings.schoolName || '') + ' • ปี ' + esc(curPeriod().academicYear) + ' ภาค ' + esc(curPeriod().semester) + '</div><div class="tablewrap"><table class="timetable"><thead><tr><th>วัน / คาบ</th>' + DB.timetable.slots.map(slot => '<th>' + esc(slot.label) + '<br><span class="hint">' + esc(slot.start) + '–' + esc(slot.end) + '</span></th>').join('') + '</tr></thead><tbody>' +
@@ -2686,10 +2709,11 @@ function renderSchedule() {
         return '<tr><td><b>' + esc((s.code ? s.code + ' ' : '') + s.name) + '</b><br><span class="hint">' + esc(classText(e)) + ' • วัน' + esc((SCHOOL_DAYS.find(d => d.value === num(e.day)) || {}).label || '') + ' ' + esc((DB.timetable.slots.find(t => t.id === String(e.slotId)) || {}).label || '') + '</span></td><td>' + scheduledDates(e).length + '</td><td>' + checked + '</td></tr>';
       }).join('') + '</tbody></table></div>' : '<div class="empty">ยังไม่มีรายวิชาในตารางสอน</div>') + '</div>';
 
-  $('#ttPrint').addEventListener('click', () => printMode('print-schedule'));
-  $('#ttMultiTemplate').addEventListener('click', downloadMultiTeacherTimetableTemplate);
-  $('#ttMultiImport').addEventListener('click', importMultiTeacherTimetableExcel);
-  $('#ttSettings').addEventListener('click', editTimetableSettings);
+  const bindIf = (sel, fn) => { const b = $(sel, pane); if (b) b.addEventListener('click', fn); };
+  bindIf('#ttPrint', () => printMode('print-schedule'));
+  bindIf('#ttMultiTemplate', downloadMultiTeacherTimetableTemplate);
+  bindIf('#ttMultiImport', importMultiTeacherTimetableExcel);
+  bindIf('#ttSettings', editTimetableSettings);
   $$('[data-add-entry]', pane).forEach(btn => btn.addEventListener('click', () => editScheduleEntry(num(btn.dataset.day), btn.dataset.slot, null)));
   $$('[data-edit-entry]', pane).forEach(btn => btn.addEventListener('click', e => {
     e.stopPropagation(); const entry = entries.find(x => x.id === btn.dataset.editEntry); if (entry) editScheduleEntry(entry.day, entry.slotId, entry);
@@ -3158,7 +3182,8 @@ function exchangeRequestCard(limit) {
     '</div><div class="row" style="margin-top:8px"><button class="sm" data-done-doc="1">พิมพ์เอกสารรวมที่ตอบรับแล้ว</button></div></div>' : '';
   if (!active.length && !done.length) return '';
   return '<div class="card"><div class="row"><h3 style="margin:0">คำขอแลกคาบและสอนแทน</h3><div class="spacer"></div>' +
-    '<button class="sm" id="swapMergeDoc" title="ติ๊กเลือกหลายคำขอ แล้วพิมพ์รวมเป็นเอกสารชุดเดียว">พิมพ์เอกสารรวมที่เลือก</button>' +
+    '<button class="sm" id="swapPickAll" title="ติ๊กหรือล้างการเลือกทั้งหมดในครั้งเดียว">เลือกทั้งหมด</button>' +
+    '<button class="sm" id="swapMergeDoc" title="ติ๊กเลือกหลายคำขอ แล้วพิมพ์รวมเป็นเอกสารชุดเดียว">พิมพ์เอกสารรวมที่เลือก <span id="swapPickCount"></span></button>' +
     '<span class="badge">' + active.filter(r => r.status === 'pending' && r.targetTeacherId === me.id).length + ' รอตอบรับ</span></div>' +
     doneHtml +
     (active.length ? '<div class="alert-list" style="margin-top:10px">' + active.map(r => {
@@ -6227,7 +6252,7 @@ function renderPendingCard(pane) {
   const all = pendingForTeacher(scope), list = showDone ? all : all.filter(r => r.status === 'pending');
   const pendingCount = all.filter(r => r.status === 'pending').length;
   const carried = all.filter(r => r.status === 'pending' && pendingCarryTerms(r) > 0).length;
-  box.innerHTML = '<div class="exec-head"><div><div class="exec-eyebrow">FOLLOW-UP</div><h3>นักเรียนคงค้างผลการเรียน</h3></div><div class="spacer"></div>' +
+  box.innerHTML = '<div class="exec-head row"><div><div class="exec-eyebrow">FOLLOW-UP</div><h3>นักเรียนคงค้างผลการเรียน</h3></div><div class="spacer"></div>' +
     '<select id="prScope">' + [['mine', 'วิชาที่ฉันสอน'], ['homeroom', 'ห้องที่ปรึกษา'], ['all', 'ทั้งหมดในเครื่องนี้']]
       .map(x => '<option value="' + x[0] + '"' + (scope === x[0] ? ' selected' : '') + '>' + x[1] + '</option>').join('') + '</select>' +
     '<button class="sm" id="prAdd">+ เพิ่มเอง</button><button class="sm primary" id="prScan">ดึงจากผลการเรียนภาคนี้</button>' +
@@ -6251,6 +6276,10 @@ function renderPendingCard(pane) {
       }).join('') + '</tbody></table></div>'
       : '<div class="empty">ยังไม่มีรายการคงค้าง — กด “ดึงจากผลการเรียนภาคนี้” เมื่อตัดสินผลเรียบร้อยแล้ว</div>');
 
+  // วาดใหม่แล้วปุ่มย่อ/ขยายหายไป จึงต้องให้ระบบใส่กลับทุกครั้ง
+  delete box.dataset.collapsible;
+  $$('.card-collapse', box).forEach(b => b.remove());
+  initCollapsibles(box.parentNode || document);
   const rerender = () => renderPendingCard(pane);
   $('#prScope', box).addEventListener('change', e => { DB.ui.pendingScope = e.target.value; save(); rerender(); });
   $('#prShowDone', box).addEventListener('change', e => { DB.ui.pendingShowDone = e.target.checked; save(); rerender(); });
@@ -6424,6 +6453,7 @@ function updateSyncFab() {
   const blocked = document.body.classList.contains('gateway-open') || !!(portal && !portal.hidden);
   const on = !blocked && (tab === 'dashboard' || tab === 'executive');
   el.classList.toggle('show', on);
+  document.body.classList.toggle('has-syncfab', on);   // ให้ปุ่มติดตั้งแอปเลื่อนหลบ
   if (!on) return;
   const ready = pendingSyncReady(), n = pendingUnsyncedCount();
   const last = (DB.cloud || {}).lastPendingSync ? new Date(DB.cloud.lastPendingSync).toLocaleString('th-TH') : '';
@@ -6979,8 +7009,9 @@ function renderAdmin() {
       '<div class="row" style="margin-top:12px"><div class="pick" style="flex:1;min-width:240px"><label>ค้นหา ชื่อครู / อีเมล / เบอร์โทร / กลุ่มสาระ</label><input id="adminSearch" value="' + esc(DB.ui.adminSearch || '') + '" placeholder="พิมพ์บางส่วนของชื่อ เช่น สมชาย" style="width:100%"></div>' +
       '<div class="pick"><label>เรียงลำดับตาม</label><div class="sort-group">' + ADMIN_SORTS.map(x => '<button class="sm' + (adminSortKey() === x.key ? ' active' : '') + '" data-admin-sort="' + x.key + '">' + esc(x.label) + (adminSortKey() === x.key ? (DB.ui.adminSortDir === 'desc' ? ' ▼' : ' ▲') : '') + '</button>').join('') + '</div></div>' +
       '<div class="spacer"></div><button class="sm" id="adminSearchClear">ล้างตัวกรอง</button></div>' +
-      '<div class="hint" id="adminTeacherCount" style="margin-top:6px"></div>' +
-      '<div class="tablewrap" style="margin-top:8px"><table><thead><tr>' + ADMIN_COLUMNS.map(c => '<th' + (c.key ? ' class="sortable" data-admin-sort="' + c.key + '" title="คลิกเพื่อเรียงลำดับ"' : '') + '>' + esc(c.label) + (c.key && adminSortKey() === c.key ? (DB.ui.adminSortDir === 'desc' ? ' ▼' : ' ▲') : '') + '</th>').join('') + '</tr></thead><tbody id="adminTeacherRows"></tbody></table></div>' +
+      '<div class="row" style="margin-top:6px"><div class="hint" id="adminTeacherCount"></div><div class="spacer"></div>' +
+      '<button class="sm" id="adminTeacherFold">' + (DB.ui.adminTeacherFold === false ? 'ย่อรายการ' : 'แสดงทั้งหมด') + '</button></div>' +
+      '<div class="tablewrap listbox' + (DB.ui.adminTeacherFold === false ? '' : ' folded') + '" id="adminTeacherBox" style="margin-top:8px"><table><thead><tr>' + ADMIN_COLUMNS.map(c => '<th' + (c.key ? ' class="sortable" data-admin-sort="' + c.key + '" title="คลิกเพื่อเรียงลำดับ"' : '') + '>' + esc(c.label) + (c.key && adminSortKey() === c.key ? (DB.ui.adminSortDir === 'desc' ? ' ▼' : ' ▲') : '') + '</th>').join('') + '</tr></thead><tbody id="adminTeacherRows"></tbody></table></div>' +
       '<div class="row" style="margin-top:12px"><div class="spacer"></div><button class="primary" id="adminTeacherSave">บันทึกข้อมูลครูทั้งหมด</button></div></div>' +
     '<div class="card" id="adminMaintainBox"></div>' +
     '<div class="card" id="adminFirebaseBox"></div>' +
@@ -6994,6 +7025,10 @@ function renderAdmin() {
         return '<tr><td><b>' + esc(area) + '</b></td><td>' + members.length + '</td><td>' + (heads.length ? heads.map(n => '<span class="level-tag">' + esc(n) + '</span>').join(' ') : '<span class="hint">ยังไม่กำหนด</span>') + '</td></tr>'; }).join('') +
       (DB.teachers.some(t => !teacherArea(t)) ? '<tr><td><b>ยังไม่ระบุกลุ่มสาระ</b></td><td>' + DB.teachers.filter(t => !teacherArea(t)).length + '</td><td><span class="hint">—</span></td></tr>' : '') +
       '</tbody></table></div></div>';
+  $('#adminTeacherFold').addEventListener('click', () => {
+    DB.ui.adminTeacherFold = DB.ui.adminTeacherFold === false;   // สลับไปมา ค่าเริ่มต้นคือย่อไว้
+    save(); collectAdminTeacherDraft(); renderAdmin();
+  });
   $('#adminTimetableTemplate').addEventListener('click', downloadMultiTeacherTimetableTemplate); $('#adminTimetableImport').addEventListener('click', importMultiTeacherTimetableExcel);
   $('#adminTeacherTemplate').addEventListener('click', downloadTeacherTemplate); $('#adminTeacherImport').addEventListener('click', importTeachersExcel); $('#adminTeacherAdd').addEventListener('click', () => openAddTeacherProfile(renderAdmin, false));
   $('#adminTeacherSave').addEventListener('click', () => {
