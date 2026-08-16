@@ -7511,10 +7511,29 @@ function renderAuditCard() {
 const FB_DOC_LIMIT = 1000000;
 const byteSize = obj => { try { return new Blob([JSON.stringify(obj)]).size; } catch (e) { return 0; } };
 const kb = n => (n / 1024).toFixed(n > 102400 ? 0 : 1) + ' KB';
+/** อีเมลที่ซ้ำกัน เอกสารบนส่วนกลางใช้อีเมลเป็นรหัส คนหลังจึงทับคนแรก */
+function staffEmailDuplicates() {
+  const seen = new Map(), out = [];
+  DB.teachers.forEach(t => {
+    const k = fbStaffId(t.email); if (!String(t.email || '').trim()) return;
+    if (seen.has(k)) out.push({ email: t.email, names: [seen.get(k), t.name || t.email] }); else seen.set(k, t.name || t.email);
+  });
+  return out;
+}
 
 /** ขนาดจริงของแต่ละชุดข้อมูลที่จะส่งขึ้น เทียบกับเพดาน 1 เอกสารของ Firestore */
 function centralPayloadRows() {
+  const withEmail = DB.teachers.filter(t => String(t.email || '').trim());
+  const noEmail = DB.teachers.length - withEmail.length;
+  const dupes = staffEmailDuplicates();
+  const docSizes = withEmail.map(t => byteSize(fbTeacherDoc(t)));
+  const staffProblem = noEmail ? 'ไม่มีอีเมล ' + noEmail + ' คน จึงส่งขึ้นไม่ได้และเข้าสู่ระบบไม่ได้'
+    : dupes.length ? 'อีเมลซ้ำ ' + dupes.length + ' รายการ ข้อมูลจะทับกันบนส่วนกลาง' : '';
   const rows = [
+    { label: 'บุคลากรและสิทธิ์ใช้งาน', doc: 'staff/{อีเมล} • แยกเอกสารรายคน',
+      size: docSizes.length ? Math.max.apply(null, docSizes) : 0, problem: staffProblem,
+      hint: 'ส่งขึ้นได้ ' + withEmail.length + ' คน จากทั้งหมด ' + DB.teachers.length + ' คน • รวมทุกคน ' +
+        kb(docSizes.reduce((a, b) => a + b, 0)) + ' • ขนาดที่วัดคือเอกสารรายคนที่ใหญ่ที่สุด' },
     { label: 'ห้องเรียนและรายชื่อนักเรียน', doc: 'shared/classes', size: byteSize({ items: DB.classes }),
       hint: DB.classes.length + ' ห้อง • นักเรียน ' + DB.classes.reduce((a, c) => a + (c.students || []).length, 0) + ' คน' },
     { label: 'รายวิชา', doc: 'shared/subjects', size: byteSize({ items: DB.subjects }), hint: DB.subjects.length + ' วิชา' },
@@ -7553,12 +7572,45 @@ async function centralHealthCheck() {
     if (x.active === false) throw new Error('มีชื่ออยู่ แต่ถูกตั้งเป็นไม่ใช้งาน (active = false)');
     return 'สิทธิ์ ' + ((x.roles || []).join(', ') || 'ยังไม่กำหนด');
   });
+  // อ่านรายชื่อบนส่วนกลางครั้งเดียว แล้วใช้ตรวจต่อหลายข้อ
+  let remote = null;
+  try { remote = await server(fbDb.collection('staff')); } catch (e) { remote = null; }
+  const remoteMap = new Map();
+  if (remote) remote.docs.forEach(d => remoteMap.set(d.id, d.data() || {}));
+
   await step('จำนวนบุคลากรบนส่วนกลาง', async () => {
-    const snap = await server(fbDb.collection('staff'));
+    if (!remote) throw new Error('อ่านคอลเลกชัน staff ไม่ได้ — ตรวจว่าวางกฎจากไฟล์ firestore.rules แล้ว');
     const local = DB.teachers.filter(t => t.email).length;
-    const inactive = snap.docs.filter(d => (d.data() || {}).active === false).length;
-    if (snap.size < local) throw new Error('ส่วนกลางมี ' + snap.size + ' คน แต่ในเครื่องนี้มี ' + local + ' คน — ยังส่งขึ้นไม่ครบ คนที่ขาดจะเข้าสู่ระบบไม่ได้');
-    return snap.size + ' คน' + (inactive ? ' (ปิดใช้งาน ' + inactive + ' คน)' : '') + ' • ในเครื่องนี้ ' + local + ' คน';
+    const inactive = remote.docs.filter(d => (d.data() || {}).active === false).length;
+    if (remote.size < local) throw new Error('ส่วนกลางมี ' + remote.size + ' คน แต่ในเครื่องนี้มี ' + local + ' คน — ยังส่งขึ้นไม่ครบ คนที่ขาดจะเข้าสู่ระบบไม่ได้');
+    return remote.size + ' คน' + (inactive ? ' • ปิดใช้งาน ' + inactive + ' คน' : '') + ' • ในเครื่องนี้ ' + local + ' คน';
+  });
+  await step('ครูที่มีอีเมลแต่ยังไม่มีชื่อบนส่วนกลาง', async () => {
+    if (!remote) throw new Error('อ่านคอลเลกชัน staff ไม่ได้');
+    const missing = DB.teachers.filter(t => String(t.email || '').trim() && !remoteMap.has(fbStaffId(t.email)));
+    if (missing.length) throw new Error(missing.length + ' คนเข้าสู่ระบบไม่ได้ เช่น ' +
+      missing.slice(0, 5).map(t => t.name || t.email).join(', ') + (missing.length > 5 ? ' และอีก ' + (missing.length - 5) + ' คน' : '') +
+      ' — กดปุ่ม “ส่งรายชื่อบุคลากรขึ้น”');
+    return 'ครูทุกคนที่มีอีเมลมีชื่อบนส่วนกลางครบ';
+  });
+  await step('ครูที่ยังไม่มีอีเมลในเครื่องนี้', async () => {
+    const none = DB.teachers.filter(t => !String(t.email || '').trim());
+    if (none.length) throw new Error(none.length + ' คนไม่มีอีเมล จึงส่งขึ้นส่วนกลางไม่ได้และเข้าสู่ระบบไม่ได้ เช่น ' +
+      none.slice(0, 5).map(t => t.name || '(ยังไม่มีชื่อ)').join(', '));
+    return 'ครูทุกคนมีอีเมลครบ';
+  });
+  await step('อีเมลซ้ำกัน', async () => {
+    const d = staffEmailDuplicates();
+    if (d.length) throw new Error(d.length + ' รายการ ข้อมูลจะทับกันบนส่วนกลาง เช่น ' + d.slice(0, 3).map(x => x.email).join(', '));
+    return 'ไม่มีอีเมลซ้ำ';
+  });
+  await step('ชื่อบนส่วนกลางที่ไม่มีในเครื่องนี้', async () => {
+    if (!remote) throw new Error('อ่านคอลเลกชัน staff ไม่ได้');
+    const localIds = new Set(DB.teachers.filter(t => t.email).map(t => fbStaffId(t.email)));
+    const extra = remote.docs.filter(d => !localIds.has(d.id));
+    if (extra.length) throw new Error(extra.length + ' คนมีบนส่วนกลางแต่ไม่มีในเครื่องนี้ เช่น ' +
+      extra.slice(0, 5).map(d => d.id).join(', ') + ' — เครื่องนี้อาจมีรายชื่อเก่ากว่าส่วนกลาง');
+    return 'ตรงกันทั้งสองฝั่ง';
   });
 
   const sharedChecks = [['classes', 'ห้องเรียน', () => DB.classes.length], ['subjects', 'รายวิชา', () => DB.subjects.length], ['periods', 'ปี/ภาคเรียน', () => DB.periods.length]];
@@ -7593,7 +7645,26 @@ async function centralHealthCheck() {
     await ref.delete();
     return 'เขียนและลบได้ตามปกติ';
   });
-  return out;
+
+  // ตารางรายคน ใช้ชี้ตัวได้เลยว่าใครเข้าสู่ระบบไม่ได้เพราะอะไร
+  const staffRows = DB.teachers.slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'th')).map(t => {
+    const mail = String(t.email || '').trim(), id = mail ? fbStaffId(mail) : '', r = id ? remoteMap.get(id) : null;
+    return { name: t.name || '(ยังไม่มีชื่อ)', email: mail, roles: (t.roles || []).map(roleLabel).join(', '),
+      onCentral: !!r, active: r ? r.active !== false : null,
+      note: !mail ? 'ไม่มีอีเมล — ส่งขึ้นไม่ได้และเข้าสู่ระบบไม่ได้'
+        : !remote ? 'อ่านส่วนกลางไม่ได้ ตรวจไม่ได้'
+        : !r ? 'ยังไม่มีชื่อบนส่วนกลาง — เข้าสู่ระบบไม่ได้'
+        : r.active === false ? 'ถูกตั้งเป็นไม่ใช้งาน — เข้าสู่ระบบไม่ได้'
+        : 'เข้าสู่ระบบได้' };
+  });
+  if (remote) {
+    const localIds = new Set(DB.teachers.filter(t => t.email).map(t => fbStaffId(t.email)));
+    remote.docs.filter(d => !localIds.has(d.id)).forEach(d => { const x = d.data() || {};
+      staffRows.push({ name: x.name || '(ไม่มีชื่อ)', email: d.id, roles: (x.roles || []).join(', '),
+        onCentral: true, active: x.active !== false, note: 'มีบนส่วนกลางแต่ไม่มีในเครื่องนี้' });
+    });
+  }
+  return { steps: out, staff: staffRows };
 }
 
 function renderHealthCard() {
@@ -7607,11 +7678,11 @@ function renderHealthCard() {
     'เครื่องอื่นก็จะดึงข้อมูลชุดนั้นไปไม่ได้ตามไปด้วย' + (ready ? '' : '<br><span class="badtext">ยังไม่ได้เข้าสู่ระบบด้วยบัญชีโรงเรียน จึงทดสอบการเชื่อมต่อไม่ได้</span>') + '</div>' +
     '<div class="tablewrap"><table><thead><tr><th>ชุดข้อมูล</th><th>เอกสารปลายทาง</th><th class="numcell">ขนาด</th><th>เทียบเพดาน</th><th>ผล</th></tr></thead><tbody>' +
     rows.map(r => {
-      const pct = Math.min(100, r.size * 100 / FB_DOC_LIMIT), bad = r.size > FB_DOC_LIMIT;
+      const pct = Math.min(100, r.size * 100 / FB_DOC_LIMIT), over = r.size > FB_DOC_LIMIT, bad = over || !!r.problem;
       return '<tr><td><b>' + esc(r.label) + '</b><div class="hint">' + esc(r.hint || '') + '</div></td>' +
         '<td><code>' + esc(r.doc) + '</code></td><td class="numcell">' + esc(kb(r.size)) + '</td>' +
-        '<td><div class="cap-bar" style="--capc:' + (bad ? 'var(--bad)' : pct > 70 ? 'var(--warn)' : 'var(--ok)') + '"><i style="width:' + fmt(pct, 0) + '%"></i></div></td>' +
-        '<td class="' + (bad ? 'badtext' : 'oktext') + '">' + (bad ? 'ใหญ่เกิน ส่งไม่ขึ้น' : 'ผ่าน') + '</td></tr>';
+        '<td><div class="cap-bar" style="--capc:' + (over ? 'var(--bad)' : pct > 70 ? 'var(--warn)' : 'var(--ok)') + '"><i style="width:' + fmt(pct, 0) + '%"></i></div></td>' +
+        '<td class="' + (bad ? 'badtext' : 'oktext') + '">' + esc(over ? 'ใหญ่เกิน ส่งไม่ขึ้น' : r.problem || 'ผ่าน') + '</td></tr>';
     }).join('') + '</tbody></table></div>' +
     (over.length ? '<div class="notice" style="margin-top:10px">ชุดที่ใหญ่เกินต้องลดขนาดก่อน เช่น ย่อรูปตราโรงเรียนในหน้าตั้งค่า ' +
       'หรือย้ายนักเรียนที่พ้นสภาพออกจากห้อง แล้วกดส่งขึ้นใหม่</div>' : '') +
@@ -7620,12 +7691,22 @@ function renderHealthCard() {
   if (btn) btn.addEventListener('click', async () => {
     const out = $('#healthResult', box);
     btn.disabled = true; out.innerHTML = '<div class="hint">กำลังทดสอบการเชื่อมต่อ...</div>';
-    const res = await centralHealthCheck();
-    const bad = res.filter(x => !x.ok).length;
-    out.innerHTML = '<div class="exec-sum"><span>ผ่าน <b>' + (res.length - bad) + '</b></span><span>มีปัญหา <b>' + bad + '</b></span></div>' +
+    const res = await centralHealthCheck(), steps = res.steps, staff = res.staff || [];
+    const bad = steps.filter(x => !x.ok).length;
+    const blocked = staff.filter(x => x.note !== 'เข้าสู่ระบบได้' && x.note !== 'มีบนส่วนกลางแต่ไม่มีในเครื่องนี้');
+    out.innerHTML = '<div class="exec-sum"><span>ผ่าน <b>' + (steps.length - bad) + '</b></span><span>มีปัญหา <b>' + bad + '</b></span>' +
+      '<span>บุคลากร <b>' + staff.length + '</b> คน</span><span>เข้าสู่ระบบไม่ได้ <b>' + blocked.length + '</b> คน</span></div>' +
       '<div class="tablewrap"><table><thead><tr><th>รายการที่ตรวจ</th><th>ผล</th></tr></thead><tbody>' +
-      res.map(x => '<tr><td><b>' + esc(x.label) + '</b></td><td class="' + (x.ok ? 'oktext' : 'badtext') + '">' +
-        (x.ok ? '✓ ' : '✕ ') + esc(x.info) + '</td></tr>').join('') + '</tbody></table></div>';
+      steps.map(x => '<tr><td><b>' + esc(x.label) + '</b></td><td class="' + (x.ok ? 'oktext' : 'badtext') + '">' +
+        (x.ok ? '✓ ' : '✕ ') + esc(x.info) + '</td></tr>').join('') + '</tbody></table></div>' +
+      (staff.length ? '<details class="exec-more"' + (blocked.length ? ' open' : '') + '><summary>ข้อมูลบุคลากรรายคน ' + staff.length + ' คน' +
+        (blocked.length ? ' • เข้าสู่ระบบไม่ได้ ' + blocked.length + ' คน' : ' • เข้าสู่ระบบได้ทุกคน') + '</summary>' +
+        '<div class="tablewrap"><table><thead><tr><th>ชื่อ</th><th>อีเมล</th><th>สิทธิ์</th><th>บนส่วนกลาง</th><th>สถานะเข้าสู่ระบบ</th></tr></thead><tbody>' +
+        staff.map(x => { const okRow = x.note === 'เข้าสู่ระบบได้';
+          return '<tr><td><b>' + esc(x.name) + '</b></td><td>' + esc(x.email || '—') + '</td><td>' + esc(x.roles || '—') + '</td>' +
+            '<td>' + (x.onCentral ? '<span class="badge ok">มี</span>' : '<span class="badge bad">ไม่มี</span>') + '</td>' +
+            '<td class="' + (okRow ? 'oktext' : 'badtext') + '">' + esc(x.note) + '</td></tr>'; }).join('') +
+        '</tbody></table></div></details>' : '');
     btn.disabled = false;
   });
 }
