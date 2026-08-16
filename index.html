@@ -368,6 +368,13 @@ td.num,th.num{text-align:center}
 .exec-more>summary::-webkit-details-marker{display:none}
 .exec-more>summary:before{content:'▸ ';color:var(--brand)}
 .exec-more[open]>summary:before{content:'▾ '}
+.pr-tag{display:inline-flex;align-items:center;justify-content:center;min-width:32px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:800;border:1px solid transparent}
+.pr-zero{background:var(--bad-bg);color:var(--bad);border-color:color-mix(in srgb,var(--bad) 35%,transparent)}
+.pr-r{background:var(--warn-bg);color:var(--warn);border-color:color-mix(in srgb,var(--warn) 35%,transparent)}
+.pr-ms{background:var(--group-bg);color:var(--group);border-color:color-mix(in srgb,var(--group) 35%,transparent)}
+.pr-mp{background:var(--line2);color:var(--muted);border-color:var(--line)}
+.pr-check{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);font-weight:600}
+tr.pr-done{opacity:.62}
 @media(max-width:700px){.roster-grid{grid-template-columns:repeat(2,1fr)}.exec-toolbar input,.exec-toolbar select{min-width:0;flex:1 1 130px}}
 .exchange-request{border-left:4px solid var(--group);padding:10px 12px;border-radius:9px;background:var(--group-bg);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .exchange-layout{display:grid;grid-template-columns:minmax(320px,.9fr) minmax(0,1.25fr);gap:14px}.candidate-list{display:grid;gap:9px}.candidate-card{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel2)}
@@ -1255,7 +1262,7 @@ function defaultSettings() {
 
 function defaultDB() {
   return { version: 8, settings: defaultSettings(), periods: [], classes: [], subjects: [], teachers: [], books: {},
-    studentMaster: [], studentAccounts: {}, timetable: defaultTimetable(),
+    studentMaster: [], studentAccounts: {}, pendingResults: [], timetable: defaultTimetable(),
     cloud: { clientId: PUBLIC_GOOGLE_CLIENT_ID, accountEmail: '', staffApiUrl: '', staffToken: '' },
     auditLog: [],
     ui: { periodId: null, classId: null, subjectId: null, teacherId: null, staffMode: 'teacher', tab: 'dashboard' } };
@@ -1294,6 +1301,7 @@ function loadDB() {
   DB.settings = Object.assign(defaultSettings(), DB.settings || {});
   DB.periods  = DB.periods || [];
   DB.studentMaster = DB.studentMaster || [];
+  DB.pendingResults = Array.isArray(DB.pendingResults) ? DB.pendingResults : [];
   DB.studentAccounts = DB.studentAccounts || {};
   DB.subjects.forEach(s => { s.gradeLevels = Array.isArray(s.gradeLevels) ? s.gradeLevels : []; });
   DB.timetable = DB.timetable || defaultTimetable();
@@ -2046,7 +2054,7 @@ function renderDashboard() {
       '<div class="metric-card" style="--metric:var(--bad)"><div class="metric-icon">⏱</div><div class="metric-value">' + missed.length + '</div><div class="metric-label">คาบค้างเช็กชื่อ</div></div>' +
       '<div class="metric-card" style="--metric:var(--ok)"><div class="metric-icon">✓</div><div class="metric-value">' + completeScores + '/' + students.length + '</div><div class="metric-label">คะแนนครบทุกส่วน</div></div>' +
       '<div class="metric-card" style="--metric:var(--group)"><div class="metric-icon">◎</div><div class="metric-value">' + fmt(average, 1) + '</div><div class="metric-label">คะแนนเฉลี่ยปัจจุบัน</div></div></div>' +
-    approvalCardHtml() +
+    approvalCardHtml() + '<div class="card" id="pendingBox"></div>' +
     '<div class="dash-columns"><div><div class="card"><div class="row"><h3 style="margin:0">ตารางสอนวันนี้</h3><div class="spacer"></div><button class="sm" data-go-tab="schedule">ดูตารางทั้งหมด</button></div><div class="today-list" style="margin-top:10px">' +
       (todayEntries.length ? todayEntries.map(e => { const slot = DB.timetable.slots.find(s => s.id === String(e.slotId)), subject = subjectOf(e), c = classOf(e); const current = slot && nowMin >= timeToMinutes(slot.start) && nowMin <= timeToMinutes(slot.end); const checked = !!DB.timetable.attendance[attendanceKey(e.id, today)]; return '<div class="today-card' + (current ? ' current' : '') + '"><div class="today-time"><b>' + esc(slot ? slot.label : '') + '</b>' + esc(slot ? slot.start + '-' + slot.end : '') + '</div><div><b>' + esc((subject.code ? subject.code + ' ' : '') + subject.name) + '</b><div class="hint">' + esc(c.name) + (e.room ? ' • ' + esc(e.room) : '') + '</div></div><div class="spacer"></div>' + (checked ? '<span class="badge ok">เช็กแล้ว</span>' : '<button class="sm primary" data-dash-att="' + e.id + '">เช็กชื่อ</button>') + '</div>'; }).join('') : '<div class="empty">วันนี้ไม่มีคาบสอนในตาราง</div>') + '</div></div>' +
       '<div class="card"><h3>ทางลัดงานประจำ</h3><div class="quick-grid"><button class="quick-action" data-go-tab="scores">✎<b>กรอกคะแนน</b><span>คะแนนเก็บ สอบ และซ่อม</span></button><button class="quick-action" data-go-tab="attendance">◷<b>เช็กเวลาเรียน</b><span>คาบประจำ แลกคาบ สอนแทน และชดเชย</span></button><button class="quick-action" data-go-tab="groups">◉<b>จัดกลุ่มเรียนรู้</b><span>กลุ่มและผู้นำเสนอ</span></button><button class="quick-action" data-go-tab="summary">▤<b>สรุป ปพ.5</b><span>เกรด เวลาเรียน และส่งออก</span></button></div></div></div>' +
@@ -2054,6 +2062,7 @@ function renderDashboard() {
       '<div class="card"><div class="row"><h3 style="margin:0">ความพร้อมของระบบ</h3><div class="spacer"></div><b>' + setupPct + '%</b></div><div class="setup-progress"><i style="width:' + setupPct + '%"></i></div><div class="hint">สถานศึกษา • ห้อง • วิชา • รายชื่อ • ตารางสอน • ปฏิทิน • หัวข้อคะแนน • ฐานข้อมูลกลาง</div><button class="sm" data-go-tab="settings" style="margin-top:9px">ตรวจสอบการตั้งค่า</button></div></div></div>' + exchangeRequestCard();
 
   bindApprovalCard(pane);
+  renderPendingCard(pane);
   $$('[data-go-tab]', pane).forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.goTab)));
   $$('[data-dash-att]', pane).forEach(btn => btn.addEventListener('click', () => { const e = todayEntries.find(x => x.id === btn.dataset.dashAtt); if (e) openAttendance(e, today); }));
   $$('[data-swap-accept]', pane).forEach(btn => btn.addEventListener('click', () => respondExchangeRequest(btn.dataset.swapAccept, true)));
@@ -3083,7 +3092,8 @@ function leaveStatsByTeacher(periodId) {
   const rows = new Map();
   (DB.timetable.leaveRequests || []).filter(l => !periodId || l.periodId === periodId).forEach(l => {
     const teacher = DB.teachers.find(t => t.id === l.teacherId);
-    if (!rows.has(l.teacherId)) rows.set(l.teacherId, { teacher: teacher, name: (teacher || {}).name || 'ไม่พบครู', area: teacherArea(teacher), times: 0, days: 0, byType: {}, periods: 0, covered: 0, pending: 0 });
+    if (!teacher) return;   // ใบลาที่ไม่มีเจ้าของแล้ว ไม่นำมาคิดสถิติ ใช้ปุ่มล้างในหน้าผู้ดูแลระบบแทน
+    if (!rows.has(l.teacherId)) rows.set(l.teacherId, { teacher: teacher, name: teacher.name || 'ไม่พบครู', area: teacherArea(teacher), times: 0, days: 0, byType: {}, periods: 0, covered: 0, pending: 0 });
     const row = rows.get(l.teacherId), type = exchangeReasonLabel(l).split(' — ')[0];
     row.times++; row.days += leaveDays(l); row.byType[type] = (row.byType[type] || 0) + 1;
     const linked = (DB.timetable.exchangeRequests || []).filter(r => r.leaveRequestId === l.id);
@@ -3096,7 +3106,7 @@ function coverageRanking(periodId) {
   const rows = new Map();
   (DB.timetable.exchangeRequests || []).filter(r => r.status === 'accepted' && (!periodId || r.periodId === periodId)).forEach(r => {
     if (!r.targetTeacherId) return;
-    if (!rows.has(r.targetTeacherId)) { const t = DB.teachers.find(x => x.id === r.targetTeacherId); rows.set(r.targetTeacherId, { name: (t || {}).name || 'ไม่พบครู', area: teacherArea(t), substitute: 0, exchange: 0 }); }
+    if (!rows.has(r.targetTeacherId)) { const t = DB.teachers.find(x => x.id === r.targetTeacherId); if (!t) return; rows.set(r.targetTeacherId, { name: t.name || 'ไม่พบครู', area: teacherArea(t), substitute: 0, exchange: 0 }); }
     const row = rows.get(r.targetTeacherId);
     if ((r.type || 'exchange') === 'exchange') row.exchange++; else row.substitute++;
   });
@@ -5517,6 +5527,15 @@ function attendanceExecutiveData() {
   return { records: records, statuses: statuses, areas: areas, risks: Array.from(risks.values()).map(x => Object.assign(x, { pct: x.total ? x.attend * 100 / x.total : null })).filter(x => x.pct < 80).sort((a, b) => a.pct - b.pct) };
 }
 
+/** ใบลาและคำขอที่อ้างถึงครูซึ่งไม่มีอยู่ในระบบแล้ว มักเป็นข้อมูลทดสอบที่ค้างอยู่ */
+function orphanLeaveData() {
+  const ids = new Set((DB.teachers || []).map(t => t.id));
+  const leaves = (DB.timetable.leaveRequests || []).filter(l => !ids.has(l.teacherId));
+  const reqs = (DB.timetable.exchangeRequests || []).filter(r => !ids.has(r.requesterTeacherId));
+  return { leaves: leaves, requests: reqs };
+}
+const isOrphanLeave = l => !(DB.teachers || []).some(t => t.id === l.teacherId);
+
 /** ตารางสรุปการลารายครู ใช้ร่วมกันระหว่างหน้าหัวหน้ากลุ่มสาระและผู้บริหาร */
 function leaveStatsTable(rows, showArea) {
   const types = Array.from(new Set(rows.flatMap(r => Object.keys(r.byType)))).sort((a, b) => a.localeCompare(b, 'th'));
@@ -5572,7 +5591,7 @@ function renderHeadArea() {
 /** หน้าผู้บริหาร: อนุมัติใบลา + ภาพรวมการลาและการสอนแทน */
 function renderLeaveApprovals() {
   const pane = $('#pane-leaves'), stats = leaveStatsByTeacher(DB.ui.periodId), ranking = coverageRanking(DB.ui.periodId);
-  const leaves = (DB.timetable.leaveRequests || []).filter(l => l.periodId === DB.ui.periodId).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  const leaves = (DB.timetable.leaveRequests || []).filter(l => l.periodId === DB.ui.periodId && !isOrphanLeave(l)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   const waiting = leaves.filter(l => (l.approval || {}).status === 'submitted');
   const totalDays = stats.reduce((a, r) => a + r.days, 0), totalTimes = stats.reduce((a, r) => a + r.times, 0);
   const top = ranking[0];
@@ -5607,16 +5626,22 @@ function renderLeaveApprovals() {
    ม.ปลาย ห้องปกติคือห้อง 4–14 (ห้อง 1–3 เป็นห้องเรียนพิเศษ)
    ห้องปกติทุกห้องควรมีนักเรียนเต็มตาม MAX_STUDENTS คน จึงตรวจเฉพาะห้องปกติ */
 const REGULAR_ROOMS = { lower: [5, 14], upper: [4, 14] };
-const ROOM_KIND_LABEL = { regular: 'ห้องปกติ', special: 'ห้องเรียนพิเศษ', other: 'นอกผังห้องปกติ' };
+const ROOM_KIND_LABEL = { regular: 'ห้องปกติ', special: 'ห้องเรียนพิเศษ', other: 'นอกผังห้องปกติ', sub: 'ห้องเรียนย่อย' };
 
 function classRoomNo(name) { const m = String(name || '').match(/\/\s*(\d{1,2})/); return m ? parseInt(m[1], 10) : 0; }
 function classBand(level) { return ['ม.1', 'ม.2', 'ม.3'].includes(level) ? 'lower' : ['ม.4', 'ม.5', 'ม.6'].includes(level) ? 'upper' : ''; }
+/** ตัวอักษรต่อท้ายเลขห้อง เช่น ม.4/9ญ คือห้องเรียนย่อยของ ม.4/9 ไม่ใช่ห้องใหม่ */
+function classRoomSuffix(name) { const m = String(name || '').replace(/\s+/g, '').match(/\/\d{1,2}(.*)$/); return m ? m[1] : ''; }
 function classRoomKind(cls) {
   const level = classLevel(cls && cls.name), band = classBand(level), room = classRoomNo(cls && cls.name);
-  if (!band || !room) return { level: level, band: band, room: room, kind: 'other' };
+  const suffix = classRoomSuffix(cls && cls.name), baseName = level && room ? level + '/' + room : String((cls && cls.name) || '');
+  const info = { level: level, band: band, room: room, suffix: suffix, baseName: baseName, isSub: !!suffix };
+  if (suffix) return Object.assign(info, { kind: 'sub' });
+  if (!band || !room) return Object.assign(info, { kind: 'other' });
   const r = REGULAR_ROOMS[band];
-  return { level: level, band: band, room: room, kind: room < r[0] ? 'special' : room <= r[1] ? 'regular' : 'other' };
+  return Object.assign(info, { kind: room < r[0] ? 'special' : room <= r[1] ? 'regular' : 'other' });
 }
+const isSubRoom = cls => !!classRoomSuffix(cls && cls.name);
 const levelSortKey = level => { const m = String(level || '').match(/^(อ|ป|ม|ปวช|ปวส)\.(\d)$/); return m ? ['อ', 'ป', 'ม', 'ปวช', 'ปวส'].indexOf(m[1]) * 10 + num(m[2]) : 999; };
 
 /** รวมรายชื่อนักเรียนทุกห้อง ผูกกับข้อมูลฐานกลาง (เพศ/สถานะ) */
@@ -5626,6 +5651,7 @@ function schoolRosterRows() {
   const rows = [];
   (DB.classes || []).forEach(cls => {
     const info = classRoomKind(cls);
+    if (info.isSub) return;   // ห้องเรียนย่อยเป็นนักเรียนกลุ่มเดียวกับห้องหลัก นับซ้ำไม่ได้
     (cls.students || []).forEach(st => {
       const m = master.get(String(st.sid || '').trim()) || {};
       rows.push({ sid: String(st.sid || ''), no: st.no || '', name: st.name || '', cls: cls, className: cls.name || '',
@@ -5655,6 +5681,14 @@ function studentAttendanceIndex() {
 function absenceStreaks(minDays) {
   const idx = studentAttendanceIndex(), byRow = new Map(), out = [];
   schoolRosterRows().forEach(r => { if (r.sid) byRow.set(r.sid, r); });
+  // เด็กที่มีชื่อเฉพาะในห้องเรียนย่อย ให้แสดงชื่อห้องหลักแทน จะได้ไม่ขึ้นว่าไม่ระบุห้อง
+  (DB.classes || []).filter(isSubRoom).forEach(cls => {
+    const info = classRoomKind(cls);
+    (cls.students || []).forEach(st => {
+      const key = String(st.sid || ''); if (!key || byRow.has(key)) return;
+      byRow.set(key, { sid: key, no: st.no || '', name: st.name || '', className: info.baseName, level: info.level, cls: cls });
+    });
+  });
   const gap = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
   idx.forEach((e, sid) => {
     const dates = Array.from(e.days.keys()).sort();
@@ -5678,7 +5712,7 @@ function absenceStreaks(minDays) {
 
 /** ตรวจจำนวนนักเรียนของทุกห้องเทียบกับเกณฑ์ห้องปกติ */
 function classCapacityAudit() {
-  return (DB.classes || []).map(cls => {
+  return (DB.classes || []).filter(cls => !isSubRoom(cls)).map(cls => {
     const info = classRoomKind(cls), count = (cls.students || []).length;
     return Object.assign({ cls: cls, name: cls.name || '', count: count,
       target: info.kind === 'regular' ? MAX_STUDENTS : null,
@@ -5698,6 +5732,7 @@ function execStudentPanels() {
   const rows = schoolRosterRows(), audit = classCapacityAudit();
   const minDays = num(DB.ui.execStreakDays) || 5, streaks = absenceStreaks(minDays);
   const regular = audit.filter(a => a.kind === 'regular'), special = audit.filter(a => a.kind !== 'regular');
+  const subRooms = (DB.classes || []).filter(isSubRoom);
   const short = regular.filter(a => a.diff < 0), over = regular.filter(a => a.diff > 0), full = regular.filter(a => a.diff === 0);
   const levels = {};
   rows.forEach(r => {
@@ -5751,6 +5786,9 @@ function execStudentPanels() {
     '<span>เกินเกณฑ์ <b>' + over.length + '</b></span><span>ขาดรวม <b>' + short.reduce((a, x) => a - x.diff, 0) + '</b> คน</span></div>' +
     (short.length ? capTable(short) : '<div class="empty">ห้องปกติทุกห้องมีนักเรียนครบตามเกณฑ์</div>') +
     (over.length ? '<details class="exec-more"><summary>ห้องปกติที่มีนักเรียนเกินเกณฑ์ ' + over.length + ' ห้อง</summary>' + capTable(over) + '</details>' : '') +
+    (subRooms.length ? '<details class="exec-more"><summary>ห้องเรียนย่อย ' + subRooms.length + ' ห้อง (นับรวมอยู่ในห้องหลักแล้ว)</summary><div class="tablewrap"><table><thead><tr><th>ห้องย่อย</th><th>สังกัดห้อง</th><th class="numcell">รายชื่อในกลุ่ม</th></tr></thead><tbody>' +
+      subRooms.map(c => { const i = classRoomKind(c); return '<tr><td><b>' + esc(c.name) + '</b></td><td>' + esc(i.baseName) + '</td><td class="numcell">' + (c.students || []).length + '</td></tr>'; }).join('') +
+      '</tbody></table></div></details>' : '') +
     (special.length ? '<details class="exec-more"><summary>ห้องเรียนพิเศษและห้องนอกผัง ' + special.length + ' ห้อง (ไม่เทียบเกณฑ์)</summary><div class="tablewrap"><table><thead><tr><th>ห้อง</th><th>ระดับชั้น</th><th>ประเภท</th><th class="numcell">นักเรียน</th><th>ครูที่ปรึกษา</th></tr></thead><tbody>' +
       special.map(a => '<tr><td><b>' + esc(a.name) + '</b></td><td>' + esc(a.level || '—') + '</td><td><span class="level-tag">' + ROOM_KIND_LABEL[a.kind] + '</span></td><td class="numcell">' + a.count + '</td><td>' + esc(homeroomTeacherName(a.cls.id) || '—') + '</td></tr>').join('') +
       '</tbody></table></div></details>' : '') + '</div>';
@@ -5817,13 +5855,316 @@ function wireExecStudentPanels(pane) {
   });
 }
 
+/* ---- ผลการเรียนคงค้าง (0 / ร / มส / มผ) ----------------------------------
+   เมื่อครูตัดสินผลการเรียนแล้ว รายชื่อนักเรียนที่ไม่ผ่านจะถูกบันทึกไว้เป็นรายการติดตาม
+   รายการจะค้างข้ามภาคเรียนและข้ามปีการศึกษาไปเรื่อย ๆ จนกว่าครูจะกรอกว่าผ่านแล้ว
+   หรือกดว่านักเรียนพ้นสภาพ */
+const PENDING_REASONS = [
+  { value: '0', label: '0', desc: 'คะแนนไม่ถึงเกณฑ์' },
+  { value: 'ร', label: 'ร', desc: 'ประเมินไม่ครบ มีงานค้างส่ง' },
+  { value: 'มส', label: 'มส', desc: 'เวลาเรียนไม่ถึงเกณฑ์' },
+  { value: 'มผ', label: 'มผ', desc: 'ไม่ผ่านกิจกรรมหรือคุณลักษณะ' }
+];
+const PENDING_STATUS_LABEL = { pending: 'ยังไม่ผ่าน', passed: 'แก้ผ่านแล้ว', dropped: 'พ้นสภาพ' };
+const pendingReasonDesc = v => (PENDING_REASONS.find(r => r.value === v) || {}).desc || '';
+
+const semesterRank = sem => String(sem) === '1' ? 1 : String(sem) === '2' ? 2 : 3;
+const periodCmp = (a, b) => num(a.academicYear) - num(b.academicYear) || semesterRank(a.semester) - semesterRank(b.semester);
+function periodsSorted() { return (DB.periods || []).slice().sort(periodCmp); }
+function periodIndexOf(pid) { return periodsSorted().findIndex(p => p.id === pid); }
+function periodText(pid) { const p = (DB.periods || []).find(x => x.id === pid); return p ? 'ปี ' + p.academicYear + ' ภาค ' + p.semester : 'ไม่ทราบภาคเรียน'; }
+/** ค้างมาแล้วกี่ภาคเรียน นับจากภาคที่ติดถึงภาคที่เลือกอยู่ */
+function pendingCarryTerms(r) {
+  const from = periodIndexOf(r.periodId), now = periodIndexOf(DB.ui.periodId);
+  return from < 0 || now < 0 ? 0 : Math.max(0, now - from);
+}
+
+/** คู่ (ห้อง, วิชา) ที่ครูคนนี้สอนในภาคเรียนที่เลือก */
+function myTeachingPairs(periodId) {
+  const me = curTeacher(); if (!me) return [];
+  const seen = new Set(), out = [];
+  (DB.timetable.entries || []).filter(e => e.periodId === periodId && e.teacherId === me.id).forEach(e => {
+    const k = e.classId + '::' + e.subjectId; if (seen.has(k)) return; seen.add(k);
+    out.push({ classId: e.classId, subjectId: e.subjectId });
+  });
+  return out;
+}
+
+/** อ่านผลการตัดสินจากสมุดคะแนน แล้วคัดเฉพาะคนที่ไม่ผ่าน */
+function scanPendingCandidates(periodId) {
+  const out = [];
+  myTeachingPairs(periodId).forEach(pair => {
+    const cls = DB.classes.find(c => c.id === pair.classId), sub = DB.subjects.find(x => x.id === pair.subjectId);
+    const raw = DB.books[pair.classId + '::' + pair.subjectId + '::' + periodId];
+    if (!cls || !sub || !raw) return;
+    const b = normalizeBook(raw), sts = (cls.students || []).slice().sort((a, c) => num(a.no) - num(c.no));
+    summaryRows(b, sts, cls.id, sub.id).forEach(x => {
+      let reason = '';
+      if (x.att && x.att.isMS) reason = 'มส';
+      else if (!x.r.complete) reason = 'ร';
+      else if (String(x.r.grade) === '0') reason = '0';
+      if (!reason) return;
+      out.push({ sid: String(x.st.sid || ''), name: x.st.name || '', no: x.st.no || '', classId: cls.id, className: cls.name,
+        subjectId: sub.id, subjectCode: sub.code || '', subjectName: sub.name || '', periodId: periodId, reason: reason,
+        score: x.r.total, attPct: x.att ? x.att.pct : null });
+    });
+  });
+  return out.sort((a, b) => String(a.className).localeCompare(String(b.className), 'th') || num(a.no) - num(b.no));
+}
+
+const pendingKeyOf = r => [r.sid, r.subjectId, r.periodId].join('::');
+
+/** เพิ่มรายการที่ยังไม่มี และอัปเดตผลที่ติดของรายการเดิมที่ยังไม่ผ่าน */
+function mergePendingResults(list) {
+  const me = curTeacher(), byKey = new Map();
+  (DB.pendingResults || []).forEach(r => byKey.set(pendingKeyOf(r), r));
+  let added = 0, updated = 0;
+  list.forEach(c => {
+    const old = byKey.get(pendingKeyOf(c));
+    if (old) {
+      if (old.status !== 'pending') return;
+      if (old.reason !== c.reason || old.score !== c.score) { Object.assign(old, { reason: c.reason, score: c.score, attPct: c.attPct, updatedAt: new Date().toISOString() }); updated++; }
+      return;
+    }
+    DB.pendingResults.push(Object.assign({ id: uid('pr'), status: 'pending', resultGrade: '', note: '',
+      teacherId: me ? me.id : '', teacherName: me ? (me.name || me.email || '') : '',
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), resolvedAt: '', resolvedBy: '' }, c));
+    added++;
+  });
+  if (added || updated) save(true);
+  return { added: added, updated: updated };
+}
+
+/** รายการที่ครูคนนี้ต้องติดตาม — ของฉัน / ห้องที่ปรึกษา / ทั้งหมด */
+function pendingForTeacher(scope) {
+  const me = curTeacher(); if (!me) return [];
+  const pairs = new Set(myTeachingPairs(DB.ui.periodId).map(p => p.classId + '::' + p.subjectId));
+  const homeroom = me.homeroomClassId || '';
+  const homeroomSids = new Set(((DB.classes.find(c => c.id === homeroom) || {}).students || []).map(x => String(x.sid || '')));
+  return (DB.pendingResults || []).filter(r => {
+    if (scope === 'all') return true;
+    if (scope === 'homeroom') return homeroom && (r.classId === homeroom || homeroomSids.has(r.sid));
+    return r.teacherId === me.id || pairs.has(r.classId + '::' + r.subjectId);
+  }).sort((a, b) => (a.status === 'pending' ? 0 : 1) - (b.status === 'pending' ? 0 : 1) ||
+    periodIndexOf(a.periodId) - periodIndexOf(b.periodId) ||
+    String(a.className).localeCompare(String(b.className), 'th') || num(a.no) - num(b.no));
+}
+
+/** สถิติภาพรวมสำหรับผู้บริหาร: นับเป็นคน และนับเป็นรายวิชาที่ติด */
+function pendingResultStats() {
+  const pending = (DB.pendingResults || []).filter(r => r.status === 'pending');
+  const students = new Set(pending.map(r => r.sid));
+  const totalStudents = schoolRosterRows().length;
+  const enrollments = totalEnrollments(DB.ui.periodId);
+  const byReason = {}; PENDING_REASONS.forEach(x => byReason[x.value] = 0);
+  pending.forEach(r => { if (byReason[r.reason] === undefined) byReason[r.reason] = 0; byReason[r.reason]++; });
+  const byLevel = {};
+  pending.forEach(r => {
+    const cls = DB.classes.find(c => c.id === r.classId), lv = classLevel(cls ? cls.name : r.className) || 'ไม่ระบุระดับชั้น';
+    if (!byLevel[lv]) byLevel[lv] = { subjects: 0, sids: new Set() };
+    byLevel[lv].subjects++; byLevel[lv].sids.add(r.sid);
+  });
+  const perStudent = {};
+  pending.forEach(r => { perStudent[r.sid] = (perStudent[r.sid] || 0) + 1; });
+  const heavy = Object.entries(perStudent).filter(([, n]) => n >= 3).length;
+  return { items: pending, count: pending.length, students: students.size, totalStudents: totalStudents,
+    enrollments: enrollments, byReason: byReason, byLevel: byLevel, heavy: heavy,
+    pctStudents: totalStudents ? students.size * 100 / totalStudents : null,
+    pctSubjects: enrollments ? pending.length * 100 / enrollments : null,
+    resolved: (DB.pendingResults || []).filter(r => r.status === 'passed').length,
+    dropped: (DB.pendingResults || []).filter(r => r.status === 'dropped').length };
+}
+
+/** จำนวนการลงทะเบียนเรียนทั้งหมด = ผลรวมของ (นักเรียนในห้อง × วิชาที่ห้องนั้นเรียน)
+    ห้องเรียนย่อยถูกยุบเข้ากับห้องหลักก่อน จะได้ไม่นับซ้ำ */
+function totalEnrollments(periodId) {
+  const groups = new Map();
+  (DB.timetable.entries || []).filter(e => e.periodId === periodId).forEach(e => {
+    const cls = DB.classes.find(c => c.id === e.classId); if (!cls) return;
+    const key = classRoomKind(cls).baseName + '::' + e.subjectId;
+    if (!groups.has(key)) groups.set(key, new Set());
+    groups.get(key).add(cls.id);
+  });
+  let n = 0;
+  groups.forEach(ids => {
+    const list = Array.from(ids).map(id => DB.classes.find(c => c.id === id)).filter(Boolean);
+    const mains = list.filter(c => !isSubRoom(c));
+    (mains.length ? mains : list).forEach(c => { n += (c.students || []).length; });
+  });
+  return n;
+}
+
+const pendingReasonBadge = v => '<span class="pr-tag pr-' + (v === '0' ? 'zero' : v === 'ร' ? 'r' : v === 'มส' ? 'ms' : 'mp') + '">' + esc(v) + '</span>';
+
+/** การ์ดติดตามผลการเรียนคงค้างในหน้าภาพรวมครู */
+function renderPendingCard(pane) {
+  const box = $('#pendingBox', pane); if (!box) return;
+  const scope = DB.ui.pendingScope || 'mine', showDone = !!DB.ui.pendingShowDone;
+  const all = pendingForTeacher(scope), list = showDone ? all : all.filter(r => r.status === 'pending');
+  const pendingCount = all.filter(r => r.status === 'pending').length;
+  const carried = all.filter(r => r.status === 'pending' && pendingCarryTerms(r) > 0).length;
+  box.innerHTML = '<div class="exec-head"><div><div class="exec-eyebrow">FOLLOW-UP</div><h3>นักเรียนคงค้างผลการเรียน</h3></div><div class="spacer"></div>' +
+    '<select id="prScope">' + [['mine', 'วิชาที่ฉันสอน'], ['homeroom', 'ห้องที่ปรึกษา'], ['all', 'ทั้งหมดในเครื่องนี้']]
+      .map(x => '<option value="' + x[0] + '"' + (scope === x[0] ? ' selected' : '') + '>' + x[1] + '</option>').join('') + '</select>' +
+    '<button class="sm" id="prAdd">+ เพิ่มเอง</button><button class="sm primary" id="prScan">ดึงจากผลการเรียนภาคนี้</button>' +
+    '<span class="badge ' + (pendingCount ? 'bad' : 'ok') + '">' + pendingCount + ' รายการ</span></div>' +
+    '<div class="exec-note">ดึงรายชื่อได้เมื่อตัดสินผลการเรียนแล้ว ระบบอ่านจากสมุดคะแนนของวิชาที่คุณสอนในภาคเรียนนี้' +
+    (carried ? ' • มี <b>' + carried + '</b> รายการที่ค้างข้ามภาคเรียนมาแล้ว' : '') + '</div>' +
+    '<div class="exec-toolbar"><label class="pr-check"><input type="checkbox" id="prShowDone"' + (showDone ? ' checked' : '') + '> แสดงรายการที่จบแล้วด้วย</label></div>' +
+    (list.length ? '<div class="tablewrap"><table><thead><tr><th>นักเรียน</th><th>ห้อง</th><th>วิชา</th><th>ผลที่ติด</th><th>ภาคที่ติด</th><th>สถานะ</th><th>บันทึกผล</th></tr></thead><tbody>' +
+      list.map(r => {
+        const carry = pendingCarryTerms(r), done = r.status !== 'pending';
+        return '<tr' + (done ? ' class="pr-done"' : '') + '><td><b>' + esc(r.name) + '</b>' + (r.no ? '<div class="hint">เลขที่ ' + esc(r.no) + '</div>' : '') + '</td>' +
+          '<td>' + esc(r.className) + '</td>' +
+          '<td>' + esc((r.subjectCode ? r.subjectCode + ' ' : '') + r.subjectName) + '</td>' +
+          '<td>' + pendingReasonBadge(r.reason) + '<div class="hint">' + esc(pendingReasonDesc(r.reason)) + '</div></td>' +
+          '<td>' + esc(periodText(r.periodId)) + (carry ? '<div class="hint badtext">ค้างมาแล้ว ' + carry + ' ภาคเรียน</div>' : '') + '</td>' +
+          '<td>' + (r.status === 'passed' ? '<span class="badge ok">แก้ผ่านแล้ว' + (r.resultGrade ? ' • ' + esc(r.resultGrade) : '') + '</span>' :
+            r.status === 'dropped' ? '<span class="badge">พ้นสภาพ</span>' : '<span class="badge bad">ยังไม่ผ่าน</span>') + '</td>' +
+          '<td>' + (done ? '<button class="sm" data-pr-undo="' + r.id + '">ย้อนกลับ</button>' :
+            '<button class="sm primary" data-pr-pass="' + r.id + '">แก้ผ่านแล้ว</button><button class="sm danger" data-pr-drop="' + r.id + '">พ้นสภาพ</button>') +
+          '<button class="sm" data-pr-del="' + r.id + '">ลบ</button></td></tr>';
+      }).join('') + '</tbody></table></div>'
+      : '<div class="empty">ยังไม่มีรายการคงค้าง — กด “ดึงจากผลการเรียนภาคนี้” เมื่อตัดสินผลเรียบร้อยแล้ว</div>');
+
+  const rerender = () => renderPendingCard(pane);
+  $('#prScope', box).addEventListener('change', e => { DB.ui.pendingScope = e.target.value; save(); rerender(); });
+  $('#prShowDone', box).addEventListener('change', e => { DB.ui.pendingShowDone = e.target.checked; save(); rerender(); });
+  $('#prScan', box).addEventListener('click', () => openPendingScan(rerender));
+  $('#prAdd', box).addEventListener('click', () => openPendingAdd(rerender));
+  $$('[data-pr-pass]', box).forEach(b => b.addEventListener('click', () => openPendingResolve(b.dataset.prPass, rerender)));
+  $$('[data-pr-drop]', box).forEach(b => b.addEventListener('click', () => dropPendingStudent(b.dataset.prDrop, rerender)));
+  $$('[data-pr-undo]', box).forEach(b => b.addEventListener('click', () => {
+    const r = (DB.pendingResults || []).find(x => x.id === b.dataset.prUndo); if (!r) return;
+    Object.assign(r, { status: 'pending', resultGrade: '', resolvedAt: '', resolvedBy: '', updatedAt: new Date().toISOString() });
+    save(true); rerender(); toast('ย้อนกลับเป็นยังไม่ผ่านแล้ว', 'ok');
+  }));
+  $$('[data-pr-del]', box).forEach(b => b.addEventListener('click', async () => {
+    const r = (DB.pendingResults || []).find(x => x.id === b.dataset.prDel); if (!r) return;
+    if (!await confirmBox('ลบรายการติดตาม', 'ลบ ' + (r.name || '') + ' วิชา ' + (r.subjectName || '') + ' ออกจากรายการติดตามถาวร', 'ลบ')) return;
+    DB.pendingResults = DB.pendingResults.filter(x => x.id !== r.id); save(true); rerender(); toast('ลบรายการแล้ว', 'ok');
+  }));
+}
+
+/** ดูรายชื่อที่ระบบอ่านได้ก่อนบันทึกเข้ารายการติดตาม */
+function openPendingScan(after) {
+  const list = scanPendingCandidates(DB.ui.periodId);
+  const body = list.length
+    ? '<div class="exec-note">อ่านจากสมุดคะแนนของวิชาที่คุณสอนใน ' + esc(periodText(DB.ui.periodId)) + ' • ติ๊กเฉพาะคนที่ตัดสินผลแล้วจริง</div>' +
+      '<div class="tablewrap" style="max-height:52vh;overflow:auto"><table><thead><tr><th></th><th>นักเรียน</th><th>ห้อง</th><th>วิชา</th><th>ผลที่ติด</th><th class="numcell">คะแนน</th><th class="numcell">เวลาเรียน</th></tr></thead><tbody>' +
+      list.map((c, i) => '<tr><td><input type="checkbox" class="pr-pick" data-i="' + i + '" checked></td><td><b>' + esc(c.name) + '</b></td><td>' + esc(c.className) + '</td>' +
+        '<td>' + esc((c.subjectCode ? c.subjectCode + ' ' : '') + c.subjectName) + '</td><td>' + pendingReasonBadge(c.reason) + '</td>' +
+        '<td class="numcell">' + fmt(c.score, 0) + '</td><td class="numcell">' + (c.attPct == null ? '—' : fmt(c.attPct, 1) + '%') + '</td></tr>').join('') +
+      '</tbody></table></div>'
+    : '<div class="empty">ไม่พบนักเรียนที่ไม่ผ่านในวิชาที่คุณสอนภาคนี้ หรือยังไม่ได้กรอกคะแนน/ตารางสอน</div>';
+  openModal({ title: 'ดึงรายชื่อนักเรียนที่ไม่ผ่าน', bodyHTML: body,
+    buttons: list.length ? [{ label: 'ยกเลิก' }, { label: 'บันทึกเข้ารายการติดตาม', cls: 'primary', act(close, root) {
+      const picked = $$('.pr-pick', root).filter(c => c.checked).map(c => list[num(c.dataset.i)]);
+      if (!picked.length) return toast('ยังไม่ได้เลือกรายการ', 'bad');
+      const res = mergePendingResults(picked);
+      close(); if (after) after();
+      toast('บันทึกรายการติดตามแล้ว เพิ่มใหม่ ' + res.added + ' รายการ' + (res.updated ? ' • ปรับปรุง ' + res.updated : ''), 'ok');
+    } }] : [{ label: 'ปิด' }] });
+}
+
+/** เพิ่มรายการเอง เช่น มผ ของกิจกรรมพัฒนาผู้เรียนที่ไม่ได้อยู่ในสมุดคะแนน */
+function openPendingAdd(after) {
+  const classOpts = DB.classes.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
+  openModal({ title: 'เพิ่มรายการคงค้างเอง', bodyHTML:
+    '<div class="grid2"><div class="pick"><label>ห้องเรียน</label><select id="prcClass">' + classOpts + '</select></div>' +
+    '<div class="pick"><label>นักเรียน</label><select id="prcStudent"></select></div>' +
+    '<div class="pick"><label>รายวิชา / กิจกรรม</label><select id="prcSubject">' + DB.subjects.map(x => '<option value="' + x.id + '">' + esc((x.code ? x.code + ' ' : '') + x.name) + '</option>').join('') + '</select></div>' +
+    '<div class="pick"><label>ผลที่ติด</label><select id="prcReason">' + PENDING_REASONS.map(r => '<option value="' + r.value + '">' + r.label + ' — ' + r.desc + '</option>').join('') + '</select></div>' +
+    '<div class="pick" style="grid-column:1/-1"><label>บันทึกเพิ่มเติม</label><input id="prcNote" style="width:100%" placeholder="เช่น ค้างงานชิ้นที่ 3 นัดส่งภายในเดือนนี้"></div></div>',
+    onMount(root) {
+      const cls = $('#prcClass', root), st = $('#prcStudent', root);
+      const fill = () => { const c = DB.classes.find(x => x.id === cls.value);
+        st.innerHTML = ((c || {}).students || []).slice().sort((a, b) => num(a.no) - num(b.no))
+          .map(x => '<option value="' + esc(x.sid) + '">' + esc((x.no ? x.no + '. ' : '') + x.name) + '</option>').join(''); };
+      cls.addEventListener('change', fill); fill();
+    },
+    buttons: [{ label: 'ยกเลิก' }, { label: 'เพิ่มรายการ', cls: 'primary', act(close, root) {
+      const cls = DB.classes.find(c => c.id === $('#prcClass', root).value);
+      const sid = $('#prcStudent', root).value, sub = DB.subjects.find(x => x.id === $('#prcSubject', root).value);
+      if (!cls || !sid || !sub) return toast('ข้อมูลไม่ครบ', 'bad');
+      const stu = (cls.students || []).find(x => String(x.sid) === String(sid)) || {};
+      const before = DB.pendingResults.length;
+      mergePendingResults([{ sid: String(sid), name: stu.name || '', no: stu.no || '', classId: cls.id, className: cls.name,
+        subjectId: sub.id, subjectCode: sub.code || '', subjectName: sub.name || '', periodId: DB.ui.periodId,
+        reason: $('#prcReason', root).value, score: null, attPct: null }]);
+      if (DB.pendingResults.length === before) { close(); if (after) after(); return toast('มีรายการนี้อยู่แล้ว', 'bad'); }
+      DB.pendingResults[DB.pendingResults.length - 1].note = $('#prcNote', root).value.trim(); save(true);
+      close(); if (after) after(); toast('เพิ่มรายการติดตามแล้ว', 'ok');
+    } }] });
+}
+
+/** ครูกรอกผลว่าแก้ผ่านแล้ว */
+function openPendingResolve(id, after) {
+  const r = (DB.pendingResults || []).find(x => x.id === id); if (!r) return;
+  openModal({ title: 'บันทึกผลการแก้ • ' + (r.name || ''), bodyHTML:
+    '<div class="exec-note">' + esc((r.subjectCode ? r.subjectCode + ' ' : '') + r.subjectName + ' • ' + r.className + ' • ติด ' + r.reason + ' เมื่อ ' + periodText(r.periodId)) + '</div>' +
+    '<div class="grid2"><div class="pick"><label>ผลการเรียนหลังแก้</label><select id="prrGrade">' +
+    ['1', '1.5', '2', '2.5', '3', '3.5', '4', 'ผ'].map(g => '<option value="' + g + '">' + g + '</option>').join('') + '</select></div>' +
+    '<div class="pick"><label>วันที่แก้เสร็จ</label><input type="date" id="prrDate" value="' + todayISO() + '"></div>' +
+    '<div class="pick" style="grid-column:1/-1"><label>บันทึกของครู</label><input id="prrNote" style="width:100%" value="' + esc(r.note || '') + '"></div></div>',
+    buttons: [{ label: 'ยกเลิก' }, { label: 'บันทึกว่าผ่านแล้ว', cls: 'primary', act(close, root) {
+      const me = curTeacher();
+      Object.assign(r, { status: 'passed', resultGrade: $('#prrGrade', root).value, note: $('#prrNote', root).value.trim(),
+        resolvedAt: $('#prrDate', root).value || todayISO(), resolvedBy: me ? (me.name || me.email || '') : '', updatedAt: new Date().toISOString() });
+      save(true); close(); if (after) after(); toast('บันทึกว่า ' + (r.name || '') + ' แก้ผ่านแล้ว', 'ok');
+    } }] });
+}
+
+/** นักเรียนลาออกหรือพ้นสภาพ — นำออกจากรายการติดตามทั้งหมดของคนนั้น */
+async function dropPendingStudent(id, after) {
+  const r = (DB.pendingResults || []).find(x => x.id === id); if (!r) return;
+  const mine = (DB.pendingResults || []).filter(x => x.sid === r.sid && x.status === 'pending');
+  if (!await confirmBox('นักเรียนพ้นสภาพ', esc(r.name) + ' มีรายการคงค้าง ' + mine.length + ' รายการ ระบบจะทำเครื่องหมายว่าพ้นสภาพทั้งหมด และตั้งสถานะในฐานนักเรียนกลางเป็นไม่กำลังศึกษา', 'ยืนยันพ้นสภาพ')) return;
+  const me = curTeacher(), stamp = new Date().toISOString();
+  mine.forEach(x => Object.assign(x, { status: 'dropped', resolvedAt: todayISO(), resolvedBy: me ? (me.name || me.email || '') : '', updatedAt: stamp }));
+  const m = (DB.studentMaster || []).find(x => String(x.sid || '').trim() === String(r.sid).trim());
+  if (m) { m.active = false; m.statusText = m.statusText || 'พ้นสภาพ'; }
+  save(true); if (after) after();
+  toast('บันทึกว่า ' + (r.name || '') + ' พ้นสภาพแล้ว ' + mine.length + ' รายการ', 'ok');
+}
+
+/** การ์ดสรุปผลการเรียนคงค้างในหน้าผู้บริหาร */
+function pendingExecCard() {
+  const s = pendingResultStats();
+  const reasonRows = PENDING_REASONS.map(x => ({ label: x.label, desc: x.desc, n: s.byReason[x.value] || 0 }));
+  const levels = Object.keys(s.byLevel).sort((a, b) => levelSortKey(a) - levelSortKey(b));
+  return '<div class="card"><div class="exec-head"><div><div class="exec-eyebrow">ACADEMIC BACKLOG</div><h3>นักเรียนคงค้างผลการเรียน</h3></div><div class="spacer"></div>' +
+    '<span class="badge ' + (s.students ? 'bad' : 'ok') + '">' + s.students + ' คน</span></div>' +
+    '<div class="exec-note">นับเฉพาะรายการที่ยังไม่ผ่าน • สัดส่วนรายคนคิดจากนักเรียนทั้งหมด ' + s.totalStudents + ' คน (คนหนึ่งติดหลายวิชานับเป็นหนึ่งคน) • ' +
+    'สัดส่วนรายวิชาคิดจากการลงทะเบียนเรียนทั้งหมด ' + s.enrollments + ' รายการใน ' + esc(periodText(DB.ui.periodId)) + '</div>' +
+    '<div class="dash-metrics">' +
+    '<div class="metric-card" style="--metric:var(--bad)"><div class="metric-value">' + s.students + '</div><div class="metric-label">นักเรียนที่มีผลคงค้าง</div></div>' +
+    '<div class="metric-card" style="--metric:var(--warn)"><div class="metric-value">' + (s.pctStudents == null ? '—' : fmt(s.pctStudents, 2) + '%') + '</div><div class="metric-label">คิดเป็นสัดส่วนของนักเรียน • ' + s.students + '/' + s.totalStudents + '</div></div>' +
+    '<div class="metric-card" style="--metric:var(--group)"><div class="metric-value">' + s.count + '</div><div class="metric-label">รายวิชาที่ติดรวมทุกคน</div></div>' +
+    '<div class="metric-card" style="--metric:var(--brand)"><div class="metric-value">' + (s.pctSubjects == null ? '—' : fmt(s.pctSubjects, 2) + '%') + '</div><div class="metric-label">คิดเป็นสัดส่วนของการลงทะเบียน • ' + s.count + '/' + s.enrollments + '</div></div></div>' +
+    '<div class="exec-sum"><span>เฉลี่ยคนละ <b>' + (s.students ? fmt(s.count / s.students, 2) : '0') + '</b> วิชา</span>' +
+    '<span>ติดตั้งแต่ 3 วิชาขึ้นไป <b>' + s.heavy + '</b> คน</span>' +
+    '<span>แก้ผ่านแล้ว <b>' + s.resolved + '</b> รายการ</span><span>พ้นสภาพ <b>' + s.dropped + '</b> รายการ</span></div>' +
+    '<div class="grid2"><div><h3 style="font-size:14px">แยกตามผลที่ติด</h3><div class="tablewrap"><table><thead><tr><th>ผล</th><th>ความหมาย</th><th class="numcell">รายวิชา</th><th class="numcell">สัดส่วน</th></tr></thead><tbody>' +
+      reasonRows.map(x => '<tr><td>' + pendingReasonBadge(x.label) + '</td><td>' + esc(x.desc) + '</td><td class="numcell">' + x.n + '</td>' +
+        '<td class="numcell">' + (s.count ? fmt(x.n * 100 / s.count, 1) + '%' : '—') + '</td></tr>').join('') +
+      '</tbody></table></div></div>' +
+    '<div><h3 style="font-size:14px">แยกตามระดับชั้น</h3>' + (levels.length ? '<div class="tablewrap"><table><thead><tr><th>ระดับชั้น</th><th class="numcell">นักเรียน</th><th class="numcell">รายวิชาที่ติด</th></tr></thead><tbody>' +
+      levels.map(lv => '<tr><td><b>' + esc(lv) + '</b></td><td class="numcell">' + s.byLevel[lv].sids.size + '</td><td class="numcell">' + s.byLevel[lv].subjects + '</td></tr>').join('') +
+      '</tbody></table></div>' : '<div class="empty">ยังไม่มีข้อมูล</div>') + '</div></div>' +
+    (s.items.length ? '<details class="exec-more"><summary>รายชื่อนักเรียนคงค้างทั้งหมด ' + s.items.length + ' รายการ</summary><div class="tablewrap"><table><thead><tr><th>นักเรียน</th><th>ห้อง</th><th>วิชา</th><th>ผล</th><th>ภาคที่ติด</th><th class="numcell">ค้างมา</th><th>ครูผู้สอน</th></tr></thead><tbody>' +
+      s.items.slice(0, 300).map(r => '<tr><td><b>' + esc(r.name) + '</b></td><td>' + esc(r.className) + '</td><td>' + esc((r.subjectCode ? r.subjectCode + ' ' : '') + r.subjectName) + '</td>' +
+        '<td>' + pendingReasonBadge(r.reason) + '</td><td>' + esc(periodText(r.periodId)) + '</td><td class="numcell">' + pendingCarryTerms(r) + ' ภาค</td><td>' + esc(r.teacherName || '—') + '</td></tr>').join('') +
+      '</tbody></table></div></details>' : '') + '</div>';
+}
+
 function renderExecutive() {
   const pane = $('#pane-executive'), data = attendanceExecutiveData(), total = Object.values(data.statuses).reduce((a, b) => a + b, 0), colors = { present: '#22c55e', late: '#f59e0b', leave: '#38bdf8', activity: '#8b5cf6', absent: '#ef4444' };
   const parts = []; let at = 0; ATTENDANCE_STATUSES.forEach(s => { const n = data.statuses[s.value], deg = total ? n * 360 / total : 0; parts.push(colors[s.value] + ' ' + at + 'deg ' + (at + deg) + 'deg'); at += deg; });
   const areaNames = Object.keys(data.areas).sort((a, b) => a.localeCompare(b, 'th')), selected = areaNames.includes(DB.ui.execArea) ? DB.ui.execArea : (areaNames[0] || ''), area = data.areas[selected]; DB.ui.execArea = selected;
   const presentRate = total ? (data.statuses.present + data.statuses.late + data.statuses.leave + data.statuses.activity) * 100 / total : 0;
   pane.innerHTML = '<div class="card dash-hero"><div class="row"><div><div class="hero-sub">EXECUTIVE OVERVIEW</div><h1>ภาพรวมการเข้าเรียนทั้งสถานศึกษา</h1><div class="hero-sub">แยกกลุ่มสาระ รายวิชา ห้องเรียน และนักเรียนเสี่ยง • ' + esc(curPeriod() ? 'ปี ' + curPeriod().academicYear + ' ภาค ' + curPeriod().semester : 'กรุณาเลือกปี/ภาค') + '</div></div><div class="spacer"></div><span class="role-chip">ผู้บริหาร</span></div></div>' +
-    '<div class="dash-metrics"><div class="metric-card" style="--metric:var(--brand)"><div class="metric-value">' + data.records.length + '</div><div class="metric-label">คาบที่บันทึกแล้ว</div></div><div class="metric-card" style="--metric:var(--ok)"><div class="metric-value">' + fmt(presentRate, 1) + '%</div><div class="metric-label">อัตราเข้าเรียนรวม</div></div><div class="metric-card" style="--metric:var(--bad)"><div class="metric-value">' + data.statuses.absent + '</div><div class="metric-label">รายการขาดเรียน</div></div><div class="metric-card" style="--metric:var(--warn)"><div class="metric-value">' + data.risks.length + '</div><div class="metric-label">นักเรียน/วิชา ต่ำกว่า 80%</div></div></div>' + execStudentPanels() +
+    '<div class="dash-metrics"><div class="metric-card" style="--metric:var(--brand)"><div class="metric-value">' + data.records.length + '</div><div class="metric-label">คาบที่บันทึกแล้ว</div></div><div class="metric-card" style="--metric:var(--ok)"><div class="metric-value">' + fmt(presentRate, 1) + '%</div><div class="metric-label">อัตราเข้าเรียนรวม</div></div><div class="metric-card" style="--metric:var(--bad)"><div class="metric-value">' + data.statuses.absent + '</div><div class="metric-label">รายการขาดเรียน</div></div><div class="metric-card" style="--metric:var(--warn)"><div class="metric-value">' + data.risks.length + '</div><div class="metric-label">นักเรียน/วิชา ต่ำกว่า 80%</div></div></div>' + execStudentPanels() + pendingExecCard() +
     '<div class="executive-grid"><div class="card"><h3>สัดส่วนสถานะการเข้าเรียน</h3><div class="pie-wrap"><div class="pie-chart" style="background:conic-gradient(' + (total ? parts.join(',') : '#dbe3ef 0 360deg') + ')"><span>' + total + '<small>รายการ</small></span></div><div class="pie-legend">' + ATTENDANCE_STATUSES.map(s => '<div><i style="background:' + colors[s.value] + '"></i><span>' + s.label + '</span><b>' + data.statuses[s.value] + '</b></div>').join('') + '</div></div></div>' +
     '<div class="card"><h3>กลุ่มสาระการเรียนรู้</h3><div class="area-list">' + (areaNames.length ? areaNames.map(name => { const a = data.areas[name], rate = a.checked ? (a.checked - a.statuses.absent) * 100 / a.checked : 0; return '<button class="area-button' + (name === selected ? ' active' : '') + '" data-exec-area="' + esc(name) + '"><span><b>' + esc(name) + '</b><small>' + Object.keys(a.subjects).length + ' วิชา • ' + a.checked + ' รายการ</small></span><strong>' + fmt(rate, 1) + '%</strong></button>'; }).join('') : '<div class="empty">ยังไม่มีข้อมูลเช็กชื่อในภาคเรียนนี้</div>') + '</div></div></div>' +
     '<div class="card"><div class="row"><h3 style="margin:0">รายละเอียดรายวิชา • ' + esc(selected || 'ยังไม่มีข้อมูล') + '</h3><div class="spacer"></div><span class="hint">คลิกกลุ่มสาระด้านบนเพื่อเจาะดู</span></div><div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>รหัส/วิชา</th><th>รายการทั้งหมด</th><th>มา/สาย/ลา/กิจกรรม</th><th>ขาด</th><th>อัตราเข้าเรียน</th></tr></thead><tbody>' + (area ? Object.values(area.subjects).map(x => { const rate = x.checked ? (x.checked - x.statuses.absent) * 100 / x.checked : 0; return '<tr><td><b>' + esc((x.subject.code ? x.subject.code + ' ' : '') + x.subject.name) + '</b></td><td>' + x.checked + '</td><td>' + (x.checked - x.statuses.absent) + '</td><td class="' + (x.statuses.absent ? 'badtext' : '') + '">' + x.statuses.absent + '</td><td>' + fmt(rate, 1) + '%</td></tr>'; }).join('') : '<tr><td colspan="5"><div class="empty">ยังไม่มีข้อมูล</div></td></tr>') + '</tbody></table></div></div>' +
@@ -6288,6 +6629,7 @@ function renderAdmin() {
       '<div class="hint" id="adminTeacherCount" style="margin-top:6px"></div>' +
       '<div class="tablewrap" style="margin-top:8px"><table><thead><tr>' + ADMIN_COLUMNS.map(c => '<th' + (c.key ? ' class="sortable" data-admin-sort="' + c.key + '" title="คลิกเพื่อเรียงลำดับ"' : '') + '>' + esc(c.label) + (c.key && adminSortKey() === c.key ? (DB.ui.adminSortDir === 'desc' ? ' ▼' : ' ▲') : '') + '</th>').join('') + '</tr></thead><tbody id="adminTeacherRows"></tbody></table></div>' +
       '<div class="row" style="margin-top:12px"><div class="spacer"></div><button class="primary" id="adminTeacherSave">บันทึกข้อมูลครูทั้งหมด</button></div></div>' +
+    '<div class="card" id="adminMaintainBox"></div>' +
     '<div class="card" id="adminFirebaseBox"></div>' +
     '<div class="card" id="adminAuditBox"></div>' +
     '<div class="card" id="adminCentralBox"></div>' +
@@ -6315,6 +6657,7 @@ function renderAdmin() {
     adminTeacherDraft = {}; save(true); renderAdmin(); renderTop(); toast('บันทึกข้อมูลครู ' + changed + ' คนแล้ว', 'ok');
   });
   renderAdminHolidays();
+  renderMaintainCard();
   renderFirebaseCard();
   renderAuditCard();
   renderCentralStaffCard();
@@ -6808,6 +7151,30 @@ function renderAuditCard() {
   });
 }
 
+/** ล้างใบลาและคำขอที่ไม่มีเจ้าของ — ใช้เก็บกวาดข้อมูลทดสอบที่ค้างอยู่ */
+function renderMaintainCard() {
+  const box = $('#adminMaintainBox'); if (!box) return;
+  const o = orphanLeaveData(), total = o.leaves.length + o.requests.length;
+  box.innerHTML = '<div class="row"><div><h3 style="margin:0">ดูแลความสะอาดของข้อมูล</h3>' +
+    '<div class="hint">ใบลาและคำขอสอนแทนที่อ้างถึงครูซึ่งไม่มีในระบบแล้ว มักเป็นข้อมูลทดสอบที่ค้างอยู่ ระบบซ่อนไว้ไม่ให้กวนสถิติ แต่ยังอยู่ในเครื่อง</div></div>' +
+    '<div class="spacer"></div><span class="badge ' + (total ? 'warn' : 'ok') + '">' + total + ' รายการ</span>' +
+    (total ? '<button class="danger" id="adminPurgeOrphan">ล้างข้อมูลที่ไม่มีเจ้าของ</button>' : '') + '</div>' +
+    (total ? '<div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>ประเภท</th><th>รหัสครูที่อ้างถึง</th><th>ช่วงวันที่</th><th class="numcell">คาบ</th></tr></thead><tbody>' +
+      o.leaves.slice(0, 30).map(l => '<tr><td>ใบลา</td><td>' + esc(l.teacherId || '—') + '</td><td>' + esc(thaiDate(l.fromDate) + (l.toDate !== l.fromDate ? ' – ' + thaiDate(l.toDate) : '')) + '</td><td class="numcell">' + ((l.requestIds || []).length) + '</td></tr>').join('') +
+      o.requests.slice(0, 30).map(r => '<tr><td>คำขอสอนแทน/แลกคาบ</td><td>' + esc(r.requesterTeacherId || '—') + '</td><td>' + esc(thaiDate(r.date)) + '</td><td class="numcell">1</td></tr>').join('') +
+      '</tbody></table></div>' : '<div class="empty" style="margin-top:12px">ไม่มีข้อมูลค้างที่ไม่มีเจ้าของ</div>');
+  const btn = $('#adminPurgeOrphan', box);
+  if (btn) btn.addEventListener('click', async () => {
+    if (!await confirmBox('ล้างข้อมูลที่ไม่มีเจ้าของ', 'จะลบใบลา ' + o.leaves.length + ' ใบ และคำขอ ' + o.requests.length + ' รายการออกถาวร ย้อนกลับไม่ได้ ควรกดสำรองข้อมูลไว้ก่อน', 'ลบถาวร')) return;
+    const leaveIds = new Set(o.leaves.map(l => l.id)), reqIds = new Set(o.requests.map(r => r.id));
+    o.leaves.forEach(l => (l.requestIds || []).forEach(id => reqIds.add(id)));
+    DB.timetable.leaveRequests = (DB.timetable.leaveRequests || []).filter(l => !leaveIds.has(l.id));
+    DB.timetable.exchangeRequests = (DB.timetable.exchangeRequests || []).filter(r => !reqIds.has(r.id));
+    save(true); renderAdmin();
+    toast('ล้างข้อมูลที่ไม่มีเจ้าของแล้ว ' + (leaveIds.size + reqIds.size) + ' รายการ', 'ok');
+  });
+}
+
 /** การ์ดตั้งค่า Firebase ในหน้าผู้ดูแลระบบ */
 function renderFirebaseCard() {
   const box = $('#adminFirebaseBox'); if (!box) return;
@@ -7267,6 +7634,7 @@ async function restore() {
   DB.teachers.forEach(t => { t.phone = t.phone || ''; t.homeroomClassId = t.homeroomClassId || ''; t.learningArea = t.learningArea || ''; t.roles = Array.isArray(t.roles) && t.roles.length ? t.roles : ['teacher', 'executive', 'admin']; });
   DB.settings = Object.assign(defaultSettings(), DB.settings || {}); DB.periods = DB.periods || [];
   DB.studentMaster = DB.studentMaster || [];
+  DB.pendingResults = Array.isArray(DB.pendingResults) ? DB.pendingResults : [];
   DB.studentAccounts = DB.studentAccounts || {};
   DB.subjects.forEach(s => { s.gradeLevels = Array.isArray(s.gradeLevels) ? s.gradeLevels : []; });
   DB.timetable = DB.timetable || defaultTimetable();
