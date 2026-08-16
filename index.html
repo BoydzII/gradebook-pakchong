@@ -375,6 +375,22 @@ td.num,th.num{text-align:center}
 .pr-mp{background:var(--line2);color:var(--muted);border-color:var(--line)}
 .pr-check{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);font-weight:600}
 tr.pr-done{opacity:.62}
+.cover-note{margin-top:8px;padding:9px 12px;border-radius:10px;font-size:12.5px;line-height:1.5;
+  background:var(--panel2);border:1px solid var(--line);color:var(--muted)}
+.cover-note b{color:var(--ink)}
+.cover-note.locked{background:var(--warn-bg);border-color:color-mix(in srgb,var(--warn) 32%,transparent);color:var(--warn)}
+.cover-note.locked b{color:var(--warn)}
+.cover-group{border:1px solid var(--line);border-radius:12px;padding:11px 12px;margin-bottom:10px;background:var(--panel2)}
+.cover-group-head{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+.cover-rank{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;flex:none;
+  background:var(--brand);color:var(--brand-ink);font-size:12.5px;font-weight:800}
+.cover-group:first-child .cover-group-head b{color:var(--brand)}
+.cover-list{display:grid;gap:7px}
+.cover-pick{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);
+  border-radius:10px;background:var(--panel);cursor:pointer}
+.cover-pick:hover{border-color:var(--brand)}
+.cover-pick:has(input:checked){border-color:var(--brand);background:color-mix(in srgb,var(--brand) 9%,var(--panel))}
+.cover-pick input{flex:none;width:17px;height:17px;accent-color:var(--brand)}
 
 /* ---------- ปุ่มซิงก์ผลการเรียนคงค้าง ---------- */
 .sync-fab{position:fixed;right:20px;bottom:calc(24px + env(safe-area-inset-bottom));z-index:96;
@@ -1989,10 +2005,19 @@ function pendingApprovals() {
     detail: thaiDate(a.date) + ' • ผู้ขอ ' + teacherNameOf(a.teacherId) + ' • นักเรียน ' + (a.students || []).length + ' คน',
     ackId: a.id }));
 
-  const myBroken = swaps.filter(r => r.requesterTeacherId === me.id && (r.status === 'rejected' || r.status === 'unassigned'));
-  if (myBroken.length) list.push({ tone: 'bad', icon: '!', role: 'teacher', tab: 'exchange',
-    title: 'คำขอของคุณยังไม่มีผู้รับ ' + myBroken.length + ' คาบ',
-    detail: 'ถูกปฏิเสธหรือยังหาครูไม่ได้ กรุณาเลือกครูท่านอื่น' });
+  // ลากิจ/ไปราชการ เป็นธุระของครูเอง จึงเตือนให้ไปแลกคาบด้วยตัวเอง
+  const mySelfCover = myUncoveredSelfPeriods();
+  if (mySelfCover.length) {
+    const kinds = Array.from(new Set(mySelfCover.map(r => (EXCHANGE_REASONS.find(x => x.value === r.reason) || {}).label).filter(Boolean)));
+    list.push({ tone: 'bad', icon: '⇄', role: 'teacher', tab: 'exchange',
+      title: 'ต้องแลกคาบเอง ' + mySelfCover.length + ' คาบ',
+      detail: (kinds.length ? kinds.join(' • ') + ' — ' : '') + 'ยังไม่มีครูรับดูแล กรุณาเลือกครูท่านอื่นก่อนถึงวันลา' });
+  }
+  const myHeadWait = swaps.filter(r => r.requesterTeacherId === me.id && r.status === 'unassigned' &&
+    r.leaveRequestId && leaveCoverMode(leaves.find(l => l.id === r.leaveRequestId)) === 'head');
+  if (myHeadWait.length) list.push({ tone: 'warn', icon: '◆', role: 'teacher', tab: 'exchange',
+    title: 'รอหัวหน้ากลุ่มสาระจัดครูให้ ' + myHeadWait.length + ' คาบ',
+    detail: 'คุณเลือกให้หัวหน้ากลุ่มสาระจัดครูแทน ยังไม่ต้องดำเนินการเอง' });
 
   const myDraft = leaves.filter(l => l.teacherId === me.id && ['draft', 'rejected'].indexOf((l.approval || {}).status || 'draft') >= 0);
   if (myDraft.length) list.push({ tone: 'warn', icon: '✈', role: 'teacher', tab: 'exchange',
@@ -2015,6 +2040,10 @@ function pendingApprovals() {
     if (waiting.length) list.push({ tone: 'warn', icon: '◆', role: 'head', tab: 'head',
       title: 'ใบลารอความเห็นหัวหน้ากลุ่มสาระ ' + waiting.length + ' ใบ',
       detail: waiting.slice(0, 3).map(l => teacherNameOf(l.teacherId) + ' • ' + thaiDate(l.fromDate)).join(' • ') });
+    const queue = headCoverQueue(area);
+    if (queue.length) list.push({ tone: 'bad', icon: '⇄', role: 'head', tab: 'head',
+      title: 'คาบรอคุณจัดครูสอนแทน ' + queue.length + ' คาบ',
+      detail: queue.slice(0, 3).map(x => (x.teacher.name || 'ครู') + ' • ' + thaiDate(x.req.sourceDate || x.req.date)).join(' • ') });
   }
 
   // --- งานของผู้บริหาร ---
@@ -2782,6 +2811,78 @@ function entryPeriodKind(entry) {
   if (paired) return { rank: 0, label: 'คาบคู่ต่อเนื่อง' };
   const n = num(entry.slotId); return { rank: n && n % 2 === 0 ? 1 : 2, label: n && n % 2 === 0 ? 'คาบคู่' : 'คาบเดี่ยว/คาบคี่' };
 }
+/* ---- ใครรับผิดชอบหาครูดูแลคาบ -------------------------------------------
+   ลากิจและไปราชการเป็นธุระของครูเอง จึงต้องแลกคาบเอง ระบบเตือนให้ไปจัดการ
+   ลาป่วยและลาคลอดเลือกได้ ว่าจะแลกเองหรือให้หัวหน้ากลุ่มสาระจัดครูแทนให้ */
+const SELF_COVER_REASONS = ['personal', 'official'];
+const mustCoverSelf = reason => SELF_COVER_REASONS.indexOf(reason) >= 0;
+const leaveCoverMode = leave => mustCoverSelf((leave || {}).reason) ? 'self' : ((leave || {}).coverageMode === 'head' ? 'head' : 'self');
+const coverModeLabel = mode => mode === 'head' ? 'หัวหน้ากลุ่มสาระจัดให้' : 'แลกคาบเอง';
+
+/* ลำดับที่หัวหน้ากลุ่มสาระควรเลือกครูมาสอนแทน จากใกล้เคียงที่สุดไปไกลที่สุด */
+const COVER_TIERS = [
+  { key: 'sameAreaSameLevel', rank: 1, label: 'กลุ่มสาระเดียวกัน • สอนระดับชั้นเดียวกัน', desc: 'ใกล้เคียงที่สุด สอนต่อได้ทันที' },
+  { key: 'sameAreaOtherLevel', rank: 2, label: 'กลุ่มสาระเดียวกัน • คนละระดับชั้น', desc: 'เนื้อหาเดียวกัน แต่ไม่ได้สอนระดับนี้' },
+  { key: 'otherAreaSameLevel', rank: 3, label: 'ต่างกลุ่มสาระ • สอนระดับชั้นเดียวกัน', desc: 'ใช้เมื่อในกลุ่มสาระไม่มีใครว่าง' },
+  { key: 'anyFree', rank: 4, label: 'ครูอื่นที่ว่างตรงคาบ', desc: 'ทางเลือกสุดท้าย' }
+];
+const coverTierOf = key => COVER_TIERS.find(x => x.key === key) || COVER_TIERS[3];
+
+/** ระดับชั้นที่ครูคนนี้สอนอยู่ในภาคเรียนที่เลือก */
+function teacherGradeLevels(teacherId, periodId) {
+  const pid = periodId || DB.ui.periodId, out = new Set();
+  (DB.timetable.entries || []).filter(e => e.teacherId === teacherId && e.periodId === pid).forEach(e => {
+    const cls = DB.classes.find(c => c.id === e.classId), lv = classLevel(cls ? cls.name : '');
+    if (lv) out.add(lv);
+  });
+  return out;
+}
+/** ภาระสอนแทน/แลกคาบที่ครูคนนี้รับไปแล้วในภาคนี้ ใช้กระจายงานให้ทั่วถึง */
+function coverLoadOf(teacherId) {
+  return (DB.timetable.exchangeRequests || []).filter(r => r.targetTeacherId === teacherId &&
+    r.periodId === DB.ui.periodId && ['pending', 'accepted'].indexOf(r.status) >= 0).length;
+}
+
+/** ครูที่ว่างตรงคาบนั้น จัดกลุ่มตามลำดับความเหมาะสมให้หัวหน้ากลุ่มสาระเลือก */
+function headCoverCandidates(source, date) {
+  if (!source) return [];
+  const owner = DB.teachers.find(t => t.id === source.teacherId);
+  const area = teacherArea(owner) || learningAreaOf(source.subjectId, source.periodId);
+  const cls = DB.classes.find(c => c.id === source.classId), level = classLevel(cls ? cls.name : '');
+  return DB.teachers.filter(t => t.id !== source.teacherId && teacherHasRole(t, 'teacher') &&
+      t.active !== false && !teacherBusyAt(t.id, date, source.slotId, ''))
+    .map(t => {
+      const sameArea = !!area && area !== 'ยังไม่ระบุกลุ่มสาระ' && teacherLearningAreas(t.id).has(area);
+      const sameLevel = !!level && teacherGradeLevels(t.id).has(level);
+      const key = sameArea && sameLevel ? 'sameAreaSameLevel' : sameArea ? 'sameAreaOtherLevel'
+        : sameLevel ? 'otherAreaSameLevel' : 'anyFree';
+      return { teacher: t, key: key, tier: coverTierOf(key), load: coverLoadOf(t.id), sameArea: sameArea, sameLevel: sameLevel };
+    })
+    .sort((a, b) => a.tier.rank - b.tier.rank || a.load - b.load ||
+      String(a.teacher.name || '').localeCompare(String(b.teacher.name || ''), 'th'));
+}
+
+/** คาบที่รอหัวหน้ากลุ่มสาระจัดครู — เฉพาะใบลาที่เจ้าตัวเลือกให้หัวหน้าจัดให้ */
+function headCoverQueue(area) {
+  const leaves = (DB.timetable.leaveRequests || []).filter(l => l.periodId === DB.ui.periodId && leaveCoverMode(l) === 'head');
+  const byId = new Map(leaves.map(l => [l.id, l]));
+  return (DB.timetable.exchangeRequests || []).filter(r => r.periodId === DB.ui.periodId &&
+      ['unassigned', 'rejected'].indexOf(r.status) >= 0 && byId.has(r.leaveRequestId))
+    .filter(r => { const t = DB.teachers.find(x => x.id === r.requesterTeacherId); return !area || teacherArea(t) === area; })
+    .map(r => ({ req: r, leave: byId.get(r.leaveRequestId), teacher: DB.teachers.find(x => x.id === r.requesterTeacherId) || {} }))
+    .sort((a, b) => String(a.req.sourceDate || a.req.date).localeCompare(String(b.req.sourceDate || b.req.date)) ||
+      num(a.req.slotId) - num(b.req.slotId));
+}
+
+/** คาบของฉันที่ยังไม่มีคนดูแล และเป็นความรับผิดชอบของฉันเอง */
+function myUncoveredSelfPeriods() {
+  const me = curTeacher(); if (!me) return [];
+  const leaves = new Map((DB.timetable.leaveRequests || []).filter(l => l.teacherId === me.id).map(l => [l.id, l]));
+  return (DB.timetable.exchangeRequests || []).filter(r => r.requesterTeacherId === me.id &&
+    ['unassigned', 'rejected'].indexOf(r.status) >= 0 &&
+    (!r.leaveRequestId || leaveCoverMode(leaves.get(r.leaveRequestId)) === 'self'));
+}
+
 function teacherLearningAreas(teacherId) {
   const areas = new Set(), teacher = DB.teachers.find(t => t.id === teacherId);
   if (teacherArea(teacher)) areas.add(teacherArea(teacher));   // กลุ่มสาระที่ระบุในโปรไฟล์มาก่อน
@@ -3090,19 +3191,31 @@ function submitLeaveRequest(root) {
   const me = curTeacher(); if (!me) return toast('กรุณาเลือกโปรไฟล์ครู', 'bad');
   const from = $('#leaveFrom', root).value, to = $('#leaveTo', root).value || from, reason = $('#leaveReason', root).value, other = $('#leaveOther', root).value.trim(), note = $('#leaveNote', root).value.trim();
   if (!from || !to || to < from) return toast('กรุณากำหนดช่วงวันที่ลาให้ถูกต้อง', 'bad'); if (reason === 'other' && !other) return toast('กรุณาระบุเหตุผลอื่นๆ', 'bad');
-  const leave = { id: uid('leave'), teacherId: me.id, periodId: DB.ui.periodId, fromDate: from, toDate: to, reason: reason, reasonOther: other, note: note, status: 'submitted', coverageStatus: 'pending', requestIds: [],
+  // ลากิจและไปราชการต้องแลกคาบเอง ประเภทอื่นเลือกให้หัวหน้ากลุ่มสาระจัดให้ได้
+  const pickedMode = ($('#leaveCoverMode', root) || {}).value || 'self';
+  const coverageMode = mustCoverSelf(reason) ? 'self' : (pickedMode === 'head' ? 'head' : 'self');
+  const leave = { id: uid('leave'), teacherId: me.id, periodId: DB.ui.periodId, fromDate: from, toDate: to, reason: reason, reasonOther: other, note: note, coverageMode: coverageMode, status: 'submitted', coverageStatus: 'pending', requestIds: [],
     approval: { status: 'draft', by: '', at: '', note: '' }, headApproval: { status: 'none', by: '', at: '', note: '' }, createdAt: new Date().toISOString() };
   DB.timetable.leaveRequests.push(leave); const d = parseISODate(from), end = parseISODate(to); let affected = 0, guard = 0;
   while (d && end && d <= end && guard++ < 370) {
     const date = isoDate(d), day = d.getDay();
     // คาบเข้าแถว/โฮมรูมไม่ต้องหาคนแลกหรือสอนแทน
-    scheduleEntries().filter(e => num(e.day) === day && !isHomeroomEntry(e)).forEach(source => { const candidates = findCoverageCandidates(source, date), req = createCoverageRequest(source, date, candidates[0] || null, reason, other, note, leave.id); leave.requestIds.push(req.id); affected++; });
+    scheduleEntries().filter(e => num(e.day) === day && !isHomeroomEntry(e)).forEach(source => {
+      // ให้หัวหน้าจัด = ไม่ส่งคำขอเอง ปล่อยเป็นคาบรอหัวหน้าเลือกครู
+      const candidates = coverageMode === 'head' ? [] : findCoverageCandidates(source, date);
+      const req = createCoverageRequest(source, date, candidates[0] || null, reason, other, note, leave.id);
+      if (coverageMode === 'head') req.tier = 'รอหัวหน้ากลุ่มสาระจัดครู';
+      leave.requestIds.push(req.id); affected++;
+    });
     d.setDate(d.getDate() + 1);
   }
   if (!affected) leave.coverageStatus = 'none'; save(true);
   pushRequestDoc('leave', leave);
   (DB.timetable.exchangeRequests || []).filter(r => r.leaveRequestId === leave.id).forEach(r => pushRequestDoc('swap', r));
-  renderExchangeCenter(); renderTop(); toast('บันทึกการลาแล้ว • ส่งเข้าระบบจัดคาบ ' + affected + ' คาบ', 'ok');
+  renderExchangeCenter(); renderTop();
+  toast(coverageMode === 'head'
+    ? 'บันทึกการลาแล้ว • ส่งให้หัวหน้ากลุ่มสาระจัดครู ' + affected + ' คาบ'
+    : 'บันทึกการลาแล้ว • ส่งเข้าระบบจัดคาบ ' + affected + ' คาบ ' + (mustCoverSelf(reason) ? '(ประเภทนี้ต้องแลกคาบเอง)' : ''), 'ok');
 }
 
 /* ---- การลา: นับวัน สถิติ เอกสาร และสายอนุมัติ ---------------------------- */
@@ -3397,7 +3510,7 @@ function renderExchangeCenter() {
       (source ? '<div class="hint" style="margin-top:10px">คาบของฉันวันนี้</div>' + slotStripHtml(me.id, date, [String(source.slotId)]) + slotLegendHtml() : '') + '</div>' +
       '<div class="card leave-card"><h3>แจ้งการลา / ขออนุญาตไปราชการ</h3>' +
       '<div class="hint" style="margin-bottom:8px">เลือกช่วงวันที่แล้วกดบันทึก ระบบจะหาครูดูแลให้ทุกคาบในช่วงนั้นโดยอัตโนมัติ (ยกเว้นคาบเข้าแถว/โฮมรูม)<br>เลือก “ไปราชการ” ระบบจะไม่นับเป็นวันลา และพิมพ์เป็นบันทึกขออนุญาตไปราชการแทนใบลา</div>' +
-      '<div class="grid2"><div class="pick"><label>ตั้งแต่วันที่</label><input type="date" id="leaveFrom" value="' + date + '"></div><div class="pick"><label>ถึงวันที่</label><input type="date" id="leaveTo" value="' + date + '"></div><div class="pick"><label>ประเภทการลา</label><select id="leaveReason">' + reasonOptions + '</select></div><div class="pick"><label>กรณีอื่นๆ โปรดระบุ</label><input id="leaveOther"></div></div><div class="pick" style="margin-top:10px"><label>รายละเอียด</label><input id="leaveNote" style="width:100%"></div><button class="primary" id="submitLeave" style="margin-top:12px;width:100%">บันทึกการลาและส่งหาครูดูแลทุกคาบ</button><div class="hint" style="margin-top:8px">ระบบจะตรวจทุกคาบของคุณในช่วงวันที่ลา แล้วส่งคำขอตามลำดับความเหมาะสมอัตโนมัติ</div></div></div>' +
+      '<div class="grid2"><div class="pick"><label>ตั้งแต่วันที่</label><input type="date" id="leaveFrom" value="' + date + '"></div><div class="pick"><label>ถึงวันที่</label><input type="date" id="leaveTo" value="' + date + '"></div><div class="pick"><label>ประเภทการลา</label><select id="leaveReason">' + reasonOptions + '</select></div><div class="pick"><label>กรณีอื่นๆ โปรดระบุ</label><input id="leaveOther"></div></div><div class="pick" style="margin-top:10px"><label>ใครหาครูดูแลคาบให้</label><select id="leaveCoverMode" style="width:100%"><option value="self">แลกคาบ/หาครูสอนแทนเอง</option><option value="head">ให้หัวหน้ากลุ่มสาระจัดครูให้</option></select></div><div class="cover-note" id="leaveCoverHint"></div><div class="pick" style="margin-top:10px"><label>รายละเอียด</label><input id="leaveNote" style="width:100%"></div><button class="primary" id="submitLeave" style="margin-top:12px;width:100%">บันทึกการลาและส่งหาครูดูแลทุกคาบ</button><div class="hint" style="margin-top:8px">ระบบจะตรวจทุกคาบของคุณในช่วงวันที่ลา แล้วส่งคำขอตามลำดับความเหมาะสมอัตโนมัติ</div></div></div>' +
     '<div><div class="card"><div class="row"><div><h3 style="margin:0">2. ครูที่ระบบแนะนำ</h3><div class="hint">เรียงจากเงื่อนไขที่เหมาะสมที่สุด • ดูแถบคาบเพื่อเทียบภาระงานก่อนส่งคำขอ</div></div><div class="spacer"></div><span class="badge group">' + candidateGroups(candidates).length + ' ครู</span></div>' + slotLegendHtml() +
       '<div class="hint" style="margin-top:6px">คลิกเลือกคาบที่จะแลกได้เอง ถ้าตกลงกับครูไว้แล้ว</div>' +
       '<div class="candidate-list" style="margin-top:12px">' + (source ? candidates.length ? candidateGroups(candidates).map((g, gi) => {
@@ -3414,7 +3527,7 @@ function renderExchangeCenter() {
         '</div><button class="sm primary" data-send-candidate="' + candidates.indexOf(c) + '">' + (c.mode === 'exchange' ? 'ส่งคำขอแลก' : 'ขอสอนแทน') + '</button></div>'; }).join('') : '<div class="empty">ยังไม่พบครูว่างในคาบนี้ ระบบจะเก็บเป็นรายการรอผู้ดูแลจัดครูแทน</div>' : '<div class="empty">วันที่เลือกไม่มีคาบสอนของคุณ</div>') + '</div></div>' +
       '<div class="card"><h3>ประวัติการลาและเอกสาร</h3>' + (leaves.length ? '<div class="alert-list">' + leaves.slice(0, 20).map(l => {
         const approval = (l.approval || {}).status || 'draft', head = (l.headApproval || {}).status || 'none';
-        return '<div class="alert-item"><div><b>' + esc(exchangeReasonLabel(l)) + '</b> <span class="badge ' + (isOfficialTrip(l) ? 'group' : '') + '">' + esc(leaveKindLabel(l)) + '</span><div class="hint">' + thaiDate(l.fromDate) + (l.toDate !== l.fromDate ? ' ถึง ' + thaiDate(l.toDate) : '') + ' • รวม ' + leaveDays(l) + ' วัน' + (isOfficialTrip(l) ? ' (ไม่นับเป็นวันลา)' : '') + ' • ' + l.requestIds.length + ' คาบ' + (l.note ? '<br>' + esc(l.note) : '') +
+        return '<div class="alert-item"><div><b>' + esc(exchangeReasonLabel(l)) + '</b> <span class="badge ' + (isOfficialTrip(l) ? 'group' : '') + '">' + esc(leaveKindLabel(l)) + '</span> <span class="badge ' + (leaveCoverMode(l) === 'head' ? 'warn' : '') + '">' + esc(coverModeLabel(leaveCoverMode(l))) + '</span><div class="hint">' + thaiDate(l.fromDate) + (l.toDate !== l.fromDate ? ' ถึง ' + thaiDate(l.toDate) : '') + ' • รวม ' + leaveDays(l) + ' วัน' + (isOfficialTrip(l) ? ' (ไม่นับเป็นวันลา)' : '') + ' • ' + l.requestIds.length + ' คาบ' + (l.note ? '<br>' + esc(l.note) : '') +
           '<br>' + esc(l.coverageStatus === 'covered' ? 'มีผู้สอนแทนครบ' : l.coverageStatus === 'attention' ? 'ต้องจัดครูเพิ่ม' : l.coverageStatus === 'none' ? 'ไม่มีคาบสอน' : 'กำลังประสาน') +
           (head === 'endorsed' ? ' • หัวหน้ากลุ่มสาระเห็นควรอนุญาต' : head === 'waiting' ? ' • รอหัวหน้ากลุ่มสาระ' : head === 'rejected' ? ' • หัวหน้ากลุ่มสาระไม่เห็นชอบ' : '') + '</div></div><div class="spacer"></div>' +
           leaveApprovalBadge(approval) + '<button class="sm" data-leave-doc="' + l.id + '">พิมพ์' + esc(leaveDocTitle(l)) + '</button>' +
@@ -3438,6 +3551,24 @@ function renderExchangeCenter() {
     save(); renderExchangeCenter();
   }));
   $$('[data-send-candidate]', pane).forEach(btn => btn.addEventListener('click', () => { if (blockAdminApproval()) return; const reason = $('#exchangeReason').value, other = $('#exchangeOther').value.trim(); if (reason === 'other' && !other) return toast('กรุณาระบุเหตุผลอื่นๆ', 'bad'); const newReq = createCoverageRequest(source, date, candidates[num(btn.dataset.sendCandidate)], reason, other, $('#exchangeNote').value.trim(), ''); save(true); pushRequestDoc('swap', newReq); renderExchangeCenter(); renderTop(); toast('ส่งคำขอเรียบร้อย', 'ok'); }));
+  // ลากิจ/ไปราชการ ล็อกไว้ที่ "แลกคาบเอง" ประเภทอื่นเลือกได้
+  const leaveReasonSel = $('#leaveReason', pane), coverSel = $('#leaveCoverMode', pane), coverHint = $('#leaveCoverHint', pane);
+  const syncCoverMode = () => {
+    if (!leaveReasonSel || !coverSel || !coverHint) return;
+    const reason = leaveReasonSel.value, locked = mustCoverSelf(reason);
+    const label = (EXCHANGE_REASONS.find(x => x.value === reason) || {}).label || 'การลา';
+    if (locked) { coverSel.value = 'self'; coverSel.disabled = true; } else coverSel.disabled = false;
+    const myArea = teacherArea(me), headName = headNameOfArea(myArea);
+    coverHint.className = 'cover-note' + (locked ? ' locked' : '');
+    coverHint.innerHTML = locked
+      ? '<b>' + esc(label) + 'ต้องแลกคาบเอง</b> ระบบจะเสนอครูที่เหมาะสมให้ทุกคาบ แต่คุณเป็นผู้ส่งคำขอและติดตามเอง คาบไหนยังไม่มีคนรับจะขึ้นเตือนที่หน้าภาพรวม'
+      : coverSel.value === 'head'
+        ? '<b>หัวหน้ากลุ่มสาระจะเป็นผู้จัดครูให้</b> ' + (headName ? 'ส่งถึง ' + esc(headName) : '<span class="badtext">กลุ่มสาระของคุณยังไม่มีหัวหน้าในระบบ คาบจะค้างจนกว่าผู้ดูแลระบบจะกำหนดหัวหน้า</span>')
+        : '<b>คุณเป็นผู้แลกคาบเอง</b> ระบบจะเสนอครูที่เหมาะสมให้ทุกคาบในช่วงที่ลา';
+  };
+  if (leaveReasonSel) leaveReasonSel.addEventListener('change', syncCoverMode);
+  if (coverSel) coverSel.addEventListener('change', syncCoverMode);
+  syncCoverMode();
   $('#submitLeave').addEventListener('click', () => submitLeaveRequest(pane));
   $$('[data-swap-accept]', pane).forEach(btn => btn.addEventListener('click', () => respondExchangeRequest(btn.dataset.swapAccept, true)));
   $$('[data-swap-reject]', pane).forEach(btn => btn.addEventListener('click', () => respondExchangeRequest(btn.dataset.swapReject, false)));
@@ -5613,15 +5744,71 @@ function renderHeadArea() {
       return '<div class="alert-item"><div><b>' + esc(t.name || '—') + ' • ' + esc(exchangeReasonLabel(l)) + '</b><div class="hint">' + thaiDate(l.fromDate) + (l.toDate !== l.fromDate ? ' ถึง ' + thaiDate(l.toDate) : '') + ' • รวม ' + leaveDays(l) + ' วัน • ' + l.requestIds.length + ' คาบ' + (l.note ? '<br>' + esc(l.note) : '') + '</div></div><div class="spacer"></div>' +
         '<button class="sm" data-head-doc="' + l.id + '">ดูใบลา</button>' + (canApprove() ? '<button class="sm danger" data-head-reject="' + l.id + '">ไม่เห็นชอบ</button><button class="sm primary" data-head-endorse="' + l.id + '">เห็นควรอนุญาต</button>' : '<span class="badge">อ่านอย่างเดียว</span>') + '</div>';
     }).join('') + '</div>' : '<div class="empty">ไม่มีใบลารอความเห็น</div>') + '</div>' +
+    headCoverCard(area) +
     '<div class="card"><h3>สถิติการลาของครูในกลุ่มสาระ</h3>' + leaveStatsTable(stats, false) + '</div>' +
     '<div class="card"><h3>ครูในกลุ่มสาระและภาระงาน</h3><div class="tablewrap"><table><thead><tr><th>ชื่อ</th><th>บทบาท</th><th>ห้องที่ปรึกษา</th><th>คาบ/สัปดาห์</th><th>ห้องที่สอน</th></tr></thead><tbody>' +
       members.map(t => { const own = entries.filter(e => e.teacherId === t.id), rooms = new Set(own.map(e => (DB.classes.find(c => c.id === e.classId) || {}).name).filter(Boolean)), home = DB.classes.find(c => c.id === t.homeroomClassId);
         return '<tr><td><b>' + esc(t.name || t.email || '—') + '</b></td><td>' + (t.roles || []).map(r => '<span class="level-tag">' + esc(roleLabel(r)) + '</span>').join(' ') + '</td><td>' + esc(home ? home.name : '—') + '</td><td>' + own.length + '</td><td>' + esc(Array.from(rooms).join(', ') || '—') + '</td></tr>'; }).join('') +
       '</tbody></table></div></div>';
   wirePicker();
+  $$('[data-head-cover]', pane).forEach(b => b.addEventListener('click', () => openHeadCoverPicker(b.dataset.headCover)));
   $$('[data-head-doc]', pane).forEach(b => b.addEventListener('click', () => openLeaveDocument(b.dataset.headDoc)));
   $$('[data-head-endorse]', pane).forEach(b => b.addEventListener('click', () => decideLeave(b.dataset.headEndorse, 'approve', 'head')));
   $$('[data-head-reject]', pane).forEach(b => b.addEventListener('click', () => decideLeave(b.dataset.headReject, 'reject', 'head')));
+}
+
+/** คาบที่รอหัวหน้ากลุ่มสาระจัดครูสอนแทน */
+function headCoverCard(area) {
+  const queue = headCoverQueue(area);
+  return '<div class="card"><div class="exec-head"><div><div class="exec-eyebrow">COVERAGE DESK</div><h3>คาบรอจัดครูสอนแทน</h3></div><div class="spacer"></div>' +
+    '<span class="badge ' + (queue.length ? 'bad' : 'ok') + '">' + queue.length + ' คาบ</span></div>' +
+    '<div class="exec-note">เฉพาะการลาที่ครูเลือกให้หัวหน้ากลุ่มสาระจัดให้ • ลากิจและไปราชการเป็นหน้าที่ของครูเอง จึงไม่ขึ้นที่นี่<br>' +
+    'ระบบเรียงครูที่ว่างตรงคาบตามลำดับ: ' + COVER_TIERS.map(t => t.label).join(' → ') + '</div>' +
+    (queue.length ? '<div class="alert-list">' + queue.map(x => {
+      const cls = DB.classes.find(c => c.id === x.req.classId), slot = DB.timetable.slots.find(s => s.id === String(x.req.slotId));
+      const entry = scheduleEntries(true).find(e => e.id === x.req.requesterEntryId);
+      const sub = DB.subjects.find(s => s.id === (entry || {}).subjectId);
+      const date = x.req.sourceDate || x.req.date, free = entry ? headCoverCandidates(entry, date).length : 0;
+      return '<div class="alert-item"><div><b>' + esc(x.teacher.name || 'ครู') + ' • ' + esc(thaiDate(date)) + '</b>' +
+        '<div class="hint">' + esc((slot ? slot.label + ' • ' : '') + (cls ? cls.name : 'ไม่พบห้อง') +
+        (sub ? ' • ' + (sub.code ? sub.code + ' ' : '') + sub.name : '')) + ' • ' + esc(exchangeReasonLabel(x.req)) +
+        (x.req.status === 'rejected' ? ' • <span class="badtext">ถูกปฏิเสธ ต้องหาคนใหม่</span>' : '') +
+        '<br>ครูที่ว่างตรงคาบนี้ ' + free + ' คน</div></div><div class="spacer"></div>' +
+        (canApprove() ? '<button class="sm primary" data-head-cover="' + x.req.id + '">จัดครูสอนแทน</button>' : '<span class="badge">อ่านอย่างเดียว</span>') + '</div>';
+    }).join('') + '</div>' : '<div class="empty">ไม่มีคาบรอจัดครูสอนแทน</div>') + '</div>';
+}
+
+/** เลือกครูสอนแทนแบบจัดกลุ่มตามลำดับความเหมาะสม */
+function openHeadCoverPicker(reqId) {
+  if (blockAdminApproval()) return;
+  const req = (DB.timetable.exchangeRequests || []).find(r => r.id === reqId); if (!req) return;
+  const date = req.sourceDate || req.date;
+  const entry = scheduleEntries(true).find(e => e.id === req.requesterEntryId);
+  if (!entry) return toast('ไม่พบคาบต้นทางในตารางสอนแล้ว', 'bad');
+  const owner = DB.teachers.find(t => t.id === req.requesterTeacherId) || {};
+  const list = headCoverCandidates(entry, date);
+  const groups = COVER_TIERS.map(t => ({ tier: t, items: list.filter(c => c.key === t.key) })).filter(g => g.items.length);
+  const body = '<div class="exec-note">' + esc(sourceEntryText(entry, date)) + '<br>ครูผู้ลา ' + esc(owner.name || '—') +
+      ' • ' + esc(exchangeReasonLabel(req)) + (req.note ? ' • ' + esc(req.note) : '') + '</div>' +
+    (groups.length ? groups.map(g => '<div class="cover-group"><div class="cover-group-head"><span class="cover-rank">' + g.tier.rank + '</span>' +
+      '<div><b>' + esc(g.tier.label) + '</b><div class="hint">' + esc(g.tier.desc) + ' • ว่าง ' + g.items.length + ' คน</div></div></div>' +
+      '<div class="cover-list">' + g.items.map(c => '<label class="cover-pick"><input type="radio" name="coverPick" value="' + esc(c.teacher.id) + '">' +
+        '<div><b>' + esc(c.teacher.name || c.teacher.email || 'ไม่ระบุชื่อ') + '</b><div class="hint">' +
+        esc(teacherArea(c.teacher) || 'ยังไม่ระบุกลุ่มสาระ') + ' • รับงานแทนแล้ว ' + c.load + ' คาบ</div></div>' +
+        '<div class="spacer"></div>' + teacherPhoneHtml(c.teacher) + '</label>').join('') + '</div></div>').join('')
+      : '<div class="empty">ไม่มีครูว่างตรงคาบนี้เลย ต้องปรับตารางหรือรวมชั้นเรียน</div>');
+  openModal({ title: 'จัดครูสอนแทน', bodyHTML: body,
+    buttons: groups.length ? [{ label: 'ยกเลิก' }, { label: 'มอบหมายและส่งคำขอ', cls: 'primary', act(close, root) {
+      const picked = $$('[name="coverPick"]', root).find(x => x.checked);
+      if (!picked) return toast('กรุณาเลือกครูสอนแทนก่อน', 'bad');
+      const chosen = list.find(c => c.teacher.id === picked.value); if (!chosen) return;
+      const me = curTeacher();
+      Object.assign(req, { type: 'substitute', targetTeacherId: chosen.teacher.id, targetEntryId: '', targetDate: date,
+        status: 'pending', tier: 'หัวหน้ากลุ่มสาระจัดให้ • ' + chosen.tier.label,
+        assignedByHeadId: me ? me.id : '', assignedByHeadName: me ? (me.name || me.email || '') : '', assignedAt: new Date().toISOString() });
+      save(true); pushRequestDoc('swap', req); close(); renderHeadArea(); renderTop();
+      toast('ส่งคำขอสอนแทนถึง ' + (chosen.teacher.name || '') + ' แล้ว', 'ok');
+    } }] : [{ label: 'ปิด' }] });
 }
 
 /** หน้าผู้บริหาร: อนุมัติใบลา + ภาพรวมการลาและการสอนแทน */
@@ -5633,7 +5820,7 @@ function renderLeaveApprovals() {
   const top = ranking[0];
   const leaveRow = l => {
     const t = DB.teachers.find(x => x.id === l.teacherId) || {}, approval = (l.approval || {}).status || 'draft', head = (l.headApproval || {}).status || 'none';
-    return '<div class="alert-item"><div><b>' + esc(t.name || '—') + ' • ' + esc(exchangeReasonLabel(l)) + '</b><div class="hint">' + esc(teacherArea(t) || 'ยังไม่ระบุกลุ่มสาระ') + ' • ' + thaiDate(l.fromDate) + (l.toDate !== l.fromDate ? ' ถึง ' + thaiDate(l.toDate) : '') + ' • รวม ' + leaveDays(l) + ' วัน • ' + l.requestIds.length + ' คาบ' +
+    return '<div class="alert-item"><div><b>' + esc(t.name || '—') + ' • ' + esc(exchangeReasonLabel(l)) + '</b> <span class="badge ' + (leaveCoverMode(l) === 'head' ? 'warn' : '') + '">' + esc(coverModeLabel(leaveCoverMode(l))) + '</span><div class="hint">' + esc(teacherArea(t) || 'ยังไม่ระบุกลุ่มสาระ') + ' • ' + thaiDate(l.fromDate) + (l.toDate !== l.fromDate ? ' ถึง ' + thaiDate(l.toDate) : '') + ' • รวม ' + leaveDays(l) + ' วัน • ' + l.requestIds.length + ' คาบ' +
       (head === 'endorsed' ? '<br>หัวหน้ากลุ่มสาระเห็นควรอนุญาต' : head === 'waiting' ? '<br>รอความเห็นหัวหน้ากลุ่มสาระ' : head === 'rejected' ? '<br>หัวหน้ากลุ่มสาระไม่เห็นชอบ' : '') +
       ((l.approval || {}).note ? '<br>บันทึก: ' + esc(l.approval.note) : '') + '</div></div><div class="spacer"></div>' + leaveApprovalBadge(approval) +
       '<button class="sm" data-exec-doc="' + l.id + '">ดู/พิมพ์ใบลา</button>' +
