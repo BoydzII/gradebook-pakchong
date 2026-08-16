@@ -6983,6 +6983,7 @@ function renderAdmin() {
       '<div class="row" style="margin-top:12px"><div class="spacer"></div><button class="primary" id="adminTeacherSave">บันทึกข้อมูลครูทั้งหมด</button></div></div>' +
     '<div class="card" id="adminMaintainBox"></div>' +
     '<div class="card" id="adminFirebaseBox"></div>' +
+    '<div class="card" id="adminHealthBox"></div>' +
     '<div class="card" id="adminAuditBox"></div>' +
     '<div class="card" id="adminCentralBox"></div>' +
     '<div class="card" id="adminHolidayBox"></div>' +
@@ -7011,6 +7012,7 @@ function renderAdmin() {
   renderAdminHolidays();
   renderMaintainCard();
   renderFirebaseCard();
+  renderHealthCard();
   renderAuditCard();
   renderCentralStaffCard();
   renderAdminTeacherRows();
@@ -7503,6 +7505,131 @@ function renderAuditCard() {
   });
 }
 
+/* ---- ตรวจสุขภาพการเชื่อมต่อส่วนกลาง --------------------------------------
+   ใช้ตอบสามคำถามที่ทำให้ระบบล่มบ่อยที่สุด: ชุดข้อมูลไหนใหญ่เกินเพดานเอกสาร
+   สิทธิ์ตรงไหนถูกปฏิเสธ และของบนส่วนกลางตรงกับในเครื่องนี้หรือยัง */
+const FB_DOC_LIMIT = 1000000;
+const byteSize = obj => { try { return new Blob([JSON.stringify(obj)]).size; } catch (e) { return 0; } };
+const kb = n => (n / 1024).toFixed(n > 102400 ? 0 : 1) + ' KB';
+
+/** ขนาดจริงของแต่ละชุดข้อมูลที่จะส่งขึ้น เทียบกับเพดาน 1 เอกสารของ Firestore */
+function centralPayloadRows() {
+  const rows = [
+    { label: 'ห้องเรียนและรายชื่อนักเรียน', doc: 'shared/classes', size: byteSize({ items: DB.classes }),
+      hint: DB.classes.length + ' ห้อง • นักเรียน ' + DB.classes.reduce((a, c) => a + (c.students || []).length, 0) + ' คน' },
+    { label: 'รายวิชา', doc: 'shared/subjects', size: byteSize({ items: DB.subjects }), hint: DB.subjects.length + ' วิชา' },
+    { label: 'ปี/ภาคเรียน', doc: 'shared/periods', size: byteSize({ items: DB.periods }), hint: DB.periods.length + ' ภาค' },
+    { label: 'ตั้งค่าโรงเรียน', doc: 'shared/settings', size: byteSize({ value: DB.settings }),
+      hint: DB.settings.logoData ? 'มีรูปตราโรงเรียนฝังอยู่ ' + kb(byteSize(DB.settings.logoData)) : 'ไม่มีรูปฝังอยู่' }
+  ];
+  (DB.periods || []).forEach(p => {
+    const entries = (DB.timetable.entries || []).filter(e => e.periodId === p.id);
+    rows.push({ label: 'ตารางสอน ปี ' + p.academicYear + ' ภาค ' + p.semester, doc: 'timetable/' + p.id,
+      size: byteSize({ entries: entries, exceptions: (DB.timetable.exceptions || []).filter(e => e.periodId === p.id), term: (DB.timetable.terms || {})[p.id] || null }),
+      hint: entries.length + ' คาบ' });
+  });
+  return rows;
+}
+
+/** ลองอ่านและเขียนจริงทีละคอลเลกชัน เพื่อให้เห็นรหัสข้อผิดพลาดที่แท้จริง */
+async function centralHealthCheck() {
+  const out = [];
+  const step = async (label, fn) => {
+    try { out.push({ label: label, ok: true, info: await fn() }); }
+    catch (e) { out.push({ label: label, ok: false, info: (e && e.code ? e.code + ' • ' : '') + fbErrorMessage(e) }); }
+  };
+  const server = ref => ref.get({ source: 'server' });
+  const email = myEmailForSync();
+
+  await step('อีเมลที่ใช้เชื่อมต่อ', async () => {
+    if (!email) throw new Error('โปรไฟล์ครูที่เลือกอยู่ยังไม่มีอีเมล ระบบจึงไม่รู้ว่าคุณเป็นใครบนส่วนกลาง');
+    return email;
+  });
+  await step('โปรไฟล์ของฉันในคอลเลกชัน staff (ประตูเข้าสู่ระบบ)', async () => {
+    if (!email) throw new Error('ยังไม่มีอีเมล');
+    const d = await server(fbDb.collection('staff').doc(fbStaffId(email)));
+    if (!d.exists) throw new Error('ไม่พบอีเมลนี้ใน staff — คนที่ไม่มีชื่อในนี้จะเข้าสู่ระบบไม่ได้ทุกคน ให้กด “ส่งรายชื่อบุคลากรขึ้น”');
+    const x = d.data() || {};
+    if (x.active === false) throw new Error('มีชื่ออยู่ แต่ถูกตั้งเป็นไม่ใช้งาน (active = false)');
+    return 'สิทธิ์ ' + ((x.roles || []).join(', ') || 'ยังไม่กำหนด');
+  });
+  await step('จำนวนบุคลากรบนส่วนกลาง', async () => {
+    const snap = await server(fbDb.collection('staff'));
+    const local = DB.teachers.filter(t => t.email).length;
+    const inactive = snap.docs.filter(d => (d.data() || {}).active === false).length;
+    if (snap.size < local) throw new Error('ส่วนกลางมี ' + snap.size + ' คน แต่ในเครื่องนี้มี ' + local + ' คน — ยังส่งขึ้นไม่ครบ คนที่ขาดจะเข้าสู่ระบบไม่ได้');
+    return snap.size + ' คน' + (inactive ? ' (ปิดใช้งาน ' + inactive + ' คน)' : '') + ' • ในเครื่องนี้ ' + local + ' คน';
+  });
+
+  const sharedChecks = [['classes', 'ห้องเรียน', () => DB.classes.length], ['subjects', 'รายวิชา', () => DB.subjects.length], ['periods', 'ปี/ภาคเรียน', () => DB.periods.length]];
+  for (const [docId, label, localFn] of sharedChecks) {
+    await step('ข้อมูลกลาง • ' + label, async () => {
+      const d = await server(fbDb.collection('shared').doc(docId));
+      if (!d.exists) throw new Error('ยังไม่มีเอกสารนี้บนส่วนกลาง เครื่องอื่นจึงดึง' + label + 'ไปไม่ได้');
+      const n = ((d.data() || {}).items || []).length, local = localFn();
+      if (n !== local) throw new Error('ส่วนกลางมี ' + n + ' รายการ แต่เครื่องนี้มี ' + local + ' รายการ — ไม่ตรงกัน');
+      return n + ' รายการ ตรงกับเครื่องนี้';
+    });
+  }
+  await step('ข้อมูลกลาง • ตั้งค่าโรงเรียน', async () => {
+    const d = await server(fbDb.collection('shared').doc('settings'));
+    if (!d.exists) throw new Error('ยังไม่มีเอกสารนี้บนส่วนกลาง');
+    return 'มีอยู่ • ' + kb(byteSize(d.data() || {}));
+  });
+  if (DB.ui.periodId) await step('ตารางสอนของภาคที่เลือก', async () => {
+    const d = await server(fbDb.collection('timetable').doc(DB.ui.periodId));
+    if (!d.exists) throw new Error('ยังไม่มีตารางสอนของภาคนี้บนส่วนกลาง');
+    const n = ((d.data() || {}).entries || []).length, local = (DB.timetable.entries || []).filter(e => e.periodId === DB.ui.periodId).length;
+    if (n !== local) throw new Error('ส่วนกลาง ' + n + ' คาบ • เครื่องนี้ ' + local + ' คาบ — ไม่ตรงกัน');
+    return n + ' คาบ ตรงกับเครื่องนี้';
+  });
+  await step('ผลการเรียนคงค้าง (ต้องวางกฎ firestore.rules รุ่นใหม่ก่อน)', async () => {
+    const snap = await server(fbDb.collection('pendingResults'));
+    return snap.size + ' รายการ';
+  });
+  await step('ทดสอบเขียนจริง', async () => {
+    const ref = fbDb.collection('shared').doc('_healthcheck');
+    await ref.set({ at: new Date().toISOString(), by: email || '' });
+    await ref.delete();
+    return 'เขียนและลบได้ตามปกติ';
+  });
+  return out;
+}
+
+function renderHealthCard() {
+  const box = $('#adminHealthBox'); if (!box) return;
+  const rows = centralPayloadRows(), over = rows.filter(r => r.size > FB_DOC_LIMIT);
+  const ready = firebaseReady() && fbSignedIn();
+  box.innerHTML = '<div class="exec-head"><div><div class="exec-eyebrow">CONNECTION HEALTH</div><h3>ตรวจสุขภาพการเชื่อมต่อส่วนกลาง</h3></div><div class="spacer"></div>' +
+    '<span class="badge ' + (over.length ? 'bad' : 'ok') + '">' + (over.length ? over.length + ' ชุดใหญ่เกินเพดาน' : 'ขนาดข้อมูลผ่านทุกชุด') + '</span>' +
+    '<button class="primary" id="healthRun"' + (ready ? '' : ' disabled') + '>ทดสอบการเชื่อมต่อจริง</button></div>' +
+    '<div class="exec-note">Firestore เก็บได้เอกสารละ 1,024 KB ถ้าชุดไหนเกิน ชุดนั้นจะส่งขึ้นไม่ได้เลย ' +
+    'เครื่องอื่นก็จะดึงข้อมูลชุดนั้นไปไม่ได้ตามไปด้วย' + (ready ? '' : '<br><span class="badtext">ยังไม่ได้เข้าสู่ระบบด้วยบัญชีโรงเรียน จึงทดสอบการเชื่อมต่อไม่ได้</span>') + '</div>' +
+    '<div class="tablewrap"><table><thead><tr><th>ชุดข้อมูล</th><th>เอกสารปลายทาง</th><th class="numcell">ขนาด</th><th>เทียบเพดาน</th><th>ผล</th></tr></thead><tbody>' +
+    rows.map(r => {
+      const pct = Math.min(100, r.size * 100 / FB_DOC_LIMIT), bad = r.size > FB_DOC_LIMIT;
+      return '<tr><td><b>' + esc(r.label) + '</b><div class="hint">' + esc(r.hint || '') + '</div></td>' +
+        '<td><code>' + esc(r.doc) + '</code></td><td class="numcell">' + esc(kb(r.size)) + '</td>' +
+        '<td><div class="cap-bar" style="--capc:' + (bad ? 'var(--bad)' : pct > 70 ? 'var(--warn)' : 'var(--ok)') + '"><i style="width:' + fmt(pct, 0) + '%"></i></div></td>' +
+        '<td class="' + (bad ? 'badtext' : 'oktext') + '">' + (bad ? 'ใหญ่เกิน ส่งไม่ขึ้น' : 'ผ่าน') + '</td></tr>';
+    }).join('') + '</tbody></table></div>' +
+    (over.length ? '<div class="notice" style="margin-top:10px">ชุดที่ใหญ่เกินต้องลดขนาดก่อน เช่น ย่อรูปตราโรงเรียนในหน้าตั้งค่า ' +
+      'หรือย้ายนักเรียนที่พ้นสภาพออกจากห้อง แล้วกดส่งขึ้นใหม่</div>' : '') +
+    '<div id="healthResult" style="margin-top:12px"></div>';
+  const btn = $('#healthRun', box);
+  if (btn) btn.addEventListener('click', async () => {
+    const out = $('#healthResult', box);
+    btn.disabled = true; out.innerHTML = '<div class="hint">กำลังทดสอบการเชื่อมต่อ...</div>';
+    const res = await centralHealthCheck();
+    const bad = res.filter(x => !x.ok).length;
+    out.innerHTML = '<div class="exec-sum"><span>ผ่าน <b>' + (res.length - bad) + '</b></span><span>มีปัญหา <b>' + bad + '</b></span></div>' +
+      '<div class="tablewrap"><table><thead><tr><th>รายการที่ตรวจ</th><th>ผล</th></tr></thead><tbody>' +
+      res.map(x => '<tr><td><b>' + esc(x.label) + '</b></td><td class="' + (x.ok ? 'oktext' : 'badtext') + '">' +
+        (x.ok ? '✓ ' : '✕ ') + esc(x.info) + '</td></tr>').join('') + '</tbody></table></div>';
+    btn.disabled = false;
+  });
+}
+
 /** ล้างใบลาและคำขอที่ไม่มีเจ้าของ — ใช้เก็บกวาดข้อมูลทดสอบที่ค้างอยู่ */
 function renderMaintainCard() {
   const box = $('#adminMaintainBox'); if (!box) return;
@@ -7560,10 +7687,27 @@ function renderFirebaseCard() {
       'การเช็กชื่อและคะแนนในสมุดยังเก็บในเครื่องแต่ละคน</div>';
 
   const show = (t, k) => { $('#fbResult', box).innerHTML = '<span class="badge ' + (k || '') + '">' + esc(t) + '</span>'; };
+  /* วาดการ์ดใหม่ก่อนแล้วค่อยเขียนผล มิฉะนั้น renderFirebaseCard() จะล้างผลที่เพิ่งแสดงทิ้ง
+     ผู้ดูแลระบบจึงไม่เคยเห็นว่าการส่งสำเร็จหรือล้มเพราะอะไร */
   const run = async (label, fn) => {
     show('กำลัง' + label + '...');
-    try { const n = await fn(); show(label + 'สำเร็จ • ' + n + ' รายการ', 'ok'); renderFirebaseCard(); }
-    catch (e) { show(fbErrorMessage(e), 'bad'); }
+    let html = '';
+    try {
+      const r = await fn(), failed = (r && r.failed) || [], sent = r && r.sent !== undefined ? r.sent : r;
+      if (failed.length) {
+        // สรุปเหตุผลซ้ำ ๆ ให้เหลือบรรทัดเดียวต่อสาเหตุ จะได้อ่านออกแม้ล้มหลายร้อยรายการ
+        const byMsg = new Map();
+        failed.forEach(f => { if (!byMsg.has(f.msg)) byMsg.set(f.msg, []); byMsg.get(f.msg).push(f.label); });
+        html = '<span class="badge bad">' + esc(label + 'ไม่ครบ • สำเร็จ ' + sent + ' • ไม่สำเร็จ ' + failed.length) + '</span>' +
+          '<div class="tablewrap" style="margin-top:8px"><table><thead><tr><th>ชุดข้อมูลที่ส่งไม่ขึ้น</th><th>สาเหตุ</th></tr></thead><tbody>' +
+          Array.from(byMsg.entries()).map(([msg, labels]) => '<tr><td><b>' + esc(labels.slice(0, 4).join(', ')) +
+            (labels.length > 4 ? ' และอีก ' + (labels.length - 4) + ' รายการ' : '') + '</b></td><td class="badtext">' + esc(msg) + '</td></tr>').join('') +
+          '</tbody></table></div>';
+      } else html = '<span class="badge ok">' + esc(label + 'สำเร็จ • ' + sent + ' รายการ') + '</span>';
+    }
+    catch (e) { html = '<span class="badge bad">' + esc(fbErrorMessage(e)) + '</span>'; }
+    renderFirebaseCard(); renderHealthCard();
+    const out = $('#fbResult', box); if (out) out.innerHTML = html;
   };
   $('#fbInspect', box).addEventListener('click', async () => {
     show('กำลังอ่านข้อมูลจากส่วนกลาง...');
@@ -7579,9 +7723,10 @@ function renderFirebaseCard() {
     catch (e) { show(fbErrorMessage(e), 'bad'); }
   });
   $('#fbPushStaff', box).addEventListener('click', () => run('ส่งรายชื่อ', () => pushToFirebase('staff')));
-  $('#fbPushShared', box).addEventListener('click', async () => {
-    await run('ส่งข้อมูลหลัก', async () => (await pushToFirebase('shared')) + (await pushToFirebase('timetable')));
-  });
+  $('#fbPushShared', box).addEventListener('click', () => run('ส่งข้อมูลหลัก', async () => {
+    const a = await pushToFirebase('shared'), b = await pushToFirebase('timetable');
+    return { sent: a.sent + b.sent, failed: a.failed.concat(b.failed) };
+  }));
   $('#fbPushAll', box).addEventListener('click', async () => {
     if (!await confirmBox('ส่งข้อมูลทั้งหมดขึ้นส่วนกลาง',
       'ใช้ตอนตั้งระบบครั้งแรกเท่านั้น ข้อมูลบนส่วนกลางที่ซ้ำกันจะถูกเขียนทับด้วยข้อมูลในเครื่องนี้', 'ส่งขึ้นทั้งหมด')) return;
@@ -7890,39 +8035,46 @@ async function inspectFirebase() {
 }
 
 /** ส่งข้อมูลขึ้นส่วนกลาง — ใช้ตอนตั้งระบบครั้งแรก หรือเมื่อผู้ดูแลระบบแก้ข้อมูลหลัก */
+/* ส่งทีละชุดและรายงานผลรายชุด — เดิมใช้ Promise.all ชุดเดียวที่ล้ม
+   จะทำให้ทั้งการส่งขึ้นเป็น "ไม่สำเร็จ" ทั้งที่ชุดอื่นขึ้นไปแล้ว
+   ผู้ดูแลระบบจึงไม่รู้ว่าจริง ๆ ติดที่ชุดไหน */
 async function pushToFirebase(what) {
   if (!firebaseReady() || !fbSignedIn()) throw new Error('ยังไม่ได้เข้าสู่ระบบด้วยบัญชีโรงเรียน');
   const jobs = [];
+  const add = (label, p) => jobs.push({ label: label, p: p });
   if (!what || what === 'staff') {
     const list = DB.teachers.filter(t => t.email);
     if (!list.length) throw new Error('ครูทุกคนต้องมีอีเมลก่อนจึงจะส่งขึ้นส่วนกลางได้');
-    let batch = fbDb.batch(), n = 0;
+    let batch = fbDb.batch(), n = 0, part = 1;
     list.forEach(t => {
       batch.set(fbDb.collection('staff').doc(fbStaffId(t.email)), fbPlain(fbTeacherDoc(t)), { merge: true });
-      if (++n % 400 === 0) { jobs.push(batch.commit()); batch = fbDb.batch(); }
+      if (++n % 400 === 0) { add('รายชื่อบุคลากร ชุดที่ ' + part++, batch.commit()); batch = fbDb.batch(); }
     });
-    jobs.push(batch.commit());
+    add('รายชื่อบุคลากร ชุดที่ ' + part, batch.commit());
   }
   if (!what || what === 'shared') {
-    jobs.push(fbSetDoc(fbDb.collection('shared').doc('classes'), { items: fbPlain(DB.classes) }, 'ห้องเรียน'));
-    jobs.push(fbSetDoc(fbDb.collection('shared').doc('subjects'), { items: fbPlain(DB.subjects) }, 'รายวิชา'));
-    jobs.push(fbSetDoc(fbDb.collection('shared').doc('periods'), { items: fbPlain(DB.periods) }, 'ปี/ภาคเรียน'));
-    jobs.push(fbSetDoc(fbDb.collection('shared').doc('settings'), { value: fbPlain(DB.settings) }, 'ตั้งค่าโรงเรียน'));
+    add('ห้องเรียนและรายชื่อนักเรียน', fbSetDoc(fbDb.collection('shared').doc('classes'), { items: fbPlain(DB.classes) }, 'ห้องเรียน'));
+    add('รายวิชา', fbSetDoc(fbDb.collection('shared').doc('subjects'), { items: fbPlain(DB.subjects) }, 'รายวิชา'));
+    add('ปี/ภาคเรียน', fbSetDoc(fbDb.collection('shared').doc('periods'), { items: fbPlain(DB.periods) }, 'ปี/ภาคเรียน'));
+    add('ตั้งค่าโรงเรียน', fbSetDoc(fbDb.collection('shared').doc('settings'), { value: fbPlain(DB.settings) }, 'ตั้งค่าโรงเรียน'));
   }
   if (!what || what === 'timetable') {
-    DB.periods.forEach(p => jobs.push(fbSetDoc(fbDb.collection('timetable').doc(p.id), fbPlain({
-      entries: (DB.timetable.entries || []).filter(e => e.periodId === p.id),
-      exceptions: (DB.timetable.exceptions || []).filter(e => e.periodId === p.id),
-      term: (DB.timetable.terms || {})[p.id] || null
-    }), 'ตารางสอนปี ' + p.academicYear + '/' + p.semester)));
+    DB.periods.forEach(p => add('ตารางสอน ปี ' + p.academicYear + ' ภาค ' + p.semester,
+      fbSetDoc(fbDb.collection('timetable').doc(p.id), fbPlain({
+        entries: (DB.timetable.entries || []).filter(e => e.periodId === p.id),
+        exceptions: (DB.timetable.exceptions || []).filter(e => e.periodId === p.id),
+        term: (DB.timetable.terms || {})[p.id] || null
+      }), 'ตารางสอนปี ' + p.academicYear + '/' + p.semester)));
   }
   if (!what || what === 'requests') {
-    (DB.timetable.leaveRequests || []).forEach(l => jobs.push(fbDb.collection('leaves').doc(l.id).set(fbPlain(l))));
-    (DB.timetable.exchangeRequests || []).forEach(r => jobs.push(fbDb.collection('swaps').doc(r.id).set(fbPlain(r))));
-    (DB.timetable.activities || []).forEach(a => jobs.push(fbDb.collection('activities').doc(a.id).set(fbPlain(a))));
+    (DB.timetable.leaveRequests || []).forEach(l => add('ใบลา ' + l.id, fbDb.collection('leaves').doc(l.id).set(fbPlain(l))));
+    (DB.timetable.exchangeRequests || []).forEach(r => add('คำขอแลกคาบ ' + r.id, fbDb.collection('swaps').doc(r.id).set(fbPlain(r))));
+    (DB.timetable.activities || []).forEach(a => add('กิจกรรม ' + a.id, fbDb.collection('activities').doc(a.id).set(fbPlain(a))));
   }
-  await Promise.all(jobs);
-  return jobs.length;
+  const settled = await Promise.allSettled(jobs.map(j => j.p));
+  const failed = [];
+  settled.forEach((r, i) => { if (r.status === 'rejected') failed.push({ label: jobs[i].label, msg: fbErrorMessage(r.reason) }); });
+  return { sent: jobs.length - failed.length, failed: failed };
 }
 
 /** Firestore จำกัดขนาดเอกสารละ 1 MiB — ตรวจก่อนส่งเพื่อบอกได้ว่าชุดไหนใหญ่เกิน */
