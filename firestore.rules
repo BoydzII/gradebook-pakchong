@@ -136,6 +136,18 @@ service cloud.firestore {
       allow delete: if isAdmin() || (isStaff() && resource.data.ownerId == myId());
     }
 
+    /* ---------- รูปแบบหัวข้อคะแนนที่ครูส่งขึ้น ----------
+       เก็บเฉพาะโครงหัวข้อคะแนน สัดส่วน และเกณฑ์ตัดเกรด ไม่มีคะแนนของนักเรียน
+       ใช้ตอนครูย้ายไปทำต่อบนเครื่องอื่น และให้ครูที่สอนวิชาเดียวกันหยิบไปใช้ */
+    match /itemTemplates/{templateId} {
+      allow read: if isStaff();
+      allow create: if isStaff() && request.resource.data.ownerId == myId();
+      allow update: if isAdmin()
+        || (isStaff() && resource.data.ownerId == myId()
+            && request.resource.data.ownerId == myId());
+      allow delete: if isAdmin() || (isStaff() && resource.data.ownerId == myId());
+    }
+
     /* ---------- ชุดตัวชี้วัดที่ครูแชร์ไว้ ----------
        ครูทุกคนอ่านได้ เพราะจุดประสงค์คือให้ครูที่สอนวิชาเดียวกันหยิบไปใช้ต่อ
        แก้ไขได้เฉพาะครูเจ้าของชุด (ownerId คืออีเมลของครูที่แชร์) กับผู้ดูแลระบบ */

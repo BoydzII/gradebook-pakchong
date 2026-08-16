@@ -4272,6 +4272,98 @@ function copyItemsToClasses(classIds) {
   return n;
 }
 
+/* ---------- ซิงก์รูปแบบหัวข้อคะแนนขึ้นส่วนกลาง ------------------------------
+   สมุดคะแนนซิงก์เฉพาะของเจ้าของและต้องเปิดสวิตช์เอง ครูที่เปลี่ยนเครื่อง
+   หรือครูที่สอนวิชาเดียวกัน จึงไม่เคยเห็นรูปแบบหัวข้อคะแนนของกันและกัน
+   ที่นี่แยกเก็บเฉพาะ "โครงหัวข้อคะแนน" ไม่มีคะแนนนักเรียนติดไปด้วย */
+const itemTemplateDocId = () => fbStaffId(myEmailForSync()) + '__' + String(DB.ui.subjectId || '').replace(/[^A-Za-z0-9_-]/g, '_');
+const itemSyncReady = () => !!(firebaseReady() && fbSignedIn() && myEmailForSync());
+
+/** โครงที่ส่งขึ้น — หัวข้อ สัดส่วน คะแนนสอบ เกณฑ์ผ่าน และเกณฑ์ตัดเกรด */
+function itemTemplatePayload(book) {
+  return { items: fbPlain(book.items || []), weights: fbPlain(book.weights || {}),
+    exams: fbPlain(book.exams || {}), passPercent: book.passPercent,
+    gradeScale: fbPlain(book.gradeScale || []), partialMode: !!book.partialMode };
+}
+function applyItemTemplate(book, tpl) {
+  book.items = fbPlain(tpl.items || []);
+  if (tpl.weights) book.weights = fbPlain(tpl.weights);
+  if (tpl.exams) book.exams = fbPlain(tpl.exams);
+  if (tpl.passPercent !== undefined) book.passPercent = tpl.passPercent;
+  if (tpl.gradeScale) book.gradeScale = fbPlain(tpl.gradeScale);
+  if (tpl.partialMode !== undefined) book.partialMode = !!tpl.partialMode;
+}
+
+async function pushItemTemplate() {
+  if (!itemSyncReady()) return toast('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อนจึงจะส่งขึ้นส่วนกลางได้', 'bad');
+  const b = curBook(true), sub = curSubject(), cls = curClass(), me = curTeacher() || {};
+  if (!(b.items || []).length) return toast('ยังไม่มีหัวข้อคะแนนให้ส่งขึ้น', 'bad');
+  if (!await confirmBox('ส่งรูปแบบหัวข้อคะแนนขึ้นส่วนกลาง',
+    '<div class="exec-note">ส่งเฉพาะโครงหัวข้อคะแนน สัดส่วน คะแนนสอบ และเกณฑ์ตัดเกรด ' +
+    '<b>คะแนนของนักเรียนไม่ถูกส่งขึ้นไปด้วย</b><br>ใช้ตอนย้ายไปทำต่อบนเครื่องอื่น ' +
+    'และครูที่สอนวิชาเดียวกันจะหยิบไปใช้ได้</div>' +
+    '<div class="exec-sum"><span>วิชา <b>' + esc((sub.code ? sub.code + ' ' : '') + sub.name) + '</b></span>' +
+    '<span>หัวข้อ <b>' + (b.items || []).length + '</b></span>' +
+    '<span>ห้องต้นทาง <b>' + esc(cls.name) + '</b></span></div>', 'ส่งขึ้นส่วนกลาง')) return;
+  try {
+    await fbSetDoc(fbDb.collection('itemTemplates').doc(itemTemplateDocId()), fbPlain(Object.assign({
+      ownerId: myEmailForSync(), ownerName: me.name || me.email || '',
+      subjectId: DB.ui.subjectId, subjectCode: sub.code || '', subjectName: sub.name || '',
+      fromClass: cls.name || '', count: (b.items || []).length, updatedAt: new Date().toISOString()
+    }, itemTemplatePayload(b))), 'รูปแบบหัวข้อคะแนน ' + sub.name);
+    toast('ส่งรูปแบบขึ้นส่วนกลางแล้ว เปิดที่เครื่องอื่นแล้วกดดึงลงมาได้เลย', 'ok');
+    renderItems();
+  } catch (e) { toast(fbErrorMessage(e), 'bad'); }
+}
+
+async function openItemTemplateCloud() {
+  if (!itemSyncReady()) return toast('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อน จึงจะดึงรูปแบบจากส่วนกลางได้', 'bad');
+  const sub = curSubject(), me = myEmailForSync();
+  let docs = [];
+  try {
+    const snap = await fbDb.collection('itemTemplates').get({ source: 'server' });
+    docs = snap.docs.map(d => d.data() || {}).filter(x =>
+      x.subjectId === DB.ui.subjectId || (x.subjectCode && sub.code && x.subjectCode === sub.code));
+  } catch (e) { return toast(fbErrorMessage(e), 'bad'); }
+  docs.sort((a, b) => (a.ownerId === me ? -1 : 0) - (b.ownerId === me ? -1 : 0) ||
+    String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  const targets = classesSharingSubject();
+  const body = docs.length
+    ? '<div class="exec-note">รูปแบบหัวข้อคะแนนของวิชา ' + esc((sub.code ? sub.code + ' ' : '') + sub.name) +
+      ' ที่อยู่บนส่วนกลาง • ของคุณเองจะขึ้นก่อน ใช้ตอนย้ายมาทำต่อบนเครื่องนี้</div>' +
+      '<div class="cover-list">' + docs.map((d, i) => '<label class="cover-pick"><input type="radio" name="itPick" value="' + i + '"' +
+        (i === 0 ? ' checked' : '') + '>' +
+        '<div><b>' + esc(d.ownerName || d.ownerId) + (d.ownerId === me ? ' (ของคุณเอง)' : '') + '</b> ' +
+        '<span class="pr-tag pr-mp">' + (d.count || (d.items || []).length) + ' หัวข้อ</span>' +
+        '<div class="hint">' + esc((d.subjectCode ? d.subjectCode + ' ' : '') + (d.subjectName || '') +
+        (d.fromClass ? ' • จากห้อง ' + d.fromClass : '') + ' • อัปเดต ' +
+        (d.updatedAt ? new Date(d.updatedAt).toLocaleString('th-TH') : '—')) + '</div>' +
+        '<div class="hint">' + esc((d.items || []).slice(0, 4).map(x => x.name + ' (' + x.max + ')').join(' • ')) + '</div></div></label>').join('') + '</div>' +
+      '<div class="pick" style="margin-top:12px"><label>นำมาใช้กับห้องใด</label>' +
+      '<div class="cover-list"><label class="cover-pick"><input type="checkbox" class="it-room" value="' + esc(DB.ui.classId) + '" checked>' +
+      '<div><b>' + esc(curClass().name) + '</b><div class="hint">ห้องที่เปิดอยู่ตอนนี้</div></div></label>' +
+      targets.map(c => '<label class="cover-pick"><input type="checkbox" class="it-room" value="' + esc(c.id) + '">' +
+        '<div><b>' + esc(c.name) + '</b><div class="hint">มีอยู่แล้ว ' +
+        (((DB.books[bookKeyOf(c.id, DB.ui.subjectId, DB.ui.periodId)] || {}).items || []).length) + ' หัวข้อ</div></div></label>').join('') + '</div></div>'
+    : '<div class="empty">ยังไม่มีรูปแบบของวิชานี้บนส่วนกลาง<br><span class="hint">ที่เครื่องซึ่งทำหัวข้อคะแนนไว้แล้ว ให้กด “ส่งรูปแบบขึ้นส่วนกลาง” ก่อน</span></div>';
+  openModal({ title: 'ดึงรูปแบบหัวข้อคะแนนจากส่วนกลาง', wide: true, bodyHTML: body,
+    buttons: docs.length ? [{ label: 'ปิด' }, { label: 'นำมาใช้', cls: 'primary', act: async (close, root) => {
+      const picked = $$('[name="itPick"]', root).find(x => x.checked);
+      if (!picked) return toast('ยังไม่ได้เลือกรูปแบบ', 'bad');
+      const ids = $$('.it-room', root).filter(x => x.checked).map(x => x.value);
+      if (!ids.length) return toast('ยังไม่ได้เลือกห้องปลายทาง', 'bad');
+      if (!await confirmBox('นำรูปแบบมาใช้',
+        'หัวข้อคะแนนเดิมของ ' + ids.length + ' ห้องที่เลือกจะถูกแทนที่ทั้งหมด คะแนนที่กรอกไว้แล้วจะยังอยู่ในเครื่อง แต่จะไม่ตรงกับหัวข้อใหม่', 'นำมาใช้')) return;
+      const tpl = docs[num(picked.value)] || {};
+      ids.forEach(cid => {
+        const key = bookKeyOf(cid, DB.ui.subjectId, DB.ui.periodId);
+        applyItemTemplate(DB.books[key] = normalizeBook(DB.books[key] || defaultBook()), tpl);
+      });
+      save(true); close(); render();
+      toast('นำรูปแบบของ ' + (tpl.ownerName || 'ส่วนกลาง') + ' มาใช้แล้ว ' + ids.length + ' ห้อง', 'ok');
+    } }] : [{ label: 'ปิด' }] });
+}
+
 function openItemReuse() {
   const targets = classesSharingSubject(), sources = itemTemplateSources();
   openModal({ title: 'นำหัวข้อคะแนนไปใช้ซ้ำ', wide: true,
@@ -4288,7 +4380,7 @@ function openItemReuse() {
       (sources.length ? '<div class="pick" style="margin-top:10px"><label>เลือกต้นแบบ</label><select id="tplSource" style="width:100%">' +
         sources.map(x => '<option value="' + esc(x.key) + '">' + esc(x.label) + '</option>').join('') + '</select></div>' +
         '<div class="row" style="margin-top:10px"><button class="sm primary" id="useTpl">ใช้รูปแบบนี้</button></div>'
-        : '<div class="empty" style="margin-top:10px">ยังไม่มีรูปแบบของวิชานี้ในเครื่องนี้<br><span class="hint">รูปแบบของครูท่านอื่นจะเห็นได้เมื่อเปิดใช้การซิงก์สมุดคะแนนขึ้นส่วนกลาง</span></div>') + '</div>',
+        : '<div class="empty" style="margin-top:10px">ยังไม่มีรูปแบบของวิชานี้ในเครื่องนี้<br><span class="hint">ถ้าเคยทำไว้บนอีกเครื่อง ให้ปิดหน้านี้แล้วกด “⤓ ดึงรูปแบบจากส่วนกลาง”</span></div>') + '</div>',
     buttons: [{ label: 'ปิด', cls: 'primary' }],
     onMount(root, close) {
       const all = $('#copyAll', root);
@@ -4663,6 +4755,8 @@ function renderItems() {
         '<button class="primary" id="btnAddItem">+ เพิ่มหัวข้อ</button>' +
         '<button id="btnAddMany">เพิ่มหลายหัวข้อ</button>' +
         '<button id="btnReuseItems">นำไปใช้ซ้ำ / ใช้รูปแบบของห้องอื่น</button>' +
+        '<button id="btnPushItems" title="ส่งเฉพาะโครงหัวข้อคะแนนขึ้นส่วนกลาง คะแนนนักเรียนไม่ถูกส่ง">⤒ ส่งรูปแบบขึ้นส่วนกลาง</button>' +
+        '<button id="btnPullItems" title="ดึงรูปแบบที่เคยส่งไว้ หรือของครูที่สอนวิชาเดียวกัน มาใช้กับเครื่องนี้">⤓ ดึงรูปแบบจากส่วนกลาง</button>' +
         '<span class="hint">เลือก “สอบวัดผลรายหน่วย” เพื่อเปิดช่องซ่อมอัตโนมัติเฉพาะผู้ที่ได้ต่ำกว่าเกณฑ์รายส่วน</span>' +
       '</div>' +
       (b.items.length ?
@@ -4743,6 +4837,8 @@ function renderItems() {
     save(true); renderItems();
   });
   $('#btnReuseItems').addEventListener('click', openItemReuse);
+  $('#btnPushItems').addEventListener('click', pushItemTemplate);
+  $('#btnPullItems').addEventListener('click', openItemTemplateCloud);
   $('#btnAddMany').addEventListener('click', () => {
     openModal({
       title: 'เพิ่มหลายหัวข้อพร้อมกัน',
