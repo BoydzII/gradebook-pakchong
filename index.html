@@ -375,6 +375,41 @@ td.num,th.num{text-align:center}
 .pr-mp{background:var(--line2);color:var(--muted);border-color:var(--line)}
 .pr-check{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);font-weight:600}
 tr.pr-done{opacity:.62}
+
+/* ---------- ปุ่มซิงก์ผลการเรียนคงค้าง ---------- */
+.sync-fab{position:fixed;right:20px;bottom:calc(24px + env(safe-area-inset-bottom));z-index:96;
+  display:none;align-items:center;gap:11px;background:none;border:0;padding:0;cursor:pointer}
+.sync-fab.show{display:inline-flex}
+body.gateway-open .sync-fab,body:has(#studentPortal:not([hidden])) .sync-fab{display:none}
+.sync-label{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:999px;
+  padding:9px 15px;font-size:12.5px;font-weight:700;box-shadow:var(--shadow);white-space:nowrap;
+  opacity:0;transform:translateX(10px);transition:opacity .2s ease,transform .2s ease;pointer-events:none}
+.sync-fab:hover .sync-label,.sync-fab:focus-visible .sync-label{opacity:1;transform:none}
+.sync-orb{position:relative;width:62px;height:62px;border-radius:50%;display:grid;place-items:center;
+  background:var(--hero);color:#fff;box-shadow:0 14px 32px rgba(16,46,90,.34),0 2px 6px rgba(16,46,90,.22);
+  transition:transform .18s ease,box-shadow .18s ease}
+.sync-fab:hover .sync-orb{transform:translateY(-2px);box-shadow:0 18px 38px rgba(16,46,90,.4),0 2px 6px rgba(16,46,90,.24)}
+.sync-fab:active .sync-orb{transform:translateY(0) scale(.96)}
+.sync-fab:focus-visible .sync-orb{outline:3px solid var(--brand);outline-offset:4px}
+.sync-orb:before{content:'';position:absolute;inset:-7px;border-radius:50%;
+  border:2px solid color-mix(in srgb,var(--brand) 60%,transparent);opacity:0;pointer-events:none}
+.sync-fab.dirty .sync-orb:before{animation:syncPulse 2.6s ease-out infinite}
+@keyframes syncPulse{0%{opacity:.7;transform:scale(.93)}70%{opacity:0;transform:scale(1.28)}100%{opacity:0;transform:scale(1.28)}}
+.sync-ico{display:grid;place-items:center}
+.sync-ico svg{width:27px;height:27px;display:block}
+.sync-fab.busy .sync-ico{animation:syncRise 1s ease-in-out infinite}
+@keyframes syncRise{0%{transform:translateY(4px);opacity:.5}50%{transform:translateY(-4px);opacity:1}100%{transform:translateY(4px);opacity:.5}}
+.sync-count{position:absolute;top:-2px;right:-2px;min-width:23px;height:23px;padding:0 6px;border-radius:999px;
+  background:var(--bad);color:#fff;font-size:11.5px;font-weight:800;display:grid;place-items:center;
+  border:2px solid var(--bg);font-variant-numeric:tabular-nums}
+.sync-fab:not(.has-count) .sync-count{display:none}
+.sync-fab.off .sync-count{background:var(--muted)}
+.sync-fab.off .sync-orb{background:var(--line2);color:var(--muted);box-shadow:var(--shadow)}
+.sync-fab.done .sync-orb{background:linear-gradient(135deg,#0f8a53 0%,#22c55e 100%)}
+@media(max-width:720px){.sync-fab{right:14px;bottom:calc(80px + env(safe-area-inset-bottom))}.sync-label{display:none}
+  .sync-orb{width:56px;height:56px}.sync-ico svg{width:25px;height:25px}}
+@media(prefers-reduced-motion:reduce){.sync-fab.dirty .sync-orb:before,.sync-fab.busy .sync-ico{animation:none}
+  .sync-fab:hover .sync-orb,.sync-fab:active .sync-orb{transform:none}}
 @media(max-width:700px){.roster-grid{grid-template-columns:repeat(2,1fr)}.exec-toolbar input,.exec-toolbar select{min-width:0;flex:1 1 130px}}
 .exchange-request{border-left:4px solid var(--group);padding:10px 12px;border-radius:9px;background:var(--group-bg);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .exchange-layout{display:grid;grid-template-columns:minmax(320px,.9fr) minmax(0,1.25fr);gap:14px}.candidate-list{display:grid;gap:9px}.candidate-card{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel2)}
@@ -1854,6 +1889,7 @@ function render() {
   else if (t === 'leaves') renderLeaveApprovals();
   else if (t === 'admin') renderAdmin();
   initCollapsibles();
+  updateSyncFab();
 }
 
 /** ข้อความเมื่อยังไม่เลือกชั้น/วิชา */
@@ -6128,13 +6164,142 @@ async function dropPendingStudent(id, after) {
   toast('บันทึกว่า ' + (r.name || '') + ' พ้นสภาพแล้ว ' + mine.length + ' รายการ', 'ok');
 }
 
+/* ---- ซิงก์ผลการเรียนคงค้างขึ้นส่วนกลาง ------------------------------------
+   ผลการเรียนคงค้างเก็บในเครื่องของครูแต่ละคน หน้าผู้บริหารจึงเห็นเฉพาะของเครื่องนั้น
+   ปุ่มนี้ส่งของตัวเองขึ้น pendingResults บนส่วนกลาง แล้วดึงของครูทุกคนลงมารวมกัน */
+const pendingOwnerId = r => String(r.ownerId || '').trim().toLowerCase();
+function myPendingRecords() {
+  const me = myEmailForSync();
+  return (DB.pendingResults || []).filter(r => !pendingOwnerId(r) || pendingOwnerId(r) === me);
+}
+/** รายการของฉันที่ยังไม่ได้ส่งขึ้น หรือแก้ไขหลังส่งครั้งล่าสุด */
+function pendingUnsyncedCount() {
+  return myPendingRecords().filter(r => !r.syncedAt || String(r.syncedAt) < String(r.updatedAt || '')).length;
+}
+const pendingSyncReady = () => !!(firebaseReady() && fbSignedIn() && myEmailForSync());
+
+async function pushPendingResults() {
+  const me = myEmailForSync();
+  if (!pendingSyncReady()) throw new Error('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียน และมีอีเมลในโปรไฟล์ครูก่อน');
+  const col = fbDb.collection('pendingResults'), mine = myPendingRecords(), stamp = new Date().toISOString();
+  const teacher = curTeacher() || {}, jobs = [];
+  mine.forEach(r => {
+    r.ownerId = me; r.ownerName = teacher.name || teacher.email || ''; r.syncedAt = stamp;
+    jobs.push(fbSetDoc(col.doc(r.id), fbPlain(r), 'ผลการเรียนคงค้างของ ' + (r.name || '')));
+  });
+  // รายการที่ลบไปแล้วในเครื่อง ต้องลบบนส่วนกลางด้วย ไม่งั้นดึงกลับมาใหม่ทุกครั้ง
+  const localIds = new Set(mine.map(r => r.id));
+  const snap = await col.where('ownerId', '==', me).get({ source: 'server' });
+  snap.docs.forEach(d => { if (!localIds.has(d.id)) jobs.push(d.ref.delete()); });
+  await Promise.all(jobs);
+  return mine.length;
+}
+
+async function pullPendingResults() {
+  const me = myEmailForSync();
+  const snap = await fbDb.collection('pendingResults').get({ source: 'server' });
+  const byId = new Map((DB.pendingResults || []).map(r => [r.id, r]));
+  let added = 0, updated = 0;
+  snap.docs.forEach(d => {
+    const data = d.data() || {}; if (!data.id) data.id = d.id;
+    const old = byId.get(data.id);
+    if (!old) { DB.pendingResults.push(data); byId.set(data.id, data); added++; return; }
+    // ของคนอื่นเชื่อส่วนกลางเสมอ ของตัวเองเชื่อเครื่องนี้ถ้าแก้ทีหลัง
+    if (pendingOwnerId(data) !== me || String(data.updatedAt || '') >= String(old.updatedAt || '')) {
+      Object.assign(old, data); updated++;
+    }
+  });
+  const remoteIds = new Set(snap.docs.map(d => d.id));
+  DB.pendingResults = DB.pendingResults.filter(r => !pendingOwnerId(r) || pendingOwnerId(r) === me || remoteIds.has(r.id));
+  return { added: added, updated: updated, total: snap.size };
+}
+
+const SYNC_ARROW_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5V4.5"/><path d="M5.2 11.3 12 4.5l6.8 6.8"/></svg>';
+const SYNC_CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.8 4.6 4.6L19 7.4"/></svg>';
+
+function syncFabEl() {
+  let el = $('#syncFab');
+  if (!el) {
+    el = document.createElement('button');
+    el.id = 'syncFab'; el.type = 'button'; el.className = 'sync-fab';
+    el.innerHTML = '<span class="sync-label"></span><span class="sync-orb"><span class="sync-ico">' + SYNC_ARROW_SVG + '</span><span class="sync-count">0</span></span>';
+    document.body.appendChild(el);
+    el.addEventListener('click', openPendingSyncDialog);
+  }
+  return el;
+}
+
+/** ปุ่มโผล่เฉพาะหน้าภาพรวมครูและภาพรวมผู้บริหาร */
+function updateSyncFab() {
+  const el = syncFabEl(), tab = DB.ui.tab || 'dashboard';
+  const portal = $('#studentPortal');
+  const blocked = document.body.classList.contains('gateway-open') || !!(portal && !portal.hidden);
+  const on = !blocked && (tab === 'dashboard' || tab === 'executive');
+  el.classList.toggle('show', on);
+  if (!on) return;
+  const ready = pendingSyncReady(), n = pendingUnsyncedCount();
+  const last = (DB.cloud || {}).lastPendingSync ? new Date(DB.cloud.lastPendingSync).toLocaleString('th-TH') : '';
+  el.classList.toggle('off', !ready);
+  el.classList.toggle('has-count', n > 0);
+  el.classList.toggle('dirty', ready && n > 0);
+  $('.sync-count', el).textContent = n > 99 ? '99+' : String(n);
+  const text = !ready ? (n ? 'มีข้อมูลคงค้าง ' + n + ' รายการรอส่ง — ยังไม่ได้เข้าสู่ระบบส่วนกลาง' : 'ยังไม่ได้เข้าสู่ระบบส่วนกลาง')
+    : n ? 'ส่งข้อมูลคงค้าง ' + n + ' รายการขึ้นส่วนกลาง'
+    : last ? 'ซิงก์ล่าสุด ' + last : 'ซิงก์ข้อมูลคงค้างกับส่วนกลาง';
+  $('.sync-label', el).textContent = text;
+  el.title = text; el.setAttribute('aria-label', text);
+}
+
+/** แจ้งเตือนและสรุปให้ดูก่อน แล้วค่อยซิงก์ */
+async function openPendingSyncDialog() {
+  if (!pendingSyncReady()) return toast('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อน จึงจะซิงก์ขึ้นส่วนกลางได้', 'bad');
+  const me = myEmailForSync(), mine = myPendingRecords(), n = pendingUnsyncedCount();
+  const others = (DB.pendingResults || []).filter(r => pendingOwnerId(r) && pendingOwnerId(r) !== me);
+  const ownerCount = new Set(others.map(pendingOwnerId)).size;
+  const last = (DB.cloud || {}).lastPendingSync ? new Date(DB.cloud.lastPendingSync).toLocaleString('th-TH') : 'ยังไม่เคยซิงก์';
+  const ok = await confirmBox('ซิงก์ข้อมูลนักเรียนคงค้าง',
+    '<div class="exec-note">ระบบจะส่งรายการคงค้างของคุณขึ้นส่วนกลาง แล้วดึงของครูทุกคนลงมารวมกัน ' +
+    'หน้าภาพรวมผู้บริหารจึงจะเห็นยอดของทั้งโรงเรียน ไม่ใช่เฉพาะเครื่องนี้</div>' +
+    '<div class="exec-sum"><span>ส่งขึ้น <b>' + mine.length + '</b> รายการ' + (n ? ' (ใหม่หรือแก้ไข ' + n + ')' : '') + '</span>' +
+    '<span>มีของครูอื่นในเครื่องแล้ว <b>' + others.length + '</b> รายการ จาก <b>' + ownerCount + '</b> คน</span>' +
+    '<span>ซิงก์ล่าสุด <b>' + esc(last) + '</b></span></div>' +
+    '<div class="hint">รายการที่ส่งขึ้นจะมองเห็นได้โดยครูและผู้บริหารทุกคนในระบบ • รายการที่คุณลบในเครื่องนี้จะถูกลบบนส่วนกลางด้วย</div>',
+    'ซิงก์เลย');
+  if (!ok) return;
+  const el = syncFabEl();
+  el.classList.add('busy'); el.disabled = true;
+  try {
+    const pushed = await pushPendingResults();
+    const got = await pullPendingResults();
+    DB.cloud.lastPendingSync = new Date().toISOString(); save(true);
+    el.classList.remove('busy'); flashSyncDone(el);
+    toast('ซิงก์แล้ว • ส่งขึ้น ' + pushed + ' รายการ • รวมทั้งโรงเรียน ' + got.total + ' รายการ', 'ok');
+    render();
+  } catch (e) {
+    el.classList.remove('busy');
+    toast(fbErrorMessage(e), 'bad');
+  }
+  el.disabled = false;
+}
+
+function flashSyncDone(el) {
+  const ico = $('.sync-ico', el); if (!ico) return;
+  el.classList.add('done'); ico.innerHTML = SYNC_CHECK_SVG;
+  setTimeout(() => { el.classList.remove('done'); ico.innerHTML = SYNC_ARROW_SVG; updateSyncFab(); }, 1800);
+}
+
 /** การ์ดสรุปผลการเรียนคงค้างในหน้าผู้บริหาร */
 function pendingExecCard() {
   const s = pendingResultStats();
   const reasonRows = PENDING_REASONS.map(x => ({ label: x.label, desc: x.desc, n: s.byReason[x.value] || 0 }));
   const levels = Object.keys(s.byLevel).sort((a, b) => levelSortKey(a) - levelSortKey(b));
+  const owners = new Set((DB.pendingResults || []).map(pendingOwnerId).filter(Boolean));
+  const lastSync = (DB.cloud || {}).lastPendingSync ? new Date(DB.cloud.lastPendingSync).toLocaleString('th-TH') : '';
   return '<div class="card"><div class="exec-head"><div><div class="exec-eyebrow">ACADEMIC BACKLOG</div><h3>นักเรียนคงค้างผลการเรียน</h3></div><div class="spacer"></div>' +
+    '<span class="badge">' + (owners.size ? 'รวมจากครู ' + owners.size + ' คน' : 'เฉพาะเครื่องนี้') + '</span>' +
     '<span class="badge ' + (s.students ? 'bad' : 'ok') + '">' + s.students + ' คน</span></div>' +
+    '<div class="exec-note">' + (lastSync ? 'ซิงก์กับส่วนกลางล่าสุด ' + esc(lastSync) + ' — กดปุ่มลูกศรมุมขวาล่างเพื่อดึงข้อมูลใหม่'
+      : 'ยังไม่เคยซิงก์กับส่วนกลาง ตัวเลขนี้จึงเป็นของเครื่องนี้เท่านั้น — กดปุ่มลูกศรมุมขวาล่างเพื่อรวมข้อมูลทั้งโรงเรียน') + '</div>' +
     '<div class="exec-note">นับเฉพาะรายการที่ยังไม่ผ่าน • สัดส่วนรายคนคิดจากนักเรียนทั้งหมด ' + s.totalStudents + ' คน (คนหนึ่งติดหลายวิชานับเป็นหนึ่งคน) • ' +
     'สัดส่วนรายวิชาคิดจากการลงทะเบียนเรียนทั้งหมด ' + s.enrollments + ' รายการใน ' + esc(periodText(DB.ui.periodId)) + '</div>' +
     '<div class="dash-metrics">' +

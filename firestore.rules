@@ -123,6 +123,19 @@ service cloud.firestore {
       allow write: if isStaff() && ownerId == myId();
     }
 
+    /* ---------- ผลการเรียนคงค้าง 0 / ร / มส / มผ ----------
+       ครูทุกคนอ่านได้ เพราะครูที่สอนต่อในภาคถัดไปต้องเห็นว่าเด็กยังค้างอะไรอยู่
+       และหน้าภาพรวมผู้บริหารต้องรวมยอดของทั้งโรงเรียน
+       แก้ไขได้เฉพาะครูเจ้าของรายการ (ownerId คืออีเมลของครูที่บันทึก) กับผู้ดูแลระบบ */
+    match /pendingResults/{recordId} {
+      allow read: if isStaff();
+      allow create: if isStaff() && request.resource.data.ownerId == myId();
+      allow update: if isAdmin()
+        || (isStaff() && resource.data.ownerId == myId()
+            && request.resource.data.ownerId == myId());
+      allow delete: if isAdmin() || (isStaff() && resource.data.ownerId == myId());
+    }
+
     /* ปิดทุกอย่างที่ไม่ได้ระบุไว้ข้างบน */
     match /{document=**} {
       allow read, write: if false;
