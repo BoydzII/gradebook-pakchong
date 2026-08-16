@@ -1357,6 +1357,7 @@ function loadDB() {
   DB.subjects.forEach(s => { s.gradeLevels = Array.isArray(s.gradeLevels) ? s.gradeLevels : []; });
   DB.timetable = DB.timetable || defaultTimetable();
   DB.timetable.slots = DB.timetable.slots || defaultTimetableSlots('08:30', 55);
+  pendingTeacherIdFix = true;   // จัดรหัสครูหลังโหลดเสร็จ ตอนนี้ยังอ่าน fbStaffId ไม่ได้
   DB.timetable.entries = DB.timetable.entries || [];
   DB.timetable.exceptions = DB.timetable.exceptions || [];
   DB.timetable.exchangeRequests = DB.timetable.exchangeRequests || [];
@@ -7439,9 +7440,11 @@ function mergeCentralStaff(list) {
     if (!email) return;
     let t = DB.teachers.find(x => String(x.email || '').toLowerCase() === email) ||
             DB.teachers.find(x => item.name && normalizeName(x.name) === normalizeName(item.name));
-    if (!t) { t = { id: uid('teacher'), email: email, homeroomClassId: '' }; DB.teachers.push(t); added++; }
+    if (!t) { t = { id: item.id || canonicalTeacherId(item) || uid('teacher'), email: email, homeroomClassId: '' }; DB.teachers.push(t); added++; }
     else updated++;
     t.email = email;
+    if (Array.isArray(item.legacyIds) && item.legacyIds.length)
+      t.legacyIds = Array.from(new Set((t.legacyIds || []).concat(item.legacyIds)));
     t.name = item.name || t.name || email;
     const roles = normalizeRoles(item.roles);
     t.roles = roles.length ? roles : (t.roles || ['teacher']);
@@ -7452,6 +7455,10 @@ function mergeCentralStaff(list) {
     const cls = DB.classes.find(c => c.name === (item.homeroom || t.homeroomName));
     if (cls) t.homeroomClassId = cls.id;
   });
+  // รับรหัสเก่าจากส่วนกลางมาเก็บไว้ก่อน แล้วค่อยจัดรหัสในเครื่องให้เป็นแบบเดียวกัน
+  rememberTeacherIdMap(teacherIdMapFromCentral(list));
+  normalizeTeacherIds();
+  applyStoredTeacherIdMap();
   return { added: added, updated: updated };
 }
 
@@ -7639,6 +7646,17 @@ async function centralHealthCheck() {
     const snap = await server(fbDb.collection('pendingResults'));
     return snap.size + ' รายการ';
   });
+  await step('รหัสครูตรงกับตารางสอนและใบลา', async () => {
+    const m = mismatchedTeacherRefs(), total = m.entries + m.leaves + m.swaps;
+    if (total) throw new Error('ตารางสอน ' + m.entries + ' คาบ • ใบลา ' + m.leaves + ' ใบ • คำขอแลกคาบ ' + m.swaps +
+      ' รายการ อ้างถึงรหัสครูที่ไม่มีในเครื่องนี้ — ตารางสอนจะไม่ขึ้นให้ครูเห็น กดปุ่ม “ซ่อมรหัสครู” ในการ์ดด้านบน');
+    return 'รหัสครูตรงกันทั้งหมด';
+  });
+  await step('รูปแบบรหัสครู', async () => {
+    const old = DB.teachers.filter(t => String(t.email || '').trim() && t.id !== canonicalTeacherId(t));
+    if (old.length) throw new Error(old.length + ' คนยังใช้รหัสแบบเก่าที่สร้างในเครื่องนี้เอง เครื่องอื่นจะจับคู่ไม่ได้ — กด “ซ่อมรหัสครู”');
+    return 'ทุกคนใช้รหัสที่อ้างจากอีเมลแล้ว';
+  });
   await step('ทดสอบเขียนจริง', async () => {
     const ref = fbDb.collection('shared').doc('_healthcheck');
     await ref.set({ at: new Date().toISOString(), by: email || '' });
@@ -7715,6 +7733,26 @@ function renderHealthCard() {
 function renderMaintainCard() {
   const box = $('#adminMaintainBox'); if (!box) return;
   const o = orphanLeaveData(), total = o.leaves.length + o.requests.length;
+  const mm = mismatchedTeacherRefs(), mismatch = mm.entries + mm.leaves + mm.swaps;
+  if (mismatch) {
+    // ห้ามล้างตอนรหัสยังไม่ตรง เพราะใบลาจริงจะดูเหมือนไม่มีเจ้าของแล้วโดนลบทิ้ง
+    box.innerHTML = '<div class="row"><div><h3 style="margin:0">รหัสครูไม่ตรงกับข้อมูลในเครื่องนี้</h3>' +
+      '<div class="hint">ข้อมูลบางส่วนอ้างถึงรหัสครูที่ไม่มีในเครื่องนี้ ตารางสอนจึงไม่ขึ้นให้ครูเห็น และใบลาขึ้นว่าไม่พบครู</div></div>' +
+      '<div class="spacer"></div><button class="primary" id="adminFixTeacherIds">ซ่อมรหัสครู</button></div>' +
+      '<div class="exec-sum" style="margin-top:12px"><span>ตารางสอน <b>' + mm.entries + '</b> คาบ</span>' +
+      '<span>ใบลา <b>' + mm.leaves + '</b> ใบ</span><span>คำขอแลกคาบ <b>' + mm.swaps + '</b> รายการ</span></div>' +
+      '<div class="notice">ระบบซ่อนปุ่มล้างข้อมูลไว้ก่อน เพราะตอนนี้ใบลาจริงจะดูเหมือนไม่มีเจ้าของ ถ้าล้างตอนนี้ข้อมูลจริงจะหาย<br>' +
+      'กดซ่อมรหัสครูก่อน แล้วกดส่งตารางสอนขึ้นส่วนกลางใหม่อีกครั้ง เครื่องอื่นจะได้รับรหัสที่ถูกต้อง</div>';
+    $('#adminFixTeacherIds', box).addEventListener('click', async () => {
+      if (!await confirmBox('ซ่อมรหัสครูให้ตรงกันทุกเครื่อง',
+        'ระบบจะเปลี่ยนรหัสครูให้อ้างอิงจากอีเมล ซึ่งได้ค่าเดียวกันทุกเครื่อง แล้วตามแก้ตารางสอน ใบลา คำขอแลกคาบ ' +
+        'การเช็กชื่อ และผลการเรียนคงค้างให้ชี้ไปที่รหัสใหม่ ควรกดสำรองข้อมูลไว้ก่อน', 'ซ่อมเลย')) return;
+      const r = normalizeTeacherIds(), more = applyStoredTeacherIdMap();
+      save(true); renderAdmin(); render();
+      toast('ซ่อมรหัสครู ' + r.renamed + ' คน • แก้จุดที่อ้างถึง ' + (r.fixed + more) + ' จุด', 'ok');
+    });
+    return;
+  }
   box.innerHTML = '<div class="row"><div><h3 style="margin:0">ดูแลความสะอาดของข้อมูล</h3>' +
     '<div class="hint">ใบลาและคำขอสอนแทนที่อ้างถึงครูซึ่งไม่มีในระบบแล้ว มักเป็นข้อมูลทดสอบที่ค้างอยู่ ระบบซ่อนไว้ไม่ให้กวนสถิติ แต่ยังอยู่ในเครื่อง</div></div>' +
     '<div class="spacer"></div><span class="badge ' + (total ? 'warn' : 'ok') + '">' + total + ' รายการ</span>' +
@@ -7961,9 +7999,85 @@ async function firebaseSignOut() {
   fbUser = null;
 }
 
-/** แปลงครูในเครื่องเป็นรูปแบบที่เก็บบน Firestore */
+/* ---- รหัสครูต้องเหมือนกันทุกเครื่อง ---------------------------------------
+   เดิมรหัสครูสร้างขึ้นในเครื่องใครเครื่องมัน (uid('teacher')) และไม่ได้ส่งขึ้นส่วนกลาง
+   เครื่องที่รับรายชื่อมาจากส่วนกลางจึงสร้างรหัสใหม่ของตัวเอง teacherId ในตารางสอน
+   ที่เครื่องหนึ่งสร้างไว้จึงไม่ตรงกับครูในอีกเครื่อง ผลคือตารางสอนไม่ขึ้นให้ครูเห็น
+   และใบลากับคำขอสอนแทนขึ้นว่า "ไม่พบครู"
+   แก้โดยให้รหัสครูมาจากอีเมล ซึ่งได้ค่าเดียวกันทุกเครื่องโดยไม่ต้องตกลงกันก่อน */
+const canonicalTeacherId = t => { const m = String((t || {}).email || '').trim(); return m ? 't_' + fbStaffId(m) : ''; };
+
+/** ย้ายทุกจุดที่อ้างถึงรหัสครูเก่าไปเป็นรหัสใหม่ */
+function remapTeacherIds(map) {
+  if (!map || !map.size) return 0;
+  let n = 0;
+  const fix = (obj, key) => { const v = obj && obj[key]; if (v && map.has(v) && map.get(v) !== v) { obj[key] = map.get(v); n++; } };
+  (DB.timetable.entries || []).forEach(e => fix(e, 'teacherId'));
+  (DB.timetable.exceptions || []).forEach(e => fix(e, 'teacherId'));
+  Object.values(DB.timetable.attendance || {}).forEach(r => fix(r, 'teacherId'));
+  (DB.timetable.leaveRequests || []).forEach(l => fix(l, 'teacherId'));
+  (DB.timetable.exchangeRequests || []).forEach(r => { fix(r, 'requesterTeacherId'); fix(r, 'targetTeacherId'); fix(r, 'assignedByHeadId'); });
+  (DB.timetable.activities || []).forEach(a => {
+    fix(a, 'teacherId');
+    if (a.ack) { const out = {}; Object.keys(a.ack).forEach(k => { out[map.get(k) || k] = a.ack[k]; }); a.ack = out; }
+  });
+  (DB.pendingResults || []).forEach(r => fix(r, 'teacherId'));
+  fix(DB.ui, 'teacherId');
+  return n;
+}
+
+/** เปลี่ยนรหัสครูในเครื่องนี้ให้เป็นรหัสที่อ้างจากอีเมล แล้วตามแก้ทุกจุดที่อ้างถึง
+    ครูที่ยังไม่มีอีเมลจะคงรหัสเดิมไว้ เพราะยังหาค่าที่แน่นอนร่วมกันไม่ได้ */
+function normalizeTeacherIds() {
+  const map = new Map(), taken = new Set(DB.teachers.map(t => t.id));
+  let renamed = 0;
+  DB.teachers.forEach(t => {
+    const canon = canonicalTeacherId(t);
+    if (!canon || canon === t.id) return;
+    if (taken.has(canon)) return;   // อีเมลซ้ำกัน อย่ายุบครูสองคนให้เป็นคนเดียว
+    t.legacyIds = Array.from(new Set((t.legacyIds || []).concat([t.id])));
+    map.set(t.id, canon); taken.delete(t.id); taken.add(canon); t.id = canon; renamed++;
+  });
+  const fixed = remapTeacherIds(map);
+  rememberTeacherIdMap(map);
+  return { renamed: renamed, fixed: fixed };
+}
+
+/** แผนที่รหัสเก่า→รหัสใหม่ ใช้ซ่อมข้อมูลที่เครื่องอื่นส่งขึ้นส่วนกลางไว้ด้วยรหัสเก่า */
+function teacherIdMapFromCentral(list) {
+  const map = new Map();
+  (list || []).forEach(item => {
+    const canon = canonicalTeacherId(item); if (!canon) return;
+    (item.legacyIds || []).concat(item.id ? [item.id] : []).forEach(old => { if (old && old !== canon) map.set(old, canon); });
+  });
+  return map;
+}
+function rememberTeacherIdMap(map) {
+  if (!map || !map.size) return;
+  DB.cloud = DB.cloud || {};
+  DB.cloud.teacherIdMap = Object.assign({}, DB.cloud.teacherIdMap || {}, Object.fromEntries(map));
+}
+const storedTeacherIdMap = () => new Map(Object.entries((DB.cloud || {}).teacherIdMap || {}));
+/** เรียกหลังรับข้อมูลจากส่วนกลางทุกครั้ง เพราะข้อมูลที่เพิ่งมาถึงอาจยังใช้รหัสเก่า */
+const applyStoredTeacherIdMap = () => remapTeacherIds(storedTeacherIdMap());
+
+/** ข้อมูลที่อ้างถึงรหัสครูซึ่งไม่มีในเครื่องนี้ — ตัวชี้ว่ารหัสยังไม่ตรงกัน */
+function mismatchedTeacherRefs() {
+  const ids = new Set(DB.teachers.map(t => t.id));
+  const bad = v => v && !ids.has(v);
+  return {
+    entries: (DB.timetable.entries || []).filter(e => bad(e.teacherId)).length,
+    leaves: (DB.timetable.leaveRequests || []).filter(l => bad(l.teacherId)).length,
+    swaps: (DB.timetable.exchangeRequests || []).filter(r => bad(r.requesterTeacherId)).length
+  };
+}
+const hasTeacherIdMismatch = () => { const m = mismatchedTeacherRefs(); return m.entries + m.leaves + m.swaps > 0; };
+
+/** แปลงครูในเครื่องเป็นรูปแบบที่เก็บบน Firestore
+    ส่งรหัสครูขึ้นไปด้วย พร้อมรหัสเก่าทุกตัว เครื่องอื่นจะได้ซ่อมข้อมูลเดิมของตัวเองได้ */
 function fbTeacherDoc(t) {
-  return { name: t.name || '', roles: t.roles || ['teacher'], learningArea: t.learningArea || '',
+  return { id: canonicalTeacherId(t) || t.id, legacyIds: t.legacyIds || [],
+    name: t.name || '', roles: t.roles || ['teacher'], learningArea: t.learningArea || '',
     phone: t.phone || '', homeroom: (DB.classes.find(c => c.id === t.homeroomClassId) || {}).name || t.homeroomName || '',
     active: t.active !== false };
 }
@@ -7998,17 +8112,20 @@ function startFirebaseSync() {
       DB.timetable.exceptions = (DB.timetable.exceptions || []).filter(e => e.periodId !== d.id).concat(t.exceptions || []);
       if (t.term) DB.timetable.terms[d.id] = t.term;
     });
+    applyStoredTeacherIdMap();   // ตารางที่เครื่องอื่นส่งขึ้นอาจยังใช้รหัสครูเก่า
     save(true); render();
   }), quiet));
 
   fbUnsub.push(fbDb.collection('activities').onSnapshot(snap => apply(() => {
     DB.timetable.activities = snap.docs.map(d => Object.assign({}, d.data(), { id: d.id }));
+    applyStoredTeacherIdMap();
     save(true); render();
   }), quiet));
 
   [['leaves', 'leaveRequests'], ['swaps', 'exchangeRequests']].forEach(pair => {
     fbUnsub.push(fbDb.collection(pair[0]).onSnapshot(snap => apply(() => {
       DB.timetable[pair[1]] = snap.docs.map(d => Object.assign({}, d.data(), { id: d.id })).filter(x => x.status !== 'deleted');
+      applyStoredTeacherIdMap();
       save(true); render();
     }), quiet));
   });
@@ -8224,6 +8341,7 @@ async function restore() {
   DB.subjects.forEach(s => { s.gradeLevels = Array.isArray(s.gradeLevels) ? s.gradeLevels : []; });
   DB.timetable = DB.timetable || defaultTimetable();
   DB.timetable.slots = DB.timetable.slots || defaultTimetableSlots('08:30', 55);
+  pendingTeacherIdFix = true;   // จัดรหัสครูหลังโหลดเสร็จ ตอนนี้ยังอ่าน fbStaffId ไม่ได้
   DB.timetable.entries = DB.timetable.entries || []; DB.timetable.exceptions = DB.timetable.exceptions || []; DB.timetable.exchangeRequests = DB.timetable.exchangeRequests || []; DB.timetable.leaveRequests = DB.timetable.leaveRequests || []; DB.timetable.terms = DB.timetable.terms || {}; DB.timetable.attendance = DB.timetable.attendance || {};
   DB.cloud = Object.assign({ clientId: PUBLIC_GOOGLE_CLIENT_ID, accountEmail: '', staffApiUrl: '', staffToken: '' }, DB.cloud || {});
   if (!DB.cloud.clientId && PUBLIC_GOOGLE_CLIENT_ID) DB.cloud.clientId = PUBLIC_GOOGLE_CLIENT_ID;
@@ -8555,7 +8673,10 @@ function openStudentLogin() {
 /* ============================================================================
    14) เริ่มต้นทำงาน
    ========================================================================== */
+let pendingTeacherIdFix = false;
 loadDB();
+// รหัสครูอ้างจากอีเมล จัดให้ตรงตั้งแต่เปิดแอป แม้ยังไม่ได้ต่อส่วนกลาง
+if (pendingTeacherIdFix) { const r = normalizeTeacherIds(); applyStoredTeacherIdMap(); if (r.renamed || r.fixed) save(true); }
 applyTheme(DB.settings.theme || 'light');
 renderStorageWarn();
 enableRightDragScroll();
