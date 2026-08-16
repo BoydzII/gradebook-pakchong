@@ -72,7 +72,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .savestate{font-size:12.5px;color:var(--muted);white-space:nowrap;min-width:86px;text-align:right}
 .savestate.on{color:var(--ok)}
 
-select,input[type=text],input[type=number],input[type=date],input[type=time],textarea{
+select,input:not([type]),input[type=text],input[type=number],input[type=date],input[type=time],input[type=search],textarea{
   background:var(--panel2); border:1px solid var(--line); border-radius:8px;
   padding:6px 9px; outline:none; max-width:100%;
 }
@@ -394,6 +394,18 @@ tr.pr-done{opacity:.62}
 .cover-pick:hover{border-color:var(--brand)}
 .cover-pick:has(input:checked){border-color:var(--brand);background:color-mix(in srgb,var(--brand) 9%,var(--panel))}
 .cover-pick input{flex:none;width:17px;height:17px;accent-color:var(--brand)}
+.cover-pick.used{opacity:.6;background:var(--panel2)}
+.ind-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
+.ind-action{display:grid;gap:3px;text-align:left;padding:13px 14px;border:1px solid var(--line);border-radius:12px;
+  background:var(--panel2);align-content:start}
+.ind-action:hover{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 7%,var(--panel))}
+.ind-action b{font-size:14px;color:var(--ink)}
+.ind-action span{font-size:12px;color:var(--muted);line-height:1.45;font-weight:500}
+.ind-pick-list{max-height:52vh;overflow:auto;padding-right:4px}
+#pane-indicators textarea{resize:vertical;line-height:1.5}
+#pane-indicators .ind-code{font-weight:700}
+#pane-indicators td input,#pane-indicators td select,#pane-indicators td textarea{background:var(--panel)}
+@media(max-width:720px){.ind-actions{grid-template-columns:1fr}}
 
 /* ---------- ปุ่มซิงก์ผลการเรียนคงค้าง ---------- */
 .sync-fab{position:fixed;right:20px;bottom:calc(24px + env(safe-area-inset-bottom));z-index:96;
@@ -773,6 +785,7 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
   <button data-tab="students">นักเรียน / ฐานนักเรียน</button>
   <button data-tab="schedule">ตั้งค่าตารางสอน</button>
   <button data-tab="items">หัวข้อคะแนน</button>
+  <button data-tab="indicators">ตัวชี้วัด / ผลการเรียนรู้</button>
   <button data-tab="activities">กิจกรรมนักเรียน</button>
   <button data-tab="head">กลุ่มสาระของฉัน <span id="headBadge"></span></button>
   <button data-tab="executive">ภาพรวมผู้บริหาร</button>
@@ -791,6 +804,7 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
   <section class="tabpane" id="pane-attendance"></section>
   <section class="tabpane" id="pane-exchange"></section>
   <section class="tabpane" id="pane-items"></section>
+  <section class="tabpane" id="pane-indicators"></section>
   <section class="tabpane" id="pane-scores"></section>
   <section class="tabpane" id="pane-groups"></section>
   <section class="tabpane" id="pane-assess"></section>
@@ -1335,7 +1349,7 @@ function defaultBook() {
     weights: { before: 30, after: 30, collect: 60, mid: 20, final: 20 },
     passPercent: 60,
     gradeScale: [[80, '4'], [75, '3.5'], [70, '3'], [65, '2.5'], [60, '2'], [55, '1.5'], [50, '1'], [0, '0']],
-    scores: {}, componentScores: {}, itemRetakes: {}, exam: {}, notes: {}, resultRemedy: {}, groupSets: [], gscores: {}, presenters: {},
+    indicators: [], scores: {}, componentScores: {}, itemRetakes: {}, exam: {}, notes: {}, resultRemedy: {}, groupSets: [], gscores: {}, presenters: {},
     assessments: { traits: {}, reading: {} },
     partialMode: false
   };
@@ -1738,10 +1752,10 @@ const homeTabOfRole = role => role === 'executive' ? 'executive' : role === 'adm
    บนมือถือใช้แถบล่าง 5 ปุ่ม ส่วนหน้าที่เหลือเปิดจากปุ่ม "เพิ่มเติม" */
 const TAB_SHORT = { dashboard: 'ภาพรวม', attendance: 'เช็กชื่อ', exchange: 'แลกคาบ', scores: 'คะแนน',
   groups: 'กลุ่ม', assess: 'คุณลักษณะ', summary: 'สรุป ปพ.5', settings: 'ตั้งค่า', students: 'นักเรียน',
-  schedule: 'ตารางสอน', items: 'หัวข้อคะแนน', activities: 'กิจกรรม', head: 'กลุ่มสาระ',
+  schedule: 'ตารางสอน', items: 'หัวข้อคะแนน', indicators: 'ตัวชี้วัด', activities: 'กิจกรรม', head: 'กลุ่มสาระ',
   executive: 'ผู้บริหาร', leaves: 'อนุมัติลา', admin: 'ผู้ดูแลระบบ' };
 const TAB_ICON = { dashboard: '◈', attendance: '◷', exchange: '⇄', scores: '✎', groups: '◉', assess: '☑',
-  summary: '▤', settings: '⚙', students: '☺', schedule: '▦', items: '☰', activities: '★', head: '◆',
+  summary: '▤', settings: '⚙', students: '☺', schedule: '▦', items: '☰', indicators: '◇', activities: '★', head: '◆',
   executive: '◎', leaves: '✈', admin: '⚙' };
 /* งานหลักของแต่ละบทบาท ใช้จัดปุ่มบนแถบล่างของมือถือ */
 const PRIMARY_TABS = { teacher: ['dashboard', 'attendance', 'scores', 'exchange'],
@@ -1916,6 +1930,7 @@ function render() {
   else if (t === 'attendance') renderAttendancePage();
   else if (t === 'exchange') renderExchangeCenter();
   else if (t === 'items') renderItems();
+  else if (t === 'indicators') renderIndicators();
   else if (t === 'scores') renderScores();
   else if (t === 'groups') renderGroups();
   else if (t === 'assess') renderAssessments();
@@ -4297,6 +4312,336 @@ function openItemReuse() {
     } });
 }
 
+/* ============================================================================
+   ตัวชี้วัด / ผลการเรียนรู้
+   วิชาพื้นฐานเลือกจากฐานหลักสูตรของโรงเรียน (indicators.json โหลดเมื่อเปิดหน้านี้)
+   วิชาเพิ่มเติมครูพิมพ์เองหรือวางจาก Excel ทั้งตาราง
+   ทำเสร็จแล้วคัดลอกไปห้องอื่นในวิชาเดียวกัน หรือแชร์ให้ครูที่สอนวิชาเดียวกันหยิบไปใช้
+   ========================================================================== */
+let INDICATOR_DB = null, indicatorLoading = null;
+const INDICATOR_KIND = { F: 'กลางทาง', S: 'ปลายทาง' };
+
+function loadIndicatorDB() {
+  if (INDICATOR_DB) return Promise.resolve(INDICATOR_DB);
+  if (!indicatorLoading) indicatorLoading = fetch('./indicators.json')
+    .then(r => { if (!r.ok) throw new Error('โหลดฐานตัวชี้วัดไม่สำเร็จ (' + r.status + ')'); return r.json(); })
+    .then(d => { INDICATOR_DB = d; return d; })
+    .catch(e => { indicatorLoading = null; throw e; });
+  return indicatorLoading;
+}
+
+/** ระดับชั้นของตัวชี้วัดตรงกับห้องนี้ไหม — ม.4-6 ใช้ได้ทั้งสามชั้น */
+function indicatorLevelMatch(itemLevel, classLevelName) {
+  if (!classLevelName) return true;
+  if (itemLevel === classLevelName) return true;
+  return itemLevel === 'ม.4-6' && ['ม.4', 'ม.5', 'ม.6'].indexOf(classLevelName) >= 0;
+}
+/** เดากลุ่มสาระของวิชานี้จากสมุดคะแนน โปรไฟล์ครู หรือกลุ่มสาระที่ตั้งไว้ */
+function guessIndicatorArea(db) {
+  const b = curBook(false);
+  // learningAreaOf คืน "ยังไม่ระบุกลุ่มสาระ" เมื่อหาไม่เจอ ต้องข้ามไป ไม่งั้นจะบังค่าจากโปรไฟล์ครู
+  const real = v => { const t = String(v || '').trim(); return t && t !== NO_AREA_LABEL && t !== 'ยังไม่ระบุกลุ่มสาระ' ? t : ''; };
+  const area = real(b && b.meta && b.meta.learningArea) || real(learningAreaOf(DB.ui.subjectId, DB.ui.periodId)) || real(teacherArea(curTeacher()));
+  const norm = x => String(x || '').replace(/\s+/g, '');
+  const found = (db.areas || []).find(a => norm(a.name) === norm(area));
+  return found ? found.code : '';
+}
+
+const indicatorRows = () => { const b = curBook(true); return b.indicators = Array.isArray(b.indicators) ? b.indicators : []; };
+const indicatorSum = (rows, key) => rows.reduce((a, r) => a + num(r[key]), 0);
+
+function renderIndicators() {
+  const pane = $('#pane-indicators');
+  const gate = gateMsg(true);
+  if (gate) { pane.innerHTML = '<div class="card">' + gate + '</div>'; return; }
+  const rows = indicatorRows(), cls = curClass(), sub = curSubject();
+  const level = classLevel(cls.name), core = rows.filter(r => r.src === 'core').length;
+  pane.innerHTML = '<div class="card dash-hero"><div class="row"><div><div class="hero-sub">LEARNING INDICATORS</div>' +
+      '<h1>ตัวชี้วัด / ผลการเรียนรู้</h1><div class="hero-sub">' +
+      esc((sub.code ? sub.code + ' ' : '') + sub.name + ' • ' + cls.name + (level ? ' • ' + level : '')) + '</div></div>' +
+      '<div class="spacer"></div><span class="role-chip">' + rows.length + ' ข้อ</span></div></div>' +
+    '<div class="card"><div class="exec-head row"><div><div class="exec-eyebrow">SOURCE</div><h3>เพิ่มตัวชี้วัดเข้าวิชานี้</h3></div><div class="spacer"></div></div>' +
+      '<div class="ind-actions">' +
+      '<button class="ind-action" id="indPickCore"><b>เลือกจากหลักสูตร</b><span>วิชาพื้นฐาน • ติ๊กเลือกจากฐานตัวชี้วัดของโรงเรียน</span></button>' +
+      '<button class="ind-action" id="indPasteOwn"><b>พิมพ์เอง / วางจาก Excel</b><span>วิชาเพิ่มเติม • วางทีเดียวได้ทั้งตาราง</span></button>' +
+      '<button class="ind-action" id="indFromTeacher"><b>ขอจากครูท่านอื่น</b><span>หยิบชุดของครูที่สอนวิชาเดียวกันมาใช้</span></button>' +
+      '<button class="ind-action" id="indCopyRooms"><b>คัดลอกไปห้องอื่น</b><span>ใช้ชุดเดียวกันกับห้องอื่นที่สอนวิชานี้</span></button>' +
+      '</div></div>' +
+    '<div class="card"><div class="exec-head row"><div><div class="exec-eyebrow">COURSE PLAN</div><h3>ชุดตัวชี้วัดของวิชานี้</h3></div><div class="spacer"></div>' +
+      '<span class="badge">จากหลักสูตร ' + core + ' • เขียนเอง ' + (rows.length - core) + '</span>' +
+      (rows.length ? '<button class="sm" id="indShare">แชร์ให้เพื่อนครู</button><button class="sm danger" id="indClear">ล้างทั้งหมด</button>' : '') + '</div>' +
+      (rows.length ? '<div class="exec-sum"><span>รวม <b>' + rows.length + '</b> ข้อ</span>' +
+        '<span>กลางทาง <b>' + rows.filter(r => r.kind !== 'S').length + '</b></span>' +
+        '<span>ปลายทาง <b>' + rows.filter(r => r.kind === 'S').length + '</b></span>' +
+        '<span>รวมเวลา <b>' + fmt(indicatorSum(rows, 'hours'), 1) + '</b> ชม.</span>' +
+        '<span>รวมคะแนน <b>' + fmt(indicatorSum(rows, 'score'), 1) + '</b></span></div>' +
+        '<div class="tablewrap"><table><thead><tr><th style="width:44px">ที่</th><th style="width:130px">รหัส</th>' +
+        '<th>ตัวชี้วัด / ผลการเรียนรู้</th><th style="width:110px">ประเภท</th><th style="width:78px">เวลา</th>' +
+        '<th style="width:78px">คะแนน</th><th style="width:96px"></th></tr></thead><tbody>' +
+        rows.map((r, i) => '<tr data-ind="' + esc(r.id) + '">' +
+          '<td class="numcell">' + (i + 1) + '</td>' +
+          '<td><input class="ind-code" value="' + esc(r.code || '') + '" style="width:100%"></td>' +
+          '<td><textarea class="ind-text" rows="2" style="width:100%">' + esc(r.text || '') + '</textarea>' +
+            (r.std ? '<div class="hint">' + esc(r.std + (r.strand ? ' • ' + r.strand : '')) + '</div>' : '') + '</td>' +
+          '<td><select class="ind-kind"><option value="F"' + (r.kind !== 'S' ? ' selected' : '') + '>กลางทาง</option>' +
+            '<option value="S"' + (r.kind === 'S' ? ' selected' : '') + '>ปลายทาง</option></select></td>' +
+          '<td><input class="ind-hours numcell" value="' + esc(r.hours == null ? '' : r.hours) + '" style="width:100%"></td>' +
+          '<td><input class="ind-score numcell" value="' + esc(r.score == null ? '' : r.score) + '" style="width:100%"></td>' +
+          '<td style="white-space:nowrap"><button class="sm" data-ind-up="' + esc(r.id) + '" title="เลื่อนขึ้น">↑</button>' +
+          '<button class="sm" data-ind-down="' + esc(r.id) + '" title="เลื่อนลง">↓</button>' +
+          '<button class="sm danger" data-ind-del="' + esc(r.id) + '">ลบ</button></td></tr>').join('') +
+        '</tbody></table></div>' +
+        '<div class="row" style="margin-top:10px"><button class="sm" id="indAddBlank">+ เพิ่มบรรทัดว่าง</button>' +
+        '<div class="spacer"></div><span class="hint">แก้ในตารางได้เลย ระบบบันทึกให้อัตโนมัติ</span></div>'
+        : '<div class="empty">ยังไม่มีตัวชี้วัดในวิชานี้ — เลือกจากหลักสูตรถ้าเป็นวิชาพื้นฐาน หรือพิมพ์เองถ้าเป็นวิชาเพิ่มเติม</div>') +
+      '</div>';
+  bindIndicatorPage(pane);
+}
+
+function bindIndicatorPage(pane) {
+  const b = curBook(true), rows = indicatorRows();
+  const commit = () => { save(true); renderIndicators(); };
+  $$('tr[data-ind]', pane).forEach(tr => {
+    const r = rows.find(x => x.id === tr.dataset.ind); if (!r) return;
+    const bind = (sel, key, numeric) => { const el = $(sel, tr); if (!el) return;
+      el.addEventListener('change', () => { r[key] = numeric ? (el.value.trim() === '' ? '' : num(el.value)) : el.value; save(true); }); };
+    bind('.ind-code', 'code'); bind('.ind-text', 'text'); bind('.ind-kind', 'kind');
+    bind('.ind-hours', 'hours', true); bind('.ind-score', 'score', true);
+  });
+  const move = (id, dir) => { const i = rows.findIndex(x => x.id === id), j = i + dir;
+    if (i < 0 || j < 0 || j >= rows.length) return;
+    rows.splice(j, 0, rows.splice(i, 1)[0]); commit(); };
+  $$('[data-ind-up]', pane).forEach(x => x.addEventListener('click', () => move(x.dataset.indUp, -1)));
+  $$('[data-ind-down]', pane).forEach(x => x.addEventListener('click', () => move(x.dataset.indDown, 1)));
+  $$('[data-ind-del]', pane).forEach(x => x.addEventListener('click', () => {
+    b.indicators = rows.filter(r => r.id !== x.dataset.indDel); commit(); }));
+  const add = $('#indAddBlank', pane);
+  if (add) add.addEventListener('click', () => { rows.push(newIndicatorRow({})); commit(); });
+  const clear = $('#indClear', pane);
+  if (clear) clear.addEventListener('click', async () => {
+    if (!await confirmBox('ล้างตัวชี้วัดทั้งหมด', 'ลบตัวชี้วัดทั้ง ' + rows.length + ' ข้อของวิชานี้ ย้อนกลับไม่ได้', 'ล้างทั้งหมด')) return;
+    b.indicators = []; commit(); toast('ล้างตัวชี้วัดแล้ว', 'ok');
+  });
+  const share = $('#indShare', pane);
+  if (share) share.addEventListener('click', shareIndicatorSet);
+  $('#indPickCore', pane).addEventListener('click', openIndicatorPicker);
+  $('#indPasteOwn', pane).addEventListener('click', openIndicatorPaste);
+  $('#indFromTeacher', pane).addEventListener('click', openIndicatorFromTeachers);
+  $('#indCopyRooms', pane).addEventListener('click', openIndicatorCopyRooms);
+}
+
+function newIndicatorRow(x) {
+  return { id: uid('ind'), code: x.code || '', text: x.text || '', kind: x.kind === 'S' ? 'S' : 'F',
+    hours: x.hours == null ? '' : x.hours, score: x.score == null ? '' : x.score,
+    src: x.src || 'own', std: x.std || '', strand: x.strand || '' };
+}
+function addIndicatorRows(list, mode) {
+  const b = curBook(true), rows = indicatorRows();
+  if (mode === 'replace') b.indicators = [];
+  const have = new Set(indicatorRows().map(r => (r.code || '') + '|' + (r.text || '')));
+  let added = 0;
+  list.forEach(x => { const key = (x.code || '') + '|' + (x.text || '');
+    if (have.has(key)) return; have.add(key); b.indicators.push(newIndicatorRow(x)); added++; });
+  save(true);
+  return added;
+}
+
+/* ---------- เลือกจากหลักสูตร (วิชาพื้นฐาน) ---------- */
+async function openIndicatorPicker() {
+  let db;
+  try { db = await loadIndicatorDB(); }
+  catch (e) { return toast(e.message + ' — ต้องออนไลน์อย่างน้อยหนึ่งครั้งเพื่อโหลดฐานตัวชี้วัด', 'bad'); }
+  const cls = curClass(), level = classLevel(cls.name);
+  const state = { area: guessIndicatorArea(db) || (db.areas[0] || {}).code, level: level || 'ม.1', q: '' };
+  const have = new Set(indicatorRows().map(r => r.code));
+  const body = () => {
+    const list = db.items.filter(x => x.a === state.area && indicatorLevelMatch(x.l, state.level) &&
+      (!state.q || (x.c + ' ' + x.t + ' ' + x.sd).toLowerCase().indexOf(state.q.toLowerCase()) >= 0));
+    const groups = [];
+    list.forEach(x => { let g = groups.find(y => y.key === x.sd + '::' + x.st);
+      if (!g) { g = { key: x.sd + '::' + x.st, sd: x.sd, st: x.st, items: [] }; groups.push(g); }
+      g.items.push(x); });
+    return '<div class="exec-toolbar"><select id="ipArea">' + db.areas.map(a => '<option value="' + a.code + '"' +
+        (a.code === state.area ? ' selected' : '') + '>' + esc(a.name) + '</option>').join('') + '</select>' +
+      '<select id="ipLevel">' + ['ม.1', 'ม.2', 'ม.3', 'ม.4', 'ม.5', 'ม.6'].map(l => '<option value="' + l + '"' +
+        (l === state.level ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
+      '<input id="ipQ" type="search" placeholder="ค้นหารหัสหรือข้อความ" value="' + esc(state.q) + '">' +
+      '<div class="spacer"></div><button class="sm" id="ipAll">เลือกทั้งหมดที่เห็น</button></div>' +
+      (list.length ? '<div class="ind-pick-list">' + groups.map(g =>
+        '<div class="cover-group"><div class="cover-group-head"><div><b>' + esc(g.sd || 'ไม่ระบุสาระ') + '</b>' +
+        '<div class="hint">' + esc(g.st) + ' • ' + g.items.length + ' ข้อ</div></div></div>' +
+        g.items.map(x => '<label class="cover-pick' + (have.has(x.c) ? ' used' : '') + '">' +
+          '<input type="checkbox" class="ip-item" value="' + esc(x.c) + '"' + (have.has(x.c) ? ' disabled' : '') + '>' +
+          '<div><b>' + esc(x.c) + '</b> <span class="pr-tag ' + (x.k === 'S' ? 'pr-ms' : 'pr-r') + '">' + INDICATOR_KIND[x.k] + '</span>' +
+          '<div>' + esc(x.t) + '</div>' + (x.m ? '<div class="hint">ประเมินโดย ' + esc(x.m) + (x.i ? ' • ' + esc(x.i) : '') + '</div>' : '') +
+          (have.has(x.c) ? '<div class="hint oktext">เพิ่มไว้แล้ว</div>' : '') + '</div></label>').join('') + '</div>').join('') + '</div>'
+        : '<div class="empty">ไม่พบตัวชี้วัดตามเงื่อนไขที่เลือก</div>');
+  };
+  openModal({ title: 'เลือกตัวชี้วัดจากหลักสูตร', wide: true, bodyHTML: body(),
+    onMount(root) {
+      const redraw = () => { const holder = root.querySelector('.modal-body') || root;
+        const target = $('.exec-toolbar', root).parentNode; target.innerHTML = body(); wire(); };
+      const wire = () => {
+        $('#ipArea', root).addEventListener('change', e => { state.area = e.target.value; redraw(); });
+        $('#ipLevel', root).addEventListener('change', e => { state.level = e.target.value; redraw(); });
+        const q = $('#ipQ', root);
+        q.addEventListener('input', e => { state.q = e.target.value; const at = e.target.selectionStart; redraw();
+          const nq = $('#ipQ', root); if (nq) { nq.focus(); nq.setSelectionRange(at, at); } });
+        $('#ipAll', root).addEventListener('click', () => $$('.ip-item', root).forEach(c => { if (!c.disabled) c.checked = true; }));
+      };
+      wire();
+    },
+    buttons: [{ label: 'ปิด' }, { label: 'เพิ่มที่เลือก', cls: 'primary', act(close, root) {
+      const picked = $$('.ip-item', root).filter(c => c.checked).map(c => c.value);
+      if (!picked.length) return toast('ยังไม่ได้เลือกตัวชี้วัด', 'bad');
+      const byCode = new Map(INDICATOR_DB.items.map(x => [x.c, x]));
+      const n = addIndicatorRows(picked.map(code => { const x = byCode.get(code) || {};
+        return { code: code, text: x.t, kind: x.k, score: x.w, src: 'core', std: x.st, strand: x.sd }; }), 'append');
+      close(); renderIndicators(); toast('เพิ่มตัวชี้วัดจากหลักสูตร ' + n + ' ข้อ', 'ok');
+    } }] });
+}
+
+/* ---------- พิมพ์เอง / วางจาก Excel (วิชาเพิ่มเติม) ---------- */
+function parseIndicatorPaste(text, existingCodes) {
+  const out = [];
+  String(text || '').split(/\r?\n/).forEach(line => {
+    if (!line.trim()) return;
+    const cells = line.split('\t').map(x => x.trim());
+    if (cells.length >= 2) {
+      out.push({ code: cells[0], text: cells[1], kind: /ปลาย|summ/i.test(cells[2] || '') ? 'S' : 'F',
+        hours: cells[3] !== undefined && cells[3] !== '' ? num(cells[3]) : '',
+        score: cells[4] !== undefined && cells[4] !== '' ? num(cells[4]) : '' });
+    } else {
+      out.push({ code: '', text: cells[0], kind: 'F' });
+    }
+  });
+  // บรรทัดที่ไม่ได้ใส่รหัสมา ให้เลขอัตโนมัติเป็น ผ 1, ผ 2 ...
+  // ต้องข้ามรหัสที่มีอยู่แล้วในชุดนี้และที่ครูพิมพ์มาเอง ไม่งั้นจะได้รหัสซ้ำกัน
+  const used = new Set(out.map(x => x.code).filter(Boolean).concat(existingCodes || []));
+  let n = 0;
+  out.forEach(x => { if (x.code) return;
+    do { n++; } while (used.has('ผ ' + n));
+    x.code = 'ผ ' + n; used.add(x.code); });
+  return out;
+}
+function openIndicatorPaste() {
+  openModal({ title: 'พิมพ์เอง หรือวางจาก Excel', wide: true, bodyHTML:
+    '<div class="exec-note">วางจาก Excel ได้ทั้งตาราง หนึ่งบรรทัดต่อหนึ่งข้อ คั่นช่องด้วยแท็บตามลำดับ<br>' +
+    '<b>รหัส • ตัวชี้วัด/ผลการเรียนรู้ • ประเภท (กลางทาง/ปลายทาง) • เวลา (ชม.) • คะแนน</b><br>' +
+    'ถ้าพิมพ์เองบรรทัดละข้อโดยไม่ใส่รหัส ระบบจะให้เลขเป็น ผ 1 ผ 2 ให้อัตโนมัติ</div>' +
+    '<textarea id="ipPaste" rows="12" style="width:100%;font-family:inherit" placeholder="ผ 1&#9;อธิบายหลักการทำงานของวงจรไฟฟ้าเบื้องต้น&#9;กลางทาง&#9;4&#9;10"></textarea>' +
+    '<div class="hint" id="ipPasteCount" style="margin-top:8px">ยังไม่มีข้อมูล</div>',
+    onMount(root) {
+      const ta = $('#ipPaste', root), out = $('#ipPasteCount', root);
+      const have = indicatorRows().map(r => r.code);
+      const upd = () => { const n = parseIndicatorPaste(ta.value, have).length;
+        out.textContent = n ? 'อ่านได้ ' + n + ' ข้อ' : 'ยังไม่มีข้อมูล'; };
+      ta.addEventListener('input', upd); ta.focus();
+    },
+    buttons: [{ label: 'ยกเลิก' },
+      { label: 'เพิ่มต่อท้าย', cls: 'primary', act(close, root) {
+        const list = parseIndicatorPaste($('#ipPaste', root).value, indicatorRows().map(r => r.code));
+        if (!list.length) return toast('ยังไม่ได้ใส่ข้อมูล', 'bad');
+        const n = addIndicatorRows(list, 'append'); close(); renderIndicators();
+        toast('เพิ่มตัวชี้วัด ' + n + ' ข้อ', 'ok');
+      } }] });
+}
+
+/* ---------- คัดลอกไปห้องอื่นที่สอนวิชาเดียวกัน ---------- */
+function classesTeachingSameSubject() {
+  const me = curTeacher(), out = new Map();
+  (DB.timetable.entries || []).filter(e => e.periodId === DB.ui.periodId && e.subjectId === DB.ui.subjectId &&
+    (!me || e.teacherId === me.id) && e.classId !== DB.ui.classId).forEach(e => {
+      const c = DB.classes.find(x => x.id === e.classId); if (c) out.set(c.id, c);
+    });
+  return Array.from(out.values()).sort((a, b) => String(a.name).localeCompare(String(b.name), 'th'));
+}
+function openIndicatorCopyRooms() {
+  const rows = indicatorRows();
+  if (!rows.length) return toast('ยังไม่มีตัวชี้วัดให้คัดลอก', 'bad');
+  const list = classesTeachingSameSubject(), sub = curSubject();
+  if (!list.length) return toast('ไม่พบห้องอื่นที่คุณสอนวิชานี้ในภาคเรียนนี้', 'bad');
+  openModal({ title: 'คัดลอกไปห้องอื่น', bodyHTML:
+    '<div class="exec-note">คัดลอกตัวชี้วัด ' + rows.length + ' ข้อของวิชา ' + esc((sub.code ? sub.code + ' ' : '') + sub.name) +
+    ' ไปยังห้องอื่นที่คุณสอนวิชาเดียวกัน</div>' +
+    '<div class="cover-list">' + list.map(c => '<label class="cover-pick"><input type="checkbox" class="ic-room" value="' + c.id + '" checked>' +
+      '<div><b>' + esc(c.name) + '</b><div class="hint">มีอยู่แล้ว ' +
+      (((DB.books[c.id + '::' + DB.ui.subjectId + '::' + DB.ui.periodId] || {}).indicators || []).length) + ' ข้อ</div></div></label>').join('') + '</div>' +
+    '<div class="pick" style="margin-top:12px"><label>วิธีคัดลอก</label><select id="icMode">' +
+    '<option value="replace">แทนที่ของเดิมทั้งหมด</option><option value="append">เพิ่มต่อท้ายของเดิม</option></select></div>',
+    buttons: [{ label: 'ยกเลิก' }, { label: 'คัดลอก', cls: 'primary', act(close, root) {
+      const ids = $$('.ic-room', root).filter(x => x.checked).map(x => x.value);
+      if (!ids.length) return toast('ยังไม่ได้เลือกห้อง', 'bad');
+      const mode = $('#icMode', root).value;
+      let done = 0;
+      ids.forEach(cid => {
+        const key = cid + '::' + DB.ui.subjectId + '::' + DB.ui.periodId;
+        const book = DB.books[key] = normalizeBook(DB.books[key] || defaultBook());
+        if (mode === 'replace') book.indicators = [];
+        const have = new Set((book.indicators || []).map(r => (r.code || '') + '|' + (r.text || '')));
+        rows.forEach(r => { const k = (r.code || '') + '|' + (r.text || ''); if (have.has(k)) return; have.add(k);
+          book.indicators.push(newIndicatorRow(r)); });
+        done++;
+      });
+      save(true); close(); toast('คัดลอกไป ' + done + ' ห้องแล้ว', 'ok');
+    } }] });
+}
+
+/* ---------- แชร์และหยิบชุดของครูท่านอื่น ---------- */
+const indicatorSetDocId = () => fbStaffId(myEmailForSync()) + '__' + String(DB.ui.subjectId || '').replace(/[^A-Za-z0-9_-]/g, '_');
+async function shareIndicatorSet() {
+  if (!(firebaseReady() && fbSignedIn() && myEmailForSync()))
+    return toast('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อนจึงจะแชร์ได้', 'bad');
+  const rows = indicatorRows(); if (!rows.length) return toast('ยังไม่มีตัวชี้วัดให้แชร์', 'bad');
+  const sub = curSubject(), cls = curClass(), me = curTeacher() || {};
+  if (!await confirmBox('แชร์ชุดตัวชี้วัดให้เพื่อนครู',
+    '<div class="exec-note">ครูที่สอนวิชา <b>' + esc((sub.code ? sub.code + ' ' : '') + sub.name) + '</b> จะเห็นชุดนี้ ' +
+    'และหยิบไปใช้กับห้องของตัวเองได้ ชุดของคุณไม่เปลี่ยนแปลง</div>' +
+    '<div class="exec-sum"><span>ตัวชี้วัด <b>' + rows.length + '</b> ข้อ</span><span>ระดับชั้น <b>' +
+    esc(classLevel(cls.name) || 'ไม่ระบุ') + '</b></span></div>', 'แชร์เลย')) return;
+  try {
+    await fbSetDoc(fbDb.collection('indicatorSets').doc(indicatorSetDocId()), fbPlain({
+      ownerId: myEmailForSync(), ownerName: me.name || me.email || '', subjectId: DB.ui.subjectId,
+      subjectCode: sub.code || '', subjectName: sub.name || '', level: classLevel(cls.name) || '',
+      area: teacherArea(me) || '', items: rows, count: rows.length, updatedAt: new Date().toISOString()
+    }), 'ชุดตัวชี้วัด ' + sub.name);
+    toast('แชร์ชุดตัวชี้วัดแล้ว ครูที่สอนวิชานี้หยิบไปใช้ได้', 'ok');
+  } catch (e) { toast(fbErrorMessage(e), 'bad'); }
+}
+
+async function openIndicatorFromTeachers() {
+  if (!(firebaseReady() && fbSignedIn()))
+    return toast('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อน จึงจะเห็นชุดของครูท่านอื่น', 'bad');
+  const sub = curSubject(), me = myEmailForSync();
+  let docs = [];
+  try {
+    const snap = await fbDb.collection('indicatorSets').get({ source: 'server' });
+    docs = snap.docs.map(d => d.data() || {}).filter(x => x.ownerId !== me &&
+      (x.subjectId === DB.ui.subjectId || (x.subjectCode && sub.code && x.subjectCode === sub.code)));
+  } catch (e) { return toast(fbErrorMessage(e), 'bad'); }
+  docs.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  const body = docs.length
+    ? '<div class="exec-note">ชุดที่ครูท่านอื่นแชร์ไว้สำหรับวิชา ' + esc((sub.code ? sub.code + ' ' : '') + sub.name) +
+      ' • เลือกหนึ่งชุดแล้วกดนำมาใช้</div>' +
+      '<div class="cover-list">' + docs.map((d, i) => '<label class="cover-pick"><input type="radio" name="ifPick" value="' + i + '">' +
+        '<div><b>' + esc(d.ownerName || d.ownerId) + '</b> <span class="pr-tag pr-mp">' + (d.count || (d.items || []).length) + ' ข้อ</span>' +
+        '<div class="hint">' + esc((d.subjectCode ? d.subjectCode + ' ' : '') + (d.subjectName || '') +
+        (d.level ? ' • ' + d.level : '') + ' • อัปเดต ' + (d.updatedAt ? new Date(d.updatedAt).toLocaleDateString('th-TH') : '—')) + '</div>' +
+        '<div class="hint">' + esc((d.items || []).slice(0, 3).map(x => x.code + ' ' + String(x.text || '').slice(0, 40)).join(' / ')) + '</div></div></label>').join('') + '</div>' +
+      '<div class="pick" style="margin-top:12px"><label>วิธีนำมาใช้</label><select id="ifMode">' +
+      '<option value="append">เพิ่มต่อท้ายของเดิม</option><option value="replace">แทนที่ของเดิมทั้งหมด</option></select></div>'
+    : '<div class="empty">ยังไม่มีครูท่านใดแชร์ชุดตัวชี้วัดของวิชานี้ไว้</div>';
+  openModal({ title: 'ขอชุดตัวชี้วัดจากครูท่านอื่น', wide: true, bodyHTML: body,
+    buttons: docs.length ? [{ label: 'ปิด' }, { label: 'นำมาใช้', cls: 'primary', act(close, root) {
+      const picked = $$('[name="ifPick"]', root).find(x => x.checked);
+      if (!picked) return toast('ยังไม่ได้เลือกชุด', 'bad');
+      const d = docs[num(picked.value)] || {};
+      const n = addIndicatorRows((d.items || []).map(x => Object.assign({}, x, { id: undefined })), $('#ifMode', root).value);
+      close(); renderIndicators();
+      toast('นำชุดของ ' + (d.ownerName || 'เพื่อนครู') + ' มาใช้แล้ว ' + n + ' ข้อ', 'ok');
+    } }] : [{ label: 'ปิด' }] });
+}
+
 function renderItems() {
   const pane = $('#pane-items');
   const gate = gateMsg(true);
@@ -4383,17 +4728,14 @@ function renderItems() {
       '<button class="sm" id="btnResetGrade">คืนค่าเกณฑ์มาตรฐาน</button></div>' +
     '</div>';
 
-  // ตัวชี้วัด/ผลการเรียนรู้ — ยังไม่เปิดใช้ บอกไว้ให้ครูเห็นแผนล่วงหน้า
+  // ตัวชี้วัดย้ายไปเป็นเมนูของตัวเองแล้ว ที่นี่เหลือทางลัดไปหน้านั้น
+  const indCount = (b.indicators || []).length;
   pane.insertAdjacentHTML('beforeend',
     '<div class="card"><div class="row"><div><h3 style="margin:0">ตัวชี้วัด / ผลการเรียนรู้</h3>' +
-    '<div class="hint">ผูกตัวชี้วัดกับเวลาเรียนและคะแนนของแต่ละหัวข้อ</div></div><div class="spacer"></div>' +
-    '<span class="badge warn">รออัปเดต</span></div>' +
-    '<div class="notice" style="margin-top:12px">กำลังพัฒนา • แผนที่จะทำ<br>' +
-    '• ตารางกรอก ตัวชี้วัด/ผลการเรียนรู้ • เวลา (ชั่วโมง) • คะแนน<br>' +
-    '• วางข้อมูลจาก Excel ได้ทั้งตาราง และนำเข้าไฟล์ .xlsx<br>' +
-    '• ผูกตัวชี้วัดเข้ากับหัวข้อคะแนนด้านบน เพื่อพิมพ์ลงเอกสาร ปพ.5 ให้อัตโนมัติ<br>' +
-    '• แก้ไขเพิ่มเติมภายหลังได้ตลอดภาคเรียน</div>' +
-    '<div class="hint" style="margin-top:8px">ถ้ามีไฟล์โครงสร้างรายวิชาหรือแบบฟอร์มตัวชี้วัดของโรงเรียน ส่งให้ผู้พัฒนาเพื่อทำให้ตรงแบบได้</div></div>');
+    '<div class="hint">' + (indCount ? 'วิชานี้บันทึกไว้แล้ว ' + indCount + ' ข้อ' : 'ยังไม่ได้บันทึกตัวชี้วัดของวิชานี้') + '</div></div>' +
+    '<div class="spacer"></div><span class="badge ' + (indCount ? 'ok' : 'warn') + '">' + indCount + ' ข้อ</span>' +
+    '<button class="primary" data-go-tab="indicators">เปิดหน้าตัวชี้วัด</button></div></div>');
+  $$('[data-go-tab]', pane).forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.goTab)));
 
   /* --- เหตุการณ์ --- */
   $('#btnAddItem').addEventListener('click', () => {
