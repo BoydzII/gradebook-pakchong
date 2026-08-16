@@ -335,6 +335,40 @@ td.num,th.num{text-align:center}
 .area-button span{display:grid;gap:2px}.area-button small{color:var(--muted)}.badtext{color:var(--bad);font-weight:800}.oktext{color:var(--ok);font-weight:800}
 .area-list{display:grid;gap:8px}.area-button{display:grid;grid-template-columns:1fr auto;gap:5px;text-align:left;padding:10px 12px}.area-button.active{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 9%,var(--panel))}
 .role-chip{font-size:11px;font-weight:800;border-radius:999px;padding:2px 7px;background:var(--brandSoft);color:var(--brand)}
+
+/* ---------- แผงข้อมูลนักเรียนในหน้าผู้บริหาร ---------- */
+.exec-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.exec-eyebrow{font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.exec-head h3{margin:1px 0 0;font-size:17px;letter-spacing:-.2px}
+.exec-sum{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.exec-sum span{font-size:12px;font-weight:700;padding:4px 11px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);color:var(--muted)}
+.exec-sum span b{color:var(--ink);font-variant-numeric:tabular-nums}
+.exec-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 10px}
+.exec-toolbar input,.exec-toolbar select{padding:7px 10px;border:1px solid var(--line);border-radius:9px;background:var(--panel);min-width:150px}
+.roster-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:10px;margin-bottom:14px}
+.roster-card{border:1px solid var(--line);border-radius:11px;padding:12px 13px;background:var(--panel2);display:grid;gap:2px}
+.roster-card .roster-level{font-size:12px;font-weight:800;color:var(--brand);letter-spacing:.04em}
+.roster-card .roster-count{font-size:25px;font-weight:800;letter-spacing:-.6px;line-height:1.1;font-variant-numeric:tabular-nums}
+.roster-card .roster-count small{font-size:12px;font-weight:600;color:var(--muted);margin-left:5px;letter-spacing:0}
+.roster-card .roster-meta{font-size:11.5px;color:var(--muted)}
+.roster-split{display:flex;gap:5px;margin-top:5px;flex-wrap:wrap}
+.roster-split span{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--line2);color:var(--muted)}
+.streak-list{display:grid;gap:8px}
+.streak-item{display:flex;align-items:center;gap:12px;padding:10px 13px;border:1px solid var(--line);border-left:4px solid var(--sev,var(--warn));border-radius:10px;background:var(--panel);flex-wrap:wrap}
+.streak-days{min-width:54px;text-align:center;line-height:1.05}
+.streak-days b{display:block;font-size:23px;font-weight:800;color:var(--sev,var(--warn));font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+.streak-days small{font-size:10.5px;color:var(--muted)}
+.cap-bar{position:relative;height:8px;border-radius:999px;background:var(--line2);overflow:hidden;min-width:96px}
+.cap-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:var(--capc,var(--ok))}
+.cap-bar.over i{background:var(--group)}
+.numcell{text-align:right;font-variant-numeric:tabular-nums}
+.exec-note{font-size:12px;color:var(--muted);margin:0 0 10px;padding:8px 11px;border-radius:9px;background:var(--panel2);border:1px dashed var(--line)}
+.exec-more{margin-top:10px}
+.exec-more>summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted);padding:6px 2px;list-style:none}
+.exec-more>summary::-webkit-details-marker{display:none}
+.exec-more>summary:before{content:'▸ ';color:var(--brand)}
+.exec-more[open]>summary:before{content:'▾ '}
+@media(max-width:700px){.roster-grid{grid-template-columns:repeat(2,1fr)}.exec-toolbar input,.exec-toolbar select{min-width:0;flex:1 1 130px}}
 .exchange-request{border-left:4px solid var(--group);padding:10px 12px;border-radius:9px;background:var(--group-bg);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .exchange-layout{display:grid;grid-template-columns:minmax(320px,.9fr) minmax(0,1.25fr);gap:14px}.candidate-list{display:grid;gap:9px}.candidate-card{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel2)}
 .candidate-card.recommended{border-color:var(--group);box-shadow:inset 4px 0 0 var(--group)}.candidate-rank{font-size:10px;font-weight:900;color:var(--group);letter-spacing:.03em}.leave-card{border-left:4px solid var(--warn)}.request-flow{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.request-flow i{width:24px;height:1px;background:var(--line)}
@@ -5568,13 +5602,228 @@ function renderLeaveApprovals() {
   $$('[data-exec-reject]', pane).forEach(b => b.addEventListener('click', () => decideLeave(b.dataset.execReject, 'reject', 'executive')));
 }
 
+/* ---- ข้อมูลนักเรียนสำหรับผู้บริหาร ----------------------------------------
+   ผังห้องของโรงเรียน: ม.ต้น ห้องปกติคือห้อง 5–14 (ห้อง 1–4 เป็นห้องเรียนพิเศษ)
+   ม.ปลาย ห้องปกติคือห้อง 4–14 (ห้อง 1–3 เป็นห้องเรียนพิเศษ)
+   ห้องปกติทุกห้องควรมีนักเรียนเต็มตาม MAX_STUDENTS คน จึงตรวจเฉพาะห้องปกติ */
+const REGULAR_ROOMS = { lower: [5, 14], upper: [4, 14] };
+const ROOM_KIND_LABEL = { regular: 'ห้องปกติ', special: 'ห้องเรียนพิเศษ', other: 'นอกผังห้องปกติ' };
+
+function classRoomNo(name) { const m = String(name || '').match(/\/\s*(\d{1,2})/); return m ? parseInt(m[1], 10) : 0; }
+function classBand(level) { return ['ม.1', 'ม.2', 'ม.3'].includes(level) ? 'lower' : ['ม.4', 'ม.5', 'ม.6'].includes(level) ? 'upper' : ''; }
+function classRoomKind(cls) {
+  const level = classLevel(cls && cls.name), band = classBand(level), room = classRoomNo(cls && cls.name);
+  if (!band || !room) return { level: level, band: band, room: room, kind: 'other' };
+  const r = REGULAR_ROOMS[band];
+  return { level: level, band: band, room: room, kind: room < r[0] ? 'special' : room <= r[1] ? 'regular' : 'other' };
+}
+const levelSortKey = level => { const m = String(level || '').match(/^(อ|ป|ม|ปวช|ปวส)\.(\d)$/); return m ? ['อ', 'ป', 'ม', 'ปวช', 'ปวส'].indexOf(m[1]) * 10 + num(m[2]) : 999; };
+
+/** รวมรายชื่อนักเรียนทุกห้อง ผูกกับข้อมูลฐานกลาง (เพศ/สถานะ) */
+function schoolRosterRows() {
+  const master = new Map();
+  (DB.studentMaster || []).forEach(m => { const k = String(m.sid || '').trim(); if (k) master.set(k, m); });
+  const rows = [];
+  (DB.classes || []).forEach(cls => {
+    const info = classRoomKind(cls);
+    (cls.students || []).forEach(st => {
+      const m = master.get(String(st.sid || '').trim()) || {};
+      rows.push({ sid: String(st.sid || ''), no: st.no || '', name: st.name || '', cls: cls, className: cls.name || '',
+        level: info.level, room: info.room, kind: info.kind, gender: m.gender || '', active: m.active !== false, statusText: m.statusText || '' });
+    });
+  });
+  return rows;
+}
+
+/** สรุปการเช็กชื่อรายนักเรียนในภาคเรียนที่เลือก พร้อมแยกเป็นรายวัน */
+function studentAttendanceIndex() {
+  const idx = new Map();
+  Object.values(DB.timetable.attendance || {}).forEach(r => {
+    if (r.periodId !== DB.ui.periodId || !r.date) return;
+    Object.entries(r.statuses || {}).forEach(([sid, status]) => {
+      if (!idx.has(sid)) idx.set(sid, { total: 0, absent: 0, days: new Map() });
+      const e = idx.get(sid); e.total++; if (status === 'absent') e.absent++;
+      const d = e.days.get(r.date) || { total: 0, absent: 0 };
+      d.total++; if (status === 'absent') d.absent++; e.days.set(r.date, d);
+    });
+  });
+  return idx;
+}
+
+/** นักเรียนที่ขาดเรียนเต็มวันติดต่อกันเกิน minDays วัน
+    นับเฉพาะวันที่มีการเช็กชื่อและขาดทุกคาบของวันนั้น ถ้าเว้นช่วงเกิน 14 วันถือว่าคนละช่วง */
+function absenceStreaks(minDays) {
+  const idx = studentAttendanceIndex(), byRow = new Map(), out = [];
+  schoolRosterRows().forEach(r => { if (r.sid) byRow.set(r.sid, r); });
+  const gap = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
+  idx.forEach((e, sid) => {
+    const dates = Array.from(e.days.keys()).sort();
+    let run = [], best = null;
+    const flush = () => { if (run.length && (!best || run.length > best.length)) best = { length: run.length, from: run[0], to: run[run.length - 1] }; run = []; };
+    dates.forEach(d => {
+      const day = e.days.get(d);
+      if (!(day.total > 0 && day.absent === day.total)) return flush();
+      if (run.length && gap(run[run.length - 1], d) > 14) flush();
+      run.push(d);
+    });
+    flush();
+    if (!best || best.length <= minDays) return;
+    const row = byRow.get(sid) || {};
+    out.push({ sid: sid, name: row.name || sid, no: row.no || '', className: row.className || '', level: row.level || '',
+      classId: row.cls ? row.cls.id : '', days: best.length, from: best.from, to: best.to,
+      rate: e.total ? (e.total - e.absent) * 100 / e.total : null });
+  });
+  return out.sort((a, b) => b.days - a.days || String(a.className).localeCompare(String(b.className), 'th'));
+}
+
+/** ตรวจจำนวนนักเรียนของทุกห้องเทียบกับเกณฑ์ห้องปกติ */
+function classCapacityAudit() {
+  return (DB.classes || []).map(cls => {
+    const info = classRoomKind(cls), count = (cls.students || []).length;
+    return Object.assign({ cls: cls, name: cls.name || '', count: count,
+      target: info.kind === 'regular' ? MAX_STUDENTS : null,
+      diff: info.kind === 'regular' ? count - MAX_STUDENTS : 0 }, info);
+  }).sort((a, b) => levelSortKey(a.level) - levelSortKey(b.level) || a.room - b.room || String(a.name).localeCompare(String(b.name), 'th'));
+}
+
+function homeroomTeacherName(classId) {
+  const t = (DB.teachers || []).find(x => x.homeroomClassId === classId);
+  return t ? (t.name || t.email || '') : '';
+}
+const streakSeverity = d => d > 15 ? 'var(--bad)' : d > 10 ? 'var(--warn)' : 'var(--group)';
+const dateRangeText = (a, b) => a === b ? thaiDate(a) : thaiDate(a) + ' – ' + thaiDate(b);
+
+/** แผงทั้งสามของหน้าผู้บริหาร: เฝ้าระวังการขาดเรียน • ห้องที่ไม่ครบ • ข้อมูลนักเรียนทั้งหมด */
+function execStudentPanels() {
+  const rows = schoolRosterRows(), audit = classCapacityAudit();
+  const minDays = num(DB.ui.execStreakDays) || 5, streaks = absenceStreaks(minDays);
+  const regular = audit.filter(a => a.kind === 'regular'), special = audit.filter(a => a.kind !== 'regular');
+  const short = regular.filter(a => a.diff < 0), over = regular.filter(a => a.diff > 0), full = regular.filter(a => a.diff === 0);
+  const levels = {};
+  rows.forEach(r => {
+    const key = r.level || 'ยังไม่ระบุระดับชั้น';
+    if (!levels[key]) levels[key] = { total: 0, male: 0, female: 0, rooms: new Set() };
+    const L = levels[key]; L.total++; L.rooms.add(r.className);
+    const g = String(r.gender || '').trim();
+    if (/^(ช|ชาย|m|male|1)$/i.test(g)) L.male++; else if (/^(ญ|หญิง|f|female|2)$/i.test(g)) L.female++;
+  });
+  const levelNames = Object.keys(levels).sort((a, b) => levelSortKey(a) - levelSortKey(b) || a.localeCompare(b, 'th'));
+  const roomsTotal = new Set(rows.map(r => r.className)).size;
+
+  const metrics = '<div class="dash-metrics">' +
+    '<div class="metric-card" style="--metric:var(--brand)"><div class="metric-value">' + rows.length + '</div><div class="metric-label">นักเรียนทั้งหมด</div></div>' +
+    '<div class="metric-card" style="--metric:var(--group)"><div class="metric-value">' + roomsTotal + '</div><div class="metric-label">ห้องเรียนที่มีรายชื่อ</div></div>' +
+    '<div class="metric-card" style="--metric:var(--bad)"><div class="metric-value">' + streaks.length + '</div><div class="metric-label">ขาดติดต่อกันเกิน ' + minDays + ' วัน</div></div>' +
+    '<div class="metric-card" style="--metric:var(--warn)"><div class="metric-value">' + short.length + '</div><div class="metric-label">ห้องปกติที่นักเรียนไม่ครบ</div></div></div>';
+
+  const streakCard = '<div class="card"><div class="exec-head"><div><div class="exec-eyebrow">EARLY WARNING</div><h3>นักเรียนขาดเรียนติดต่อกัน</h3></div><div class="spacer"></div>' +
+    '<label class="exec-eyebrow" for="execStreakDays">เกณฑ์</label><select id="execStreakDays">' +
+    [3, 5, 7, 10].map(d => '<option value="' + d + '"' + (d === minDays ? ' selected' : '') + '>เกินกว่า ' + d + ' วัน</option>').join('') + '</select>' +
+    '<span class="badge ' + (streaks.length ? 'bad' : 'ok') + '">' + streaks.length + ' คน</span></div>' +
+    '<div class="exec-note">นับเฉพาะวันที่มีการเช็กชื่อและนักเรียนขาดทุกคาบของวันนั้น วันที่ไม่มีคาบเรียนจะไม่ตัดช่วงการขาดติดต่อกัน</div>' +
+    (streaks.length ? '<div class="streak-list">' + streaks.slice(0, 80).map(x => {
+      const homeroom = homeroomTeacherName(x.classId);
+      return '<div class="streak-item" style="--sev:' + streakSeverity(x.days) + '">' +
+        '<div class="streak-days"><b>' + x.days + '</b><small>วันติดกัน</small></div>' +
+        '<div><b>' + esc(x.name) + '</b><div class="hint">' + esc(x.className || 'ยังไม่ระบุห้อง') + (x.no ? ' • เลขที่ ' + esc(x.no) : '') +
+        ' • ' + esc(dateRangeText(x.from, x.to)) + (homeroom ? ' • ครูที่ปรึกษา ' + esc(homeroom) : '') + '</div></div>' +
+        '<div class="spacer"></div>' + (x.rate == null ? '' : '<span class="badge ' + (x.rate < 60 ? 'bad' : x.rate < 80 ? 'warn' : '') + '">เข้าเรียนรวม ' + fmt(x.rate, 1) + '%</span>') +
+        '</div>';
+    }).join('') + '</div>' + (streaks.length > 80 ? '<div class="hint" style="margin-top:8px">แสดง 80 รายแรกจากทั้งหมด ' + streaks.length + ' ราย</div>' : '')
+      : '<div class="empty">ไม่มีนักเรียนที่ขาดเรียนติดต่อกันเกิน ' + minDays + ' วัน</div>') + '</div>';
+
+  const capRow = a => {
+    const pct = a.target ? Math.min(100, a.count * 100 / a.target) : 0;
+    const color = a.diff < 0 ? 'var(--warn)' : a.diff > 0 ? 'var(--group)' : 'var(--ok)';
+    return '<tr><td><b>' + esc(a.name) + '</b></td><td>' + esc(a.level || '—') + '</td><td class="numcell">' + a.count + '</td><td class="numcell">' + (a.target || '—') + '</td>' +
+      '<td><div class="cap-bar' + (a.diff > 0 ? ' over' : '') + '" style="--capc:' + color + '"><i style="width:' + fmt(pct, 0) + '%"></i></div></td>' +
+      '<td class="' + (a.diff < 0 ? 'badtext' : a.diff > 0 ? '' : 'oktext') + '">' + (a.diff < 0 ? 'ขาด ' + (-a.diff) + ' คน' : a.diff > 0 ? 'เกิน ' + a.diff + ' คน' : 'ครบ') + '</td>' +
+      '<td>' + esc(homeroomTeacherName(a.cls.id) || '—') + '</td></tr>';
+  };
+  const capTable = list => '<div class="tablewrap"><table><thead><tr><th>ห้อง</th><th>ระดับชั้น</th><th class="numcell">มีอยู่</th><th class="numcell">เกณฑ์</th><th>ความครบ</th><th>ส่วนต่าง</th><th>ครูที่ปรึกษา</th></tr></thead><tbody>' +
+    list.map(capRow).join('') + '</tbody></table></div>';
+
+  const capacityCard = '<div class="card"><div class="exec-head"><div><div class="exec-eyebrow">CLASS CAPACITY</div><h3>ชั้นเรียนที่นักเรียนไม่ครบจำนวน</h3></div><div class="spacer"></div>' +
+    '<span class="badge ' + (short.length ? 'warn' : 'ok') + '">' + short.length + ' ห้อง</span></div>' +
+    '<div class="exec-note">เกณฑ์ห้องปกติ ' + MAX_STUDENTS + ' คนต่อห้อง • ม.ต้นนับห้อง ' + REGULAR_ROOMS.lower[0] + '–' + REGULAR_ROOMS.lower[1] +
+    ' และ ม.ปลายนับห้อง ' + REGULAR_ROOMS.upper[0] + '–' + REGULAR_ROOMS.upper[1] + ' ส่วนห้องต้น ๆ เป็นห้องเรียนพิเศษจึงไม่นำมาเทียบเกณฑ์</div>' +
+    '<div class="exec-sum"><span>ห้องปกติ <b>' + regular.length + '</b></span><span>ครบ <b>' + full.length + '</b></span><span>ไม่ครบ <b>' + short.length + '</b></span>' +
+    '<span>เกินเกณฑ์ <b>' + over.length + '</b></span><span>ขาดรวม <b>' + short.reduce((a, x) => a - x.diff, 0) + '</b> คน</span></div>' +
+    (short.length ? capTable(short) : '<div class="empty">ห้องปกติทุกห้องมีนักเรียนครบตามเกณฑ์</div>') +
+    (over.length ? '<details class="exec-more"><summary>ห้องปกติที่มีนักเรียนเกินเกณฑ์ ' + over.length + ' ห้อง</summary>' + capTable(over) + '</details>' : '') +
+    (special.length ? '<details class="exec-more"><summary>ห้องเรียนพิเศษและห้องนอกผัง ' + special.length + ' ห้อง (ไม่เทียบเกณฑ์)</summary><div class="tablewrap"><table><thead><tr><th>ห้อง</th><th>ระดับชั้น</th><th>ประเภท</th><th class="numcell">นักเรียน</th><th>ครูที่ปรึกษา</th></tr></thead><tbody>' +
+      special.map(a => '<tr><td><b>' + esc(a.name) + '</b></td><td>' + esc(a.level || '—') + '</td><td><span class="level-tag">' + ROOM_KIND_LABEL[a.kind] + '</span></td><td class="numcell">' + a.count + '</td><td>' + esc(homeroomTeacherName(a.cls.id) || '—') + '</td></tr>').join('') +
+      '</tbody></table></div></details>' : '') + '</div>';
+
+  const rosterCard = '<div class="card"><div class="exec-head"><div><div class="exec-eyebrow">STUDENT ROSTER</div><h3>ข้อมูลนักเรียนทั้งหมด</h3></div><div class="spacer"></div>' +
+    '<span class="badge">' + rows.length + ' คน • ' + roomsTotal + ' ห้อง</span></div>' +
+    (levelNames.length ? '<div class="roster-grid">' + levelNames.map(name => {
+      const L = levels[name], avg = L.rooms.size ? L.total / L.rooms.size : 0, unknown = L.total - L.male - L.female;
+      return '<div class="roster-card"><div class="roster-level">' + esc(name) + '</div>' +
+        '<div class="roster-count">' + L.total + '<small>คน</small></div>' +
+        '<div class="roster-meta">' + L.rooms.size + ' ห้อง • เฉลี่ย ' + fmt(avg, 1) + ' คน/ห้อง</div>' +
+        '<div class="roster-split"><span>ชาย ' + L.male + '</span><span>หญิง ' + L.female + '</span>' + (unknown ? '<span>ไม่ระบุ ' + unknown + '</span>' : '') + '</div></div>';
+    }).join('') + '</div>' : '<div class="empty">ยังไม่มีรายชื่อนักเรียนในระบบ</div>') +
+    '<div class="exec-toolbar"><input id="execStudentQ" type="search" placeholder="ค้นหาชื่อ เลขประจำตัว หรือห้อง" value="' + esc(DB.ui.execStudentQ || '') + '">' +
+    '<select id="execStudentLevel"><option value="">ทุกระดับชั้น</option>' + levelNames.map(n => '<option value="' + esc(n) + '"' + (DB.ui.execStudentLevel === n ? ' selected' : '') + '>' + esc(n) + '</option>').join('') + '</select>' +
+    '<div class="spacer"></div><button class="sm" id="execStudentCsv">ส่งออก CSV</button></div>' +
+    '<div id="execStudentBox"></div></div>';
+
+  return metrics + streakCard + capacityCard + rosterCard;
+}
+
+/** ตารางรายชื่อนักเรียน เรนเดอร์แยกเพื่อให้ค้นหาแล้วช่องพิมพ์ไม่เสียโฟกัส */
+function execStudentFiltered() {
+  const q = String(DB.ui.execStudentQ || '').trim().toLowerCase(), level = DB.ui.execStudentLevel || '';
+  return schoolRosterRows().filter(r => (!level || r.level === level) &&
+    (!q || (r.name + ' ' + r.sid + ' ' + r.className + ' ' + r.no).toLowerCase().includes(q)))
+    .sort((a, b) => levelSortKey(a.level) - levelSortKey(b.level) || a.room - b.room ||
+      String(a.className).localeCompare(String(b.className), 'th') || num(a.no) - num(b.no));
+}
+
+function renderExecStudentTable(root) {
+  const box = $('#execStudentBox', root); if (!box) return;
+  const list = execStudentFiltered(), att = studentAttendanceIndex(), shown = list.slice(0, 300);
+  box.innerHTML = '<div class="hint" style="margin-bottom:8px">พบ ' + list.length + ' คน' + (list.length > shown.length ? ' • แสดง ' + shown.length + ' คนแรก พิมพ์คำค้นเพื่อจำกัดผลลัพธ์' : '') + '</div>' +
+    (shown.length ? '<div class="tablewrap"><table><thead><tr><th class="numcell">เลขที่</th><th>เลขประจำตัว</th><th>ชื่อ–สกุล</th><th>ห้อง</th><th>ประเภทห้อง</th><th>เพศ</th><th>สถานะ</th><th class="numcell">เข้าเรียน</th></tr></thead><tbody>' +
+      shown.map(r => {
+        const a = att.get(r.sid), rate = a && a.total ? (a.total - a.absent) * 100 / a.total : null;
+        return '<tr><td class="numcell">' + esc(r.no) + '</td><td>' + esc(r.sid) + '</td><td><b>' + esc(r.name) + '</b></td><td>' + esc(r.className) + '</td>' +
+          '<td><span class="level-tag">' + ROOM_KIND_LABEL[r.kind] + '</span></td><td>' + esc(r.gender || '—') + '</td>' +
+          '<td>' + (r.active ? '<span class="badge ok">กำลังศึกษา</span>' : '<span class="badge">' + esc(r.statusText || 'พ้นสภาพ') + '</span>') + '</td>' +
+          '<td class="numcell ' + (rate == null ? '' : rate < 80 ? 'badtext' : 'oktext') + '">' + (rate == null ? '—' : fmt(rate, 1) + '%') + '</td></tr>';
+      }).join('') + '</tbody></table></div>' : '<div class="empty">ไม่พบนักเรียนตามเงื่อนไขที่ค้นหา</div>');
+}
+
+function wireExecStudentPanels(pane) {
+  renderExecStudentTable(pane);
+  const days = $('#execStreakDays', pane);
+  if (days) days.addEventListener('change', () => { DB.ui.execStreakDays = num(days.value) || 5; save(); renderExecutive(); });
+  const q = $('#execStudentQ', pane);
+  if (q) q.addEventListener('input', () => { DB.ui.execStudentQ = q.value; renderExecStudentTable(pane); });
+  const lv = $('#execStudentLevel', pane);
+  if (lv) lv.addEventListener('change', () => { DB.ui.execStudentLevel = lv.value; save(); renderExecStudentTable(pane); });
+  const csv = $('#execStudentCsv', pane);
+  if (csv) csv.addEventListener('click', () => {
+    const att = studentAttendanceIndex();
+    const rows = [['เลขที่', 'เลขประจำตัว', 'ชื่อ-สกุล', 'ห้อง', 'ระดับชั้น', 'ประเภทห้อง', 'เพศ', 'สถานะ', 'อัตราเข้าเรียน (%)']]
+      .concat(execStudentFiltered().map(r => {
+        const a = att.get(r.sid), rate = a && a.total ? (a.total - a.absent) * 100 / a.total : null;
+        return [r.no, r.sid, r.name, r.className, r.level, ROOM_KIND_LABEL[r.kind], r.gender, r.active ? 'กำลังศึกษา' : (r.statusText || 'พ้นสภาพ'), rate == null ? '' : fmt(rate, 1)];
+      }));
+    const csvText = '\ufeff' + rows.map(r => r.map(v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"').join(',')).join('\r\n');
+    download(new Blob([csvText], { type: 'text/csv;charset=utf-8' }), 'รายชื่อนักเรียนทั้งหมด.csv');
+    toast('ส่งออกรายชื่อนักเรียนแล้ว', 'ok');
+  });
+}
+
 function renderExecutive() {
   const pane = $('#pane-executive'), data = attendanceExecutiveData(), total = Object.values(data.statuses).reduce((a, b) => a + b, 0), colors = { present: '#22c55e', late: '#f59e0b', leave: '#38bdf8', activity: '#8b5cf6', absent: '#ef4444' };
   const parts = []; let at = 0; ATTENDANCE_STATUSES.forEach(s => { const n = data.statuses[s.value], deg = total ? n * 360 / total : 0; parts.push(colors[s.value] + ' ' + at + 'deg ' + (at + deg) + 'deg'); at += deg; });
   const areaNames = Object.keys(data.areas).sort((a, b) => a.localeCompare(b, 'th')), selected = areaNames.includes(DB.ui.execArea) ? DB.ui.execArea : (areaNames[0] || ''), area = data.areas[selected]; DB.ui.execArea = selected;
   const presentRate = total ? (data.statuses.present + data.statuses.late + data.statuses.leave + data.statuses.activity) * 100 / total : 0;
   pane.innerHTML = '<div class="card dash-hero"><div class="row"><div><div class="hero-sub">EXECUTIVE OVERVIEW</div><h1>ภาพรวมการเข้าเรียนทั้งสถานศึกษา</h1><div class="hero-sub">แยกกลุ่มสาระ รายวิชา ห้องเรียน และนักเรียนเสี่ยง • ' + esc(curPeriod() ? 'ปี ' + curPeriod().academicYear + ' ภาค ' + curPeriod().semester : 'กรุณาเลือกปี/ภาค') + '</div></div><div class="spacer"></div><span class="role-chip">ผู้บริหาร</span></div></div>' +
-    '<div class="dash-metrics"><div class="metric-card" style="--metric:var(--brand)"><div class="metric-value">' + data.records.length + '</div><div class="metric-label">คาบที่บันทึกแล้ว</div></div><div class="metric-card" style="--metric:var(--ok)"><div class="metric-value">' + fmt(presentRate, 1) + '%</div><div class="metric-label">อัตราเข้าเรียนรวม</div></div><div class="metric-card" style="--metric:var(--bad)"><div class="metric-value">' + data.statuses.absent + '</div><div class="metric-label">รายการขาดเรียน</div></div><div class="metric-card" style="--metric:var(--warn)"><div class="metric-value">' + data.risks.length + '</div><div class="metric-label">นักเรียน/วิชา ต่ำกว่า 80%</div></div></div>' +
+    '<div class="dash-metrics"><div class="metric-card" style="--metric:var(--brand)"><div class="metric-value">' + data.records.length + '</div><div class="metric-label">คาบที่บันทึกแล้ว</div></div><div class="metric-card" style="--metric:var(--ok)"><div class="metric-value">' + fmt(presentRate, 1) + '%</div><div class="metric-label">อัตราเข้าเรียนรวม</div></div><div class="metric-card" style="--metric:var(--bad)"><div class="metric-value">' + data.statuses.absent + '</div><div class="metric-label">รายการขาดเรียน</div></div><div class="metric-card" style="--metric:var(--warn)"><div class="metric-value">' + data.risks.length + '</div><div class="metric-label">นักเรียน/วิชา ต่ำกว่า 80%</div></div></div>' + execStudentPanels() +
     '<div class="executive-grid"><div class="card"><h3>สัดส่วนสถานะการเข้าเรียน</h3><div class="pie-wrap"><div class="pie-chart" style="background:conic-gradient(' + (total ? parts.join(',') : '#dbe3ef 0 360deg') + ')"><span>' + total + '<small>รายการ</small></span></div><div class="pie-legend">' + ATTENDANCE_STATUSES.map(s => '<div><i style="background:' + colors[s.value] + '"></i><span>' + s.label + '</span><b>' + data.statuses[s.value] + '</b></div>').join('') + '</div></div></div>' +
     '<div class="card"><h3>กลุ่มสาระการเรียนรู้</h3><div class="area-list">' + (areaNames.length ? areaNames.map(name => { const a = data.areas[name], rate = a.checked ? (a.checked - a.statuses.absent) * 100 / a.checked : 0; return '<button class="area-button' + (name === selected ? ' active' : '') + '" data-exec-area="' + esc(name) + '"><span><b>' + esc(name) + '</b><small>' + Object.keys(a.subjects).length + ' วิชา • ' + a.checked + ' รายการ</small></span><strong>' + fmt(rate, 1) + '%</strong></button>'; }).join('') : '<div class="empty">ยังไม่มีข้อมูลเช็กชื่อในภาคเรียนนี้</div>') + '</div></div></div>' +
     '<div class="card"><div class="row"><h3 style="margin:0">รายละเอียดรายวิชา • ' + esc(selected || 'ยังไม่มีข้อมูล') + '</h3><div class="spacer"></div><span class="hint">คลิกกลุ่มสาระด้านบนเพื่อเจาะดู</span></div><div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>รหัส/วิชา</th><th>รายการทั้งหมด</th><th>มา/สาย/ลา/กิจกรรม</th><th>ขาด</th><th>อัตราเข้าเรียน</th></tr></thead><tbody>' + (area ? Object.values(area.subjects).map(x => { const rate = x.checked ? (x.checked - x.statuses.absent) * 100 / x.checked : 0; return '<tr><td><b>' + esc((x.subject.code ? x.subject.code + ' ' : '') + x.subject.name) + '</b></td><td>' + x.checked + '</td><td>' + (x.checked - x.statuses.absent) + '</td><td class="' + (x.statuses.absent ? 'badtext' : '') + '">' + x.statuses.absent + '</td><td>' + fmt(rate, 1) + '%</td></tr>'; }).join('') : '<tr><td colspan="5"><div class="empty">ยังไม่มีข้อมูล</div></td></tr>') + '</tbody></table></div></div>' +
@@ -5588,6 +5837,7 @@ function renderExecutive() {
       ranking.slice(0, 5).map(r => '<tr><td><b>' + esc(r.name) + '</b></td><td>' + esc(r.area || '—') + '</td><td>' + r.substitute + '</td><td><b>' + r.total + '</b></td></tr>').join('') + '</tbody></table></div>' : '<div class="empty">ยังไม่มีการสอนแทน</div>') + '</div></div></div>');
   $('#execGoLeaves').addEventListener('click', () => setTab('leaves'));
   $$('[data-exec-area]', pane).forEach(btn => btn.addEventListener('click', () => { DB.ui.execArea = btn.dataset.execArea; save(); renderExecutive(); }));
+  wireExecStudentPanels(pane);
   renderTeachingLoad(pane);
 }
 
