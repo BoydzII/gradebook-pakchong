@@ -542,10 +542,48 @@ body.gateway-open .sync-fab,body:has(#studentPortal:not([hidden])) .sync-fab{dis
 @media(max-width:900px){.executive-grid{grid-template-columns:1fr}.pie-wrap{grid-template-columns:1fr}.pie-chart{margin:auto}}
 @media(max-width:1050px){.dash-metrics{grid-template-columns:repeat(2,1fr)}.dash-columns{grid-template-columns:1fr}.quick-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:720px){
-  main{padding:10px 8px 70px}.topbar{padding:8px}.brand{width:100%}.pickers{width:100%}.pickers .pick{flex:1 1 220px}.pickers select{flex:1;min-width:0}
-  .tabs{padding-left:6px;padding-right:6px}.tabs button{padding:9px 10px;font-size:13px}.card{padding:12px;border-radius:12px}
-  .dash-hero{padding:18px}.dash-hero h1{font-size:21px}.dash-metrics{grid-template-columns:1fr 1fr;gap:8px}.metric-card{padding:12px}.metric-card .metric-value{font-size:22px}
+  main{padding:10px 8px 70px}
+  /* ---- แถบบนบนมือถือ: สองบรรทัดพอ ไม่ต้องเลื่อนผ่านตัวเลือกยาว ๆ กว่าจะถึงเนื้อหา ---- */
+  .topbar{padding:7px 9px;gap:6px;row-gap:6px}
+  .brand{font-size:14.5px;gap:6px;order:1;flex:1 1 auto;min-width:0}
+  .brand .dot{width:22px;height:22px;font-size:12px}
+  .topbar .spacer{display:none}
+  .who-chip{order:2;font-size:11.5px;padding:3px 9px;max-width:46vw}
+  .topbar .icon-btn{order:3;padding:6px 8px;min-width:36px}
+  /* บนมือถือเหลือเฉพาะกระดิ่งแจ้งเตือน ที่เหลือย้ายไปอยู่ในแผ่นเมนู "เพิ่มเติม"
+     แถบบนจึงเหลือบรรทัดเดียว เนื้อหาของหน้าขึ้นมาอยู่ใกล้บนสุด */
+  #btnFullscreen,#btnSearch,#btnTheme,#btnStaffLogout{display:none}
+  .sync-chip{order:4}
+  .pickers{order:9;width:100%;display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:1px}
+  .pickers .pick{display:flex;min-width:0}
+  .pickers .pick[data-rel="0"]{display:none}          /* หน้านี้ไม่ได้ใช้ ก็ไม่ต้องแสดง */
+  .pickers .pick:only-child,.pickers .pick:first-child:nth-last-child(1){grid-column:1/-1}
+  .pickers .pick .sm.ghost{display:none}              /* ปุ่มจัดการย้ายไปทำในหน้าตั้งค่า */
+  .pickers select{flex:1;min-width:0;width:100%;text-overflow:ellipsis;padding:7px 9px}
+  .tabs{padding-left:6px;padding-right:6px}.tabs button{padding:9px 10px;font-size:13px}
+  .card{padding:12px;border-radius:12px}
+  /* ---- หัวเรื่องของหน้า อ่านง่ายในแนวตั้ง ---- */
+  .dash-hero{padding:16px 15px;text-align:center}
+  .dash-hero:after{width:150px;height:150px;right:-60px;top:-90px}
+  .dash-hero .row{flex-direction:column;align-items:center;gap:8px;text-align:center}
+  .dash-hero h1{font-size:19px;line-height:1.3;margin:2px 0 4px}
+  .dash-hero .hero-sub{font-size:12.5px;line-height:1.55}
+  .dash-hero .role-chip,.dash-hero .badge{align-self:center}
+  .dash-hero button{width:100%}
+  .dash-metrics{grid-template-columns:1fr 1fr;gap:8px}.metric-card{padding:12px}.metric-card .metric-value{font-size:22px}
   .quick-grid{grid-template-columns:1fr 1fr}.cover-meta{grid-template-columns:1fr}
+  /* ---- ฟอร์มและแถบคาบ ให้อยู่ในกรอบเสมอ ---- */
+  .pick{flex-wrap:wrap}
+  .pick select,.pick input{width:100%;max-width:100%;text-overflow:ellipsis}
+  .slot-strip{gap:5px;justify-content:center}
+  .slot-count{flex:1 1 100%;text-align:center;margin:2px 0 0}
+  .slot-legend{justify-content:center;flex-wrap:wrap}
+  .candidate-card{grid-template-columns:1fr;gap:9px}
+  .candidate-card button{width:100%}
+  .exec-head,.exec-head.row{flex-direction:column;align-items:stretch;gap:8px}
+  .exec-head .spacer{display:none}
+  .exec-head select,.exec-head button{width:100%}
+  .card>.row>h3{width:100%}
 }
 @media(max-width:800px){.timetable{min-width:1040px}.tt-cell{min-height:60px}}
 .right-dragging{cursor:ew-resize!important;user-select:none!important}
@@ -618,6 +656,10 @@ body.gateway-open .sync-fab{display:none}
 .tabsheet-grid button.active{border-color:var(--brand);color:var(--brand);background:color-mix(in srgb,var(--brand) 8%,transparent)}
 .tabsheet-handle{width:44px;height:4px;border-radius:999px;background:var(--line);margin:0 auto 4px}
 .tabsheet-foot{display:flex;align-items:center;gap:10px;margin-top:12px;padding-top:11px;border-top:1px solid var(--line)}
+.tabsheet-tools{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.tabsheet-tools button{justify-content:flex-start;padding:11px 12px;border-radius:11px;font-weight:700}
+.tabsheet-tools button:last-child{grid-column:1/-1}
+@media(min-width:721px){.tabsheet-tools{display:none}}
 
 @media(max-width:720px){
   /* iOS จะซูมเองถ้าตัวอักษรในช่องกรอกเล็กกว่า 16px */
@@ -830,22 +872,22 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
 <header class="topbar">
   <div class="brand"><span class="dot"></span><span>ปพ.5 Online<small>SMART GRADEBOOK</small></span></div>
   <div class="pickers">
-    <div class="pick">
+    <div class="pick" data-pick="period">
       <label for="selPeriod">ปี/ภาค</label>
       <select id="selPeriod"></select>
       <button class="sm ghost" id="btnPeriods" title="เพิ่ม/แก้ไข/ลบปีการศึกษาและภาคเรียน">จัดการ</button>
     </div>
-    <div class="pick">
+    <div class="pick" data-pick="class">
       <label for="selClass">ชั้น</label>
       <select id="selClass"></select>
       <button class="sm ghost" id="btnClasses" title="เพิ่ม/แก้ไข/ลบชั้นเรียน">จัดการ</button>
     </div>
-    <div class="pick">
+    <div class="pick" data-pick="subject">
       <label for="selSubject">วิชา</label>
       <select id="selSubject"></select>
       <button class="sm ghost" id="btnSubjects" title="เพิ่ม/แก้ไข/ลบวิชา">จัดการ</button>
     </div>
-    <div class="pick">
+    <div class="pick" data-pick="role">
       <label for="selStaffMode">บทบาท</label>
       <select id="selStaffMode"><option value="teacher">ครู</option><option value="head">หัวหน้ากลุ่มสาระฯ</option><option value="executive">ผู้บริหาร</option><option value="admin">ผู้ดูแลระบบ</option></select>
     </div>
@@ -1779,6 +1821,13 @@ function enableRightDragScroll() {
   document.addEventListener('contextmenu', e => { if (e.target.closest('.tablewrap')) e.preventDefault(); });
 }
 
+/** ซ่อน/แสดงตัวเลือกบนแถบบนตามหน้าที่เปิดอยู่ (มีผลเฉพาะจอมือถือ) */
+function applyPickerRelevance() {
+  const need = pickersForTab(DB.ui.tab || 'dashboard');
+  $$('.pickers .pick').forEach(p => { p.dataset.rel = need.indexOf(p.dataset.pick) >= 0 ? '1' : '0'; });
+  document.body.dataset.tab = DB.ui.tab || 'dashboard';
+}
+
 function renderTop() {
   const ps = $('#selPeriod'), cs = $('#selClass'), ss = $('#selSubject');
   ps.innerHTML = '<option value="">— เลือกปี/ภาค —</option>' +
@@ -1830,11 +1879,23 @@ function renderTop() {
     bell.hidden = !n; count.textContent = n ? ' ' + n : '';
   }
   applyRoleVisibility();
+  applyPickerRelevance();
 }
 
 /* แท็บใดเป็นของบทบาทใด — ตั้งค่าและฐานนักเรียนย้ายไปเป็นงานของผู้ดูแลระบบ */
 const TAB_ROLE = { settings: 'admin', students: 'admin', admin: 'admin', executive: 'executive', leaves: 'executive', head: 'head' };
 const roleOfTab = tab => TAB_ROLE[tab] || 'teacher';
+/* หน้าไหนต้องใช้ตัวเลือกอะไรบ้าง — บนมือถือจะซ่อนตัวที่หน้านั้นไม่ได้ใช้
+   เพื่อให้หัวเรื่องของหน้าขึ้นมาอยู่บนสุดโดยไม่ต้องเลื่อนผ่านแถบเลือกยาว ๆ */
+const TAB_PICKERS = {
+  dashboard: ['period', 'class', 'subject'], scores: ['period', 'class', 'subject'],
+  items: ['period', 'class', 'subject'], indicators: ['period', 'class', 'subject'],
+  groups: ['period', 'class', 'subject'], assess: ['period', 'class', 'subject'],
+  summary: ['period', 'class', 'subject'], students: ['period', 'class'],
+  attendance: ['period'], exchange: ['period'], schedule: ['period'], activities: ['period'],
+  head: ['period'], executive: ['period'], leaves: ['period'], admin: ['period'], settings: ['period']
+};
+const pickersForTab = tab => TAB_PICKERS[tab] || ['period', 'class', 'subject'];
 const homeTabOfRole = role => role === 'executive' ? 'executive' : role === 'admin' ? 'admin' : role === 'head' ? 'head' : 'dashboard';
 
 /* ---------- เมนูและการนำทาง ----------------------------------------------
@@ -1900,6 +1961,9 @@ function openTabSheet() {
     '<div class="tabsheet-grid">' +
     tabs.map(t => '<button data-goto="' + t + '"' + (t === DB.ui.tab ? ' class="active"' : '') + '>' +
       esc(TAB_SHORT[t] || t) + '</button>').join('') + '</div>' +
+    '<div class="tabsheet-tools"><button class="sm" data-sheet-act="search">⌕ ค้นหานักเรียน</button>' +
+    '<button class="sm" data-sheet-act="theme">◐ สลับโหมดสี</button>' +
+    '<button class="sm danger" data-sheet-act="logout">⏻ ออกจากระบบ</button></div>' +
     '<div class="tabsheet-foot"><span class="hint" data-app-version></span><div class="spacer"></div>' +
     '<button class="sm" id="sheetRefresh">ตรวจหาเวอร์ชันใหม่</button></div></div>';
   document.body.appendChild(sheet);
@@ -1908,6 +1972,12 @@ function openTabSheet() {
   sheet.addEventListener('click', e => { if (e.target === sheet) closeTabSheet(); });
   $$('[data-sheet-close]', sheet).forEach(b => b.addEventListener('click', closeTabSheet));
   $$('[data-goto]', sheet).forEach(b => b.addEventListener('click', () => { closeTabSheet(); setTab(b.dataset.goto); }));
+  $$('[data-sheet-act]', sheet).forEach(b => b.addEventListener('click', () => {
+    const act = b.dataset.sheetAct; closeTabSheet();
+    if (act === 'search') return openStudentSearch();
+    if (act === 'theme') { const t = $('#btnTheme'); if (t) t.click(); return; }
+    if (act === 'logout') { const t = $('#btnStaffLogout'); if (t) t.click(); }
+  }));
   const refresh = $('#sheetRefresh', sheet);
   if (refresh) refresh.addEventListener('click', () => forceAppRefresh(refresh));
   renderAppVersionChips(); askAppVersion();
