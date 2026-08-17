@@ -253,6 +253,9 @@ td.num,th.num{text-align:center}
 .att-tick input:focus-visible + span{outline:3px solid var(--brand);outline-offset:2px}
 .att-tick .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .att-grid td.c-hist{white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--muted);font-size:12.5px}
+.att-grid tbody td{padding-top:5px;padding-bottom:5px}
+.att-grid tbody .hint{font-size:11.5px;line-height:1.3}
+.att-summary{max-height:22vh;overflow:auto}
 .att-grid .hist-num{font-weight:700;color:var(--ink)}
 /* แถบสรุป อยู่เหนือตาราง เห็นยอดสดขณะติ๊ก */
 .att-summary{margin-bottom:10px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);padding:10px 12px}
@@ -263,13 +266,21 @@ td.num,th.num{text-align:center}
 .att-chip.zero{opacity:.45}
 .att-present-c{color:var(--att-present)}.att-late-c{color:var(--att-late)}.att-leave-c{color:var(--att-leave)}
 .att-activity-c{color:var(--att-activity)}.att-absent-c{color:var(--att-absent)}
-.att-lines{display:grid;gap:5px;margin-top:9px;padding-top:9px;border-top:1px dashed var(--line)}
-.att-line{display:flex;gap:9px;align-items:baseline;font-size:12.5px;flex-wrap:wrap}
-.att-line-label{font-weight:800;min-width:92px}
-.att-line-nos{color:var(--ink);font-variant-numeric:tabular-nums}
-@media(max-width:720px){.att-grid th.att-col,.att-grid td.att-col{width:46px}
-  .att-tick span{width:24px;height:24px;border-radius:8px}
-  .att-grid th.c-hist,.att-grid td.c-hist{display:none}
+.att-summary{padding:8px 11px}
+.att-lines{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:7px;padding-top:7px;border-top:1px dashed var(--line)}
+.att-line{font-size:12.5px}
+.att-line b{font-weight:800}
+.att-line-nos{color:var(--muted);font-variant-numeric:tabular-nums}
+@media(max-width:720px){
+  /* ตอนเช็กชื่อครูดูแค่ เลขที่ ชื่อ และช่องติ๊ก ที่เหลือซ่อนไว้ก่อน
+     ตารางจะได้พอดีจอ ไม่ต้องเลื่อนซ้ายขวาระหว่างไล่ติ๊กทีละคน */
+  .att-grid th.c-hist,.att-grid td.c-hist,.att-grid th.c-pct,.att-grid td.c-pct{display:none}
+  .att-grid th.c-no,.att-grid td.c-no{width:34px;padding-left:4px;padding-right:2px}
+  .att-grid th.att-col,.att-grid td.att-col{width:42px;padding:3px 1px}
+  .att-tick span{width:23px;height:23px;border-radius:7px}
+  .att-tick input:checked + span:after{width:7px;height:12px;border-width:0 2.5px 2.5px 0}
+  .att-grid tbody td{padding-left:4px;padding-right:4px;font-size:13.5px}
+  .att-grid tbody .hint{font-size:11px}
   .att-line-label{min-width:78px}}
 /* ไม่ให้มีแถบเลื่อนซ้อนในกล่อง ปล่อยให้กล่องยาวไปเลย แล้วใช้ปุ่มย่อกล่องแทนถ้ายาวเกิน */
 .alert-list{display:grid;gap:7px}
@@ -580,6 +591,9 @@ body.gateway-open .sync-fab,body:has(#studentPortal:not([hidden])) .sync-fab{dis
   .slot-legend{justify-content:center;flex-wrap:wrap}
   .candidate-card{grid-template-columns:1fr;gap:9px}
   .candidate-card button{width:100%}
+  .modal.modal-full > header{padding:9px 11px;font-size:14px}
+  .modal-acts{order:9;width:100%}
+  .modal-acts button{flex:1}
   .exec-head,.exec-head.row{flex-direction:column;align-items:stretch;gap:8px}
   .exec-head .spacer{display:none}
   .exec-head select,.exec-head button{width:100%}
@@ -730,7 +744,20 @@ body.gateway-open .sync-fab{display:none}
    หัวกับแถวปุ่มตรึงไว้ เนื้อหาเลื่อนเองข้างใน จอเล็กจึงไม่ต้องเลื่อนทั้งหน้า */
 .modal.modal-full{max-width:none;width:100%;height:100%;max-height:none;border-radius:14px;
   display:flex;flex-direction:column;overflow:hidden}
-.modal.modal-full > .body{flex:1;min-height:0;overflow:auto}
+/* เนื้อหาแบ่งเป็นสองส่วน ส่วนบนอยู่กับที่ ตารางรายชื่อกินพื้นที่ที่เหลือและเลื่อนเอง
+   หัวตารางจึงตรึงอยู่ได้จริงขณะเลื่อนดูรายชื่อ */
+.modal.modal-full > .body{flex:1;min-height:0;max-height:none;overflow:hidden;display:flex;flex-direction:column;gap:9px;padding:12px 14px}
+.modal.modal-full > .body > *{flex:none;margin:0}
+.modal.modal-full > .body > .tablewrap{flex:1;min-height:0;overflow:auto;max-height:none}
+.modal.modal-full > header{gap:10px;flex-wrap:wrap}
+.modal-acts{display:flex;gap:8px;align-items:center}
+.modal-acts button{white-space:nowrap}
+.att-grid thead th{position:sticky;top:0;z-index:3;background:var(--panel);box-shadow:0 2px 0 var(--line)}
+.att-topline{margin:0;flex-wrap:wrap;gap:7px;align-items:center}
+.att-col-btn{width:100%;padding:5px 2px;border:0;background:none;color:inherit;font:inherit;font-weight:800;
+  border-radius:8px;cursor:pointer;min-height:0}
+.att-col-btn:hover{background:color-mix(in srgb,currentColor 14%,transparent)}
+.att-col-btn:active{transform:scale(.95)}
 .modal.modal-full > header,.modal.modal-full > footer{flex:none}
 .modal.modal-full .tablewrap.tall{max-height:none}
 body:has(.modal.modal-full) .modal-bg{padding:14px}
@@ -1055,11 +1082,15 @@ function openModal(opts) {
   bg.className = 'modal-bg';
   bg.innerHTML =
     '<div class="modal' + (opts.full ? ' modal-full' : '') + '"' + (opts.wide && !opts.full ? ' style="max-width:1100px"' : '') + '>' +
-      '<header>' + esc(opts.title) + '<button class="x" data-close>&times;</button></header>' +
+      '<header>' + esc(opts.title) + '<span class="spacer"></span>' +
+        (opts.buttonsTop ? '<span class="modal-acts"></span>' : '') +
+        '<button class="x" data-close>&times;</button></header>' +
       '<div class="body">' + (opts.bodyHTML || '') + '</div>' +
       '<footer></footer>' +
     '</div>';
-  const foot = $('footer', bg);
+  // ปุ่มไว้บนหัว ใช้กับหน้าที่รายการยาวมาก ครูจะได้ไม่ต้องเลื่อนลงไปหาปุ่มบันทึก
+  const foot = opts.buttonsTop ? $('.modal-acts', bg) : $('footer', bg);
+  if (opts.buttonsTop) $('footer', bg).remove();
   const close = () => { bg.remove(); modalStack = modalStack.filter(x => x !== bg); };
   (opts.buttons || [{ label: 'ปิด' }]).forEach(b => {
     const btn = document.createElement('button');
@@ -2789,9 +2820,9 @@ function openAttendance(entry, date, singleMode) {
   const key = attendanceKey(entry.id, date), old = DB.timetable.attendance[key], inherited = old ? null : previousAttendanceSnapshot(entry, date), statusSource = old || inherited;
   openModal({
     title: 'เช็กชื่อ' + (groupedEntries.length > 1 ? 'พร้อมกัน ' + groupedEntries.length + ' คาบ' : '') + ' • ' + (subject ? (subject.code ? subject.code + ' ' : '') + subject.name : 'วิชา') + ' • ' + cls.name,
-    wide: true, full: true,
-    bodyHTML: '<div class="row" style="margin-bottom:10px"><span class="badge">' + thaiDate(date) + '</span>' + groupedEntries.map(e => { const sl = DB.timetable.slots.find(s => s.id === String(e.slotId)); return '<span class="badge">' + esc(sl ? sl.label + ' ' + sl.start + '–' + sl.end : '') + '</span>'; }).join('') +
-      '<div class="spacer"></div><button class="primary" data-bulk-att="present">มาทั้งห้อง</button><button data-bulk-att="late">สายทั้งห้อง</button><button data-bulk-att="leave">ลาทั้งห้อง</button><button data-bulk-att="activity">กิจกรรมทั้งห้อง</button><button data-bulk-att="absent">ขาดทั้งห้อง</button></div>' +
+    wide: true, full: true, buttonsTop: true,
+    bodyHTML: '<div class="row att-topline"><span class="badge">' + thaiDate(date) + '</span>' + groupedEntries.map(e => { const sl = DB.timetable.slots.find(s => s.id === String(e.slotId)); return '<span class="badge">' + esc(sl ? sl.label + ' ' + sl.start + '–' + sl.end : '') + '</span>'; }).join('') +
+      '<div class="spacer"></div><span class="hint">กดที่หัวคอลัมน์เพื่อตั้งสถานะให้ทั้งห้อง</span></div>' +
       (function () { const names = students.filter(st => activityFor(st.sid, date, entry.slotId));
         return names.length ? '<div class="notice" style="margin-bottom:10px"><b>มีนักเรียน ' + names.length +
           ' คนได้รับอนุญาตให้ทำกิจกรรมในคาบนี้</b> ระบบตั้งสถานะ “กิจกรรม” ให้แล้ว ตรวจสอบและกดบันทึกได้เลย</div>' : ''; })() +
@@ -2800,8 +2831,9 @@ function openAttendance(entry, date, singleMode) {
       '<div class="att-summary" id="attSummary"></div>' +
       (students.length ? '<div class="tablewrap tall"><table class="att-grid"><thead><tr><th class="c-no">เลขที่</th><th>ชื่อ-นามสกุล</th>' +
         ATT_PICK_ORDER.map(v => { const s2 = ATTENDANCE_STATUSES.find(x => x.value === v);
-          return '<th class="att-col ' + s2.cls + '-h">' + esc(s2.label) + '</th>'; }).join('') +
-        '<th class="c-hist">สถิติสะสม<br><span class="hint">มา/ขาด/ลา/กิจกรรม</span></th><th>เวลาเรียน</th></tr></thead><tbody>' + students.map(st => {
+          return '<th class="att-col ' + s2.cls + '-h"><button type="button" class="att-col-btn" data-bulk-att="' + v +
+            '" title="ตั้งเป็น' + esc(s2.label) + 'ทั้งห้อง">' + esc(s2.label) + '</button></th>'; }).join('') +
+        '<th class="c-hist">สถิติสะสม<br><span class="hint">มา/ขาด/ลา/กิจกรรม</span></th><th class="c-pct">เวลาเรียน</th></tr></thead><tbody>' + students.map(st => {
         const onActivity = activityFor(st.sid, date, entry.slotId);
         const status = statusSource && statusSource.statuses && statusSource.statuses[st.sid] ? statusSource.statuses[st.sid]
           : (onActivity ? 'activity' : 'present');
@@ -2816,7 +2848,7 @@ function openAttendance(entry, date, singleMode) {
               '<span aria-hidden="true"></span><i class="sr">' + esc(s2.label) + '</i></label></td>'; }).join('') +
           '<td class="c-hist"><span class="hist-num">' + (att.counts.present + att.counts.late) + '</span>/<span class="hist-num badtext">' + att.counts.absent +
           '</span>/<span class="hist-num">' + att.counts.leave + '</span>/<span class="hist-num">' + att.counts.activity + '</span></td>' +
-          '<td>' + attendanceOutcomeBadge(att.pct) + '</td></tr>';
+          '<td class="c-pct">' + attendanceOutcomeBadge(att.pct) + '</td></tr>';
       }).join('') + '</tbody></table></div>' : '<div class="empty">ห้องนี้ยังไม่มีรายชื่อ กรุณาดึงรายชื่อจากแท็บฐานนักเรียนก่อน</div>') +
       '<div class="hint" style="margin-top:8px">ติ๊กช่องสถานะของนักเรียนได้เลย • หรือแตะที่ชื่อเพื่อวนสถานะ มา → ขาด → ลา → สาย → กิจกรรม</div>' +
       (old ? '<div class="hint" style="margin-top:8px">เช็กครั้งล่าสุด ' + esc(new Date(old.checkedAt).toLocaleString('th-TH')) + '</div>' : ''),
@@ -2849,11 +2881,14 @@ function openAttendance(entry, date, singleMode) {
         const chip = v => { const s2 = ATTENDANCE_STATUSES.find(x => x.value === v), n = (byStatus[v] || []).length;
           return '<span class="att-chip ' + s2.cls + '-c' + (n ? '' : ' zero') + '">' + esc(s2.label) + ' <b>' + n + '</b></span>'; };
         const line = v => { const s2 = ATTENDANCE_STATUSES.find(x => x.value === v), list = byStatus[v] || [];
-          return '<div class="att-line"><span class="att-line-label ' + s2.cls + '-c">' + esc(s2.label) + ' ' + list.length + ' คน</span>' +
-            '<span class="att-line-nos">' + (list.length ? 'เลขที่ ' + esc(list.join(', ')) : 'ไม่มี') + '</span></div>'; };
+          const shown = list.slice(0, 18).join(', ') + (list.length > 18 ? ' และอีก ' + (list.length - 18) : '');
+          return '<span class="att-line"><b class="' + s2.cls + '-c">' + esc(s2.label) + ' ' + list.length + '</b> ' +
+            '<span class="att-line-nos">เลขที่ ' + esc(shown) + '</span></span>'; };
+        // เขียนเป็นบรรทัดเดียว เฉพาะสถานะที่มีคนจริง จะได้ไม่กินพื้นที่รายชื่อ
+        const detail = ['late', 'leave', 'activity', 'absent'].filter(v => (byStatus[v] || []).length).map(line).join('');
         box.innerHTML = '<div class="att-chips">' + ATT_PICK_ORDER.map(chip).join('') +
           '<span class="spacer"></span><span class="hint">รวม ' + rows.length + ' คน</span></div>' +
-          '<div class="att-lines">' + ['late', 'leave', 'activity', 'absent'].map(line).join('') + '</div>';
+          (detail ? '<div class="att-lines">' + detail + '</div>' : '');
       }
       rows.forEach(tr => $$('.att-status', tr).forEach(inp =>
         inp.addEventListener('change', () => { paint(tr); drawSummary(); })));
