@@ -622,6 +622,25 @@ body.gateway-open .sync-fab{display:none}
 @media(max-width:720px){
   /* iOS จะซูมเองถ้าตัวอักษรในช่องกรอกเล็กกว่า 16px */
   input,select,textarea{font-size:16px}
+  /* กันเนื้อหาดันจอจนตกขอบ ทุกอย่างต้องยุบลงมาอยู่ในความกว้างจอเสมอ */
+  html,body{max-width:100%;overflow-x:hidden}
+  main{padding-left:10px;padding-right:10px}
+  .card{padding:13px;border-radius:12px}
+  .row{flex-wrap:wrap}
+  .grid2{grid-template-columns:1fr}
+  .tablewrap{max-width:100%}
+  .exec-sum,.att-chips,.exec-toolbar{max-width:100%}
+  .exec-toolbar input,.exec-toolbar select{min-width:0;width:100%}
+  .dash-hero{padding:16px}
+  .modal-bg{padding:8px}
+  .modal{width:100%;max-width:100%}
+  .badge,.pr-tag,.att-chip,.level-tag{white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  .alert-item{flex-wrap:wrap}
+  .alert-item .spacer{flex-basis:100%;height:0}
+  .cover-pick,.roster-card{min-width:0}
+  .ind-actions,.quick-grid{grid-template-columns:1fr}
+  h1{font-size:20px;overflow-wrap:anywhere}
+  h3{overflow-wrap:anywhere}
   .topbar{padding:8px 10px;gap:6px}
   .brand{font-size:15px}.brand small{display:none}
   .pickers{width:100%;gap:6px}.pickers .pick{flex:1 1 46%}
@@ -665,6 +684,16 @@ body.gateway-open .sync-fab{display:none}
 
 /* ---------- โมดัล ---------- */
 .modal-bg{position:fixed;inset:0;background:rgba(8,14,24,.55);display:flex;align-items:flex-start;justify-content:center;padding:5vh 12px;z-index:140;overflow:auto}
+/* หน้าต่างเต็มจอ ใช้กับงานที่ต้องเห็นรายชื่อยาว ๆ อย่างการเช็กชื่อ
+   หัวกับแถวปุ่มตรึงไว้ เนื้อหาเลื่อนเองข้างใน จอเล็กจึงไม่ต้องเลื่อนทั้งหน้า */
+.modal.modal-full{max-width:none;width:100%;height:100%;max-height:none;border-radius:14px;
+  display:flex;flex-direction:column;overflow:hidden}
+.modal.modal-full > .body{flex:1;min-height:0;overflow:auto}
+.modal.modal-full > header,.modal.modal-full > footer{flex:none}
+.modal.modal-full .tablewrap.tall{max-height:none}
+body:has(.modal.modal-full) .modal-bg{padding:14px}
+@media(max-width:900px){body:has(.modal.modal-full) .modal-bg{padding:0}
+  .modal.modal-full{border-radius:0;height:100dvh}}
 .modal{background:var(--panel);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.35);width:100%;max-width:820px;border:1px solid var(--line)}
 .modal header{padding:13px 16px;border-bottom:1px solid var(--line);font-weight:700;display:flex;align-items:center;gap:8px}
 .modal .body{padding:16px;max-height:66vh;overflow:auto}
@@ -983,7 +1012,7 @@ function openModal(opts) {
   const bg = document.createElement('div');
   bg.className = 'modal-bg';
   bg.innerHTML =
-    '<div class="modal"' + (opts.wide ? ' style="max-width:1100px"' : '') + '>' +
+    '<div class="modal' + (opts.full ? ' modal-full' : '') + '"' + (opts.wide && !opts.full ? ' style="max-width:1100px"' : '') + '>' +
       '<header>' + esc(opts.title) + '<button class="x" data-close>&times;</button></header>' +
       '<div class="body">' + (opts.bodyHTML || '') + '</div>' +
       '<footer></footer>' +
@@ -2690,7 +2719,7 @@ function openAttendance(entry, date, singleMode) {
   const key = attendanceKey(entry.id, date), old = DB.timetable.attendance[key], inherited = old ? null : previousAttendanceSnapshot(entry, date), statusSource = old || inherited;
   openModal({
     title: 'เช็กชื่อ' + (groupedEntries.length > 1 ? 'พร้อมกัน ' + groupedEntries.length + ' คาบ' : '') + ' • ' + (subject ? (subject.code ? subject.code + ' ' : '') + subject.name : 'วิชา') + ' • ' + cls.name,
-    wide: true,
+    wide: true, full: true,
     bodyHTML: '<div class="row" style="margin-bottom:10px"><span class="badge">' + thaiDate(date) + '</span>' + groupedEntries.map(e => { const sl = DB.timetable.slots.find(s => s.id === String(e.slotId)); return '<span class="badge">' + esc(sl ? sl.label + ' ' + sl.start + '–' + sl.end : '') + '</span>'; }).join('') +
       '<div class="spacer"></div><button class="primary" data-bulk-att="present">มาทั้งห้อง</button><button data-bulk-att="late">สายทั้งห้อง</button><button data-bulk-att="leave">ลาทั้งห้อง</button><button data-bulk-att="activity">กิจกรรมทั้งห้อง</button><button data-bulk-att="absent">ขาดทั้งห้อง</button></div>' +
       (function () { const names = students.filter(st => activityFor(st.sid, date, entry.slotId));
@@ -3052,34 +3081,64 @@ const weekOffsetLabel = w => w < 0 ? 'สัปดาห์ก่อน' : w ===
 /** วัน/เดือน แบบตัวเลขสั้น ๆ ใช้บนชิปเลือกวัน */
 const shortDayMonth = iso => { const d = parseISODate(iso); return d ? d.getDate() + '/' + (d.getMonth() + 1) : iso; };
 
+/** คาบที่ติดกันของครูคนเดียวกัน ห้องเดียวกัน วิชาเดียวกัน = หนึ่งคาบคู่
+    ต่างจาก adjacentAttendanceEntries ตรงที่มองครูทุกคน ใช้หาคู่ของอีกฝ่ายได้ */
+function entryBlock(entry) {
+  if (!entry || String(entry.slotId) === 'assembly') return entry ? [entry] : [];
+  const order = DB.timetable.slots.map(x => String(x.id)), all = scheduleEntries(true);
+  const at = (i) => all.find(e => e.periodId === entry.periodId && e.teacherId === entry.teacherId &&
+    num(e.day) === num(entry.day) && e.classId === entry.classId && e.subjectId === entry.subjectId && String(e.slotId) === order[i]);
+  let i = order.indexOf(String(entry.slotId)), left = i, right = i;
+  if (i < 0) return [entry];
+  while (left > 0 && at(left - 1)) left--;
+  while (right < order.length - 1 && at(right + 1)) right++;
+  const out = [];
+  for (let k = left; k <= right; k++) { const e = at(k); if (e) out.push(e); }
+  return out.length ? out : [entry];
+}
+const blockLabel = block => block.length > 1 ? 'คาบคู่ต่อเนื่อง ' + block.length + ' คาบ' : 'คาบเดี่ยว';
+/** ครูคนนี้ว่างตลอดทุกคาบของคาบคู่นี้ไหม */
+function teacherFreeForBlock(teacherId, date, block, exceptIds) {
+  const skip = exceptIds || [];
+  return block.every(e => !teacherBusyAt(teacherId, date, e.slotId, skip[block.indexOf(e)] || ''));
+}
+
 function findCoverageCandidates(source, sourceDate) {
   if (!source || isHomeroomEntry(source)) return [];
   const me = curTeacher(), sourceTeacher = DB.teachers.find(t => t.id === source.teacherId);
   const myArea = teacherArea(sourceTeacher) || learningAreaOf(source.subjectId, source.periodId);
   const all = scheduleEntries(true);
-  const exchanges = [];
+  const srcBlock = entryBlock(source), srcIds = srcBlock.map(e => e.id);
+  const exchanges = [], seenBlocks = new Set();
   all.filter(e => e.periodId === source.periodId && e.teacherId && e.teacherId !== source.teacherId &&
-      e.classId === source.classId && e.subjectId !== source.subjectId && e.id !== source.id && !isHomeroomEntry(e))
+      e.classId === source.classId && e.subjectId !== source.subjectId && srcIds.indexOf(e.id) < 0 && !isHomeroomEntry(e))
     .forEach(target => {
       const teacher = DB.teachers.find(t => t.id === target.teacherId); if (!teacher) return;
-      const kind = entryPeriodKind(target);
+      const tgtBlock = entryBlock(target);
+      // แลกคาบคู่กับคาบคู่ที่ยาวเท่ากันเท่านั้น ไม่งั้นจะเหลือคาบค้างข้างเดียว
+      if (tgtBlock.length !== srcBlock.length) return;
+      const bkey = target.teacherId + '|' + tgtBlock.map(e => e.slotId).join('-');
+      if (seenBlocks.has(bkey)) return; seenBlocks.add(bkey);
+      const head = tgtBlock[0], kind = entryPeriodKind(head);
       EXCHANGE_WEEK_OFFSETS.forEach(week => {
-        const targetDate = shiftISODate(entryDateInWeek(target, sourceDate), week * 7);
-        if (targetDate === sourceDate) return;                                              // ห้ามสลับในวันเดียวกัน
-        if (targetDate < todayISO()) return;                                                // ผ่านไปแล้ว
-        if (holidayOf(targetDate, source.periodId)) return;                                 // ตรงกับวันหยุด
-        if (teacherBusyAt(target.teacherId, sourceDate, source.slotId, target.id)) return;   // เขาต้องว่างในคาบที่จะมาสอนแทนเรา
-        if (teacherBusyAt(source.teacherId, targetDate, target.slotId, source.id)) return;   // เราต้องว่างในคาบที่ต้องไปสอนคืน
-        exchanges.push({ mode: 'exchange', teacher: teacher, targetEntry: target, targetDate: targetDate,
-          weekAhead: week, kind: kind, rank: Math.abs(week) * 10 + (week < 0 ? 5 : 0) + kind.rank,
-          tier: 'ห้องเดียวกัน • ' + weekOffsetLabel(week) });
+        const targetDate = shiftISODate(entryDateInWeek(head, sourceDate), week * 7);
+        if (targetDate === sourceDate) return;                                        // ห้ามสลับในวันเดียวกัน
+        if (targetDate < todayISO()) return;                                          // ผ่านไปแล้ว
+        if (holidayOf(targetDate, source.periodId)) return;                           // ตรงกับวันหยุด
+        if (!teacherFreeForBlock(target.teacherId, sourceDate, srcBlock, tgtBlock.map(e => e.id))) return;  // เขาต้องว่างทุกคาบที่จะมาสอนแทนเรา
+        if (!teacherFreeForBlock(source.teacherId, targetDate, tgtBlock, srcIds)) return;                   // เราต้องว่างทุกคาบที่ต้องไปสอนคืน
+        exchanges.push({ mode: 'exchange', teacher: teacher, targetEntry: head, targetBlock: tgtBlock, sourceBlock: srcBlock,
+          targetDate: targetDate, weekAhead: week, kind: kind, rank: Math.abs(week) * 10 + (week < 0 ? 5 : 0) + kind.rank,
+          tier: 'ห้องเดียวกัน • ' + weekOffsetLabel(week) + (srcBlock.length > 1 ? ' • ' + blockLabel(srcBlock) : '') });
       });
     });
   exchanges.sort((a, b) => a.rank - b.rank || num(a.targetEntry.slotId) - num(b.targetEntry.slotId));
   if (exchanges.length) return exchanges;
-  return DB.teachers.filter(t => t.id !== (me || {}).id && teacherHasRole(t, 'teacher') && !teacherBusyAt(t.id, sourceDate, source.slotId, '')).map(t => {
+  return DB.teachers.filter(t => t.id !== (me || {}).id && teacherHasRole(t, 'teacher') && teacherFreeForBlock(t.id, sourceDate, srcBlock)).map(t => {
     const sameArea = myArea !== 'ยังไม่ระบุกลุ่มสาระ' && teacherLearningAreas(t.id).has(myArea);
-    return { mode: 'substitute', teacher: t, targetEntry: null, targetDate: sourceDate, sameArea: sameArea, rank: sameArea ? 100 : 200, tier: sameArea ? 'ขอสอนแทน • กลุ่มสาระเดียวกัน' : 'ขอสอนแทน • ครูที่ว่างตรงคาบ' };
+    return { mode: 'substitute', teacher: t, targetEntry: null, sourceBlock: srcBlock, targetDate: sourceDate, sameArea: sameArea,
+      rank: sameArea ? 100 : 200, tier: (sameArea ? 'ขอสอนแทน • กลุ่มสาระเดียวกัน' : 'ขอสอนแทน • ครูที่ว่างตรงคาบ') +
+        (srcBlock.length > 1 ? ' • ' + blockLabel(srcBlock) : '') };
   }).sort((a, b) => a.rank - b.rank || String(a.teacher.name || '').localeCompare(String(b.teacher.name || ''), 'th'));
 }
 /** แถบคาบของครูหนึ่งคนในวันหนึ่ง ใช้ดูว่าวันนั้นแน่นแค่ไหนและคาบที่จะแลกอยู่ตรงไหน
@@ -3142,7 +3201,10 @@ function sourceEntryText(entry, date) {
   return thaiDate(date) + ' • ' + (slot ? slot.label : '') + ' • ' + (cls ? cls.name : 'ไม่พบห้อง') + ' • ' + (subject ? (subject.code ? subject.code + ' ' : '') + subject.name : 'ไม่พบวิชา');
 }
 function createCoverageRequest(source, sourceDate, candidate, reason, reasonOther, note, leaveRequestId) {
+  const srcBlock = (candidate && candidate.sourceBlock) || entryBlock(source);
+  const tgtBlock = (candidate && candidate.targetBlock) || (candidate && candidate.targetEntry ? [candidate.targetEntry] : []);
   const req = { id: uid('swap'), periodId: source.periodId, type: candidate && candidate.mode || 'substitute', sourceDate: sourceDate, date: sourceDate, targetDate: candidate && candidate.targetDate || sourceDate, classId: source.classId,
+    blockEntryIds: srcBlock.map(e => e.id), targetBlockEntryIds: tgtBlock.map(e => e.id), slotCount: srcBlock.length,
     requesterTeacherId: source.teacherId, targetTeacherId: candidate && candidate.teacher ? candidate.teacher.id : '', requesterEntryId: source.id, targetEntryId: candidate && candidate.targetEntry ? candidate.targetEntry.id : '',
     reason: reason || 'other', reasonOther: reasonOther || '', note: note || '', tier: candidate ? candidate.tier : 'ยังไม่พบครูว่าง', leaveRequestId: leaveRequestId || '', status: candidate ? 'pending' : 'unassigned', createdAt: new Date().toISOString() };
   DB.timetable.exchangeRequests.push(req); return req;
@@ -3151,8 +3213,10 @@ function hiddenRegularEntryIds(date) {
   const ids = new Set();
   (DB.timetable.exchangeRequests || []).filter(r => r.status === 'accepted').forEach(r => {
     const sourceDate = r.sourceDate || r.date, targetDate = r.targetDate || r.date;
-    if (sourceDate === date && r.requesterEntryId) ids.add(r.requesterEntryId);
-    if ((r.type || 'exchange') === 'exchange' && targetDate === date && r.targetEntryId) ids.add(r.targetEntryId);
+    const src = (r.blockEntryIds && r.blockEntryIds.length ? r.blockEntryIds : [r.requesterEntryId]).filter(Boolean);
+    const tgt = (r.targetBlockEntryIds && r.targetBlockEntryIds.length ? r.targetBlockEntryIds : [r.targetEntryId]).filter(Boolean);
+    if (sourceDate === date) src.forEach(id => ids.add(id));
+    if ((r.type || 'exchange') === 'exchange' && targetDate === date) tgt.forEach(id => ids.add(id));
   });
   return ids;
 }
@@ -3170,11 +3234,21 @@ function respondExchangeRequest(id, accept) {
   if (accept && !source) return toast('คาบต้นทางถูกแก้ไขหรือลบไปแล้ว', 'bad');
   if (accept && (req.type || 'exchange') === 'exchange' && !target) return toast('คาบปลายทางถูกแก้ไขหรือลบไปแล้ว', 'bad');
   req.status = accept ? 'accepted' : 'rejected'; req.respondedAt = new Date().toISOString();
+  // คาบคู่ต้องย้ายไปพร้อมกันทุกคาบ ไม่งั้นจะเหลือคาบค้างที่ไม่มีใครสอน
+  const idsToEntries = ids => (ids || []).map(id => DB.timetable.entries.find(e => e.id === id)).filter(Boolean);
+  const srcBlock = idsToEntries(req.blockEntryIds).length ? idsToEntries(req.blockEntryIds) : (source ? [source] : []);
+  const tgtBlock = idsToEntries(req.targetBlockEntryIds).length ? idsToEntries(req.targetBlockEntryIds) : (target ? [target] : []);
+  const noteText = exchangeReasonLabel(req) + (req.note ? ' • ' + req.note : '');
+  const addException = (kind, base, date, slotId, teacherId) => DB.timetable.exceptions.push({ id: uid(kind),
+    periodId: req.periodId, date: date, day: (parseISODate(date) || new Date()).getDay(), slotId: String(slotId),
+    teacherId: teacherId, subjectId: base.subjectId, classId: base.classId, room: base.room || '',
+    sessionType: kind === 'xswap' ? 'exchange' : 'substitute', exchangeRequestId: req.id, note: noteText });
   if (accept && (req.type || 'exchange') === 'exchange') {
-    DB.timetable.exceptions.push({ id: uid('xswap'), periodId: req.periodId, date: targetDate, day: (parseISODate(targetDate) || new Date()).getDay(), slotId: String(target.slotId), teacherId: source.teacherId, subjectId: source.subjectId, classId: source.classId, room: source.room || '', sessionType: 'exchange', exchangeRequestId: req.id, note: exchangeReasonLabel(req) + (req.note ? ' • ' + req.note : '') });
-    DB.timetable.exceptions.push({ id: uid('xswap'), periodId: req.periodId, date: sourceDate, day: (parseISODate(sourceDate) || new Date()).getDay(), slotId: String(source.slotId), teacherId: target.teacherId, subjectId: target.subjectId, classId: target.classId, room: target.room || '', sessionType: 'exchange', exchangeRequestId: req.id, note: exchangeReasonLabel(req) + (req.note ? ' • ' + req.note : '') });
+    // ครูผู้ลาไปสอนคาบของอีกฝ่าย และอีกฝ่ายมาสอนคาบของครูผู้ลา จับคู่กันตามลำดับคาบ
+    srcBlock.forEach((e, i) => { const slot = (tgtBlock[i] || tgtBlock[0]).slotId; addException('xswap', e, targetDate, slot, source.teacherId); });
+    tgtBlock.forEach((e, i) => { const slot = (srcBlock[i] || srcBlock[0]).slotId; addException('xswap', e, sourceDate, slot, target.teacherId); });
   } else if (accept) {
-    DB.timetable.exceptions.push({ id: uid('xsub'), periodId: req.periodId, date: sourceDate, day: (parseISODate(sourceDate) || new Date()).getDay(), slotId: String(source.slotId), teacherId: req.targetTeacherId, subjectId: source.subjectId, classId: source.classId, room: source.room || '', sessionType: 'substitute', exchangeRequestId: req.id, note: exchangeReasonLabel(req) + (req.note ? ' • ' + req.note : '') });
+    srcBlock.forEach(e => addException('xsub', e, sourceDate, e.slotId, req.targetTeacherId));
   }
   if (req.leaveRequestId) {
     const leave = (DB.timetable.leaveRequests || []).find(l => l.id === req.leaveRequestId), linked = leave ? (DB.timetable.exchangeRequests || []).filter(r => r.leaveRequestId === leave.id) : [];
@@ -3313,6 +3387,7 @@ function exchangeRequestCard(limit) {
         '<div><b>' + esc(type + ' • ' + (incoming ? 'คำขอจาก ' + ((other || {}).name || 'ครู') : r.targetTeacherId ? 'ส่งถึง ' + ((other || {}).name || 'ครู') : 'รอจัดผู้สอน')) + '</b> ' +
         (other ? teacherPhoneHtml(other) : '') + '<div class="hint">' + esc(entryLabel(r.requesterEntryId, sourceDate)) +
         ((r.type || 'exchange') === 'exchange' && r.targetEntryId ? '<br>⇄ ' + esc(entryLabel(r.targetEntryId, r.targetDate || sourceDate)) : '') +
+        (num(r.slotCount) > 1 ? '<br><span class="badge group">คาบคู่ ' + num(r.slotCount) + ' คาบ ย้ายพร้อมกัน</span>' : '') +
         '<br><b>เหตุผล:</b> ' + esc(exchangeReasonLabel(r)) + (r.note ? ' • ' + esc(r.note) : '') + '<br>' + esc(r.tier || '') + '</div></div>' +
         '<div class="spacer"></div>' +
         (incoming && r.status === 'pending' && canApprove() ? '<button class="sm" data-swap-reject="' + r.id + '">ปฏิเสธ</button><button class="sm primary" data-swap-accept="' + r.id + '">ยอมรับ</button>'
@@ -3343,12 +3418,17 @@ function submitLeaveRequest(root) {
   while (d && end && d <= end && guard++ < 370) {
     const date = isoDate(d), day = d.getDay();
     // คาบเข้าแถว/โฮมรูมไม่ต้องหาคนแลกหรือสอนแทน
+    // คาบที่ติดกันของห้องและวิชาเดียวกัน นับเป็นคาบคู่เดียว ส่งคำขอครั้งเดียว
+    const doneIds = new Set();
     scheduleEntries().filter(e => num(e.day) === day && !isHomeroomEntry(e)).forEach(source => {
+      if (doneIds.has(source.id)) return;
+      const block = entryBlock(source);
+      block.forEach(e => doneIds.add(e.id));
       // ให้หัวหน้าจัด = ไม่ส่งคำขอเอง ปล่อยเป็นคาบรอหัวหน้าเลือกครู
-      const candidates = coverageMode === 'head' ? [] : findCoverageCandidates(source, date);
-      const req = createCoverageRequest(source, date, candidates[0] || null, reason, other, note, leave.id);
-      if (coverageMode === 'head') req.tier = 'รอหัวหน้ากลุ่มสาระจัดครู';
-      leave.requestIds.push(req.id); affected++;
+      const candidates = coverageMode === 'head' ? [] : findCoverageCandidates(block[0], date);
+      const req = createCoverageRequest(block[0], date, candidates[0] || null, reason, other, note, leave.id);
+      if (coverageMode === 'head') req.tier = 'รอหัวหน้ากลุ่มสาระจัดครู' + (block.length > 1 ? ' • ' + blockLabel(block) : '');
+      leave.requestIds.push(req.id); affected += block.length;
     });
     d.setDate(d.getDate() + 1);
   }
