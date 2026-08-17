@@ -222,8 +222,55 @@ td.num,th.num{text-align:center}
 .tt-room{font-size:9.5px;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tt-edit{position:absolute;right:3px;top:3px;border:0;background:var(--panel);padding:2px 6px;font-size:11px;min-height:0}
 .att-grid select{min-width:115px}
+/* ---------- ตารางเช็กชื่อ: ติ๊กทีละสถานะ แยกสีให้กวาดตาเจอทันที ---------- */
+:root{--att-present:#12a05c;--att-late:#c98a00;--att-leave:#4f6bd8;--att-activity:#0d94ad;--att-absent:#d43b3b}
+:root[data-theme="dark"]{--att-present:#4fd394;--att-late:#ffcb63;--att-leave:#8ea4ff;--att-activity:#54c9e0;--att-absent:#ff8a8a}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--att-present:#4fd394;--att-late:#ffcb63;--att-leave:#8ea4ff;--att-activity:#54c9e0;--att-absent:#ff8a8a}}
 .att-present{background:#e9f9ef}.att-late{background:#fff7dc}.att-absent{background:#ffe9e9}.att-leave{background:#eef2ff}.att-activity{background:#e8f8fb}
 :root[data-theme="dark"] .att-present{background:#173426}:root[data-theme="dark"] .att-late{background:#392f18}:root[data-theme="dark"] .att-absent{background:#3b2023}:root[data-theme="dark"] .att-leave{background:#202944}:root[data-theme="dark"] .att-activity{background:#17333a}
+/* โหมดมืดของระบบที่ยังไม่ได้เลือกธีมเอง ก็ต้องได้พื้นเข้มเหมือนกัน ไม่งั้นตัวหนังสืออ่อนบนพื้นสว่าง */
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .att-present{background:#173426}
+  :root:not([data-theme="light"]) .att-late{background:#392f18}:root:not([data-theme="light"]) .att-absent{background:#3b2023}
+  :root:not([data-theme="light"]) .att-leave{background:#202944}:root:not([data-theme="light"]) .att-activity{background:#17333a}}
+.att-grid th.c-no,.att-grid td.c-no{width:52px;text-align:center;font-variant-numeric:tabular-nums;font-weight:700}
+.att-grid th.att-col,.att-grid td.att-col{width:62px;text-align:center;padding:4px 2px}
+.att-grid th.att-col{font-size:12.5px;border-bottom-width:3px;border-bottom-style:solid}
+.att-present-h{color:var(--att-present);border-bottom-color:var(--att-present)}
+.att-late-h{color:var(--att-late);border-bottom-color:var(--att-late)}
+.att-leave-h{color:var(--att-leave);border-bottom-color:var(--att-leave)}
+.att-activity-h{color:var(--att-activity);border-bottom-color:var(--att-activity)}
+.att-absent-h{color:var(--att-absent);border-bottom-color:var(--att-absent)}
+.att-tick{display:grid;place-items:center;cursor:pointer;padding:5px 0;--tick:var(--muted)}
+.att-present-t{--tick:var(--att-present)}.att-late-t{--tick:var(--att-late)}.att-leave-t{--tick:var(--att-leave)}
+.att-activity-t{--tick:var(--att-activity)}.att-absent-t{--tick:var(--att-absent)}
+.att-tick input{position:absolute;opacity:0;width:0;height:0}
+.att-tick span{width:27px;height:27px;border-radius:9px;border:2px solid var(--line);background:var(--panel);
+  display:grid;place-items:center;transition:background .12s,border-color .12s,transform .12s}
+.att-tick:hover span{border-color:var(--tick)}
+.att-tick input:checked + span{background:var(--tick);border-color:var(--tick)}
+.att-tick input:checked + span:after{content:'';width:9px;height:15px;margin-top:-4px;border:solid #fff;
+  border-width:0 3px 3px 0;transform:rotate(42deg)}
+.att-tick input:focus-visible + span{outline:3px solid var(--brand);outline-offset:2px}
+.att-tick .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.att-grid td.c-hist{white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--muted);font-size:12.5px}
+.att-grid .hist-num{font-weight:700;color:var(--ink)}
+/* แถบสรุป อยู่เหนือตาราง เห็นยอดสดขณะติ๊ก */
+.att-summary{margin-bottom:10px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);padding:10px 12px}
+.att-chips{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.att-chip{font-size:12.5px;font-weight:700;padding:4px 11px;border-radius:999px;border:1.5px solid currentColor;
+  background:color-mix(in srgb,currentColor 12%,var(--panel))}
+.att-chip b{font-variant-numeric:tabular-nums;margin-left:2px}
+.att-chip.zero{opacity:.45}
+.att-present-c{color:var(--att-present)}.att-late-c{color:var(--att-late)}.att-leave-c{color:var(--att-leave)}
+.att-activity-c{color:var(--att-activity)}.att-absent-c{color:var(--att-absent)}
+.att-lines{display:grid;gap:5px;margin-top:9px;padding-top:9px;border-top:1px dashed var(--line)}
+.att-line{display:flex;gap:9px;align-items:baseline;font-size:12.5px;flex-wrap:wrap}
+.att-line-label{font-weight:800;min-width:92px}
+.att-line-nos{color:var(--ink);font-variant-numeric:tabular-nums}
+@media(max-width:720px){.att-grid th.att-col,.att-grid td.att-col{width:46px}
+  .att-tick span{width:24px;height:24px;border-radius:8px}
+  .att-grid th.c-hist,.att-grid td.c-hist{display:none}
+  .att-line-label{min-width:78px}}
 /* ไม่ให้มีแถบเลื่อนซ้อนในกล่อง ปล่อยให้กล่องยาวไปเลย แล้วใช้ปุ่มย่อกล่องแทนถ้ายาวเกิน */
 .alert-list{display:grid;gap:7px}
 .alert-item{display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel)}
@@ -2398,6 +2445,8 @@ const ATTENDANCE_STATUSES = [
   { value: 'activity', label: 'กิจกรรม', cls: 'att-activity' },
   { value: 'absent', label: 'ขาด', cls: 'att-absent' }
 ];
+/* ลำดับคอลัมน์ช่องติ๊กในตารางเช็กชื่อ เรียงตามที่ครูใช้จริงจากมากไปน้อย */
+const ATT_PICK_ORDER = ['present', 'late', 'leave', 'activity', 'absent'];
 function sessionTypeLabel(type) {
   return type === 'exchange' ? 'แลกคาบ' : type === 'substitute' ? 'สอนแทน' : type === 'makeup' ? 'สอนชดเชย' : 'คาบประจำ';
 }
@@ -2649,20 +2698,33 @@ function openAttendance(entry, date, singleMode) {
           ' คนได้รับอนุญาตให้ทำกิจกรรมในคาบนี้</b> ระบบตั้งสถานะ “กิจกรรม” ให้แล้ว ตรวจสอบและกดบันทึกได้เลย</div>' : ''; })() +
       (inherited ? '<div class="notice" style="margin-bottom:10px"><b>รับช่วงสถานะจาก ' + esc(attendanceSourceText(inherited)) + '</b><br>ข้อมูลนี้เป็นเพียงค่าเริ่มต้นและยังไม่นับว่าเช็กชื่อคาบนี้ จนกว่าครูจะตรวจสอบและกด “บันทึกการเช็กชื่อ”</div>' : '') +
       (groupedEntries.length > 1 ? '<div class="notice" style="margin-bottom:10px">คาบวิชา/ห้องเดียวกันที่ติดกันจะบันทึกพร้อมกัน หากสถานะบางคาบต่างกัน ให้เลือกแก้รายคาบ: ' + groupedEntries.map(e => { const sl = DB.timetable.slots.find(s => s.id === String(e.slotId)); return '<button class="sm" data-single-att="' + e.id + '">' + esc(sl ? sl.label : e.slotId) + '</button>'; }).join(' ') + '</div>' : '') +
-      (students.length ? '<div class="tablewrap tall"><table class="att-grid"><thead><tr><th>เลขที่</th><th>เลขประจำตัว</th><th>ชื่อ-นามสกุล</th><th>สถานะคาบนี้</th><th>มา<br><span class="hint">รวมสาย</span></th><th>ขาด</th><th>ลา</th><th>กิจกรรม</th><th>สรุปเวลาเรียน</th></tr></thead><tbody>' + students.map(st => {
+      '<div class="att-summary" id="attSummary"></div>' +
+      (students.length ? '<div class="tablewrap tall"><table class="att-grid"><thead><tr><th class="c-no">เลขที่</th><th>ชื่อ-นามสกุล</th>' +
+        ATT_PICK_ORDER.map(v => { const s2 = ATTENDANCE_STATUSES.find(x => x.value === v);
+          return '<th class="att-col ' + s2.cls + '-h">' + esc(s2.label) + '</th>'; }).join('') +
+        '<th class="c-hist">สถิติสะสม<br><span class="hint">มา/ขาด/ลา/กิจกรรม</span></th><th>เวลาเรียน</th></tr></thead><tbody>' + students.map(st => {
         const onActivity = activityFor(st.sid, date, entry.slotId);
         const status = statusSource && statusSource.statuses && statusSource.statuses[st.sid] ? statusSource.statuses[st.sid]
           : (onActivity ? 'activity' : 'present');
         const att = attendanceStudentResult(cls.id, entry.subjectId, st, entry.periodId);
-        return '<tr data-att-sid="' + esc(st.sid) + '" class="att-' + status + '"><td>' + esc(st.no) + '</td><td>' + esc(st.sid) + '</td><td><b>' + esc(st.name) + '</b>' + (onActivity ? '<br><span class="badge">กิจกรรม: ' + esc(onActivity.name) + '</span>' : '') + '</td><td><select class="att-status">' + attendanceStatusOptions(status) + '</select></td>' +
-          '<td>' + (att.counts.present + att.counts.late) + '</td><td>' + att.counts.absent + '</td><td>' + att.counts.leave + '</td><td>' + att.counts.activity + '</td><td>' + attendanceOutcomeBadge(att.pct) + '</td></tr>';
+        const nm = 'att_' + String(st.sid).replace(/[^A-Za-z0-9_-]/g, '_');
+        return '<tr data-att-sid="' + esc(st.sid) + '" data-att-no="' + esc(st.no) + '" class="att-' + status + '">' +
+          '<td class="c-no">' + esc(st.no) + '</td>' +
+          '<td><b>' + esc(st.name) + '</b><div class="hint">' + esc(st.sid) + (onActivity ? ' • กิจกรรม: ' + esc(onActivity.name) : '') + '</div></td>' +
+          ATT_PICK_ORDER.map(v => { const s2 = ATTENDANCE_STATUSES.find(x => x.value === v);
+            return '<td class="att-col"><label class="att-tick ' + s2.cls + '-t" title="' + esc(s2.label) + '">' +
+              '<input type="radio" class="att-status" name="' + nm + '" value="' + v + '"' + (v === status ? ' checked' : '') + '>' +
+              '<span aria-hidden="true"></span><i class="sr">' + esc(s2.label) + '</i></label></td>'; }).join('') +
+          '<td class="c-hist"><span class="hist-num">' + (att.counts.present + att.counts.late) + '</span>/<span class="hist-num badtext">' + att.counts.absent +
+          '</span>/<span class="hist-num">' + att.counts.leave + '</span>/<span class="hist-num">' + att.counts.activity + '</span></td>' +
+          '<td>' + attendanceOutcomeBadge(att.pct) + '</td></tr>';
       }).join('') + '</tbody></table></div>' : '<div class="empty">ห้องนี้ยังไม่มีรายชื่อ กรุณาดึงรายชื่อจากแท็บฐานนักเรียนก่อน</div>') +
-      '<div class="hint" style="margin-top:8px">แตะที่แถวของนักเรียนเพื่อเปลี่ยนสถานะได้เลย • มา → ขาด → ลา → สาย → กิจกรรม → มา</div>' +
+      '<div class="hint" style="margin-top:8px">ติ๊กช่องสถานะของนักเรียนได้เลย • หรือแตะที่ชื่อเพื่อวนสถานะ มา → ขาด → ลา → สาย → กิจกรรม</div>' +
       (old ? '<div class="hint" style="margin-top:8px">เช็กครั้งล่าสุด ' + esc(new Date(old.checkedAt).toLocaleString('th-TH')) + '</div>' : ''),
     buttons: [{ label: 'ยกเลิก' }, { label: 'บันทึกการเช็กชื่อ', cls: 'primary', act(close, root) {
       if (!students.length) return toast('ยังไม่มีรายชื่อนักเรียน', 'bad');
       const statuses = {};
-      $$('[data-att-sid]', root).forEach(tr => { statuses[tr.dataset.attSid] = $('.att-status', tr).value; });
+      $$('[data-att-sid]', root).forEach(tr => { const pick = $$('.att-status', tr).find(x => x.checked); statuses[tr.dataset.attSid] = pick ? pick.value : 'present'; });
       groupedEntries.forEach(e => {
         const teacher = curTeacher();
         DB.timetable.attendance[attendanceKey(e.id, date)] = { entryId: e.id, date: date, periodId: e.periodId, subjectId: e.subjectId,
@@ -2673,22 +2735,42 @@ function openAttendance(entry, date, singleMode) {
       toast('บันทึกการเช็กชื่อ ' + students.length + ' คน • ' + groupedEntries.length + ' คาบแล้ว', 'ok');
     } }],
     onMount(root, close) {
+      const rows = $$('[data-att-sid]', root);
+      const valueOf = tr => { const p = $$('.att-status', tr).find(x => x.checked); return p ? p.value : 'present'; };
+      const setValue = (tr, v) => { $$('.att-status', tr).forEach(x => { x.checked = x.value === v; }); };
       function paint(tr) {
         ATTENDANCE_STATUSES.forEach(s => tr.classList.remove(s.cls));
-        const s = ATTENDANCE_STATUSES.find(x => x.value === $('.att-status', tr).value); if (s) tr.classList.add(s.cls);
+        const s = ATTENDANCE_STATUSES.find(x => x.value === valueOf(tr)); if (s) tr.classList.add(s.cls);
       }
-      $$('[data-att-sid]', root).forEach(tr => $('.att-status', tr).addEventListener('change', () => paint(tr)));
-      // แตะที่แถวเพื่อวนสถานะ ครูจะได้แตะเฉพาะคนที่ไม่ได้มาเรียน
+      /** แถบสรุป — บอกจำนวนแต่ละสถานะ และเลขที่ของคนที่ไม่ได้มาปกติ */
+      function drawSummary() {
+        const box = $('#attSummary', root); if (!box) return;
+        const byStatus = {}; ATT_PICK_ORDER.forEach(v => { byStatus[v] = []; });
+        rows.forEach(tr => { const v = valueOf(tr); (byStatus[v] = byStatus[v] || []).push(tr.dataset.attNo || '?'); });
+        const chip = v => { const s2 = ATTENDANCE_STATUSES.find(x => x.value === v), n = (byStatus[v] || []).length;
+          return '<span class="att-chip ' + s2.cls + '-c' + (n ? '' : ' zero') + '">' + esc(s2.label) + ' <b>' + n + '</b></span>'; };
+        const line = v => { const s2 = ATTENDANCE_STATUSES.find(x => x.value === v), list = byStatus[v] || [];
+          return '<div class="att-line"><span class="att-line-label ' + s2.cls + '-c">' + esc(s2.label) + ' ' + list.length + ' คน</span>' +
+            '<span class="att-line-nos">' + (list.length ? 'เลขที่ ' + esc(list.join(', ')) : 'ไม่มี') + '</span></div>'; };
+        box.innerHTML = '<div class="att-chips">' + ATT_PICK_ORDER.map(chip).join('') +
+          '<span class="spacer"></span><span class="hint">รวม ' + rows.length + ' คน</span></div>' +
+          '<div class="att-lines">' + ['late', 'leave', 'activity', 'absent'].map(line).join('') + '</div>';
+      }
+      rows.forEach(tr => $$('.att-status', tr).forEach(inp =>
+        inp.addEventListener('change', () => { paint(tr); drawSummary(); })));
+      // แตะที่ชื่อเพื่อวนสถานะ ครูจะได้แตะเฉพาะคนที่ไม่ได้มาเรียน
       const TAP_ORDER = ['present', 'absent', 'leave', 'late', 'activity'];
-      $$('[data-att-sid]', root).forEach(tr => tr.addEventListener('click', e => {
-        if (e.target.closest('select,button,input,a')) return;
-        const sel = $('.att-status', tr), at = TAP_ORDER.indexOf(sel.value);
-        sel.value = TAP_ORDER[(at + 1) % TAP_ORDER.length];
-        paint(tr);
+      rows.forEach(tr => tr.addEventListener('click', e => {
+        if (e.target.closest('select,button,input,a,label')) return;
+        const at = TAP_ORDER.indexOf(valueOf(tr));
+        setValue(tr, TAP_ORDER[(at + 1) % TAP_ORDER.length]);
+        paint(tr); drawSummary();
       }));
       $$('[data-bulk-att]', root).forEach(btn => btn.addEventListener('click', () => {
-        $$('[data-att-sid]', root).forEach(tr => { $('.att-status', tr).value = btn.dataset.bulkAtt; paint(tr); });
+        rows.forEach(tr => { setValue(tr, btn.dataset.bulkAtt); paint(tr); });
+        drawSummary();
       }));
+      drawSummary();
       $$('[data-single-att]', root).forEach(btn => btn.addEventListener('click', () => {
         const only = groupedEntries.find(e => e.id === btn.dataset.singleAtt); if (only) { close(); openAttendance(only, date, true); }
       }));
