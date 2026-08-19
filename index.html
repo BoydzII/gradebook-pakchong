@@ -288,6 +288,11 @@ td.num,th.num{text-align:center}
   .att-line-label{min-width:78px}}
 /* ไม่ให้มีแถบเลื่อนซ้อนในกล่อง ปล่อยให้กล่องยาวไปเลย แล้วใช้ปุ่มย่อกล่องแทนถ้ายาวเกิน */
 .alert-list{display:grid;gap:7px}
+/* หัวกลุ่มของคาบค้างเช็กชื่อ ตรึงไว้ขณะเลื่อน จะได้รู้ตลอดว่ากำลังดูเดือน/ห้องไหน */
+.miss-group{margin-top:12px}
+.miss-group-head{display:flex;align-items:center;gap:9px;position:sticky;top:0;z-index:1;
+  padding:6px 2px;margin-bottom:6px;background:var(--panel);border-bottom:1px solid var(--line)}
+.miss-group-head b{font-size:14px}
 .alert-item{display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel)}
 .master-tools{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
 .level-tag{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;background:var(--brandSoft);color:var(--brand);font-size:11px;font-weight:800;white-space:nowrap}
@@ -4039,6 +4044,117 @@ function renderExchangeCenter() {
   bindMergeDocButton(pane); bindAcceptedDocButton(pane);
 }
 
+/* ---- ตัวกรองคาบค้างเช็กชื่อ ------------------------------------------------
+   พอเปิดภาคเรียนมาสักพัก รายการนี้ยาวเป็นร้อยคาบ เดิมแสดงเรียงตามวันที่
+   แล้วตัดที่ 80 รายการเฉย ๆ ครูจึงหาคาบที่ต้องการไม่เจอ และไม่รู้ว่าค้างตรงไหนมากสุด
+   จึงให้กรองตามเดือน/ห้อง/วิชา แล้วจัดกลุ่มพร้อมนับยอดให้เห็นภาพ */
+const MISS_GROUPS = [{ key: 'date', label: 'วันที่' }, { key: 'month', label: 'เดือน' },
+  { key: 'class', label: 'ห้อง' }, { key: 'subject', label: 'วิชา' }];
+const MISS_LIMIT = 300;
+const missGroupKey = () => MISS_GROUPS.some(g => g.key === DB.ui.missGroup) ? DB.ui.missGroup : 'date';
+const missMonthOf = iso => String(iso || '').slice(0, 7);
+const thaiMonthLabel = iso => {
+  const d = parseISODate(iso);
+  return d ? d.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }) : '—';
+};
+const missClassName = e => (DB.classes.find(c => c.id === e.classId) || { name: 'ไม่พบห้อง' }).name;
+const missSubject = e => DB.subjects.find(s => s.id === e.subjectId) || { code: '', name: 'ไม่พบวิชา' };
+const missSubjectName = e => { const s = missSubject(e); return (s.code ? s.code + ' ' : '') + s.name; };
+
+/** ตัวเลือกของช่องกรอง สร้างจากรายการที่ค้างจริง พร้อมยอดในวงเล็บ
+    เดือน/ห้อง/วิชาที่ไม่มีคาบค้างจะไม่ขึ้นให้เลือก จะได้ไม่ต้องไล่หาในตัวเลือกที่ว่างเปล่า */
+function missOptions(list, keyOf, labelOf, selected, allLabel) {
+  const count = {}, label = {};
+  list.forEach(x => { const k = keyOf(x); if (!k) return; count[k] = (count[k] || 0) + 1; label[k] = labelOf(x); });
+  const keys = Object.keys(count).sort();
+  return '<option value="">' + esc(allLabel) + ' (' + list.length + ')</option>' +
+    keys.map(k => '<option value="' + esc(k) + '"' + (String(selected) === k ? ' selected' : '') + '>' +
+      esc(label[k]) + ' (' + count[k] + ')</option>').join('');
+}
+
+/** รายการที่เหลือหลังกรอง */
+function missedFiltered(missed) {
+  const month = DB.ui.missMonth || '', cls = DB.ui.missClass || '', sub = DB.ui.missSubject || '';
+  return missed.filter(x =>
+    (!month || missMonthOf(x.date) === month) &&
+    (!cls || x.entry.classId === cls) &&
+    (!sub || x.entry.subjectId === sub));
+}
+
+function missedCardHtml(missed) {
+  const shown = missedFiltered(missed), group = missGroupKey();
+  const filtering = !!(DB.ui.missMonth || DB.ui.missClass || DB.ui.missSubject);
+  const head = '<div class="row"><h3 style="margin:0">คาบค้างเช็กชื่อ</h3>' +
+    '<span class="badge ' + (missed.length ? 'bad' : 'ok') + '">' + missed.length + '</span>' +
+    '<div class="spacer"></div>' + (filtering ? '<button class="sm" id="missClear">ล้างตัวกรอง</button>' : '') + '</div>';
+  if (!missed.length) return '<div class="card">' + head + '<div class="empty" style="margin-top:10px">ไม่มีคาบค้างเช็ก</div></div>';
+
+  const tools = '<div class="row" style="margin-top:10px;align-items:flex-end">' +
+    '<div class="pick"><label>เดือน</label><select id="missMonth">' +
+      missOptions(missed, x => missMonthOf(x.date), x => thaiMonthLabel(x.date), DB.ui.missMonth, 'ทุกเดือน') + '</select></div>' +
+    '<div class="pick"><label>ห้อง</label><select id="missClass">' +
+      missOptions(missed, x => x.entry.classId, x => missClassName(x.entry), DB.ui.missClass, 'ทุกห้อง') + '</select></div>' +
+    '<div class="pick"><label>วิชา</label><select id="missSubject">' +
+      missOptions(missed, x => x.entry.subjectId, x => missSubjectName(x.entry), DB.ui.missSubject, 'ทุกวิชา') + '</select></div>' +
+    '<div class="pick"><label>จัดกลุ่มตาม</label><div class="sort-group">' +
+      MISS_GROUPS.map(g => '<button class="sm' + (group === g.key ? ' active' : '') + '" data-miss-group="' + g.key + '">' +
+        esc(g.label) + '</button>').join('') + '</div></div></div>';
+
+  if (!shown.length) return '<div class="card">' + head + tools +
+    '<div class="empty" style="margin-top:10px">ไม่มีคาบค้างเช็กที่ตรงกับตัวกรองนี้<br><span class="hint">ลองเลือก “ทุกเดือน” หรือ “ทุกห้อง”</span></div></div>';
+
+  const itemHtml = x => {
+    const slot = DB.timetable.slots.find(t => t.id === String(x.entry.slotId));
+    return '<div class="alert-item"><div><b>' + thaiDate(x.date) + '</b><br><span class="hint">' +
+      esc(slot ? slot.label : '') + ' • ' + esc(missSubjectName(x.entry)) + ' • ' + esc(missClassName(x.entry)) +
+      '</span></div><div class="spacer"></div><button class="sm primary" data-missed-entry="' + x.entry.id +
+      '" data-date="' + x.date + '">เช็กชื่อ</button></div>';
+  };
+
+  let listHtml = '', counted = 0;
+  if (group === 'date') {
+    listHtml = '<div class="alert-list" style="margin-top:10px">' +
+      shown.slice(0, MISS_LIMIT).map(itemHtml).join('') + '</div>';
+    counted = Math.min(shown.length, MISS_LIMIT);
+  } else {
+    const keyOf = x => group === 'month' ? missMonthOf(x.date) : group === 'class' ? x.entry.classId : x.entry.subjectId;
+    const labelOf = x => group === 'month' ? thaiMonthLabel(x.date) : group === 'class' ? missClassName(x.entry) : missSubjectName(x.entry);
+    const buckets = {}, labels = {};
+    shown.forEach(x => { const k = keyOf(x) || '—'; (buckets[k] = buckets[k] || []).push(x); labels[k] = labelOf(x); });
+    // กลุ่มที่ค้างเยอะที่สุดขึ้นก่อน ครูจะได้เห็นว่าต้องไปตามตรงไหนมากสุด
+    const keys = Object.keys(buckets).sort((a, b) => buckets[b].length - buckets[a].length || String(labels[a]).localeCompare(String(labels[b]), 'th'));
+    listHtml = keys.map(k => {
+      const items = buckets[k], take = items.slice(0, Math.max(0, MISS_LIMIT - counted));
+      counted += take.length;
+      return '<div class="miss-group"><div class="miss-group-head"><b>' + esc(labels[k]) + '</b>' +
+        '<span class="badge">' + items.length + ' คาบ</span></div>' +
+        (take.length ? '<div class="alert-list">' + take.map(itemHtml).join('') + '</div>' : '') +
+        (take.length < items.length ? '<div class="hint" style="margin-top:6px">ยังไม่ได้แสดงอีก ' + (items.length - take.length) + ' คาบในกลุ่มนี้</div>' : '') +
+        '</div>';
+    }).join('');
+  }
+
+  const summary = '<div class="hint" style="margin-top:10px">แสดง ' + counted + ' จาก ' + shown.length + ' คาบที่ตรงตัวกรอง' +
+    (shown.length !== missed.length ? ' • ค้างทั้งหมด ' + missed.length + ' คาบ' : '') +
+    (counted < shown.length ? ' — เลือกเดือนหรือห้องเพื่อดูให้ครบ' : '') + '</div>';
+
+  return '<div class="card">' + head + tools + summary + listHtml + '</div>';
+}
+
+/** ผูกปุ่มและช่องกรองของการ์ดคาบค้างเช็กชื่อ */
+function bindMissedCard(pane) {
+  const set = (id, key) => { const el = $('#' + id, pane); if (!el) return;
+    el.addEventListener('change', () => { DB.ui[key] = el.value; save(); renderAttendancePage(); }); };
+  set('missMonth', 'missMonth'); set('missClass', 'missClass'); set('missSubject', 'missSubject');
+  const clear = $('#missClear', pane);
+  if (clear) clear.addEventListener('click', () => {
+    DB.ui.missMonth = ''; DB.ui.missClass = ''; DB.ui.missSubject = ''; save(); renderAttendancePage();
+  });
+  $$('[data-miss-group]', pane).forEach(b => b.addEventListener('click', () => {
+    DB.ui.missGroup = b.dataset.missGroup; save(); renderAttendancePage();
+  }));
+}
+
 function renderAttendancePage() {
   const pane = $('#pane-attendance');
   if (!curPeriod()) { pane.innerHTML = '<div class="card"><div class="empty">กรุณาเลือกปี/ภาคเรียนก่อน</div></div>'; return; }
@@ -4075,9 +4191,9 @@ function renderAttendancePage() {
           (!special && owner && owner.from ? '<div class="tt-room" style="color:var(--group);font-weight:800">↷ ' + esc(fromTag(owner)) + '</div>' : '') +
           '<span class="badge ' + (checked ? 'ok' : e.sessionType ? 'warn' : '') + '">' + (checked ? 'เช็กแล้ว' : typeLabel) + '</span></div></td>';
       }).join('') + '</tr></tbody></table></div><div class="hint" style="margin-top:8px">คลิกขวาค้างแล้วลากเพื่อเลื่อนตารางซ้าย-ขวา</div></div>') +
-    '<div class="card"><div class="row"><h3 style="margin:0">คาบค้างเช็กชื่อ</h3><span class="badge ' + (missed.length ? 'bad' : 'ok') + '">' + missed.length + '</span></div>' +
-      (missed.length ? '<div class="alert-list" style="margin-top:10px">' + missed.slice(0, 80).map(x => { const s = subjectText(x.entry), slot = DB.timetable.slots.find(t => t.id === String(x.entry.slotId)); return '<div class="alert-item"><div><b>' + thaiDate(x.date) + '</b><br><span class="hint">' + esc(slot ? slot.label : '') + ' • ' + esc((s.code ? s.code + ' ' : '') + s.name) + ' • ' + esc(classText(x.entry)) + '</span></div><div class="spacer"></div><button class="sm primary" data-missed-entry="' + x.entry.id + '" data-date="' + x.date + '">เช็กชื่อ</button></div>'; }).join('') + '</div>' : '<div class="empty" style="margin-top:10px">ไม่มีคาบค้างเช็ก</div>') + '</div>';
+    missedCardHtml(missed);
 
+  bindMissedCard(pane);
   const holidayBtn = $('#holidayShowGrid', pane);
   if (holidayBtn) holidayBtn.addEventListener('click', () => { DB.ui.holidayCheckDate = showAnyway ? '' : date; save(); renderAttendancePage(); });
   $('#checkDate').addEventListener('change', e => { DB.ui.attendanceDate = e.target.value || todayISO(); save(); renderAttendancePage(); });
