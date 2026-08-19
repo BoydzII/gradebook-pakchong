@@ -420,6 +420,12 @@ td.num,th.num{text-align:center}
 .cap-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:var(--capc,var(--ok))}
 .cap-bar.over i{background:var(--group)}
 .numcell{text-align:right;font-variant-numeric:tabular-nums}
+.gap-list{display:grid;gap:9px;margin-top:6px}
+.gap-item{display:flex;gap:11px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);
+  border-left:4px solid var(--warn);border-radius:10px;background:var(--panel)}
+.gap-n{min-width:38px;text-align:center;font-size:20px;font-weight:800;color:var(--warn);font-variant-numeric:tabular-nums}
+.gap-fix{margin-top:5px;font-size:12.5px;color:var(--ink);background:var(--warn-bg);
+  border-radius:8px;padding:5px 9px;display:inline-block}
 /* กล่องรายการยาว ๆ ย่อให้เหลือความสูงพอดีจอ แล้วเลื่อนอ่านข้างในแทน */
 .listbox.folded{max-height:340px;overflow:auto}
 .listbox.folded thead th{position:sticky;top:0;z-index:1;background:var(--panel)}
@@ -9171,7 +9177,12 @@ async function fetchCentralCounts() {
   const fromServer = ref => ref.get({ source: 'server' });
   const out = { at: new Date().toISOString() };
   const staff = await fromServer(fbDb.collection('staff'));
-  out.teachers = staff.docs.filter(d => (d.data() || {}).active !== false).length;
+  const activeDocs = staff.docs.filter(d => (d.data() || {}).active !== false);
+  out.teachers = activeDocs.length;
+  out.staffTotal = staff.size;
+  out.staffInactive = staff.size - activeDocs.length;
+  out.staffIds = staff.docs.map(d => d.id);          // เก็บไว้เทียบว่าใครยังไม่มีบนส่วนกลาง
+  out.staffActiveIds = activeDocs.map(d => d.id);
   const readShared = async (doc, field) => {
     const d = await fromServer(fbDb.collection('shared').doc(doc));
     return d.exists ? fbDecodeNested(d.data()[field]) : null;
@@ -9190,6 +9201,45 @@ async function fetchCentralCounts() {
   }
   DB.cloud.centralCounts = out; save(true);
   return out;
+}
+
+/** แยกให้เห็นว่ายอดครูที่ต่างกันมาจากอะไร และต้องแก้ตรงไหน */
+function staffGapReport() {
+  const cc = (DB.cloud || {}).centralCounts || null;
+  const withEmail = DB.teachers.filter(t => String(t.email || '').trim());
+  const noEmail = DB.teachers.filter(t => !String(t.email || '').trim());
+  const dupes = staffEmailDuplicates();
+  const onCentral = cc && cc.staffIds ? new Set(cc.staffIds) : null;
+  const activeOnCentral = cc && cc.staffActiveIds ? new Set(cc.staffActiveIds) : null;
+  const notPushed = onCentral ? withEmail.filter(t => !onCentral.has(fbStaffId(t.email))) : [];
+  const inactive = activeOnCentral ? withEmail.filter(t => onCentral.has(fbStaffId(t.email)) && !activeOnCentral.has(fbStaffId(t.email))) : [];
+  const localIds = new Set(withEmail.map(t => fbStaffId(t.email)));
+  const extra = onCentral ? cc.staffIds.filter(id => !localIds.has(id)) : [];
+  return { withEmail: withEmail, noEmail: noEmail, dupes: dupes, notPushed: notPushed,
+    inactive: inactive, extra: extra, hasCentral: !!onCentral };
+}
+
+/** กล่องอธิบายว่าครูหายไปไหน พร้อมบอกว่าต้องกดปุ่มไหน */
+function staffGapHtml() {
+  const g = staffGapReport(); if (!g.hasCentral) return '';
+  const names = list => list.slice(0, 8).map(t => esc(t.name || t.email || '(ไม่มีชื่อ)')).join(', ') +
+    (list.length > 8 ? ' และอีก ' + (list.length - 8) + ' คน' : '');
+  const rows = [];
+  if (g.notPushed.length) rows.push({ n: g.notPushed.length, head: 'มีอีเมลแต่ยังไม่มีบนส่วนกลาง',
+    detail: names(g.notPushed), fix: 'ผู้ดูแลระบบกด <b>อัปเดตขึ้นส่วนกลาง</b> หรือ <b>ส่งเฉพาะรายชื่อบุคลากร</b> ที่หน้าผู้ดูแลระบบ' });
+  if (g.noEmail.length) rows.push({ n: g.noEmail.length, head: 'ยังไม่มีอีเมลในระบบ จึงส่งขึ้นไม่ได้',
+    detail: names(g.noEmail), fix: 'กรอกอีเมลให้ครบที่ <b>ผู้ดูแลระบบ → ข้อมูลครูและสิทธิ์ใช้งาน</b> แล้วค่อยกดส่งขึ้น' });
+  if (g.inactive.length) rows.push({ n: g.inactive.length, head: 'มีบนส่วนกลางแต่ถูกตั้งเป็นไม่ใช้งาน',
+    detail: names(g.inactive), fix: 'ครูกลุ่มนี้เข้าสู่ระบบไม่ได้ ให้แก้สถานะแล้วส่งขึ้นใหม่' });
+  if (g.dupes.length) rows.push({ n: g.dupes.length, head: 'อีเมลซ้ำกัน ข้อมูลจะทับกันบนส่วนกลาง',
+    detail: esc(g.dupes.slice(0, 6).map(x => x.email).join(', ')), fix: 'แก้อีเมลให้ไม่ซ้ำก่อนส่งขึ้น' });
+  if (g.extra.length) rows.push({ n: g.extra.length, head: 'มีบนส่วนกลางแต่ไม่มีในเครื่องนี้',
+    detail: esc(g.extra.slice(0, 8).join(', ')), fix: 'เครื่องนี้มีรายชื่อเก่ากว่า กด <b>ดึงฐานข้อมูลจากส่วนกลาง</b>' });
+  if (!rows.length) return '';
+  return '<details class="exec-more" open><summary>ทำไมยอดครูไม่ตรง และต้องทำอะไร</summary>' +
+    '<div class="gap-list">' + rows.map(r => '<div class="gap-item"><div class="gap-n">' + r.n + '</div>' +
+      '<div><b>' + r.head + '</b><div class="hint">' + r.detail + '</div>' +
+      '<div class="gap-fix">วิธีแก้: ' + r.fix + '</div></div></div>').join('') + '</div></details>';
 }
 
 /** แถวเทียบยอด ในเครื่อง กับ ส่วนกลาง */
@@ -9224,16 +9274,22 @@ function schoolDataCard() {
       SCHOOL_COUNT_ROWS.map(r => {
         const mine = d[r.key], their = cc ? cc[r.key] : null, known = cc && their !== undefined && their !== null;
         const same = known && mine === their, diff = known ? their - mine : 0;
-        return '<tr><td><b>' + esc(r.label) + '</b></td><td class="numcell">' + mine + '</td>' +
+        const note = r.key === 'teachers' && cc
+          ? '<div class="hint">มีอีเมล ' + DB.teachers.filter(t => String(t.email || '').trim()).length +
+            ' • ไม่มีอีเมล ' + DB.teachers.filter(t => !String(t.email || '').trim()).length +
+            (cc.staffInactive ? ' | ส่วนกลางปิดใช้งาน ' + cc.staffInactive : '') + '</div>' : '';
+        return '<tr><td><b>' + esc(r.label) + '</b>' + note + '</td><td class="numcell">' + mine + '</td>' +
           '<td class="numcell">' + (known ? their : '—') + '</td>' +
           '<td class="' + (!known ? '' : same ? 'oktext' : 'badtext') + '">' +
           (!known ? '<span class="hint">ยังไม่ได้เทียบ</span>' : same ? 'ตรงกัน'
             : diff > 0 ? 'ส่วนกลางมากกว่า ' + diff : 'ส่วนกลางน้อยกว่า ' + (-diff)) + '</td></tr>';
       }).join('') + '</tbody></table></div>' +
     (cc && SCHOOL_COUNT_ROWS.some(r => d[r.key] !== cc[r.key])
-      ? '<div class="notice bad" style="margin-top:10px">ยอดไม่ตรงกับส่วนกลาง<br>' +
-        'ถ้าส่วนกลาง<b>มากกว่า</b> แปลว่าเครื่องนี้ยังไม่ได้ดึงของใหม่ลงมา ให้กด <b>ดึงฐานข้อมูลจากส่วนกลาง</b><br>' +
-        'ถ้าส่วนกลาง<b>น้อยกว่า</b> แปลว่าของบนส่วนกลางยังเก่า ให้ผู้ดูแลระบบกด <b>อัปเดตขึ้นส่วนกลาง</b> ที่หน้าผู้ดูแลระบบ</div>'
+      ? staffGapHtml() +
+        (SCHOOL_COUNT_ROWS.filter(r => r.key !== 'teachers').some(r => d[r.key] !== cc[r.key])
+          ? '<div class="notice bad" style="margin-top:10px">ชุดอื่นที่ยอดไม่ตรง<br>' +
+            'ถ้าส่วนกลาง<b>มากกว่า</b> แปลว่าเครื่องนี้ยังไม่ได้ดึงของใหม่ลงมา ให้กด <b>ดึงฐานข้อมูลจากส่วนกลาง</b><br>' +
+            'ถ้าส่วนกลาง<b>น้อยกว่า</b> แปลว่าของบนส่วนกลางยังเก่า ให้ผู้ดูแลระบบกด <b>อัปเดตขึ้นส่วนกลาง</b> ที่หน้าผู้ดูแลระบบ</div>' : '')
       : cc ? '<div class="notice ok" style="margin-top:10px">ยอดทุกชุดตรงกับส่วนกลางแล้ว</div>' : '') +
     '<div class="hint" style="margin-top:8px">' + (last ? 'ดึงจากส่วนกลางล่าสุด ' + esc(last) : 'ยังไม่เคยกดดึงจากเครื่องนี้') +
     (ccAt ? ' • เทียบยอดล่าสุด ' + esc(ccAt) : '') +
