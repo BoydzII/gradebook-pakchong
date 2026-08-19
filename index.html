@@ -9165,27 +9165,98 @@ function renderSyncChip() {
 window.addEventListener('online', flushBookSync);
 document.addEventListener('visibilitychange', () => { if (document.hidden) flushBookSync(); });
 
+/** นับยอดข้อมูลที่อยู่บนส่วนกลาง เพื่อเทียบกับในเครื่องว่าตรงกันหรือยัง */
+async function fetchCentralCounts() {
+  if (!firebaseReady() || !fbSignedIn()) throw new Error('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อน จึงจะเทียบกับส่วนกลางได้');
+  const fromServer = ref => ref.get({ source: 'server' });
+  const out = { at: new Date().toISOString() };
+  const staff = await fromServer(fbDb.collection('staff'));
+  out.teachers = staff.docs.filter(d => (d.data() || {}).active !== false).length;
+  const readShared = async (doc, field) => {
+    const d = await fromServer(fbDb.collection('shared').doc(doc));
+    return d.exists ? fbDecodeNested(d.data()[field]) : null;
+  };
+  const cls = await readShared('classes', 'items');
+  out.classes = Array.isArray(cls) ? cls.length : 0;
+  out.students = Array.isArray(cls) ? cls.reduce((n, c) => n + ((c.students || []).length), 0) : 0;
+  const subj = await readShared('subjects', 'items');
+  out.subjects = Array.isArray(subj) ? subj.length : 0;
+  const per = await readShared('periods', 'items');
+  out.periods = Array.isArray(per) ? per.length : 0;
+  out.entries = 0;
+  if (DB.ui.periodId) {
+    const tt = await fromServer(fbDb.collection('timetable').doc(DB.ui.periodId));
+    if (tt.exists) out.entries = ((fbDecodeNested(tt.data()) || {}).entries || []).length;
+  }
+  DB.cloud.centralCounts = out; save(true);
+  return out;
+}
+
+/** แถวเทียบยอด ในเครื่อง กับ ส่วนกลาง */
+const SCHOOL_COUNT_ROWS = [
+  { key: 'teachers', label: 'ครู' }, { key: 'classes', label: 'ห้องเรียน' },
+  { key: 'students', label: 'นักเรียน' }, { key: 'subjects', label: 'รายวิชา' },
+  { key: 'periods', label: 'ปี/ภาคเรียน' }, { key: 'entries', label: 'คาบสอนภาคนี้' }
+];
+
 /** การ์ดบอกว่าเครื่องนี้มีข้อมูลโรงเรียนครบไหม พร้อมปุ่มดึงลงมาใหม่ */
 function schoolDataCard() {
   const d = schoolDataSummary(), missing = schoolDataMissing();
   const last = (DB.cloud || {}).lastSchoolPull ? new Date(DB.cloud.lastSchoolPull).toLocaleString('th-TH') : '';
   const ready = firebaseReady() && fbSignedIn();
+  const cc = (DB.cloud || {}).centralCounts || null;
+  const ccAt = cc && cc.at ? new Date(cc.at).toLocaleString('th-TH') : '';
+  // ตรงกับส่วนกลางแล้ว = เครื่องนี้ทำถูกแล้ว ที่ยังขาดคือส่วนกลางเองยังไม่มี
+  const inSync = !!cc && SCHOOL_COUNT_ROWS.every(r => d[r.key] === cc[r.key]);
   return '<div class="card" id="schoolDataCard"><div class="exec-head row"><div><div class="exec-eyebrow">SCHOOL DATA</div>' +
     '<h3>ข้อมูลโรงเรียนในเครื่องนี้</h3></div><div class="spacer"></div>' +
-    '<span class="badge ' + (missing ? 'bad' : 'ok') + '">' + (missing ? 'ยังไม่ครบ' : 'ครบแล้ว') + '</span>' +
+    '<span class="badge ' + (inSync ? 'ok' : missing ? 'bad' : 'warn') + '">' +
+      (inSync ? (missing ? 'ตรงกับส่วนกลาง' : 'ครบและตรงกัน') : missing ? 'ยังไม่ครบ' : 'ยังไม่ได้เทียบ') + '</span>' +
+    '<button id="btnCompareSchool"' + (ready ? '' : ' disabled') + '>เทียบกับส่วนกลาง</button>' +
     '<button class="primary" id="btnPullSchool"' + (ready ? '' : ' disabled') + '>ดึงฐานข้อมูลจากส่วนกลาง</button></div>' +
-    (missing ? '<div class="notice bad">เครื่องนี้ยังไม่มีข้อมูลหลักของโรงเรียน จึงเลือกห้อง วิชา หรือดูตารางสอนไม่ได้<br>' +
+    (missing && inSync ? '<div class="notice bad">เครื่องนี้ตรงกับส่วนกลางแล้ว แต่<b>ส่วนกลางเองยังไม่มีข้อมูลครบ</b><br>' +
+      'ให้ผู้ดูแลระบบกด <b>อัปเดตขึ้นส่วนกลาง</b> ที่หน้าผู้ดูแลระบบก่อน แล้วค่อยกดดึงลงมาใหม่</div>'
+      : missing ? '<div class="notice bad">เครื่องนี้ยังไม่มีข้อมูลหลักของโรงเรียน จึงเลือกห้อง วิชา หรือดูตารางสอนไม่ได้<br>' +
       'กดปุ่ม <b>ดึงฐานข้อมูลจากส่วนกลาง</b> เพื่อโหลดลงมา ทำได้เองไม่ต้องรอผู้ดูแลระบบ</div>' : '') +
     (!ready ? '<div class="notice">ยังไม่ได้เข้าสู่ระบบด้วยบัญชีโรงเรียน จึงดึงข้อมูลไม่ได้</div>' : '') +
-    '<div class="exec-sum"><span>ครู <b>' + d.teachers + '</b></span><span>ห้องเรียน <b>' + d.classes + '</b></span>' +
-    '<span>นักเรียน <b>' + d.students + '</b></span><span>รายวิชา <b>' + d.subjects + '</b></span>' +
-    '<span>ปี/ภาค <b>' + d.periods + '</b></span><span>คาบสอนภาคนี้ <b>' + d.entries + '</b></span></div>' +
-    '<div class="hint">' + (last ? 'ดึงจากส่วนกลางล่าสุด ' + esc(last) : 'ยังไม่เคยกดดึงจากเครื่องนี้') +
+    '<div class="tablewrap"><table><thead><tr><th>ชุดข้อมูล</th><th class="numcell">ในเครื่องนี้</th>' +
+      '<th class="numcell">บนส่วนกลาง</th><th>ผลเทียบ</th></tr></thead><tbody>' +
+      SCHOOL_COUNT_ROWS.map(r => {
+        const mine = d[r.key], their = cc ? cc[r.key] : null, known = cc && their !== undefined && their !== null;
+        const same = known && mine === their, diff = known ? their - mine : 0;
+        return '<tr><td><b>' + esc(r.label) + '</b></td><td class="numcell">' + mine + '</td>' +
+          '<td class="numcell">' + (known ? their : '—') + '</td>' +
+          '<td class="' + (!known ? '' : same ? 'oktext' : 'badtext') + '">' +
+          (!known ? '<span class="hint">ยังไม่ได้เทียบ</span>' : same ? 'ตรงกัน'
+            : diff > 0 ? 'ส่วนกลางมากกว่า ' + diff : 'ส่วนกลางน้อยกว่า ' + (-diff)) + '</td></tr>';
+      }).join('') + '</tbody></table></div>' +
+    (cc && SCHOOL_COUNT_ROWS.some(r => d[r.key] !== cc[r.key])
+      ? '<div class="notice bad" style="margin-top:10px">ยอดไม่ตรงกับส่วนกลาง<br>' +
+        'ถ้าส่วนกลาง<b>มากกว่า</b> แปลว่าเครื่องนี้ยังไม่ได้ดึงของใหม่ลงมา ให้กด <b>ดึงฐานข้อมูลจากส่วนกลาง</b><br>' +
+        'ถ้าส่วนกลาง<b>น้อยกว่า</b> แปลว่าของบนส่วนกลางยังเก่า ให้ผู้ดูแลระบบกด <b>อัปเดตขึ้นส่วนกลาง</b> ที่หน้าผู้ดูแลระบบ</div>'
+      : cc ? '<div class="notice ok" style="margin-top:10px">ยอดทุกชุดตรงกับส่วนกลางแล้ว</div>' : '') +
+    '<div class="hint" style="margin-top:8px">' + (last ? 'ดึงจากส่วนกลางล่าสุด ' + esc(last) : 'ยังไม่เคยกดดึงจากเครื่องนี้') +
+    (ccAt ? ' • เทียบยอดล่าสุด ' + esc(ccAt) : '') +
     ' • คะแนนและการเช็กชื่อของคุณจะไม่ถูกแตะต้อง</div><div id="pullSchoolResult"></div></div>';
 }
 
 /** ผูกปุ่มดึงข้อมูล ใช้ได้ทั้งการ์ดในหน้าภาพรวมและปุ่มในเมนู */
 function bindPullSchoolButton(root) {
+  const cmp = $('#btnCompareSchool', root);
+  if (cmp) cmp.addEventListener('click', async () => {
+    cmp.disabled = true; const old = cmp.textContent; cmp.textContent = 'กำลังเทียบ...';
+    try {
+      const c = await fetchCentralCounts();
+      const mine = schoolDataSummary();
+      const diff = SCHOOL_COUNT_ROWS.filter(r => mine[r.key] !== c[r.key]);
+      render();
+      toast(diff.length ? 'ยอดไม่ตรงกัน ' + diff.length + ' ชุด • ' + diff.map(x => x.label).join(', ') : 'ยอดตรงกับส่วนกลางทุกชุด',
+        diff.length ? 'bad' : 'ok');
+    } catch (e) {
+      toast(fbErrorMessage(e), 'bad');
+      const b = $('#btnCompareSchool'); if (b) { b.disabled = false; b.textContent = old; }
+    }
+  });
   const btn = $('#btnPullSchool', root); if (!btn) return;
   btn.addEventListener('click', async () => {
     if (!await confirmBox('ดึงฐานข้อมูลจากส่วนกลาง',
@@ -9275,6 +9346,8 @@ async function pullSchoolData() {
     applyStoredTeacherIdMap();             // ข้อมูลที่ดึงมาอาจยังใช้รหัสครูแบบเก่า
     normalizeTeacherIds();
     DB.cloud.lastSchoolPull = new Date().toISOString();
+    // เพิ่งดึงมาครบ ยอดทั้งสองฝั่งย่อมเท่ากัน บันทึกไว้เลยจะได้ไม่ต้องอ่านซ้ำ
+    if (!failed.length) DB.cloud.centralCounts = Object.assign({ at: DB.cloud.lastSchoolPull }, schoolDataSummary());
   } finally { fbApplying = false; }
   save(true); render();
   return { got: got, failed: failed, summary: schoolDataSummary() };
