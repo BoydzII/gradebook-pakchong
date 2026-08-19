@@ -873,7 +873,39 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
 .memo-table td.lt{text-align:left}
 .memo-opinion{border-collapse:collapse;width:100%;margin-top:14px;font-size:12.5px}
 .memo-opinion td{border:1px solid #000;padding:8px 10px;vertical-align:top;width:50%}
+/* ---- ใบคะแนน 4 ส่วน ---- */
+.score-sheet .ss-head{display:flex;align-items:center;gap:14px;margin:10px 0 12px}
+.score-sheet .ss-logo{height:62px;width:auto}
+.score-sheet .ss-school{font-size:17px;font-weight:800;line-height:1.2}
+.score-sheet .ss-title{font-size:15px;font-weight:700;margin-top:2px}
+.score-sheet .ss-meta{font-size:12.5px;color:var(--muted);margin-top:2px}
+.score-sheet .ss-table{width:100%;border-collapse:collapse;font-size:13px}
+.score-sheet .ss-table th,.score-sheet .ss-table td{border:1px solid var(--line);padding:5px 7px}
+.score-sheet .ss-table thead th{background:var(--panel2);font-size:12px;line-height:1.25;vertical-align:bottom}
+.score-sheet .ss-full{display:block;font-size:10.5px;font-weight:600;color:var(--muted)}
+.score-sheet .ss-raw{display:block;font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.score-sheet .ss-table td.num{font-variant-numeric:tabular-nums}
+.score-sheet .ss-grade{font-weight:800}
+.score-sheet .ss-foot{margin-top:12px}
+.score-sheet .ss-dist{font-size:12.5px;padding:8px 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel2)}
+.score-sheet .ss-signs{display:flex;gap:26px;margin-top:26px;text-align:center;font-size:12.5px}
+.score-sheet .ss-sign{flex:1}
+.score-sheet .ss-line{border-bottom:1px dotted var(--ink);margin:0 6px 6px}
+.score-sheet .ss-sign span{color:var(--muted)}
 @media print{
+  /* พิมพ์เฉพาะใบคะแนน ซ่อนทุกอย่างที่เหลือ หัวตารางซ้ำทุกหน้า แถวไม่ขาดกลาง */
+  body.print-scores main>section:not(#pane-summary),
+  body.print-scores #pane-summary>.card:not(.score-sheet){display:none!important}
+  body.print-scores #pane-summary{display:block!important}
+  body.print-scores .score-sheet{border:0;box-shadow:none;padding:0;margin:0}
+  body.print-scores .score-sheet .tablewrap{border:0;overflow:visible;max-height:none}
+  body.print-scores .ss-table{font-size:10.5px}
+  body.print-scores .ss-table th,body.print-scores .ss-table td{border:1px solid #666;padding:2.5px 4px}
+  body.print-scores .ss-table thead{display:table-header-group}
+  body.print-scores .ss-table tr{break-inside:avoid;page-break-inside:avoid}
+  body.print-scores .ss-raw,body.print-scores .ss-full{color:#555}
+  body.print-scores .ss-dist{border:1px solid #666;background:transparent}
+  body.print-scores .ss-signs{break-inside:avoid;page-break-inside:avoid}
   .printonly{display:block!important}
   body.print-doc>*:not(#docSheet){display:none!important}
   body.print-doc #docSheet{display:block!important;padding:0;max-width:none}
@@ -6301,6 +6333,66 @@ function bindSummaryTools(pane) {
   });
 }
 
+/* ---- ใบคะแนน 4 ส่วน สำหรับพิมพ์ ------------------------------------------
+   ตารางสรุปรายคนมี 20 กว่าคอลัมน์ เพราะเป็นใบทำงานของครู พิมพ์ออกมาแล้วอ่านไม่ไหว
+   ใบนี้เหลือเฉพาะที่ฝ่ายวิชาการและนักเรียนต้องเห็น คือ 4 ส่วนคะแนน รวม และเกรด
+   แต่ละช่องบอกคะแนนตามน้ำหนักตัวโต และคะแนนดิบ/เต็มตัวเล็กไว้ใต้ เผื่อครูต้องทาน */
+function scoreSheetHtml(b, rows) {
+  const teacher = curTeacher(), cls = curClass(), sub = curSubject(), period = curPeriod(), s = DB.settings;
+  const W = b.weights;
+  const parts = [
+    { label: 'ก่อนกลางภาค', w: num(W.before), val: r => r.wBefore, raw: r => r.rawBefore, max: r => r.maxBefore },
+    { label: 'กลางภาค', w: num(W.mid), val: r => r.wM, raw: r => r.midRaw, max: r => r.midMax },
+    { label: 'หลังกลางภาค', w: num(W.after), val: r => r.wAfter, raw: r => r.rawAfter, max: r => r.maxAfter },
+    { label: 'ปลายภาค', w: num(W.final), val: r => r.wF, raw: r => r.finRaw, max: r => r.finMax }
+  ];
+  // การกระจายเกรด เรียงจากมากไปน้อยตามเกณฑ์ที่ตั้งไว้ ใช้เป็นสรุปท้ายใบ
+  const gradeOrder = b.gradeScale.map(g => g[1]).filter((v, i, a) => a.indexOf(v) === i);
+  const dist = {}; gradeOrder.forEach(g => { dist[g] = 0; });
+  rows.forEach(x => { const g = x.r.grade; if (dist[g] === undefined) dist[g] = 0; dist[g]++; });
+  const headName = headNameOfArea(teacherArea(teacher)) || s.headLearningName || '';
+
+  const cell = (r, p) => '<td class="num"><b>' + fmt(p.val(r)) + '</b>' +
+    (p.max(r) > 0 ? '<span class="ss-raw">' + fmt(p.raw(r)) + '/' + fmt(p.max(r)) + '</span>' : '') + '</td>';
+
+  return '<div class="card score-sheet"><div class="row noprint"><div><h3 style="margin:0">ใบคะแนน 4 ส่วน</h3>' +
+      '<div class="hint">ก่อนกลางภาค • กลางภาค • หลังกลางภาค • ปลายภาค • รวม • เกรด — ตัดคอลัมน์อื่นออกให้พิมพ์อ่านง่าย</div></div>' +
+      '<div class="spacer"></div><button class="primary" id="btnPrintScores">พิมพ์ใบคะแนน</button></div>' +
+
+    '<div class="ss-head">' +
+      (s.logoData ? '<img class="ss-logo" src="' + s.logoData + '" alt="">' : '') +
+      '<div><div class="ss-school">' + esc(s.schoolName || '') + '</div>' +
+      '<div class="ss-title">แบบสรุปผลการเรียนรายวิชา</div>' +
+      '<div class="ss-meta">' + esc((sub ? (sub.code ? sub.code + ' ' : '') + sub.name : '')) +
+        (cls ? ' • ชั้น ' + esc(cls.name) : '') +
+        (period ? ' • ปีการศึกษา ' + esc(period.academicYear) + ' ภาคเรียนที่ ' + esc(period.semester) : '') + '</div>' +
+      '<div class="ss-meta">ครูผู้สอน ' + esc(teacher ? teacher.name || teacher.email : (b.meta.teacherName || '—')) +
+        ' • นักเรียน ' + rows.length + ' คน</div></div></div>' +
+
+    '<div class="tablewrap"><table class="ss-table"><thead><tr>' +
+      '<th class="num">เลขที่</th><th>เลขประจำตัว</th><th>ชื่อ-นามสกุล</th>' +
+      parts.map(p => '<th class="num">' + esc(p.label) + '<span class="ss-full">เต็ม ' + fmt(p.w) + '</span></th>').join('') +
+      '<th class="num">รวม<span class="ss-full">เต็ม 100</span></th><th class="num">เกรด</th>' +
+      '</tr></thead><tbody>' +
+      (rows.length ? rows.map(x => '<tr>' +
+        '<td class="num">' + esc(x.st.no) + '</td><td>' + esc(x.st.sid) + '</td><td>' + esc(x.st.name) + '</td>' +
+        parts.map(p => cell(x.r, p)).join('') +
+        '<td class="num"><b>' + fmt(x.r.total) + '</b></td>' +
+        '<td class="num ss-grade">' + esc(x.r.grade) + '</td></tr>').join('')
+        : '<tr><td colspan="' + (5 + parts.length) + '"><div class="empty">ยังไม่มีรายชื่อนักเรียนในชั้นนี้</div></td></tr>') +
+      '</tbody></table></div>' +
+
+    '<div class="ss-foot"><div class="ss-dist"><b>สรุปผลการเรียน</b> ' +
+      gradeOrder.map(g => 'เกรด ' + esc(g) + ' = ' + (dist[g] || 0) + ' คน').join(' • ') +
+      (dist['–'] ? ' • ยังไม่ครบ ' + dist['–'] + ' คน' : '') + '</div>' +
+      '<div class="ss-signs">' +
+        '<div class="ss-sign"><div class="ss-line"></div>ครูผู้สอน<br><span>(' + esc(teacher ? teacher.name || '' : (b.meta.teacherName || '')) + ')</span></div>' +
+        '<div class="ss-sign"><div class="ss-line"></div>หัวหน้ากลุ่มสาระการเรียนรู้<br><span>(' + esc(headName) + ')</span></div>' +
+        '<div class="ss-sign"><div class="ss-line"></div>' + esc(s.directorPosition || 'ผู้อำนวยการสถานศึกษา') +
+          '<br><span>(' + esc(s.directorName || '') + ')</span></div>' +
+      '</div></div></div>';
+}
+
 function renderSummary() {
   const pane = $('#pane-summary');
   const gate = gateMsg(true);
@@ -6425,6 +6517,7 @@ function renderSummary() {
       }).join('') + '</div>' +
     '</div>' +
 
+    scoreSheetHtml(b, rows) +
     '<div class="card">' +
       '<h3>ตารางสรุปรายคน</h3>' +
       '<div class="tablewrap tall"><table><thead><tr>' +
@@ -6470,6 +6563,8 @@ function renderSummary() {
     save(true); renderSummary();
   }));
   $('#btnPrint').addEventListener('click', () => printMode('print-cover'));
+  const btnScores = $('#btnPrintScores', pane);
+  if (btnScores) btnScores.addEventListener('click', () => printMode('print-scores'));
   $('#btnXlsx').addEventListener('click', () => exportWorkbook(false));
   $('#btnGroupSheet').addEventListener('click', () => exportWorkbook(true));
 }
