@@ -3038,8 +3038,19 @@ function editScheduleEntry(day, slotId, entry) {
       const subj = DB.subjects.find(s => s.id === $('#seSubject', root).value);
       const c = DB.classes.find(x => x.id === $('#seClass', root).value), room = $('#seRoom', root).value.trim();
       if (!subj || !c) return toast('กรุณาเลือกรายวิชาและชั้น/ห้อง', 'bad');
-      if (entry) Object.assign(entry, { subjectId: subj.id, classId: c.id, room: room, teacherId: entry.teacherId || ((curTeacher() || {}).id || '') });
-      else DB.timetable.entries.push({ id: uid('tt'), periodId: DB.ui.periodId, teacherId: (curTeacher() || {}).id || '', day: num(day), slotId: String(slotId), subjectId: subj.id, classId: c.id, room: room });
+      const owner = entry ? (entry.teacherId || ((scheduleViewTeacher() || {}).id || '')) : ((scheduleViewTeacher() || {}).id || '');
+      // กันวางคาบซ้อนกัน ตรวจทั้งครูสอนซ้อนและห้องเรียนที่ถูกจองไปแล้ว
+      const clash = scheduleClash(day, slotId, owner, c.id, entry ? entry.id : '');
+      if (clash.teacher) {
+        const cx = DB.classes.find(x => x.id === clash.teacher.classId);
+        return toast('ครูคนนี้มีคาบสอน ' + (cx ? cx.name : '') + ' อยู่แล้วในคาบนี้', 'bad');
+      }
+      if (clash.cls) {
+        const tx = DB.teachers.find(x => x.id === clash.cls.teacherId);
+        return toast('ห้อง ' + c.name + ' มีคาบของ ' + (tx ? tx.name : 'ครูคนอื่น') + ' อยู่แล้วในคาบนี้', 'bad');
+      }
+      if (entry) Object.assign(entry, { subjectId: subj.id, classId: c.id, room: room, teacherId: owner });
+      else DB.timetable.entries.push({ id: uid('tt'), periodId: DB.ui.periodId, teacherId: owner, day: num(day), slotId: String(slotId), subjectId: subj.id, classId: c.id, room: room });
       save(true); close(); renderSchedule(); renderTop(); toast('บันทึกตารางสอนแล้ว', 'ok');
     } }]),
     onMount(root) {
@@ -3259,11 +3270,36 @@ function openAttendanceSummary(entry) {
       '</tbody></table></div>', buttons: [{ label: 'ปิด', cls: 'primary' }] });
 }
 
+/* ---- ผู้ดูแลระบบดู/แก้ตารางของครูคนอื่น -----------------------------------
+   ครูทั่วไปเห็นของตัวเองเสมอ ผู้ดูแลระบบเลือกได้ว่าจะดูของใคร
+   คาบที่เพิ่มใหม่จะยกให้ครูคนที่กำลังดูอยู่ ไม่ใช่คนที่ล็อกอิน */
+function scheduleViewTeacher() {
+  const me = curTeacher();
+  if ((DB.ui.staffMode || 'teacher') !== 'admin') return me;
+  const picked = DB.teachers.find(t => t.id === DB.ui.scheduleTeacherId);
+  return picked || me || DB.teachers[0] || null;
+}
+/** คาบของครูที่กำลังดูอยู่ ในปี/ภาคที่เลือก */
+function scheduleViewEntries() {
+  const t = scheduleViewTeacher();
+  const list = DB.timetable.entries.filter(e => e.periodId === DB.ui.periodId);
+  return t ? list.filter(e => e.teacherId === t.id) : list;
+}
+/** คาบที่ชนกันถ้าจะวางคาบนี้ลงไป — ครูสอนซ้อน หรือห้องเรียนถูกจองไปแล้ว */
+function scheduleClash(day, slotId, teacherId, classId, exceptId) {
+  const same = DB.timetable.entries.filter(e => e.periodId === DB.ui.periodId &&
+    num(e.day) === num(day) && String(e.slotId) === String(slotId) && e.id !== exceptId);
+  const teacherHit = teacherId ? same.find(e => e.teacherId === teacherId) : null;
+  const classHit = classId ? same.find(e => e.classId === classId && e.teacherId !== teacherId) : null;
+  return { teacher: teacherHit || null, cls: classHit || null };
+}
+
 function renderSchedule() {
   const pane = $('#pane-schedule');
   if (!curPeriod()) { pane.innerHTML = '<div class="card"><div class="empty">กรุณาเลือกปี/ภาคเรียนก่อน</div></div>'; return; }
   currentTerm(true);
-  const entries = scheduleEntries(), term = currentTerm(true), selectedDate = todayISO();
+  const viewTeacher = scheduleViewTeacher();
+  const entries = scheduleViewEntries(), term = currentTerm(true), selectedDate = todayISO();
   const subjectText = e => { const s = DB.subjects.find(x => x.id === e.subjectId); return s ? s : { code: '', name: 'ไม่พบวิชา' }; };
   const classText = e => { const c = DB.classes.find(x => x.id === e.classId); return c ? c.name : 'ไม่พบห้อง'; };
   const scheduleReadOnly = (DB.ui.staffMode || 'teacher') !== 'admin';
@@ -3272,6 +3308,20 @@ function renderSchedule() {
     '<div class="spacer"></div>' + (scheduleReadOnly ? '' :
       '<button id="ttMultiTemplate">แม่แบบ Excel หลายครู</button><button id="ttMultiImport">นำเข้าตารางสอนหลายครู</button>' +
       '<button id="ttPrint">พิมพ์ตาราง 1 หน้า</button><button class="primary" id="ttSettings">ตั้งค่าเวลา/ปฏิทิน</button>') + '</div>' +
+    (scheduleReadOnly ? '' :
+      '<div class="row" style="margin-top:12px;align-items:flex-end"><div class="pick" style="min-width:280px">' +
+      '<label>ดู/แก้ตารางสอนของครู</label><select id="ttTeacher" style="width:100%">' +
+      DB.teachers.slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'th')).map(t => {
+        const n = DB.timetable.entries.filter(e => e.periodId === DB.ui.periodId && e.teacherId === t.id).length;
+        return '<option value="' + t.id + '"' + (viewTeacher && t.id === viewTeacher.id ? ' selected' : '') + '>' +
+          esc(t.name || t.email || 'ยังไม่ระบุชื่อ') + ' (' + n + ' คาบ)</option>';
+      }).join('') + '</select></div>' +
+      (viewTeacher && curTeacher() && viewTeacher.id !== curTeacher().id
+        ? '<div class="spacer"></div><button class="sm" id="ttBackToMine">กลับไปตารางของฉัน</button>' : '') +
+      '</div>' +
+      (viewTeacher && curTeacher() && viewTeacher.id !== curTeacher().id
+        ? '<div class="notice" style="margin-top:10px">กำลังแก้ตารางของ <b>' + esc(viewTeacher.name || viewTeacher.email) +
+          '</b> คาบที่เพิ่มใหม่จะเป็นของครูคนนี้</div>' : '')) +
     (!term.openDate || !term.closeDate ? '<div class="notice bad" style="margin-top:10px">กรุณากำหนดวันเปิด–ปิดภาคเรียน เพื่อให้ระบบคำนวณวันเรียน คาบเรียน และแจ้งเตือนคาบที่ยังไม่เช็กได้</div>' :
       '<div class="hint" style="margin-top:8px">เปิดภาคเรียน ' + thaiDate(term.openDate) + ' ถึง ' + thaiDate(term.closeDate) + ' • วันหยุด ' + (term.holidays || []).length + ' วัน • เกณฑ์เวลาเรียน ' + fmt(term.minAttendance) + '%</div>') + '</div>' +
     '<div class="card schedule-sheet"><div class="printonly" style="text-align:center;margin-bottom:5px"><b>ตารางสอน</b> ' + esc(DB.settings.schoolName || '') + ' • ปี ' + esc(curPeriod().academicYear) + ' ภาค ' + esc(curPeriod().semester) + '</div><div class="tablewrap"><table class="timetable"><thead><tr><th>วัน / คาบ</th>' + DB.timetable.slots.map(slot => '<th>' + esc(slot.label) + '<br><span class="hint">' + esc(slot.start) + '–' + esc(slot.end) + '</span></th>').join('') + '</tr></thead><tbody>' +
@@ -3292,6 +3342,11 @@ function renderSchedule() {
   bindIf('#ttMultiTemplate', downloadMultiTeacherTimetableTemplate);
   bindIf('#ttMultiImport', importMultiTeacherTimetableExcel);
   bindIf('#ttSettings', editTimetableSettings);
+  const ttTeacher = $('#ttTeacher', pane);
+  if (ttTeacher) ttTeacher.addEventListener('change', () => {
+    DB.ui.scheduleTeacherId = ttTeacher.value; save(); renderSchedule();
+  });
+  bindIf('#ttBackToMine', () => { DB.ui.scheduleTeacherId = (curTeacher() || {}).id || ''; save(); renderSchedule(); });
   $$('[data-add-entry]', pane).forEach(btn => btn.addEventListener('click', () => editScheduleEntry(num(btn.dataset.day), btn.dataset.slot, null)));
   $$('[data-edit-entry]', pane).forEach(btn => btn.addEventListener('click', e => {
     e.stopPropagation(); const entry = entries.find(x => x.id === btn.dataset.editEntry); if (entry) editScheduleEntry(entry.day, entry.slotId, entry);
