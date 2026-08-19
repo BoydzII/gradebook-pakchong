@@ -780,6 +780,10 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 .modal-acts button{white-space:nowrap}
 .att-grid thead th{position:sticky;top:0;z-index:3;background:var(--panel);box-shadow:0 2px 0 var(--line)}
 .att-topline{margin:0;flex-wrap:wrap;gap:7px;align-items:center}
+/* เลขที่ที่ต้องตรวจซ้ำในคาบนี้ กดแล้วเลื่อนไปที่แถวนั้น */
+.need-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.need-chip{font-variant-numeric:tabular-nums;font-weight:800;padding:3px 10px;border-radius:999px}
+.need-chip .hint{font-weight:600;margin-left:3px}
 .att-col-btn{width:100%;padding:5px 2px;border:0;background:none;color:inherit;font:inherit;font-weight:800;
   border-radius:8px;cursor:pointer;min-height:0}
 .att-col-btn:hover{background:color-mix(in srgb,currentColor 14%,transparent)}
@@ -3100,6 +3104,30 @@ function adjacentAttendanceEntries(entry) {
   return out.length ? out : [entry];
 }
 
+/** กล่องบอกว่าคาบนี้รับช่วงสถานะมาจากไหน และเหลือใครที่ต้องตรวจ
+    ครูที่สอนคาบถัด ๆ ไปไม่ต้องไล่อ่านทั้งห้อง ดูแค่คนที่ไม่ได้ "มา" ตอนคาบก่อน
+    เพราะนักเรียนอาจมาสายหลังคาบแรก สถานะจึงต้องถูกยืนยันใหม่ทุกคาบ */
+function inheritNoticeHtml(inherited, students) {
+  const at = inherited.checkedAt ? new Date(inherited.checkedAt) : null;
+  const timeText = at && !isNaN(at) ? ' เมื่อ ' + at.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.' : '';
+  const label = v => (ATTENDANCE_STATUSES.find(x => x.value === v) || { label: v }).label;
+  const need = students.filter(st => {
+    const v = (inherited.statuses || {})[st.sid];
+    return v && v !== 'present';
+  });
+  const chips = need.map(st => '<button class="sm need-chip" data-jump-sid="' + esc(st.sid) + '">' +
+    esc(st.no) + ' <span class="hint">' + esc(label((inherited.statuses || {})[st.sid])) + '</span></button>').join('');
+  return '<div class="notice" style="margin-bottom:10px"><b>รับช่วงสถานะจาก ' +
+    esc(attendanceSourceText(inherited)) + esc(timeText) + '</b><br>' +
+    'ยังไม่นับว่าเช็กชื่อคาบนี้ จนกว่าจะกดบันทึก' +
+    (need.length
+      ? '<div style="margin-top:7px"><b>ต้องตรวจ ' + need.length + ' คน</b> ' +
+        '<span class="hint">— นักเรียนอาจมาหลังคาบก่อนหน้า กดเลขที่เพื่อไปที่แถวนั้น</span>' +
+        '<div class="need-list">' + chips + '</div></div>'
+      : '<div style="margin-top:7px" class="hint">คาบก่อนหน้ามาเรียนครบทุกคน ตรวจแล้วกดบันทึกได้เลย</div>') +
+    '</div>';
+}
+
 function openAttendance(entry, date, singleMode, slotOverride) {
   const subject = DB.subjects.find(s => s.id === entry.subjectId), cls = DB.classes.find(c => c.id === entry.classId);
   // คาบที่ถูกยกมาจากวันอื่นจะเรียนในช่องเวลาของวันนี้ ไม่ใช่เวลาเดิมของวันต้นทาง
@@ -3117,7 +3145,7 @@ function openAttendance(entry, date, singleMode, slotOverride) {
       (function () { const names = students.filter(st => activityFor(st.sid, date, slotIdFor(entry)));
         return names.length ? '<div class="notice" style="margin-bottom:10px"><b>มีนักเรียน ' + names.length +
           ' คนได้รับอนุญาตให้ทำกิจกรรมในคาบนี้</b> ระบบตั้งสถานะ “กิจกรรม” ให้แล้ว ตรวจสอบและกดบันทึกได้เลย</div>' : ''; })() +
-      (inherited ? '<div class="notice" style="margin-bottom:10px"><b>รับช่วงสถานะจาก ' + esc(attendanceSourceText(inherited)) + '</b><br>ข้อมูลนี้เป็นเพียงค่าเริ่มต้นและยังไม่นับว่าเช็กชื่อคาบนี้ จนกว่าครูจะตรวจสอบและกด “บันทึกการเช็กชื่อ”</div>' : '') +
+      (inherited ? inheritNoticeHtml(inherited, students) : '') +
       (groupedEntries.length > 1 ? '<div class="notice" style="margin-bottom:10px">คาบวิชา/ห้องเดียวกันที่ติดกันจะบันทึกพร้อมกัน หากสถานะบางคาบต่างกัน ให้เลือกแก้รายคาบ: ' + groupedEntries.map(e => { const sl = DB.timetable.slots.find(s => s.id === String(e.slotId)); return '<button class="sm" data-single-att="' + e.id + '">' + esc(sl ? sl.label : e.slotId) + '</button>'; }).join(' ') + '</div>' : '') +
       '<div class="att-summary" id="attSummary"></div>' +
       (students.length ? '<div class="tablewrap tall"><table class="att-grid"><thead><tr><th class="c-no">เลขที่</th><th>ชื่อ-นามสกุล</th>' +
@@ -3197,6 +3225,13 @@ function openAttendance(entry, date, singleMode, slotOverride) {
         drawSummary();
       }));
       drawSummary();
+      $$('[data-jump-sid]', root).forEach(btn => btn.addEventListener('click', () => {
+        const tr = $('[data-att-sid="' + btn.dataset.jumpSid.replace(/"/g, '\\"') + '"]', root);
+        if (!tr) return;
+        tr.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        tr.classList.add('focus-row');
+        setTimeout(() => tr.classList.remove('focus-row'), 2200);
+      }));
       $$('[data-single-att]', root).forEach(btn => btn.addEventListener('click', () => {
         const only = groupedEntries.find(e => e.id === btn.dataset.singleAtt); if (only) { close(); openAttendance(only, date, true); }
       }));
@@ -4342,10 +4377,14 @@ function renderAttendancePage() {
         const special = specials.find(e => String(e.slotId) === slot.id), owner = slotOwner[slot.id], own = owner ? owner.entry : null, e = special || own;
         if (!e) return '<td><button class="tt-cell empty" data-special-slot="' + slot.id + '">+ คาบพิเศษ<br><span class="hint">สอนแทน • ชดเชย</span></button></td>';
         const s = subjectText(e), checked = !!DB.timetable.attendance[attendanceKey(e.id, date)], typeLabel = sessionTypeLabel(e.sessionType);
+        // คาบที่ยังไม่เช็ก แต่มีผลจากคาบก่อนหน้าของห้องนี้รออยู่ ครูคนต่อไปจะได้รู้ว่าไม่ได้เริ่มจากศูนย์
+        const waiting = checked ? null : previousAttendanceSnapshot(e, date);
         return '<td><div class="tt-cell filled ' + esc(e.sessionType || '') + '" data-check-session="' + e.id + '">' + (special ? '<button class="tt-edit" data-delete-special="' + e.id + '" title="ลบกรณีพิเศษ">×</button>' : '') +
           '<div class="tt-code">' + esc(s.code || '—') + '</div><div class="tt-name">' + esc(s.name) + '</div><div class="tt-room">' + esc(classText(e)) + '</div>' +
           (!special && owner && owner.from ? '<div class="tt-room" style="color:var(--group);font-weight:800">↷ ' + esc(fromTag(owner)) + '</div>' : '') +
-          '<span class="badge ' + (checked ? 'ok' : e.sessionType ? 'warn' : '') + '">' + (checked ? 'เช็กแล้ว' : typeLabel) + '</span></div></td>';
+          '<span class="badge ' + (checked ? 'ok' : waiting ? 'group' : e.sessionType ? 'warn' : '') + '" title="' +
+          esc(waiting ? 'มีผลเช็กชื่อจาก' + attendanceSourceText(waiting) + ' รออยู่ กดเพื่อตรวจและยืนยัน' : '') + '">' +
+          (checked ? 'เช็กแล้ว' : waiting ? 'รอยืนยัน' : typeLabel) + '</span></div></td>';
       }).join('') + '</tr></tbody></table></div><div class="hint" style="margin-top:8px">คลิกขวาค้างแล้วลากเพื่อเลื่อนตารางซ้าย-ขวา</div></div>') +
     missedCardHtml(missed);
 
