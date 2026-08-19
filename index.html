@@ -8894,12 +8894,95 @@ function adminSectionDocuments(box) {
 }
 
 /* ---- ⑤ ระบบและข้อมูลกลาง ------------------------------------------------- */
+/* ---- คัดกรองการเช็กชื่อที่อาจโดนบั๊กติ๊กเลื่อนแถว --------------------------
+   บั๊กนี้แก้ไปแล้ว แต่ข้อมูลที่บันทึกผิดไปก่อนหน้ายังผิดอยู่ และไม่มีต้นฉบับให้เทียบ
+   จึงชี้ชัดไม่ได้ว่าคาบไหนผิดจริง ทำได้แค่ตัดคาบที่ "เป็นไปไม่ได้ที่จะผิด" ออก
+   แล้วเหลือรายการสั้นที่สุดให้ครูไปตรวจซ้ำเอง
+
+   เกิดได้เฉพาะคาบที่ติ๊กคนไม่ได้มาตั้งแต่ 2 คนขึ้นไป เพราะการติ๊กคนแรกคือตัวที่ทำให้
+   แถบสรุปสูงขึ้นและดันรายชื่อ ส่วนคาบที่เปิดมาก็มีคนไม่ได้มาอยู่แล้ว (รับช่วงมาจากคาบก่อน)
+   แถบสรุปสูงเต็มตั้งแต่เปิด จึงไม่มีการเลื่อน */
+const ATT_FIX_AT = '2026-08-19T13:40:51+07:00';   // เวลาที่ปล่อยตัวแก้ขึ้นเว็บ (v56)
+function attendanceRecheckScan(cutoffISO) {
+  const cut = cutoffISO || ATT_FIX_AT;
+  const all = Object.values(DB.timetable.attendance || {});
+  const byDayClass = {};
+  all.forEach(r => { (byDayClass[r.date + '::' + r.classId] = byDayClass[r.date + '::' + r.classId] || []).push(r); });
+  const order = DB.timetable.slots.map(x => String(x.id));
+  const out = { total: all.length, old: 0, safeFew: 0, safeInherit: 0, check: [] };
+  all.forEach(r => {
+    if (!r.checkedAt || String(r.checkedAt) >= cut) return;
+    out.old++;
+    const st = r.statuses || {};
+    const bad = Object.keys(st).filter(k => st[k] && st[k] !== 'present');
+    if (bad.length < 2) { out.safeFew++; return; }
+    // มีคาบก่อนหน้าของห้องนี้ในวันเดียวกันที่มีคนไม่ได้มาไหม ถ้ามีแปลว่าเปิดมาแถบสรุปเต็มแล้ว
+    const at = order.indexOf(String(r.slotId));
+    const earlier = (byDayClass[r.date + '::' + r.classId] || []).some(x => {
+      if (x === r) return false;
+      const xi = order.indexOf(String(x.slotId));
+      if (xi < 0 || at < 0 || xi >= at) return false;
+      const xs = x.statuses || {};
+      return Object.keys(xs).some(k => xs[k] && xs[k] !== 'present');
+    });
+    if (earlier) { out.safeInherit++; return; }
+    out.check.push({ rec: r, bad: bad.length });
+  });
+  out.check.sort((a, b) => String(b.rec.date).localeCompare(String(a.rec.date)) || b.bad - a.bad);
+  return out;
+}
+
+function renderRecheckCard() {
+  const box = $('#adminRecheckBox'); if (!box) return;
+  const cutDate = DB.ui.recheckCut || ATT_FIX_AT.slice(0, 10);
+  const res = attendanceRecheckScan(cutDate + 'T23:59:59+07:00');
+  const nameOf = r => {
+    const c = DB.classes.find(x => x.id === r.classId), sub = DB.subjects.find(x => x.id === r.subjectId);
+    const slot = DB.timetable.slots.find(x => String(x.id) === String(r.slotId));
+    return (slot ? slot.label : '') + ' • ' + (sub ? (sub.code ? sub.code + ' ' : '') + sub.name : 'ไม่พบวิชา') +
+      ' • ' + (c ? c.name : 'ไม่พบห้อง');
+  };
+  box.innerHTML = '<div class="row"><div><h3 style="margin:0">ตรวจซ้ำการเช็กชื่อก่อนแก้บั๊กติ๊กเลื่อนแถว</h3>' +
+      '<div class="hint">ก่อน 19 ส.ค. 2569 เวลา 13:40 น. แถบสรุปด้านบนสูงขึ้นทันทีที่มีคนแรกที่ไม่ได้มา ' +
+      'ดันรายชื่อลง 1 แถว การติ๊กครั้งถัดไปจึงอาจไปโดนคนก่อนหน้า</div></div></div>' +
+    '<div class="dash-metrics" style="margin-top:12px">' +
+      '<div class="metric-card" style="--metric:var(--brand)"><div class="metric-value">' + res.old + '</div><div class="metric-label">คาบที่เช็กก่อนวันที่กำหนด</div></div>' +
+      '<div class="metric-card" style="--metric:var(--ok)"><div class="metric-value">' + res.safeFew + '</div><div class="metric-label">ไม่กระทบแน่นอน (ไม่ได้มา 0-1 คน)</div></div>' +
+      '<div class="metric-card" style="--metric:var(--ok)"><div class="metric-value">' + res.safeInherit + '</div><div class="metric-label">ไม่กระทบ (รับช่วงมาแล้ว)</div></div>' +
+      '<div class="metric-card" style="--metric:var(--warn)"><div class="metric-value">' + res.check.length + '</div><div class="metric-label">ควรตรวจซ้ำ</div></div></div>' +
+    '<div class="row" style="margin-top:12px;align-items:flex-end"><div class="pick"><label>นับคาบที่เช็กก่อนวันที่</label>' +
+      '<input type="date" id="recheckCut" value="' + esc(cutDate) + '"></div>' +
+      '<div class="hint" style="flex:1;min-width:220px">ครูที่ยังไม่ได้กดอัปเดตจะยังเจอบั๊กต่ออีกพักหนึ่ง ' +
+      'ถ้าอยากกวาดให้ครอบคลุมกว่านี้ ให้เลื่อนวันที่ออกไปอีก 1-2 วัน</div></div>' +
+    (res.check.length
+      ? '<div class="notice" style="margin-top:10px">รายการนี้คือคาบที่<b>เป็นไปได้</b>ว่าจะผิด ไม่ใช่คาบที่ผิดแน่นอน ' +
+        'ระบบไม่มีต้นฉบับให้เทียบจึงชี้ชัดไม่ได้ — กด “เปิดตรวจ” แล้วดูว่าเลขที่ที่ไม่ได้มาตรงกับที่จำได้ไหม</div>' +
+        '<div class="tablewrap listbox folded" style="margin-top:8px"><table><thead><tr><th>วันที่</th><th>คาบ / วิชา / ห้อง</th>' +
+        '<th>ผู้เช็ก</th><th class="num">ไม่ได้มา</th><th></th></tr></thead><tbody>' +
+        res.check.slice(0, 300).map((x, i) => '<tr><td><b>' + esc(thaiDate(x.rec.date)) + '</b></td><td>' + esc(nameOf(x.rec)) + '</td>' +
+          '<td>' + esc(x.rec.teacherName || '—') + '</td><td class="num">' + x.bad + ' คน</td>' +
+          '<td style="text-align:right"><button class="sm" data-recheck="' + i + '">เปิดตรวจ</button></td></tr>').join('') +
+        '</tbody></table></div>' +
+        (res.check.length > 300 ? '<div class="hint" style="margin-top:6px">ยังไม่ได้แสดงอีก ' + (res.check.length - 300) + ' คาบ</div>' : '')
+      : '<div class="notice ok" style="margin-top:10px">ไม่มีคาบที่เข้าข่ายต้องตรวจซ้ำ</div>');
+
+  $('#recheckCut', box).addEventListener('change', e => { DB.ui.recheckCut = e.target.value; save(); renderRecheckCard(); });
+  $$('[data-recheck]', box).forEach(btn => btn.addEventListener('click', () => {
+    const x = res.check[num(btn.dataset.recheck)]; if (!x) return;
+    const entry = (DB.timetable.entries || []).concat(DB.timetable.exceptions || []).find(e => e.id === x.rec.entryId);
+    if (!entry) return toast('คาบนี้ถูกลบออกจากตารางสอนแล้ว', 'bad');
+    openAttendance(entry, x.rec.date, true, x.rec.slotId);
+  }));
+}
+
 function adminSectionSystem(box) {
-  box.innerHTML = '<div class="card" id="adminFirebaseBox"></div>' +
+  box.innerHTML = '<div class="card" id="adminRecheckBox"></div>' +
+    '<div class="card" id="adminFirebaseBox"></div>' +
     '<div class="card" id="adminCentralBox"></div>' +
     '<div class="card" id="adminHealthBox"></div>' +
     '<div class="card" id="adminMaintainBox"></div>' +
     '<div class="card" id="adminAuditBox"></div>';
+  renderRecheckCard();
   renderFirebaseCard();
   renderCentralStaffCard();
   renderHealthCard();
