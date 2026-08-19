@@ -887,7 +887,6 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
 .score-sheet .ss-table th,.score-sheet .ss-table td{border:1px solid var(--line);padding:5px 7px}
 .score-sheet .ss-table thead th{background:var(--panel2);font-size:12px;line-height:1.25;vertical-align:bottom}
 .score-sheet .ss-full{display:block;font-size:10.5px;font-weight:600;color:var(--muted)}
-.score-sheet .ss-raw{display:block;font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 .score-sheet .ss-table td.num{font-variant-numeric:tabular-nums}
 .score-sheet .ss-grade{font-weight:800}
 .score-sheet .ss-foot{margin-top:12px}
@@ -2562,6 +2561,19 @@ function deleteImpact(kind, id) {
     students: kind === 'class' ? ((DB.classes.find(c => c.id === id) || {}).students || []).length : 0
   };
 }
+/** ดาวน์โหลดไฟล์สำรองก่อนลบของที่กู้คืนไม่ได้
+    ชื่อไฟล์บอกว่าสำรองก่อนลบอะไร จะได้หาเจอตอนต้องกู้คืนจริง
+    ทำก่อนแตะข้อมูลทุกครั้ง ถ้าดาวน์โหลดไม่สำเร็จก็ยังไม่ลบอะไรเลย */
+function backupBeforeDelete(what) {
+  const blob = new Blob([JSON.stringify(DB, null, 1)], { type: 'application/json' });
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  const safe = String(what || 'ลบข้อมูล').replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 44);
+  download(blob, 'ก่อนลบ_' + safe + '_' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) +
+    '_' + p(d.getHours()) + p(d.getMinutes()) + '.json');
+  DB.settings.lastBackupAt = new Date().toISOString();
+  toast('สำรองข้อมูลลงไฟล์ก่อนลบแล้ว', 'ok');
+}
+
 /** บรรทัดสรุปผลกระทบ แสดงเฉพาะตัวที่มีจริง จะได้ไม่รกด้วยเลขศูนย์ */
 function deleteImpactHtml(im) {
   const n = v => Number(v).toLocaleString('th-TH');
@@ -2572,9 +2584,11 @@ function deleteImpactHtml(im) {
   if (im.scores) bits.push('คะแนนที่กรอกไว้ <b>' + n(im.scores) + '</b> ช่อง');
   if (im.entries) bits.push('คาบในตารางสอน <b>' + n(im.entries) + '</b> คาบ');
   if (im.attendance) bits.push('บันทึกเช็กชื่อ <b>' + n(im.attendance) + '</b> คาบ');
-  if (!bits.length) return '<div class="notice ok" style="margin-top:10px">ยังไม่มีข้อมูลผูกอยู่กับรายการนี้ ลบได้ปลอดภัย</div>';
+  if (!bits.length) return '<div class="notice ok" style="margin-top:10px">ยังไม่มีข้อมูลผูกอยู่กับรายการนี้ ลบได้ปลอดภัย ' +
+    '<span class="hint">(ระบบยังดาวน์โหลดไฟล์สำรองให้ก่อนลบอยู่ดี)</span></div>';
   return '<div class="notice bad" style="margin-top:10px"><b>สิ่งที่จะถูกลบไปด้วย</b><br>' + bits.join(' • ') +
-    '<br><span class="hint">การลบนี้ย้อนกลับไม่ได้ ถ้าไม่แน่ใจให้สำรองข้อมูลก่อนที่แท็บสรุป</span></div>';
+    '<br><span class="hint">การลบนี้ย้อนกลับไม่ได้ — ระบบจะดาวน์โหลดไฟล์สำรองให้อัตโนมัติก่อนลบ ' +
+    'เก็บไฟล์นั้นไว้ ถ้าลบผิดให้กู้คืนได้ที่แท็บสรุป</span></div>';
 }
 
 function managePeriods() {
@@ -2613,6 +2627,7 @@ function managePeriods() {
     const p = DB.periods.find(x => x.id === btn.dataset.delp);
     if (!await confirmBox('ลบปี/ภาคเรียน', 'ลบปี <b>' + esc(p.academicYear) + '</b> ภาค <b>' + esc(p.semester) + '</b> พร้อมสมุดคะแนนทั้งหมดในช่วงนี้?' +
       deleteImpactHtml(deleteImpact('period', p.id)), 'ลบ')) return;
+    backupBeforeDelete('ปี ' + p.academicYear + ' ภาค ' + p.semester);
     DB.periods = DB.periods.filter(x => x.id !== p.id);
     Object.keys(DB.books).forEach(k => { if (k.split('::')[2] === p.id) delete DB.books[k]; });
     if (DB.ui.periodId === p.id) DB.ui.periodId = DB.periods[0].id;
@@ -2684,6 +2699,7 @@ function manageClasses() {
           if (!await confirmBox('ลบชั้นเรียน',
             'ลบชั้น <b>' + esc(c.name) + '</b> และคะแนนของทุกวิชาในชั้นนี้?' +
             deleteImpactHtml(deleteImpact('class', id)), 'ลบ')) return;
+          backupBeforeDelete('ชั้น ' + c.name);
           DB.classes = DB.classes.filter(x => x.id !== id);
           Object.keys(DB.books).forEach(k => { if (k.split('::')[0] === id) delete DB.books[k]; });
           const removedEntries = new Set(DB.timetable.entries.filter(e => e.classId === id).map(e => e.id));
@@ -2748,6 +2764,7 @@ function manageSubjects() {
           const s = DB.subjects.find(x => x.id === id);
           if (!await confirmBox('ลบวิชา', 'ลบวิชา <b>' + esc(s.name) + '</b> พร้อมคะแนนของทุกชั้นในวิชานี้?' +
             deleteImpactHtml(deleteImpact('subject', id)), 'ลบ')) return;
+          backupBeforeDelete('วิชา ' + s.name);
           DB.subjects = DB.subjects.filter(x => x.id !== id);
           Object.keys(DB.books).forEach(k => { if (k.split('::')[1] === id) delete DB.books[k]; });
           const removedEntries = new Set(DB.timetable.entries.filter(e => e.subjectId === id).map(e => e.id));
@@ -6440,18 +6457,18 @@ function bindSummaryTools(pane) {
   });
 }
 
-/* ---- ใบคะแนน 4 ส่วน สำหรับพิมพ์ ------------------------------------------
+/* ---- คะแนนสำหรับกรอก SGS --------------------------------------------------
    ตารางสรุปรายคนมี 20 กว่าคอลัมน์ เพราะเป็นใบทำงานของครู พิมพ์ออกมาแล้วอ่านไม่ไหว
-   ใบนี้เหลือเฉพาะที่ฝ่ายวิชาการและนักเรียนต้องเห็น คือ 4 ส่วนคะแนน รวม และเกรด
-   แต่ละช่องบอกคะแนนตามน้ำหนักตัวโต และคะแนนดิบ/เต็มตัวเล็กไว้ใต้ เผื่อครูต้องทาน */
+   ใบนี้เหลือเฉพาะช่องที่ต้องคีย์เข้า SGS จริง ๆ คือ 4 ส่วนคะแนน รวม และเกรด
+   ไม่มีคะแนนดิบ/เต็มกำกับ เพราะเวลานั่งคีย์ ตัวเลขส่วนเกินทำให้คีย์ผิดช่อง */
 function scoreSheetHtml(b, rows) {
   const teacher = curTeacher(), cls = curClass(), sub = curSubject(), period = curPeriod(), s = DB.settings;
   const W = b.weights;
   const parts = [
-    { label: 'ก่อนกลางภาค', w: num(W.before), val: r => r.wBefore, raw: r => r.rawBefore, max: r => r.maxBefore },
-    { label: 'กลางภาค', w: num(W.mid), val: r => r.wM, raw: r => r.midRaw, max: r => r.midMax },
-    { label: 'หลังกลางภาค', w: num(W.after), val: r => r.wAfter, raw: r => r.rawAfter, max: r => r.maxAfter },
-    { label: 'ปลายภาค', w: num(W.final), val: r => r.wF, raw: r => r.finRaw, max: r => r.finMax }
+    { label: 'ก่อนกลางภาค', w: num(W.before), val: r => r.wBefore },
+    { label: 'กลางภาค', w: num(W.mid), val: r => r.wM },
+    { label: 'หลังกลางภาค', w: num(W.after), val: r => r.wAfter },
+    { label: 'ปลายภาค', w: num(W.final), val: r => r.wF }
   ];
   // การกระจายเกรด เรียงจากมากไปน้อยตามเกณฑ์ที่ตั้งไว้ ใช้เป็นสรุปท้ายใบ
   const gradeOrder = b.gradeScale.map(g => g[1]).filter((v, i, a) => a.indexOf(v) === i);
@@ -6459,18 +6476,17 @@ function scoreSheetHtml(b, rows) {
   rows.forEach(x => { const g = x.r.grade; if (dist[g] === undefined) dist[g] = 0; dist[g]++; });
   const headName = headNameOfArea(teacherArea(teacher)) || s.headLearningName || '';
 
-  const cell = (r, p) => '<td class="num"><b>' + fmt(p.val(r)) + '</b>' +
-    (p.max(r) > 0 ? '<span class="ss-raw">' + fmt(p.raw(r)) + '/' + fmt(p.max(r)) + '</span>' : '') + '</td>';
+  const cell = (r, p) => '<td class="num"><b>' + fmt(p.val(r)) + '</b></td>';
 
-  return '<div class="card score-sheet"><div class="row noprint"><div><h3 style="margin:0">ใบคะแนน 4 ส่วน</h3>' +
-      '<div class="hint">ก่อนกลางภาค • กลางภาค • หลังกลางภาค • ปลายภาค • รวม • เกรด — ตัดคอลัมน์อื่นออกให้พิมพ์อ่านง่าย</div></div>' +
+  return '<div class="card score-sheet"><div class="row noprint"><div><h3 style="margin:0">คะแนนสำหรับกรอก SGS</h3>' +
+      '<div class="hint">เรียงตามลำดับช่องที่ต้องคีย์ — ก่อนกลางภาค • กลางภาค • หลังกลางภาค • ปลายภาค • รวม • เกรด</div></div>' +
       '<div class="spacer"></div><button id="btnPreviewScores">ดูตัวอย่างก่อนพิมพ์</button>' +
-      '<button class="primary" id="btnPrintScores">พิมพ์ใบคะแนน</button></div>' +
+      '<button class="primary" id="btnPrintScores">พิมพ์คะแนน SGS</button></div>' +
 
     '<div class="ss-head">' +
       (s.logoData ? '<img class="ss-logo" src="' + s.logoData + '" alt="">' : '') +
       '<div><div class="ss-school">' + esc(s.schoolName || '') + '</div>' +
-      '<div class="ss-title">แบบสรุปผลการเรียนรายวิชา</div>' +
+      '<div class="ss-title">คะแนนสำหรับกรอก SGS</div>' +
       '<div class="ss-meta">' + esc((sub ? (sub.code ? sub.code + ' ' : '') + sub.name : '')) +
         (cls ? ' • ชั้น ' + esc(cls.name) : '') +
         (period ? ' • ปีการศึกษา ' + esc(period.academicYear) + ' ภาคเรียนที่ ' + esc(period.semester) : '') + '</div>' +
@@ -8664,6 +8680,7 @@ function renderSettings() {
     if (!await confirmBox('ลบโปรไฟล์ครู', 'ลบโปรไฟล์ <b>' + esc(active.name || active.email) + '</b>? ข้อมูลคะแนนและเวลาเรียนจะไม่ถูกลบ' +
       (own ? '<div class="notice" style="margin-top:10px">ครูคนนี้มีคาบในตารางสอน <b>' + own + '</b> คาบ ' +
         'คาบเหล่านั้นจะยังอยู่แต่จะไม่มีเจ้าของ ควรย้ายให้ครูคนอื่นก่อนลบ</div>' : ''), 'ลบ')) return;
+    backupBeforeDelete('ครู ' + (active.name || active.email || ''));
     DB.teachers = DB.teachers.filter(t => t.id !== active.id); DB.ui.teacherId = DB.teachers[0] ? DB.teachers[0].id : null; save(true); renderSettings();
   });
 }
