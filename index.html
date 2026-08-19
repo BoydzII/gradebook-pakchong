@@ -287,6 +287,10 @@ td.num,th.num{text-align:center}
   .att-grid tbody .hint{font-size:11px}
   .att-line-label{min-width:78px}}
 /* ไม่ให้มีแถบเลื่อนซ้อนในกล่อง ปล่อยให้กล่องยาวไปเลย แล้วใช้ปุ่มย่อกล่องแทนถ้ายาวเกิน */
+/* แผ่นค้นหาของช่องเลือกที่ตัวเลือกเยอะ */
+.select-list{display:grid;gap:5px}
+.select-item{text-align:left;white-space:normal;padding:9px 12px;font-weight:600;line-height:1.35}
+.select-item.on{background:var(--brand);color:#fff;border-color:var(--brand)}
 .alert-list{display:grid;gap:7px}
 /* หัวกลุ่มของคาบค้างเช็กชื่อ ตรึงไว้ขณะเลื่อน จะได้รู้ตลอดว่ากำลังดูเดือน/ห้องไหน */
 .miss-group{margin-top:12px}
@@ -992,12 +996,12 @@ body.print-scores.print-preview .score-sheet{max-width:820px;margin:18px auto 96
     </div>
     <div class="pick" data-pick="class">
       <label for="selClass">ชั้น</label>
-      <select id="selClass"></select>
+      <select id="selClass" data-search-title="เลือกชั้นเรียน"></select>
       <button class="sm ghost" id="btnClasses" title="เพิ่ม/แก้ไข/ลบชั้นเรียน">จัดการ</button>
     </div>
     <div class="pick" data-pick="subject">
       <label for="selSubject">วิชา</label>
-      <select id="selSubject"></select>
+      <select id="selSubject" data-search-title="เลือกรายวิชา"></select>
       <button class="sm ghost" id="btnSubjects" title="เพิ่ม/แก้ไข/ลบวิชา">จัดการ</button>
     </div>
     <div class="pick" data-pick="role">
@@ -1998,12 +2002,85 @@ function applyPickerRelevance() {
   document.body.dataset.tab = DB.ui.tab || 'dashboard';
 }
 
+/* ---- เรียงชั้นเรียนตามเลขจริง -------------------------------------------
+   เรียงแบบตัวอักษรจะได้ ม.1/1, ม.1/10, ม.1/11, ม.1/2 ซึ่งหาห้องยาก
+   จึงแยกเลขชั้นกับเลขห้องออกมาเทียบเป็นตัวเลข */
+function classOrderKey(name) {
+  const m = /(\d+)\s*\/\s*(\d+)/.exec(String(name || ''));
+  return m ? [num(m[1]), num(m[2])] : [9999, 9999];
+}
+function sortedClassList(list) {
+  return (list || []).slice().sort((a, b) => {
+    const x = classOrderKey(a.name), y = classOrderKey(b.name);
+    return x[0] - y[0] || x[1] - y[1] || String(a.name || '').localeCompare(String(b.name || ''), 'th');
+  });
+}
+
+/* ---- ช่องเลือกที่พิมพ์ค้นหาได้ ---------------------------------------------
+   บางช่องมีตัวเลือกเป็นร้อย (ครู 157 คน ห้อง 96 ห้อง) การเลื่อนหาบนมือถือแทบเป็นไปไม่ได้
+   จึงดักการกดที่ช่อง แล้วเปิดแผ่นค้นหาแทนรายการเลื่อนของเบราว์เซอร์
+   ตัวเลือกน้อยกว่าเกณฑ์ยังใช้รายการเลื่อนตามเดิม เพราะเร็วกว่า */
+const SEARCHABLE_MIN = 12;
+function openSelectSearch(sel) {
+  const opts = Array.from(sel.options).map((o, i) => ({ i: i, value: o.value, label: o.textContent, disabled: o.disabled }));
+  const modal = openModal({
+    title: (sel.dataset.searchTitle || 'เลือกรายการ'), wide: true,
+    bodyHTML: '<div class="pick"><label>พิมพ์เพื่อค้นหา</label>' +
+      '<input id="selSearchBox" type="search" placeholder="พิมพ์บางส่วนก็พอ เช่น 4/3 หรือ สุภ" style="width:100%" autocomplete="off"></div>' +
+      '<div class="hint" id="selSearchCount" style="margin-top:8px"></div>' +
+      '<div class="tablewrap tall" style="margin-top:6px"><div id="selSearchList" class="select-list"></div></div>',
+    buttons: [{ label: 'ปิด' }],
+    onMount(root, close) {
+      const box = $('#selSearchBox', root), list = $('#selSearchList', root), count = $('#selSearchCount', root);
+      const draw = () => {
+        const q = box.value.trim().toLowerCase();
+        const hit = opts.filter(o => !o.disabled && (!q || o.label.toLowerCase().indexOf(q) >= 0));
+        count.textContent = 'พบ ' + hit.length + ' จาก ' + opts.filter(o => !o.disabled).length + ' รายการ';
+        list.innerHTML = hit.length
+          ? hit.map(o => '<button class="select-item' + (o.value === sel.value ? ' on' : '') + '" data-pick="' + o.i + '">' + esc(o.label) + '</button>').join('')
+          : '<div class="empty">ไม่พบรายการที่ตรงกับที่พิมพ์</div>';
+        $$('[data-pick]', list).forEach(b => b.addEventListener('click', () => {
+          sel.selectedIndex = num(b.dataset.pick);
+          close();
+          sel.dispatchEvent(new Event('change', { bubbles: true }));
+        }));
+      };
+      box.addEventListener('input', draw);
+      // กด Enter เมื่อเหลือรายการเดียว = เลือกเลย ไม่ต้องละมือจากแป้นพิมพ์
+      box.addEventListener('keydown', e => {
+        if (e.key !== 'Enter') return;
+        const only = $$('[data-pick]', list);
+        if (only.length === 1) { e.preventDefault(); only[0].click(); }
+      });
+      draw(); setTimeout(() => box.focus(), 60);
+    }
+  });
+  return modal;
+}
+/** ดักช่องเลือกทั้งหน้า ถ้าตัวเลือกเยอะให้เปิดแผ่นค้นหาแทน */
+function bindSearchableSelects(root) {
+  $$('select', root || document).forEach(sel => {
+    if (sel.dataset.searchBound) return;
+    sel.dataset.searchBound = '1';
+    const open = e => {
+      if (sel.disabled || sel.options.length < SEARCHABLE_MIN) return;
+      e.preventDefault(); sel.blur(); openSelectSearch(sel);
+    };
+    sel.addEventListener('mousedown', open);
+    sel.addEventListener('touchstart', open, { passive: false });
+    sel.addEventListener('keydown', e => {
+      if (sel.options.length < SEARCHABLE_MIN) return;
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') { e.preventDefault(); openSelectSearch(sel); }
+    });
+  });
+}
+
 function renderTop() {
   const ps = $('#selPeriod'), cs = $('#selClass'), ss = $('#selSubject');
   ps.innerHTML = '<option value="">— เลือกปี/ภาค —</option>' +
     DB.periods.map(p => '<option value="' + p.id + '"' + (p.id === DB.ui.periodId ? ' selected' : '') + '>' +
       esc('ปี ' + p.academicYear + ' • ภาค ' + p.semester) + '</option>').join('');
-  const allowedClasses = scopedClasses();
+  const allowedClasses = sortedClassList(scopedClasses());
   if (DB.ui.classId && !allowedClasses.some(c => c.id === DB.ui.classId)) DB.ui.classId = allowedClasses[0] ? allowedClasses[0].id : null;
   cs.innerHTML = '<option value="">— เลือกชั้น —</option>' +
     allowedClasses.map(c => '<option value="' + c.id + '"' + (c.id === DB.ui.classId ? ' selected' : '') + '>' +
@@ -2050,6 +2127,7 @@ function renderTop() {
   }
   applyRoleVisibility();
   applyPickerRelevance();
+  bindSearchableSelects();
 }
 
 /* แท็บใดเป็นของบทบาทใด — ตั้งค่าและฐานนักเรียนย้ายไปเป็นงานของผู้ดูแลระบบ */
@@ -2298,6 +2376,7 @@ function render() {
   else if (t === 'leaves') renderLeaveApprovals();
   else if (t === 'admin') renderAdmin();
   initCollapsibles();
+  bindSearchableSelects();
   updateSyncFab();
   renderSyncChip();
 }
@@ -3310,7 +3389,7 @@ function renderSchedule() {
       '<button id="ttPrint">พิมพ์ตาราง 1 หน้า</button><button class="primary" id="ttSettings">ตั้งค่าเวลา/ปฏิทิน</button>') + '</div>' +
     (scheduleReadOnly ? '' :
       '<div class="row" style="margin-top:12px;align-items:flex-end"><div class="pick" style="min-width:280px">' +
-      '<label>ดู/แก้ตารางสอนของครู</label><select id="ttTeacher" style="width:100%">' +
+      '<label>ดู/แก้ตารางสอนของครู</label><select id="ttTeacher" data-search-title="เลือกครูที่จะดู/แก้ตารางสอน" style="width:100%">' +
       DB.teachers.slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'th')).map(t => {
         const n = DB.timetable.entries.filter(e => e.periodId === DB.ui.periodId && e.teacherId === t.id).length;
         return '<option value="' + t.id + '"' + (viewTeacher && t.id === viewTeacher.id ? ' selected' : '') + '>' +
@@ -8110,6 +8189,21 @@ function analyzeTimetableImport(rows) {
   }).filter(x => x.email || x.teacherName || x.day || x.slotId || x.code || x.subjectName || x.className);
 }
 
+/** ล้างตารางสอนของปี/ภาคที่เลือก พร้อมข้อมูลเช็กชื่อของคาบเหล่านั้น
+    ใช้ตอนนำเข้าทับทั้งชุด เพราะตัวนำเข้าปกติจะเพิ่ม/แก้เท่านั้น ไม่เคยลบของเดิมที่ผิดออก */
+function wipePeriodTimetable() {
+  const pid = DB.ui.periodId;
+  const gone = new Set((DB.timetable.entries || []).filter(e => e.periodId === pid).map(e => e.id));
+  (DB.timetable.exceptions || []).filter(e => e.periodId === pid).forEach(e => gone.add(e.id));
+  let records = 0;
+  Object.keys(DB.timetable.attendance || {}).forEach(k => {
+    if (gone.has(DB.timetable.attendance[k].entryId)) { delete DB.timetable.attendance[k]; records++; }
+  });
+  DB.timetable.entries = (DB.timetable.entries || []).filter(e => e.periodId !== pid);
+  DB.timetable.exceptions = (DB.timetable.exceptions || []).filter(e => e.periodId !== pid);
+  return { entries: gone.size, records: records };
+}
+
 function commitTimetableImport(items, autoCreate, conflictMode) {
   let added = 0, updated = 0, skipped = 0, createdTeachers = 0, createdSubjects = 0, createdClasses = 0, conflicts = 0, filledPhones = 0, filledAreas = 0;
   items.forEach(item => {
@@ -8147,9 +8241,17 @@ async function importMultiTeacherTimetableExcel() {
     openModal({ title: 'ตรวจสอบก่อนนำเข้าตารางสอนหลายครู', wide: true, bodyHTML:
       '<div class="statgrid"><div class="stat"><div class="v">' + items.length + '</div><div class="k">แถวทั้งหมด</div></div><div class="stat"><div class="v">' + valid.length + '</div><div class="k">รูปแบบถูกต้อง</div></div><div class="stat"><div class="v">' + invalid + '</div><div class="k">แถวผิดพลาด</div></div><div class="stat"><div class="v">' + needsCreate + '</div><div class="k">มีข้อมูลที่ต้องสร้าง</div></div></div>' +
       '<div class="notice" style="margin-top:12px"><b>กฎความปลอดภัย:</b> ระบบจะไม่ให้ครูหนึ่งคนสอนสองห้องในคาบเดียวกัน และจะข้ามแถวที่ชนกับครูคนอื่นในห้องเดียวกัน</div>' +
-      '<div class="grid2" style="margin-top:12px"><label class="notice"><input type="checkbox" id="ttImportCreate"> สร้างครู รายวิชา และห้องที่ยังไม่มีอัตโนมัติ</label><div class="pick"><label>เมื่อครูมีคาบนี้อยู่แล้ว</label><select id="ttImportConflict"><option value="update">อัปเดตวิชา/ห้อง/สถานที่จากไฟล์</option><option value="skip">ข้ามข้อมูลเดิม</option></select></div></div>' +
+      '<div class="grid2" style="margin-top:12px"><label class="notice"><input type="checkbox" id="ttImportCreate"> สร้างครู รายวิชา และห้องที่ยังไม่มีอัตโนมัติ</label>' +
+      '<label class="notice bad"><input type="checkbox" id="ttImportWipe"> ล้างตารางสอนเดิมของปี/ภาคนี้ก่อนนำเข้า<br>' +
+      '<span class="hint">ใช้เมื่อของเดิมผิดจนต้องเริ่มใหม่ทั้งชุด ระบบจะดาวน์โหลดไฟล์สำรองให้ก่อน ' +
+      'และข้อมูลเช็กชื่อของคาบที่ถูกล้างจะหายไปด้วย</span></label><div class="pick"><label>เมื่อครูมีคาบนี้อยู่แล้ว</label><select id="ttImportConflict"><option value="update">อัปเดตวิชา/ห้อง/สถานที่จากไฟล์</option><option value="skip">ข้ามข้อมูลเดิม</option></select></div></div>' +
       '<div class="tablewrap tall" style="margin-top:12px"><table><thead><tr><th>แถว</th><th>ครู</th><th>วัน/คาบ</th><th>วิชา</th><th>ห้อง</th><th>ผลตรวจ</th></tr></thead><tbody>' + (items.length ? items.slice(0, 250).map(x => '<tr><td>' + x.rowNo + '</td><td><b>' + esc(x.teacherName || '—') + '</b><br><span class="hint">' + esc([x.email, x.phone, x.learningArea].filter(Boolean).join(' • ')) + '</span></td><td>' + esc((SCHOOL_DAYS.find(d => d.value === x.day) || {}).label || '—') + ' / ' + esc(x.slotId === 'assembly' ? 'เข้าแถว' : 'คาบ ' + x.slotId) + '</td><td>' + esc((x.code ? x.code + ' ' : '') + x.subjectName) + '</td><td>' + esc(x.className) + '</td><td>' + (x.errors.length ? '<span class="badge bad">' + esc(x.errors.join(' • ')) + '</span>' : x.warnings.length ? '<span class="badge warn">' + esc(x.warnings.join(' • ')) + '</span>' : '<span class="badge ok">พร้อมนำเข้า</span>') + '</td></tr>').join('') : '<tr><td colspan="6"><div class="empty">ไม่พบแถวข้อมูล</div></td></tr>') + '</tbody></table></div>' + (items.length > 250 ? '<div class="hint">แสดงตัวอย่าง 250 แถวแรกจากทั้งหมด ' + items.length + ' แถว</div>' : ''),
-      buttons: [{ label: 'ยกเลิก' }, { label: 'นำเข้าข้อมูลที่ผ่าน', cls: 'primary', act(close, root) { if (!valid.length) return toast('ไม่มีแถวที่พร้อมนำเข้า', 'bad'); const result = commitTimetableImport(items, $('#ttImportCreate', root).checked, $('#ttImportConflict', root).value); close(); toast('นำเข้าแล้ว: เพิ่ม ' + result.added + ' • อัปเดต ' + result.updated + ' • ข้าม ' + result.skipped + (result.conflicts ? ' • ห้องชนกัน ' + result.conflicts : '') + (result.filledPhones ? ' • เติมเบอร์โทร ' + result.filledPhones : '') + (result.filledAreas ? ' • เติมกลุ่มสาระ ' + result.filledAreas : '') + (result.createdTeachers + result.createdSubjects + result.createdClasses ? ' • สร้างครู/วิชา/ห้อง ' + result.createdTeachers + '/' + result.createdSubjects + '/' + result.createdClasses : ''), 'ok'); } }]
+      buttons: [{ label: 'ยกเลิก' }, { label: 'นำเข้าข้อมูลที่ผ่าน', cls: 'primary', act(close, root) { if (!valid.length) return toast('ไม่มีแถวที่พร้อมนำเข้า', 'bad');
+      // ล้างของเดิมก่อนถ้าเลือกไว้ สำรองไฟล์ให้ก่อนเสมอ เพราะย้อนกลับไม่ได้
+      let wiped = null;
+      if ($('#ttImportWipe', root).checked) { backupBeforeDelete('ตารางสอนทั้งภาคก่อนนำเข้าใหม่'); wiped = wipePeriodTimetable(); }
+      const result = commitTimetableImport(items, $('#ttImportCreate', root).checked, $('#ttImportConflict', root).value); close();
+      if (wiped) toast('ล้างตารางเดิม ' + wiped.entries + ' คาบ • ลบเช็กชื่อ ' + wiped.records + ' รายการ', 'warn'); toast('นำเข้าแล้ว: เพิ่ม ' + result.added + ' • อัปเดต ' + result.updated + ' • ข้าม ' + result.skipped + (result.conflicts ? ' • ห้องชนกัน ' + result.conflicts : '') + (result.filledPhones ? ' • เติมเบอร์โทร ' + result.filledPhones : '') + (result.filledAreas ? ' • เติมกลุ่มสาระ ' + result.filledAreas : '') + (result.createdTeachers + result.createdSubjects + result.createdClasses ? ' • สร้างครู/วิชา/ห้อง ' + result.createdTeachers + '/' + result.createdSubjects + '/' + result.createdClasses : ''), 'ok'); } }]
     });
   } catch (e) { toast('นำเข้าตารางสอนไม่สำเร็จ: ' + (e.message || e), 'bad'); }
 }
@@ -8733,7 +8835,7 @@ function adminSectionSystem(box) {
 function renderSettings() {
   const pane = $('#pane-settings'), teacher = curTeacher();
   const teacherOpts = '<option value="">— เลือกโปรไฟล์ครู —</option>' + DB.teachers.map(t => '<option value="' + t.id + '"' + (teacher && t.id === teacher.id ? ' selected' : '') + '>' + esc(t.name || t.email || 'ยังไม่ระบุชื่อ') + '</option>').join('');
-  const homeroomOpts = '<option value="">— ไม่ได้เป็นครูที่ปรึกษา —</option>' + DB.classes.map(c => { const count = DB.teachers.filter(t => t.id !== (teacher || {}).id && t.homeroomClassId === c.id).length; return '<option value="' + c.id + '"' + (teacher && teacher.homeroomClassId === c.id ? ' selected' : '') + (count >= 2 ? ' disabled' : '') + '>' + esc(c.name) + ' (' + (count + (teacher && teacher.homeroomClassId === c.id ? 1 : 0)) + '/2)</option>'; }).join('');
+  const homeroomOpts = '<option value="">— ไม่ได้เป็นครูที่ปรึกษา —</option>' + sortedClassList(DB.classes).map(c => { const count = DB.teachers.filter(t => t.id !== (teacher || {}).id && t.homeroomClassId === c.id).length; return '<option value="' + c.id + '"' + (teacher && teacher.homeroomClassId === c.id ? ' selected' : '') + (count >= 2 ? ' disabled' : '') + '>' + esc(c.name) + ' (' + (count + (teacher && teacher.homeroomClassId === c.id ? 1 : 0)) + '/2)</option>'; }).join('');
   pane.innerHTML = '<div class="card"><div class="row"><div><h3 style="margin:0">โปรไฟล์ครูและห้อง HomeRoom</h3><div class="hint">ห้องหนึ่งมีครูที่ปรึกษาได้ 1–2 คน ระบบใช้โปรไฟล์ระบุผู้บันทึกเวลาเรียน</div></div><div class="spacer"></div><button id="teacherTemplate">แม่แบบ Excel</button><button id="importTeacherProfile">นำเข้าครู</button><button id="addTeacherProfile">+ เพิ่มโปรไฟล์ครู</button><button class="danger" id="deleteTeacherProfile"' + (teacher ? '' : ' disabled') + '>ลบโปรไฟล์</button></div>' +
       '<div class="grid2" style="margin-top:12px"><div class="pick"><label>ผู้ใช้งานปัจจุบัน</label><select id="setTeacherProfile">' + teacherOpts + '</select></div>' +
       '<div class="pick"><label>ชื่อครู</label><input id="setTeacherName" value="' + esc(teacher ? teacher.name || '' : '') + '"' + (teacher ? '' : ' disabled') + '></div>' +
