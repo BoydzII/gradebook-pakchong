@@ -3373,6 +3373,60 @@ function scheduleClash(day, slotId, teacherId, classId, exceptId) {
   return { teacher: teacherHit || null, cls: classHit || null };
 }
 
+/* ---- คาบ HomeRoom เข้าแถวเช้าของครูที่ปรึกษา -----------------------------
+   ครูที่ปรึกษาเช็กชื่อตอนเช้าครั้งเดียว คาบ 1-9 ของห้องนั้นจะรับช่วงสถานะไปต่อทั้งวัน
+   (ดู previousAttendanceSnapshot) ครูคนถัดไปแค่ยืนยันคนที่มาสายหรือมาทีหลัง
+   คาบนี้ไม่ใช่คาบสอน จึงถูกกันออกจากภาระงานสอนและการหาครูสอนแทน */
+const HOMEROOM_PLACE = 'ระดับ';
+function homeroomSubject(create) {
+  let sub = DB.subjects.find(x => /^homeroom$/i.test(String(x.name || '').trim()));
+  if (!sub && create) { sub = { id: uid('s'), code: '', name: 'HomeRoom', gradeLevels: [] }; DB.subjects.push(sub); }
+  return sub || null;
+}
+/** ห้องไหนควรมีคาบ HomeRoom และใครเป็นคนเช็ก
+    หนึ่งห้องมีครูที่ปรึกษาได้ 2 คน แต่สร้างให้คนแรกคนเดียว เพราะเช็กชื่อซ้ำสองคนไม่มีประโยชน์ */
+function homeroomPlan() {
+  const byClass = {};
+  DB.teachers.filter(t => t.homeroomClassId).forEach(t => {
+    const cid = t.homeroomClassId;
+    if (!DB.classes.some(c => c.id === cid)) return;
+    (byClass[cid] = byClass[cid] || []).push(t);
+  });
+  const plan = [], extra = [];
+  Object.keys(byClass).forEach(cid => {
+    const list = byClass[cid].slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'th'));
+    plan.push({ classId: cid, teacher: list[0] });
+    list.slice(1).forEach(t => extra.push(t));
+  });
+  return { plan: plan, extra: extra };
+}
+/** สร้างคาบ HomeRoom จันทร์–ศุกร์ ช่องเข้าแถวเช้า ให้ทุกห้องที่มีครูที่ปรึกษา
+    เรียกซ้ำได้ ห้องที่มีอยู่แล้วจะข้าม และถ้าครูที่ปรึกษาเปลี่ยนจะย้ายเจ้าของให้ */
+function buildHomeroomEntries() {
+  const period = curPeriod(); if (!period) return null;
+  const sub = homeroomSubject(true);
+  const info = homeroomPlan();
+  let added = 0, moved = 0, kept = 0;
+  info.plan.forEach(p => {
+    SCHOOL_DAYS.forEach(d => {
+      const found = (DB.timetable.entries || []).find(e => e.periodId === period.id &&
+        String(e.slotId) === 'assembly' && e.classId === p.classId && num(e.day) === d.value);
+      if (found) {
+        if (found.teacherId !== p.teacher.id) { found.teacherId = p.teacher.id; moved++; }
+        else kept++;
+        if (!found.room) found.room = HOMEROOM_PLACE;
+        if (!found.subjectId) found.subjectId = sub.id;
+        return;
+      }
+      DB.timetable.entries.push({ id: uid('tt'), periodId: period.id, teacherId: p.teacher.id,
+        day: d.value, slotId: 'assembly', subjectId: sub.id, classId: p.classId, room: HOMEROOM_PLACE });
+      added++;
+    });
+  });
+  return { added: added, moved: moved, kept: kept, rooms: info.plan.length, extra: info.extra,
+    noAdvisor: DB.classes.filter(c => !DB.teachers.some(t => t.homeroomClassId === c.id)).length };
+}
+
 function renderSchedule() {
   const pane = $('#pane-schedule');
   if (!curPeriod()) { pane.innerHTML = '<div class="card"><div class="empty">กรุณาเลือกปี/ภาคเรียนก่อน</div></div>'; return; }
@@ -3391,7 +3445,7 @@ function renderSchedule() {
       '<div class="row" style="margin-top:12px;align-items:flex-end"><div class="pick" style="min-width:280px">' +
       '<label>ดู/แก้ตารางสอนของครู</label><select id="ttTeacher" data-search-title="เลือกครูที่จะดู/แก้ตารางสอน" style="width:100%">' +
       DB.teachers.slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'th')).map(t => {
-        const n = DB.timetable.entries.filter(e => e.periodId === DB.ui.periodId && e.teacherId === t.id).length;
+        const n = DB.timetable.entries.filter(e => e.periodId === DB.ui.periodId && e.teacherId === t.id && !isHomeroomEntry(e)).length;
         return '<option value="' + t.id + '"' + (viewTeacher && t.id === viewTeacher.id ? ' selected' : '') + '>' +
           esc(t.name || t.email || 'ยังไม่ระบุชื่อ') + ' (' + n + ' คาบ)</option>';
       }).join('') + '</select></div>' +
@@ -7968,7 +8022,8 @@ const LOAD_SORTS = [{ key: 'periods', label: 'คาบสอน' }, { key: 'nam
 function teachingLoadStats(area) {
   const entries = (DB.timetable.entries || []).filter(e => e.periodId === DB.ui.periodId);
   const rows = DB.teachers.filter(t => teacherHasRole(t, 'teacher')).map(t => {
-    const own = entries.filter(e => e.teacherId === t.id);
+    // คาบเข้าแถวเช้า/โฮมรูมไม่ใช่คาบสอน จึงไม่นับเป็นภาระงาน
+    const own = entries.filter(e => e.teacherId === t.id && !isHomeroomEntry(e));
     return { id: t.id, name: t.name || t.email || 'ไม่ระบุชื่อ', area: teacherArea(t) || NO_AREA_LABEL,
       periods: own.length, subjects: new Set(own.map(e => e.subjectId)).size,
       classes: new Set(own.map(e => e.classId)).size, days: new Set(own.map(e => num(e.day))).size };
@@ -8743,8 +8798,13 @@ function adminSectionCalendar(box) {
     '<div class="card" id="adminHolidayBox"></div>' +
     '<div class="card" id="adminDayShiftBox"></div>' +
     '<div class="card"><div class="row"><div><h3 style="margin:0">ตารางสอนทั้งโรงเรียน</h3><div class="hint">หนึ่งแถวต่อหนึ่งคาบ • ตรวจครูสอนซ้อน ห้องซ้อน และข้อมูลอ้างอิงก่อนบันทึกจริง</div></div><div class="spacer"></div><button id="adminTimetableTemplate">ดาวน์โหลดแม่แบบ</button><button class="primary" id="adminTimetableImport">นำเข้า Excel หลายครู</button><button id="adminGoSchedule">เปิดตารางสอน</button></div>' +
+      '<div class="row" style="margin-top:12px"><div><b>คาบ HomeRoom เข้าแถวเช้า</b>' +
+      '<div class="hint">สร้างคาบเข้าแถวเช้า จันทร์–ศุกร์ ให้ครูที่ปรึกษาทุกห้อง สถานที่ “' + esc(HOMEROOM_PLACE) + '” ' +
+      'ครูที่ปรึกษาเช็กชื่อตอนเช้าครั้งเดียว คาบต่อ ๆ ไปของห้องนั้นจะรับช่วงสถานะไปเอง • คาบนี้ไม่นับเป็นคาบสอน</div></div>' +
+      '<div class="spacer"></div><button id="adminBuildHomeroom">สร้างคาบ HomeRoom</button></div>' +
       '<div class="request-flow" style="margin-top:12px"><span class="badge">1. เตรียมครู/วิชา/ห้อง</span><i></i><span class="badge">2. กรอกชีตตารางสอน</span><i></i><span class="badge">3. ตรวจตัวอย่าง</span><i></i><span class="badge ok">4. นำเข้า</span></div>' +
-      '<div class="row" style="margin-top:12px"><span class="badge">คาบในตาราง ' + entries.length + '</span><span class="badge' + (noSchedule.length ? ' warn' : ' ok') + '">ครูที่ยังไม่มีตาราง ' + noSchedule.length + '</span></div>' +
+      '<div class="row" style="margin-top:12px"><span class="badge">คาบสอน ' + entries.filter(e => !isHomeroomEntry(e)).length + '</span>' +
+      '<span class="badge group">คาบ HomeRoom ' + entries.filter(e => isHomeroomEntry(e)).length + '</span><span class="badge' + (noSchedule.length ? ' warn' : ' ok') + '">ครูที่ยังไม่มีตาราง ' + noSchedule.length + '</span></div>' +
       (noSchedule.length ? '<div class="hint" style="margin-top:8px">' + esc(noSchedule.slice(0, 12).map(t => t.name || t.email).join(' • ')) + (noSchedule.length > 12 ? ' และอีก ' + (noSchedule.length - 12) + ' คน' : '') + '</div>' : '') + '</div>';
 
   renderAdminHolidays();
@@ -8760,6 +8820,23 @@ function adminSectionCalendar(box) {
   $('#adminTimetableTemplate', box).addEventListener('click', downloadMultiTeacherTimetableTemplate);
   $('#adminTimetableImport', box).addEventListener('click', importMultiTeacherTimetableExcel);
   $('#adminGoSchedule', box).addEventListener('click', () => setTab('schedule'));
+  $('#adminBuildHomeroom', box).addEventListener('click', async () => {
+    const info = homeroomPlan();
+    if (!info.plan.length) return toast('ยังไม่มีห้องที่กำหนดครูที่ปรึกษา', 'bad');
+    const ok = await confirmBox('สร้างคาบ HomeRoom',
+      'สร้างคาบเข้าแถวเช้า จันทร์–ศุกร์ ให้ <b>' + info.plan.length + '</b> ห้องที่มีครูที่ปรึกษา ' +
+      '(ห้องละ 5 คาบ รวม <b>' + (info.plan.length * 5) + '</b> คาบ)<br>' +
+      '<span class="hint">ห้องที่มีคาบเข้าแถวอยู่แล้วจะข้าม ไม่สร้างซ้ำ • คาบนี้ไม่นับเป็นคาบสอน</span>' +
+      (info.extra.length ? '<div class="notice" style="margin-top:10px">มีห้องที่ครูที่ปรึกษา 2 คน ระบบสร้างให้คนแรกคนเดียว ' +
+        'อีก <b>' + info.extra.length + '</b> คนไม่ได้รับคาบนี้ ถ้าต้องการสลับกันเช็ก ให้แก้เจ้าของคาบเองที่หน้าตารางสอน</div>' : ''),
+      'สร้าง');
+    if (!ok) return;
+    const res = buildHomeroomEntries();
+    if (!res) return toast('กรุณาเลือกปี/ภาคเรียนก่อน', 'bad');
+    save(true); renderAdmin(); renderTop();
+    toast('สร้างคาบ HomeRoom ' + res.added + ' คาบ' + (res.moved ? ' • ย้ายเจ้าของ ' + res.moved : '') +
+      (res.kept ? ' • มีอยู่แล้ว ' + res.kept : '') + (res.noAdvisor ? ' • ห้องที่ยังไม่มีที่ปรึกษา ' + res.noAdvisor : ''), 'ok');
+  });
 }
 
 /* ---- ④ เอกสารและอัตลักษณ์ ------------------------------------------------
