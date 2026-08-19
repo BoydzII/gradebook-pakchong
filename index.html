@@ -2368,7 +2368,10 @@ function renderDashboard() {
   const rows = book ? summaryRows(book, students, cls.id, sub.id) : [];
   const missed = period ? missedAttendanceItems() : [];
   const today = todayISO(), day = (parseISODate(today) || new Date()).getDay();
-  const todayEntries = period ? scheduleEntries().filter(e => num(e.day) === day && !hiddenRegularEntryIds(today).has(e.id)).concat((DB.timetable.exceptions || []).filter(e => e.periodId === DB.ui.periodId && e.teacherId === (teacher || {}).id && e.date === today)).sort((a, b) => DB.timetable.slots.findIndex(s => s.id === String(a.slotId)) - DB.timetable.slots.findIndex(s => s.id === String(b.slotId))) : [];
+  const todayShift = period ? dayShiftOf(today) : null;
+  const todayEntries = period ? effectiveDayEntries(today).filter(x => !hiddenRegularEntryIds(today).has(x.entry.id))
+    .concat((DB.timetable.exceptions || []).filter(e => e.periodId === DB.ui.periodId && e.teacherId === (teacher || {}).id && e.date === today).map(e => ({ entry: e, slotId: String(e.slotId), from: null })))
+    .sort((a, b) => DB.timetable.slots.findIndex(s => s.id === a.slotId) - DB.timetable.slots.findIndex(s => s.id === b.slotId)) : [];
   const completeScores = rows.filter(x => x.r.complete).length;
   const gradeZero = rows.filter(x => x.r.complete && String(x.r.grade) === '0').length;
   const atRisk = rows.filter(x => x.att.atRisk).length;
@@ -2394,8 +2397,8 @@ function renderDashboard() {
       '<div class="metric-card" style="--metric:var(--ok)"><div class="metric-icon">✓</div><div class="metric-value">' + completeScores + '/' + students.length + '</div><div class="metric-label">คะแนนครบทุกส่วน</div></div>' +
       '<div class="metric-card" style="--metric:var(--group)"><div class="metric-icon">◎</div><div class="metric-value">' + fmt(average, 1) + '</div><div class="metric-label">คะแนนเฉลี่ยปัจจุบัน</div></div></div>' +
     (schoolDataMissing() ? schoolDataCard() : '') + approvalCardHtml() +
-    '<div class="dash-columns"><div><div class="card"><div class="row"><h3 style="margin:0">ตารางสอนวันนี้</h3><div class="spacer"></div><button class="sm" data-go-tab="schedule">ดูตารางทั้งหมด</button></div><div class="today-list" style="margin-top:10px">' +
-      (todayEntries.length ? todayEntries.map(e => { const slot = DB.timetable.slots.find(s => s.id === String(e.slotId)), subject = subjectOf(e), c = classOf(e); const current = slot && nowMin >= timeToMinutes(slot.start) && nowMin <= timeToMinutes(slot.end); const checked = !!DB.timetable.attendance[attendanceKey(e.id, today)]; return '<div class="today-card' + (current ? ' current' : '') + '"><div class="today-time"><b>' + esc(slot ? slot.label : '') + '</b>' + esc(slot ? slot.start + '-' + slot.end : '') + '</div><div><b>' + esc((subject.code ? subject.code + ' ' : '') + subject.name) + '</b><div class="hint">' + esc(c.name) + (e.room ? ' • ' + esc(e.room) : '') + '</div></div><div class="spacer"></div>' + (checked ? '<span class="badge ok">เช็กแล้ว</span>' : '<button class="sm primary" data-dash-att="' + e.id + '">เช็กชื่อ</button>') + '</div>'; }).join('') : '<div class="empty">วันนี้ไม่มีคาบสอนในตาราง</div>') + '</div></div>' +
+    '<div class="dash-columns"><div><div class="card"><div class="row"><h3 style="margin:0">ตารางสอนวันนี้</h3>' + (todayShift ? '<span class="badge group" title="' + esc(dayShiftText(todayShift)) + '">↷ ' + esc(todayShift.mode === 'day' ? 'ใช้ตารางวัน' + schoolDayName(todayShift.sourceDay) : 'สลับคาบ') + '</span>' : '') + '<div class="spacer"></div><button class="sm" data-go-tab="schedule">ดูตารางทั้งหมด</button></div><div class="today-list" style="margin-top:10px">' +
+      (todayEntries.length ? todayEntries.map(x => { const e = x.entry, slot = DB.timetable.slots.find(s => s.id === x.slotId), subject = subjectOf(e), c = classOf(e); const current = slot && nowMin >= timeToMinutes(slot.start) && nowMin <= timeToMinutes(slot.end); const checked = !!DB.timetable.attendance[attendanceKey(e.id, today)]; return '<div class="today-card' + (current ? ' current' : '') + '"><div class="today-time"><b>' + esc(slot ? slot.label : '') + '</b>' + esc(slot ? slot.start + '-' + slot.end : '') + '</div><div><b>' + esc((subject.code ? subject.code + ' ' : '') + subject.name) + '</b><div class="hint">' + esc(c.name) + (e.room ? ' • ' + esc(e.room) : '') + '</div></div><div class="spacer"></div>' + (checked ? '<span class="badge ok">เช็กแล้ว</span>' : '<button class="sm primary" data-dash-att="' + e.id + '">เช็กชื่อ</button>') + '</div>'; }).join('') : '<div class="empty">วันนี้ไม่มีคาบสอนในตาราง</div>') + '</div></div>' +
       '<div class="card"><h3>ทางลัดงานประจำ</h3><div class="quick-grid"><button class="quick-action" data-go-tab="scores">✎<b>กรอกคะแนน</b><span>คะแนนเก็บ สอบ และซ่อม</span></button><button class="quick-action" data-go-tab="attendance">◷<b>เช็กเวลาเรียน</b><span>คาบประจำ แลกคาบ สอนแทน และชดเชย</span></button><button class="quick-action" data-go-tab="groups">◉<b>จัดกลุ่มเรียนรู้</b><span>กลุ่มและผู้นำเสนอ</span></button><button class="quick-action" data-go-tab="summary">▤<b>สรุป ปพ.5</b><span>เกรด เวลาเรียน และส่งออก</span></button></div></div></div>' +
       '<div><div class="card"><h3>ผู้ช่วยแนะนำงาน</h3><div class="insight-list">' + insights.map(i => '<button class="insight-item" data-go-tab="' + i.tab + '" style="text-align:left;width:100%"><span class="insight-dot" style="--insight:' + i.color + '"></span><span>' + esc(i.text) + '</span><span class="spacer"></span><span>›</span></button>').join('') + '</div></div>' +
       '<div class="card"><div class="row"><h3 style="margin:0">ความพร้อมของระบบ</h3><div class="spacer"></div><b>' + setupPct + '%</b></div><div class="setup-progress"><i style="width:' + setupPct + '%"></i></div><div class="hint">สถานศึกษา • ห้อง • วิชา • รายชื่อ • ตารางสอน • ปฏิทิน • หัวข้อคะแนน • ฐานข้อมูลกลาง</div><button class="sm" data-go-tab="settings" style="margin-top:9px">ตรวจสอบการตั้งค่า</button></div></div></div>' + exchangeRequestCard() + '<div class="card" id="pendingBox"></div>' + (schoolDataMissing() ? '' : schoolDataCard());
@@ -2404,7 +2407,10 @@ function renderDashboard() {
   bindPullSchoolButton(pane);
   renderPendingCard(pane);
   $$('[data-go-tab]', pane).forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.goTab)));
-  $$('[data-dash-att]', pane).forEach(btn => btn.addEventListener('click', () => { const e = todayEntries.find(x => x.id === btn.dataset.dashAtt); if (e) openAttendance(e, today); }));
+  $$('[data-dash-att]', pane).forEach(btn => btn.addEventListener('click', () => {
+    const x = todayEntries.find(y => y.entry.id === btn.dataset.dashAtt); if (!x) return;
+    openAttendance(x.entry, today, !!x.entry.sessionType || !!(x.from && x.from.mode === 'slots'), x.slotId);
+  }));
   $$('[data-swap-accept]', pane).forEach(btn => btn.addEventListener('click', () => respondExchangeRequest(btn.dataset.swapAccept, true)));
   $$('[data-swap-reject]', pane).forEach(btn => btn.addEventListener('click', () => respondExchangeRequest(btn.dataset.swapReject, false)));
   $$('[data-swap-delete]', pane).forEach(btn => btn.addEventListener('click', () => deleteExchangeRequest(btn.dataset.swapDelete)));
@@ -2635,7 +2641,7 @@ function attendanceOutcomeBadge(pct) {
 function currentTerm(create) {
   if (!curPeriod()) return null;
   const id = curPeriod().id;
-  if (!DB.timetable.terms[id] && create) DB.timetable.terms[id] = { openDate: '', closeDate: '', holidays: [], minAttendance: 80 };
+  if (!DB.timetable.terms[id] && create) DB.timetable.terms[id] = { openDate: '', closeDate: '', holidays: [], dayShifts: [], minAttendance: 80 };
   return DB.timetable.terms[id] || null;
 }
 
@@ -2690,10 +2696,12 @@ function scheduledDates(entry, untilISO) {
   if (!start || !close) return [];
   const end = until && until < close ? until : close;
   const holidays = new Set((term.holidays || []).map(h => h.date));
+  // การสลับวันของโรงเรียนย้ายคาบไปอยู่คนละวัน จำนวนคาบทั้งภาคและ % เวลาเรียนจึงต้องนับตามนี้ด้วย
+  const shifts = {}; (term.dayShifts || []).forEach(x => { if (x && x.date) shifts[x.date] = x; });
   const out = [], d = new Date(start); let guard = 0;
   while (d <= end && guard++ < 500) {
     const key = isoDate(d);
-    if (d.getDay() === num(entry.day) && !holidays.has(key)) out.push(key);
+    if (!holidays.has(key) && entryRunsOn(entry, d.getDay(), shifts[key])) out.push(key);
     d.setDate(d.getDate() + 1);
   }
   return out;
@@ -2724,6 +2732,72 @@ function sortedHolidays(term) {
   return (term && Array.isArray(term.holidays) ? term.holidays : [])
     .filter(h => h && /^\d{4}-\d{2}-\d{2}$/.test(h.date))
     .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/* ---- สลับวันเรียน / สลับคาบของโรงเรียน -----------------------------------
+   บางสัปดาห์โรงเรียนยกตารางของอีกวันมาเรียน เช่น เอาคาบวันศุกร์มาเรียนวันพุธ
+   ทำให้สัปดาห์นั้นมีคาบวันศุกร์สองรอบ หรือเปลี่ยนคาบชุมนุมเป็นคาบ 1 ของวันศุกร์
+   ผู้ดูแลระบบกำหนดไว้ในปฏิทินภาคเรียน (term.dayShifts) จึงถูกส่งขึ้นส่วนกลาง
+   พร้อมวันหยุดโดยอัตโนมัติ ครูทุกคนเห็นตรงกันทันทีโดยไม่ต้องแก้ตารางของตัวเอง
+     mode 'day'   ทั้งวันใช้ตารางของ sourceDay
+     mode 'slots' เฉพาะคาบที่ระบุใน map = [{ slotId, fromDay, fromSlot }]
+   วันหยุดมาก่อนเสมอ ถ้าวันนั้นเป็นวันหยุดก็ยังไม่ต้องเช็กชื่อ */
+function dayShiftOf(date, periodId) {
+  const term = (DB.timetable.terms || {})[periodId || DB.ui.periodId];
+  if (!term || !date) return null;
+  return (term.dayShifts || []).find(x => x && x.date === date) || null;
+}
+const dayShiftRows = shift => (((shift || {}).map) || []).filter(m => m && m.slotId && m.fromDay !== '' && m.fromDay != null && m.fromSlot);
+
+/** คาบนี้มีเรียนในวันนั้นหรือไม่ เมื่อคิดการสลับวัน/สลับคาบแล้ว */
+function entryRunsOn(entry, weekday, shift) {
+  if (!shift) return num(entry.day) === weekday;
+  if (shift.mode === 'day') return num(entry.day) === num(shift.sourceDay);
+  const rows = dayShiftRows(shift);
+  if (rows.some(m => num(entry.day) === num(m.fromDay) && String(entry.slotId) === String(m.fromSlot))) return true;
+  return num(entry.day) === weekday && !rows.some(m => String(m.slotId) === String(entry.slotId));
+}
+
+/** คาบประจำที่ใช้จริงในวันนั้น คืน [{ entry, slotId, from }]
+    slotId = ช่องคาบที่แสดงบนตารางของวันนั้น • from = คาบต้นทางที่ถูกยกมา (null คือคาบปกติของวันนั้นเอง) */
+function effectiveDayEntries(date, allTeachers) {
+  const weekday = (parseISODate(date) || new Date()).getDay();
+  const list = scheduleEntries(allTeachers), shift = dayShiftOf(date);
+  const plain = e => ({ entry: e, slotId: String(e.slotId), from: null });
+  if (!shift) return list.filter(e => num(e.day) === weekday).map(plain);
+  if (shift.mode === 'day') {
+    const src = num(shift.sourceDay);
+    return list.filter(e => num(e.day) === src)
+      .map(e => ({ entry: e, slotId: String(e.slotId), from: { day: src, slotId: String(e.slotId), mode: 'day' } }));
+  }
+  const rows = dayShiftRows(shift), taken = new Set(rows.map(m => String(m.slotId))), out = [];
+  list.forEach(e => {
+    rows.forEach(m => {
+      if (num(e.day) === num(m.fromDay) && String(e.slotId) === String(m.fromSlot))
+        out.push({ entry: e, slotId: String(m.slotId), from: { day: num(m.fromDay), slotId: String(m.fromSlot), mode: 'slots' } });
+    });
+    if (num(e.day) === weekday && !taken.has(String(e.slotId))) out.push(plain(e));
+  });
+  return out;
+}
+
+/** คาบของวันนั้นพร้อมตัวแปลงว่าแต่ละคาบไปตกอยู่ช่องไหนของตารางวันนี้ */
+function dayEntryIndex(date, allTeachers) {
+  const list = effectiveDayEntries(date, allTeachers), slotOf = {};
+  list.forEach(x => { slotOf[x.entry.id] = x.slotId; });
+  return { list: list, entries: list.map(x => x.entry), slotFor: e => slotOf[e.id] || String(e.slotId) };
+}
+
+const schoolDayName = v => (SCHOOL_DAYS.find(x => x.value === num(v)) || { label: '—' }).label;
+const slotLabelOf = id => (DB.timetable.slots.find(x => String(x.id) === String(id)) || { label: String(id || '') }).label;
+
+/** คำอธิบายสั้น ๆ ของการสลับวันนั้น ใช้บอกครูว่าทำไมตารางวันนี้ไม่เหมือนเดิม */
+function dayShiftText(shift) {
+  if (!shift) return '';
+  if (shift.mode === 'day') return 'วันนี้ใช้ตารางสอนของวัน' + schoolDayName(shift.sourceDay) + 'ทั้งวัน';
+  const rows = dayShiftRows(shift);
+  if (!rows.length) return 'ยังไม่ได้ระบุคาบที่สลับ';
+  return rows.map(m => slotLabelOf(m.slotId) + ' ใช้' + slotLabelOf(m.fromSlot) + ' ของวัน' + schoolDayName(m.fromDay)).join(' • ');
 }
 
 function sessionIsDue(date, entry) {
@@ -2852,9 +2926,11 @@ function adjacentAttendanceEntries(entry) {
   return out.length ? out : [entry];
 }
 
-function openAttendance(entry, date, singleMode) {
+function openAttendance(entry, date, singleMode, slotOverride) {
   const subject = DB.subjects.find(s => s.id === entry.subjectId), cls = DB.classes.find(c => c.id === entry.classId);
-  const slot = DB.timetable.slots.find(s => s.id === String(entry.slotId));
+  // คาบที่ถูกยกมาจากวันอื่นจะเรียนในช่องเวลาของวันนี้ ไม่ใช่เวลาเดิมของวันต้นทาง
+  const slotIdFor = e => (slotOverride && e.id === entry.id) ? String(slotOverride) : String(e.slotId);
+  const slot = DB.timetable.slots.find(s => s.id === slotIdFor(entry));
   if (!cls) return toast('ไม่พบชั้นเรียนของคาบนี้', 'bad');
   const groupedEntries = singleMode ? [entry] : adjacentAttendanceEntries(entry);
   const students = (cls.students || []).slice().sort((a, b) => num(a.no) - num(b.no));
@@ -2862,9 +2938,9 @@ function openAttendance(entry, date, singleMode) {
   openModal({
     title: 'เช็กชื่อ' + (groupedEntries.length > 1 ? 'พร้อมกัน ' + groupedEntries.length + ' คาบ' : '') + ' • ' + (subject ? (subject.code ? subject.code + ' ' : '') + subject.name : 'วิชา') + ' • ' + cls.name,
     wide: true, full: true, buttonsTop: true,
-    bodyHTML: '<div class="row att-topline"><span class="badge">' + thaiDate(date) + '</span>' + groupedEntries.map(e => { const sl = DB.timetable.slots.find(s => s.id === String(e.slotId)); return '<span class="badge">' + esc(sl ? sl.label + ' ' + sl.start + '–' + sl.end : '') + '</span>'; }).join('') +
+    bodyHTML: '<div class="row att-topline"><span class="badge">' + thaiDate(date) + '</span>' + groupedEntries.map(e => { const sl = DB.timetable.slots.find(s => s.id === slotIdFor(e)); return '<span class="badge">' + esc(sl ? sl.label + ' ' + sl.start + '–' + sl.end : '') + '</span>'; }).join('') +
       '<div class="spacer"></div><span class="hint">กดที่หัวคอลัมน์เพื่อตั้งสถานะให้ทั้งห้อง</span></div>' +
-      (function () { const names = students.filter(st => activityFor(st.sid, date, entry.slotId));
+      (function () { const names = students.filter(st => activityFor(st.sid, date, slotIdFor(entry)));
         return names.length ? '<div class="notice" style="margin-bottom:10px"><b>มีนักเรียน ' + names.length +
           ' คนได้รับอนุญาตให้ทำกิจกรรมในคาบนี้</b> ระบบตั้งสถานะ “กิจกรรม” ให้แล้ว ตรวจสอบและกดบันทึกได้เลย</div>' : ''; })() +
       (inherited ? '<div class="notice" style="margin-bottom:10px"><b>รับช่วงสถานะจาก ' + esc(attendanceSourceText(inherited)) + '</b><br>ข้อมูลนี้เป็นเพียงค่าเริ่มต้นและยังไม่นับว่าเช็กชื่อคาบนี้ จนกว่าครูจะตรวจสอบและกด “บันทึกการเช็กชื่อ”</div>' : '') +
@@ -2900,7 +2976,7 @@ function openAttendance(entry, date, singleMode) {
       groupedEntries.forEach(e => {
         const teacher = curTeacher();
         DB.timetable.attendance[attendanceKey(e.id, date)] = { entryId: e.id, date: date, periodId: e.periodId, subjectId: e.subjectId,
-          classId: e.classId, slotId: e.slotId, sessionType: e.sessionType || 'regular', note: e.note || '', statuses: Object.assign({}, statuses),
+          classId: e.classId, slotId: slotIdFor(e), sessionType: e.sessionType || 'regular', note: e.note || '', statuses: Object.assign({}, statuses),
           teacherId: teacher ? teacher.id : '', teacherName: teacher ? teacher.name || teacher.email || '' : '', inheritedFrom: inherited ? inherited.entryId || '' : '', checkedAt: new Date().toISOString() };
       });
       save(true); close(); if (DB.ui.tab === 'attendance') renderAttendancePage(); else renderSchedule();
@@ -3046,14 +3122,14 @@ function openSpecialSession(date, slotId) {
 
 function openExchangeRequest(date, targetSlotId, preferredClassId) {
   const me = curTeacher(); if (!me) return toast('กรุณาเลือกโปรไฟล์ครูก่อน', 'bad');
-  const day = (parseISODate(date) || new Date()).getDay(), all = scheduleEntries(true).filter(e => num(e.day) === day);
-  const targets = all.filter(e => e.teacherId !== me.id && String(e.slotId) === String(targetSlotId) && (!preferredClassId || e.classId === preferredClassId));
+  const dayIdx = dayEntryIndex(date, true), all = dayIdx.entries, slotFor = dayIdx.slotFor;
+  const targets = all.filter(e => e.teacherId !== me.id && slotFor(e) === String(targetSlotId) && (!preferredClassId || e.classId === preferredClassId));
   if (!targets.length) return toast('ไม่พบครูคนอื่นที่สอนห้องนี้ในคาบที่เลือก', 'bad');
   const label = e => {
-    const t = DB.teachers.find(x => x.id === e.teacherId), s = DB.subjects.find(x => x.id === e.subjectId), c = DB.classes.find(x => x.id === e.classId), slot = DB.timetable.slots.find(x => x.id === String(e.slotId));
+    const t = DB.teachers.find(x => x.id === e.teacherId), s = DB.subjects.find(x => x.id === e.subjectId), c = DB.classes.find(x => x.id === e.classId), slot = DB.timetable.slots.find(x => x.id === slotFor(e));
     return (slot ? slot.label + ' • ' : '') + (c ? c.name + ' • ' : '') + (s ? (s.code ? s.code + ' ' : '') + s.name : 'ไม่พบวิชา') + ' • ' + (t ? t.name : 'ไม่พบครู');
   };
-  const sourceFor = target => all.filter(e => e.teacherId === me.id && e.classId === target.classId && e.subjectId !== target.subjectId && String(e.slotId) !== String(target.slotId));
+  const sourceFor = target => all.filter(e => e.teacherId === me.id && e.classId === target.classId && e.subjectId !== target.subjectId && slotFor(e) !== slotFor(target));
   openModal({ title: 'ส่งคำขอแลกคาบ • ' + thaiDate(date), bodyHTML:
     '<div class="notice">เลือกคาบของครูปลายทางและคาบของคุณ ระบบจะส่งคำขอไปที่หน้าภาพรวมของครูคนนั้น</div>' +
     '<div class="pick" style="margin-top:12px"><label>คาบของครูปลายทาง</label><select id="exchangeTarget" style="width:100%">' + targets.map(e => '<option value="' + e.id + '">' + esc(label(e)) + '</option>').join('') + '</select></div>' +
@@ -3117,8 +3193,7 @@ function entryDateInWeek(entry, baseISO) {
   return weekSchoolDates(baseISO)[Math.max(0, Math.min(4, num(entry.day) - 1))];
 }
 function teacherBusyAt(teacherId, date, slotId, exceptEntryId) {
-  const day = (parseISODate(date) || new Date()).getDay();
-  const regular = scheduleEntries(true).some(e => e.teacherId === teacherId && num(e.day) === day && String(e.slotId) === String(slotId) && e.id !== exceptEntryId);
+  const regular = effectiveDayEntries(date, true).some(x => x.entry.teacherId === teacherId && x.slotId === String(slotId) && x.entry.id !== exceptEntryId);
   const special = (DB.timetable.exceptions || []).some(e => e.teacherId === teacherId && e.date === date && String(e.slotId) === String(slotId));
   return regular || special;
 }
@@ -3369,7 +3444,7 @@ function hiddenRegularEntryIds(date) {
 
 function openExchangeRequest(date, targetSlotId, preferredClassId) {
   DB.ui.exchangeDate = date || todayISO(); DB.ui.exchangeClassId = preferredClassId || '';
-  const own = scheduleEntries().find(e => num(e.day) === (parseISODate(DB.ui.exchangeDate) || new Date()).getDay() && String(e.slotId) === String(targetSlotId));
+  const own = (effectiveDayEntries(DB.ui.exchangeDate).find(x => x.slotId === String(targetSlotId)) || {}).entry;
   DB.ui.exchangeSourceEntryId = own ? own.id : ''; save(true); setTab('exchange');
 }
 
@@ -3566,7 +3641,7 @@ function submitLeaveRequest(root) {
     // คาบเข้าแถว/โฮมรูมไม่ต้องหาคนแลกหรือสอนแทน
     // คาบที่ติดกันของห้องและวิชาเดียวกัน นับเป็นคาบคู่เดียว ส่งคำขอครั้งเดียว
     const doneIds = new Set();
-    scheduleEntries().filter(e => num(e.day) === day && !isHomeroomEntry(e)).forEach(source => {
+    effectiveDayEntries(date).map(x => x.entry).filter(e => !isHomeroomEntry(e)).forEach(source => {
       if (doneIds.has(source.id)) return;
       const block = entryBlock(source);
       block.forEach(e => doneIds.add(e.id));
@@ -3871,7 +3946,7 @@ function decideLeave(id, decision, kind) {
 
 function renderExchangeCenter() {
   const pane = $('#pane-exchange'), me = curTeacher(); if (!curPeriod() || !me) { pane.innerHTML = '<div class="card"><div class="empty">กรุณาเลือกปี/ภาคเรียนและโปรไฟล์ครูก่อน</div></div>'; return; }
-  const date = DB.ui.exchangeDate || todayISO(), day = (parseISODate(date) || new Date()).getDay(), own = scheduleEntries().filter(e => num(e.day) === day && !isHomeroomEntry(e)), source = own.find(e => e.id === DB.ui.exchangeSourceEntryId) || own[0] || null; if (source) DB.ui.exchangeSourceEntryId = source.id;
+  const date = DB.ui.exchangeDate || todayISO(), day = (parseISODate(date) || new Date()).getDay(), own = effectiveDayEntries(date).map(x => x.entry).filter(e => !isHomeroomEntry(e)), source = own.find(e => e.id === DB.ui.exchangeSourceEntryId) || own[0] || null; if (source) DB.ui.exchangeSourceEntryId = source.id;
   const candidates = source ? findCoverageCandidates(source, date) : [], leaves = (DB.timetable.leaveRequests || []).filter(l => l.teacherId === me.id && l.periodId === DB.ui.periodId).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   const reasonOptions = EXCHANGE_REASONS.map(x => '<option value="' + x.value + '">' + x.label + '</option>').join('');
   pane.innerHTML = '<div class="card dash-hero"><div class="row"><div><div class="hero-sub">SMART PERIOD EXCHANGE</div><h1>ศูนย์แลกคาบและการลา</h1><div class="hero-sub">ค้นหาครูห้องเดียวกันก่อน • คาบคู่ก่อนคาบเดี่ยว • หากไม่พบจึงหาครูสอนแทน</div></div><div class="spacer"></div><span class="role-chip">ครูผู้ใช้งาน ' + esc(me.name || me.email) + '</span></div></div>' +
@@ -3956,7 +4031,12 @@ function renderAttendancePage() {
   const date = DB.ui.attendanceDate || todayISO(), d = parseISODate(date) || new Date(), day = d.getDay();
   const dayInfo = SCHOOL_DAYS.find(x => x.value === day), teacherId = (curTeacher() || {}).id || '';
   const hiddenEntryIds = hiddenRegularEntryIds(date);
-  const regular = scheduleEntries().filter(e => num(e.day) === day && !hiddenEntryIds.has(e.id));
+  const shift = dayShiftOf(date);
+  const effective = effectiveDayEntries(date).filter(x => !hiddenEntryIds.has(x.entry.id));
+  const regular = effective.map(x => x.entry);
+  const slotOwner = {}; effective.forEach(x => { if (!slotOwner[x.slotId]) slotOwner[x.slotId] = x; });
+  const fromTag = x => x.from.mode === 'day' ? 'ยกมาจากวัน' + schoolDayName(x.from.day)
+    : 'ยกมาจาก' + slotLabelOf(x.from.slotId) + ' วัน' + schoolDayName(x.from.day);
   const specials = (DB.timetable.exceptions || []).filter(e => e.periodId === DB.ui.periodId && e.date === date && (!teacherId || e.teacherId === teacherId));
   const missed = missedAttendanceItems(), badge = $('#missedBadge'); if (badge) badge.innerHTML = missed.length ? '<span class="badge bad">' + missed.length + '</span>' : '';
   const subjectText = e => DB.subjects.find(s => s.id === e.subjectId) || { code: '', name: 'ไม่พบวิชา' };
@@ -3965,6 +4045,7 @@ function renderAttendancePage() {
   pane.innerHTML = '<div class="card"><div class="row"><div><h3 style="margin:0">เช็กชื่อประจำวัน <span class="sub">' + thaiDate(date) + '</span></h3><div class="hint">คาบประจำกดเช็กได้ทันที • คำขอแลกคาบและการลาอยู่ในเมนูเฉพาะ</div></div><div class="spacer"></div>' +
     '<div class="pick"><label>วันที่</label><input type="date" id="checkDate" value="' + date + '"></div><button id="checkToday">วันนี้</button></div>' +
     (!dayInfo ? '<div class="notice" style="margin-top:10px">วันที่เลือกเป็นวันหยุดสุดสัปดาห์ แต่ยังสามารถเพิ่มการแลกคาบ สอนแทน หรือสอนชดเชยได้</div>' : '') +
+    (shift ? '<div class="notice ok" style="margin-top:10px"><b>↷ ' + esc(shift.name || 'สลับวันเรียนตามประกาศของโรงเรียน') + '</b><br>' + esc(dayShiftText(shift)) + ' — ระบบเปลี่ยนคาบที่ต้องเช็กชื่อและการนับเวลาเรียนให้แล้ว</div>' : '') +
     '</div>' +
     (holiday ? '<div class="card holiday-card"><div class="row"><div><div class="hero-sub">วันหยุด</div><h3 style="margin:4px 0">' + esc(holiday.name || 'วันหยุดตามที่สถานศึกษากำหนด') + '</h3>' +
       '<div class="hint">' + esc(thaiDate(date)) + (holiday.note ? ' • ' + esc(holiday.note) : '') + '<br><b>วันนี้ไม่ต้องเช็กชื่อ</b> ระบบไม่นับเป็นคาบค้างเช็ก และไม่นำไปคิดเวลาเรียนของนักเรียน</div></div>' +
@@ -3972,11 +4053,13 @@ function renderAttendancePage() {
     (holiday && !showAnyway ? '' :
     '<div class="card"><div class="tablewrap"><table class="timetable"><thead><tr><th>วัน / คาบ</th>' + DB.timetable.slots.map(slot => '<th>' + esc(slot.label) + '<br><span class="hint">' + esc(slot.start) + '–' + esc(slot.end) + '</span></th>').join('') + '</tr></thead><tbody><tr class="today-row"><td class="slot-info"><b>' + esc(dayInfo ? 'วัน' + dayInfo.label : 'กรณีพิเศษ') + '</b><br><span class="hint">' + esc(date) + '</span></td>' +
       DB.timetable.slots.map(slot => {
-        const special = specials.find(e => String(e.slotId) === slot.id), own = regular.find(e => String(e.slotId) === slot.id), e = special || own;
+        const special = specials.find(e => String(e.slotId) === slot.id), owner = slotOwner[slot.id], own = owner ? owner.entry : null, e = special || own;
         if (!e) return '<td><button class="tt-cell empty" data-special-slot="' + slot.id + '">+ คาบพิเศษ<br><span class="hint">สอนแทน • ชดเชย</span></button></td>';
         const s = subjectText(e), checked = !!DB.timetable.attendance[attendanceKey(e.id, date)], typeLabel = sessionTypeLabel(e.sessionType);
         return '<td><div class="tt-cell filled ' + esc(e.sessionType || '') + '" data-check-session="' + e.id + '">' + (special ? '<button class="tt-edit" data-delete-special="' + e.id + '" title="ลบกรณีพิเศษ">×</button>' : '') +
-          '<div class="tt-code">' + esc(s.code || '—') + '</div><div class="tt-name">' + esc(s.name) + '</div><div class="tt-room">' + esc(classText(e)) + '</div><span class="badge ' + (checked ? 'ok' : e.sessionType ? 'warn' : '') + '">' + (checked ? 'เช็กแล้ว' : typeLabel) + '</span></div></td>';
+          '<div class="tt-code">' + esc(s.code || '—') + '</div><div class="tt-name">' + esc(s.name) + '</div><div class="tt-room">' + esc(classText(e)) + '</div>' +
+          (!special && owner && owner.from ? '<div class="tt-room" style="color:var(--group);font-weight:800">↷ ' + esc(fromTag(owner)) + '</div>' : '') +
+          '<span class="badge ' + (checked ? 'ok' : e.sessionType ? 'warn' : '') + '">' + (checked ? 'เช็กแล้ว' : typeLabel) + '</span></div></td>';
       }).join('') + '</tr></tbody></table></div><div class="hint" style="margin-top:8px">คลิกขวาค้างแล้วลากเพื่อเลื่อนตารางซ้าย-ขวา</div></div>') +
     '<div class="card"><div class="row"><h3 style="margin:0">คาบค้างเช็กชื่อ</h3><span class="badge ' + (missed.length ? 'bad' : 'ok') + '">' + missed.length + '</span></div>' +
       (missed.length ? '<div class="alert-list" style="margin-top:10px">' + missed.slice(0, 80).map(x => { const s = subjectText(x.entry), slot = DB.timetable.slots.find(t => t.id === String(x.entry.slotId)); return '<div class="alert-item"><div><b>' + thaiDate(x.date) + '</b><br><span class="hint">' + esc(slot ? slot.label : '') + ' • ' + esc((s.code ? s.code + ' ' : '') + s.name) + ' • ' + esc(classText(x.entry)) + '</span></div><div class="spacer"></div><button class="sm primary" data-missed-entry="' + x.entry.id + '" data-date="' + x.date + '">เช็กชื่อ</button></div>'; }).join('') + '</div>' : '<div class="empty" style="margin-top:10px">ไม่มีคาบค้างเช็ก</div>') + '</div>';
@@ -3988,14 +4071,21 @@ function renderAttendancePage() {
   $$('[data-special-slot]', pane).forEach(btn => btn.addEventListener('click', () => openSpecialSession(date, btn.dataset.specialSlot)));
   $$('[data-check-session]', pane).forEach(cell => cell.addEventListener('click', ev => {
     if (ev.target.closest('[data-delete-special]')) return;
-    const e = regular.concat(specials).find(x => x.id === cell.dataset.checkSession); if (e) openAttendance(e, date, !!e.sessionType);
+    const id = cell.dataset.checkSession, e = regular.concat(specials).find(x => x.id === id); if (!e) return;
+    // คาบที่ยกมาทีละคาบไม่ควรจับคู่กับคาบข้างเคียงของวันต้นทาง เพราะวันนี้ไม่ได้เรียนคาบพวกนั้น
+    const picked = effective.find(x => x.entry.id === id);
+    openAttendance(e, date, !!e.sessionType || !!(picked && picked.from && picked.from.mode === 'slots'), picked ? picked.slotId : null);
   }));
   $$('[data-delete-special]', pane).forEach(btn => btn.addEventListener('click', async ev => {
     ev.stopPropagation(); const e = specials.find(x => x.id === btn.dataset.deleteSpecial); if (!e) return;
     if (!await confirmBox('ลบคาบกรณีพิเศษ', 'ลบรายการ' + sessionTypeLabel(e.sessionType) + 'และข้อมูลเช็กชื่อของคาบนี้?', 'ลบ')) return;
     DB.timetable.exceptions = DB.timetable.exceptions.filter(x => x.id !== e.id); delete DB.timetable.attendance[attendanceKey(e.id, date)]; save(true); renderAttendancePage();
   }));
-  $$('[data-missed-entry]', pane).forEach(btn => btn.addEventListener('click', () => { const e = scheduleEntries().find(x => x.id === btn.dataset.missedEntry); if (e) openAttendance(e, btn.dataset.date); }));
+  $$('[data-missed-entry]', pane).forEach(btn => btn.addEventListener('click', () => {
+    const e = scheduleEntries().find(x => x.id === btn.dataset.missedEntry); if (!e) return;
+    const at = effectiveDayEntries(btn.dataset.date).find(x => x.entry.id === e.id);
+    openAttendance(e, btn.dataset.date, !!(at && at.from && at.from.mode === 'slots'), at ? at.slotId : null);
+  }));
 }
 
 /* ============================================================================
@@ -7695,6 +7785,160 @@ function renderAdminHolidays() {
   }));
 }
 
+/* ---- ปฏิทินสลับวันเรียน/สลับคาบ (หน้าผู้ดูแลระบบ) ------------------------
+   ใช้ตอนโรงเรียนยกตารางของอีกวันมาเรียน เช่น เอาคาบวันศุกร์มาเรียนวันพุธ
+   หรือเปลี่ยนคาบชุมนุมเป็นคาบ 1 ของวันศุกร์
+   กำหนดที่นี่ที่เดียว ครูทุกคนได้ตารางและคาบที่ต้องเช็กชื่อใหม่พร้อมกัน */
+function dayShiftImpact(shift) {
+  if (!shift || !shift.date) return { periods: 0, teachers: 0, checked: 0 };
+  const list = effectiveDayEntries(shift.date, true).filter(x => x.from);
+  const checked = Object.values(DB.timetable.attendance || {})
+    .filter(r => r.date === shift.date && r.periodId === DB.ui.periodId).length;
+  return { periods: list.length, teachers: new Set(list.map(x => x.entry.teacherId)).size, checked: checked };
+}
+
+function renderAdminDayShifts() {
+  const box = $('#adminDayShiftBox'); if (!box) return;
+  const term = currentTerm(true);
+  const list = (term.dayShifts || []).filter(x => x && /^\d{4}-\d{2}-\d{2}$/.test(x.date))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const dayOf = d => (SCHOOL_DAYS.find(x => x.value === (parseISODate(d) || new Date()).getDay()) || { label: 'เสาร์-อาทิตย์' }).label;
+  box.innerHTML = '<div class="row"><div><h3 style="margin:0">สลับวันเรียน / สลับคาบ</h3>' +
+      '<div class="hint">ใช้เมื่อโรงเรียนยกตารางของอีกวันมาเรียน เช่น เอาคาบวันศุกร์มาเรียนวันพุธ (สัปดาห์นั้นจะมีคาบวันศุกร์ 2 รอบ) ' +
+      'หรือเปลี่ยนคาบชุมนุมเป็นคาบ 1 ของวันศุกร์ — ระบบจะเปลี่ยนคาบที่ครูต้องเช็กชื่อและการนับเวลาเรียนให้ทั้งโรงเรียน</div></div>' +
+      '<div class="spacer"></div><span class="badge">' + list.length + ' วัน</span><button class="primary" id="dayShiftAdd">+ เพิ่มการสลับวัน</button></div>' +
+    (list.length ? '<div class="tablewrap listbox folded" style="margin-top:12px"><table><thead><tr><th>วันที่</th><th>รูปแบบ</th><th>ชื่อ/เหตุผล</th><th class="num">คาบที่ถูกยกมา</th><th></th></tr></thead><tbody>' +
+      list.map(x => { const im = dayShiftImpact(x), holiday = holidayOf(x.date);
+        return '<tr><td><b>' + esc(thaiDate(x.date)) + '</b><br><span class="hint">วัน' + esc(dayOf(x.date)) + ' • ' + esc(x.date) + '</span>' +
+          (holiday ? '<br><span class="badge bad">ตรงกับวันหยุด</span>' : '') + '</td>' +
+          '<td>' + (x.mode === 'day' ? '<span class="level-tag">ทั้งวัน</span>' : '<span class="level-tag">รายคาบ</span>') +
+          '<br><span class="hint">' + esc(dayShiftText(x)) + '</span></td>' +
+          '<td>' + esc(x.name || '—') + '</td>' +
+          '<td class="num">' + im.periods + '<br><span class="hint">ครู ' + im.teachers + ' คน</span></td>' +
+          '<td style="text-align:right;white-space:nowrap"><button class="sm" data-edit-shift="' + esc(x.id) + '">แก้ไข</button> ' +
+          '<button class="sm danger" data-del-shift="' + esc(x.id) + '">ลบ</button></td></tr>'; }).join('') +
+      '</tbody></table></div>' : '<div class="empty" style="margin-top:12px">ยังไม่มีการสลับวันเรียนในภาคเรียนนี้<br><span class="hint">สัปดาห์ไหนที่โรงเรียนย้ายคาบ ให้เพิ่มที่นี่ก่อน ครูจะได้ไม่ต้องแก้ตารางของตัวเอง</span></div>') +
+    '<div class="notice" style="margin-top:10px">วันหยุดมาก่อนเสมอ — ถ้าวันนั้นถูกตั้งเป็นวันหยุดไว้ด้วย ระบบจะยังถือว่าไม่ต้องเช็กชื่อ ' +
+      'และถ้าวันต้นทางที่ยกคาบมานั้นไม่มีการเรียนการสอนแล้ว อย่าลืมเพิ่มเป็นวันหยุดในการ์ดด้านบน</div>';
+
+  $('#dayShiftAdd', box).addEventListener('click', () => openDayShiftEditor(null));
+  $$('[data-edit-shift]', box).forEach(btn => btn.addEventListener('click', () =>
+    openDayShiftEditor((term.dayShifts || []).find(x => x.id === btn.dataset.editShift) || null)));
+  $$('[data-del-shift]', box).forEach(btn => btn.addEventListener('click', async () => {
+    const x = (term.dayShifts || []).find(y => y.id === btn.dataset.delShift); if (!x) return;
+    const im = dayShiftImpact(x);
+    if (!await confirmBox('ลบการสลับวัน', 'ลบ <b>' + esc(thaiDate(x.date)) + '</b> ออกจากปฏิทินสลับวัน?<br>' +
+      'ตารางของวันนั้นจะกลับไปเป็นวันปกติ' +
+      (im.checked ? '<br><b>วันนี้มีการเช็กชื่อไปแล้ว ' + im.checked + ' คาบ</b> ข้อมูลที่เช็กไว้จะยังอยู่ แต่จะไม่ตรงกับตารางใหม่' : ''), 'ลบ')) return;
+    term.dayShifts = (term.dayShifts || []).filter(y => y.id !== x.id);
+    save(true); renderAdmin(); renderTop(); toast('ลบการสลับวันแล้ว', 'ok');
+  }));
+}
+
+function openDayShiftEditor(existing) {
+  const term = currentTerm(true);
+  const slots = DB.timetable.slots;
+  const slotOptions = sel => slots.map(s => '<option value="' + esc(s.id) + '"' + (String(sel) === String(s.id) ? ' selected' : '') + '>' + esc(s.label) + '</option>').join('');
+  const dayOptions = sel => SCHOOL_DAYS.map(d => '<option value="' + d.value + '"' + (num(sel) === d.value ? ' selected' : '') + '>วัน' + esc(d.label) + '</option>').join('');
+  const draft = existing ? deepCopy(existing) : { id: uid('shift'), date: DB.ui.attendanceDate || todayISO(), mode: 'day', sourceDay: 5, map: [], name: '' };
+  if (!draft.map || !draft.map.length) draft.map = [{ slotId: slots[0] ? slots[0].id : '1', fromDay: 5, fromSlot: '1' }];
+
+  const rowHtml = (m, i) => '<div class="row shift-row" data-shift-row="' + i + '" style="gap:8px;align-items:flex-end;margin-top:8px">' +
+    '<div class="pick"><label>คาบของวันนี้</label><select class="sr-slot">' + slotOptions(m.slotId) + '</select></div>' +
+    '<div style="padding-bottom:9px;font-weight:800;color:var(--group)">←</div>' +
+    '<div class="pick"><label>ใช้ตารางของ</label><select class="sr-day">' + dayOptions(m.fromDay) + '</select></div>' +
+    '<div class="pick"><label>คาบ</label><select class="sr-from">' + slotOptions(m.fromSlot) + '</select></div>' +
+    '<div class="spacer"></div><button class="sm danger sr-del" title="ลบแถวนี้">✕</button></div>';
+
+  openModal({
+    title: (existing ? 'แก้ไข' : 'เพิ่ม') + 'การสลับวันเรียน / สลับคาบ', wide: true,
+    bodyHTML: '<div class="grid2"><div class="pick"><label>วันที่ที่มีการสลับ</label><input type="date" id="dsDate" value="' + esc(draft.date) + '"></div>' +
+      '<div class="pick"><label>ชื่อ/เหตุผล ที่จะแสดงให้ครูเห็น</label><input id="dsName" value="' + esc(draft.name || '') + '" placeholder="เช่น เรียนชดเชยตารางวันศุกร์"></div></div>' +
+      '<div class="pick" style="margin-top:10px"><label>รูปแบบการสลับ</label><select id="dsMode" style="width:100%">' +
+        '<option value="day"' + (draft.mode === 'day' ? ' selected' : '') + '>สลับทั้งวัน — วันนี้ใช้ตารางสอนของอีกวันทั้งวัน</option>' +
+        '<option value="slots"' + (draft.mode === 'slots' ? ' selected' : '') + '>สลับเฉพาะบางคาบ — เช่น คาบชุมนุมใช้คาบ 1 ของวันศุกร์</option></select></div>' +
+      '<div id="dsDayBox" class="pick" style="margin-top:10px"><label>วันนี้ใช้ตารางสอนของ</label><select id="dsSourceDay" style="width:100%">' + dayOptions(draft.sourceDay) + '</select></div>' +
+      '<div id="dsSlotsBox" style="margin-top:10px"><label class="hint">ระบุเป็นคู่ ๆ ว่าคาบไหนของวันนี้ ใช้คาบไหนของวันอะไร คาบที่ไม่ได้ระบุจะเรียนตามตารางปกติของวันนั้น</label>' +
+        '<div id="dsRows"></div><button class="sm" id="dsAddRow" style="margin-top:8px">+ เพิ่มคาบที่สลับ</button></div>' +
+      '<div id="dsPreview" class="notice" style="margin-top:12px"></div>',
+    buttons: [{ label: 'ยกเลิก' }, { label: existing ? 'บันทึกการแก้ไข' : 'เพิ่มการสลับวัน', cls: 'primary', act(close, root) {
+      const date = $('#dsDate', root).value, mode = $('#dsMode', root).value, name = $('#dsName', root).value.trim();
+      if (!date) return toast('กรุณาเลือกวันที่', 'bad');
+      if (term.openDate && term.closeDate && (date < term.openDate || date > term.closeDate))
+        return toast('วันที่อยู่นอกช่วงเปิด–ปิดภาคเรียน', 'bad');
+      const clash = (term.dayShifts || []).find(x => x.date === date && x.id !== draft.id);
+      if (clash) return toast('วันที่นี้มีการสลับวันอยู่แล้ว กรุณาแก้ไขรายการเดิมแทน', 'bad');
+      const record = { id: draft.id, date: date, mode: mode, name: name, sourceDay: '', map: [] };
+      if (mode === 'day') {
+        const src = num($('#dsSourceDay', root).value);
+        if ((parseISODate(date) || new Date()).getDay() === src) return toast('วันต้นทางตรงกับวันของวันที่เลือกอยู่แล้ว ไม่ต้องสลับ', 'bad');
+        record.sourceDay = src;
+      } else {
+        const rows = $$('[data-shift-row]', root).map(r => ({
+          slotId: $('.sr-slot', r).value, fromDay: num($('.sr-day', r).value), fromSlot: $('.sr-from', r).value
+        })).filter(m => m.slotId && m.fromSlot);
+        if (!rows.length) return toast('กรุณาระบุอย่างน้อย 1 คาบที่สลับ', 'bad');
+        const targets = new Set(), sources = new Set();
+        for (const m of rows) {
+          if (targets.has(String(m.slotId))) return toast('มีคาบของวันนี้ซ้ำกันมากกว่า 1 แถว', 'bad');
+          const key = m.fromDay + '::' + m.fromSlot;
+          if (sources.has(key)) return toast('มีคาบต้นทางซ้ำกันมากกว่า 1 แถว', 'bad');
+          targets.add(String(m.slotId)); sources.add(key);
+        }
+        record.map = rows;
+      }
+      term.dayShifts = (term.dayShifts || []).filter(x => x.id !== draft.id).concat([record]);
+      save(true); close(); renderAdmin(); renderTop();
+      toast((existing ? 'บันทึกการสลับวันแล้ว' : 'เพิ่มการสลับวันแล้ว') + ' • ' + thaiDate(date), 'ok');
+    } }],
+    onMount(root) {
+      const rowsBox = $('#dsRows', root);
+      const drawRows = () => {
+        rowsBox.innerHTML = draft.map.map(rowHtml).join('');
+        $$('.sr-del', rowsBox).forEach((b, i) => b.addEventListener('click', () => {
+          if (draft.map.length <= 1) return toast('ต้องมีอย่างน้อย 1 คาบ', 'bad');
+          collect(); draft.map.splice(i, 1); drawRows(); preview();
+        }));
+        $$('select', rowsBox).forEach(sel => sel.addEventListener('change', () => { collect(); preview(); }));
+      };
+      const collect = () => {
+        draft.map = $$('[data-shift-row]', root).map(r => ({
+          slotId: $('.sr-slot', r).value, fromDay: num($('.sr-day', r).value), fromSlot: $('.sr-from', r).value
+        }));
+      };
+      const preview = () => {
+        const date = $('#dsDate', root).value, mode = $('#dsMode', root).value;
+        const holiday = holidayOf(date);
+        const shown = mode === 'day'
+          ? { mode: 'day', sourceDay: num($('#dsSourceDay', root).value) }
+          : { mode: 'slots', map: draft.map };
+        const weekday = (parseISODate(date) || new Date()).getDay();
+        const dayLabel = (SCHOOL_DAYS.find(x => x.value === weekday) || { label: 'เสาร์-อาทิตย์' }).label;
+        // นับคาบที่จะถูกยกมาจริง โดยดูจากตารางของทั้งโรงเรียน
+        const all = DB.timetable.entries.filter(e => e.periodId === DB.ui.periodId);
+        const moved = all.filter(e => entryRunsOn(e, weekday, shown) && num(e.day) !== weekday).length;
+        const stay = all.filter(e => entryRunsOn(e, weekday, shown) && num(e.day) === weekday).length;
+        $('#dsPreview', root).innerHTML = '<b>' + esc(thaiDate(date) || '—') + ' (วัน' + esc(dayLabel) + ')</b><br>' +
+          esc(dayShiftText(shown)) + '<br>คาบที่ยกมาจากวันอื่น <b>' + moved + '</b> คาบ • คาบเดิมของวันนี้ที่ยังเรียนตามปกติ <b>' + stay + '</b> คาบ' +
+          (holiday ? '<br><b style="color:var(--bad)">วันนี้ถูกตั้งเป็นวันหยุด (' + esc(holiday.name || '') + ') อยู่แล้ว ระบบจะยังถือว่าไม่ต้องเช็กชื่อ</b>' : '');
+      };
+      const applyMode = () => {
+        const mode = $('#dsMode', root).value;
+        $('#dsDayBox', root).hidden = mode !== 'day';
+        $('#dsSlotsBox', root).hidden = mode !== 'slots';
+        preview();
+      };
+      $('#dsAddRow', root).addEventListener('click', () => {
+        collect(); draft.map.push({ slotId: slots[0] ? slots[0].id : '1', fromDay: 5, fromSlot: '1' }); drawRows(); preview();
+      });
+      $('#dsMode', root).addEventListener('change', applyMode);
+      $('#dsDate', root).addEventListener('change', preview);
+      $('#dsSourceDay', root).addEventListener('change', preview);
+      drawRows(); applyMode();
+    }
+  });
+}
+
 /* ---- ตารางครูในหน้าผู้ดูแลระบบ: ค้นหา + เรียงลำดับ ------------------------
    ค่าที่กำลังแก้ไขในแถวจะถูกเก็บเป็นฉบับร่างไว้ก่อน จึงไม่หายเมื่อกรองหรือเรียงใหม่ */
 const ADMIN_SORTS = [{ key: 'name', label: 'ชื่อ' }, { key: 'learningArea', label: 'กลุ่มสาระ' },
@@ -7807,7 +8051,8 @@ function adminMetrics(section) {
     const withSchedule = new Set(entries.map(e => e.teacherId)).size;
     const noSchedule = Math.max(0, DB.teachers.length - withSchedule);
     return m(term && term.openDate && term.closeDate ? 'ok' : 'bad', term && term.openDate ? esc(thaiDate(term.openDate)) : '—', 'วันเปิดภาคเรียน') +
-      m('brand', sortedHolidays(term).length, 'วันหยุดในปฏิทิน') + m('group', entries.length, 'คาบในตารางสอน') +
+      m('brand', sortedHolidays(term).length, 'วันหยุดในปฏิทิน') +
+      m('group', ((term || {}).dayShifts || []).length, 'วันที่สลับตาราง') +
       m(noSchedule ? 'warn' : 'ok', noSchedule, 'ครูที่ยังไม่มีตาราง');
   }
   if (section === 'documents') {
@@ -7949,12 +8194,14 @@ function adminSectionCalendar(box) {
       '<div class="pick"><label>&nbsp;</label><button class="primary" id="adminTermSave" style="width:100%">บันทึกปฏิทินภาคเรียน</button></div></div>' +
       (!term.openDate || !term.closeDate ? '<div class="notice bad" style="margin-top:10px">ยังไม่ได้กำหนดวันเปิด–ปิดภาคเรียน ระบบจึงยังคำนวณคาบทั้งภาคและเวลาเรียนไม่ได้</div>' : '') + '</div>' +
     '<div class="card" id="adminHolidayBox"></div>' +
+    '<div class="card" id="adminDayShiftBox"></div>' +
     '<div class="card"><div class="row"><div><h3 style="margin:0">ตารางสอนทั้งโรงเรียน</h3><div class="hint">หนึ่งแถวต่อหนึ่งคาบ • ตรวจครูสอนซ้อน ห้องซ้อน และข้อมูลอ้างอิงก่อนบันทึกจริง</div></div><div class="spacer"></div><button id="adminTimetableTemplate">ดาวน์โหลดแม่แบบ</button><button class="primary" id="adminTimetableImport">นำเข้า Excel หลายครู</button><button id="adminGoSchedule">เปิดตารางสอน</button></div>' +
       '<div class="request-flow" style="margin-top:12px"><span class="badge">1. เตรียมครู/วิชา/ห้อง</span><i></i><span class="badge">2. กรอกชีตตารางสอน</span><i></i><span class="badge">3. ตรวจตัวอย่าง</span><i></i><span class="badge ok">4. นำเข้า</span></div>' +
       '<div class="row" style="margin-top:12px"><span class="badge">คาบในตาราง ' + entries.length + '</span><span class="badge' + (noSchedule.length ? ' warn' : ' ok') + '">ครูที่ยังไม่มีตาราง ' + noSchedule.length + '</span></div>' +
       (noSchedule.length ? '<div class="hint" style="margin-top:8px">' + esc(noSchedule.slice(0, 12).map(t => t.name || t.email).join(' • ')) + (noSchedule.length > 12 ? ' และอีก ' + (noSchedule.length - 12) + ' คน' : '') + '</div>' : '') + '</div>';
 
   renderAdminHolidays();
+  renderAdminDayShifts();
   $('#adminSlotTimes', box).addEventListener('click', editTimetableSettings);
   $('#adminTermSave', box).addEventListener('click', () => {
     const open = $('#adminTermOpen', box).value, close = $('#adminTermClose', box).value;
@@ -8117,10 +8364,8 @@ function findStudentBySid(sid) {
 
 /** คาบที่นักเรียนคนนี้มีเรียนจริงในวันนั้น ใช้บอกครูว่ากิจกรรมกระทบวิชาใดบ้าง */
 function lessonsForStudent(student, date, slotIds) {
-  const day = (parseISODate(date) || new Date()).getDay();
-  return (DB.timetable.entries || []).filter(e => e.periodId === DB.ui.periodId &&
-    e.classId === student.classId && num(e.day) === day &&
-    (slotIds || []).map(String).indexOf(String(e.slotId)) >= 0);
+  return effectiveDayEntries(date, true).filter(x => x.entry.classId === student.classId &&
+    (slotIds || []).map(String).indexOf(x.slotId) >= 0).map(x => x.entry);
 }
 
 /** สรุปว่ากิจกรรมนี้กระทบครูและวิชาใดบ้าง เพื่อแสดงให้เห็นก่อนบันทึก */
