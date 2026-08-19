@@ -1220,6 +1220,8 @@ function openModal(opts) {
   modalStack.push(bg);
   syncModalScrollLock();
   if (opts.onMount) opts.onMount(bg, close);
+  // หน้าต่างถูกสร้างหลัง render จึงต้องผูกช่องค้นหาให้ตรงนี้ด้วย ไม่งั้นได้รายการเลื่อนของเบราว์เซอร์
+  if (typeof bindSearchableSelects === 'function') bindSearchableSelects(bg);
   return { root: bg, close };
 }
 function confirmBox(title, msg, okLabel) {
@@ -3103,7 +3105,7 @@ function editScheduleEntry(day, slotId, entry) {
   openModal({
     title: (entry ? 'แก้ไข' : 'เพิ่ม') + 'ตารางสอน • วัน' + dayLabel + ' ' + (slot ? slot.label : ''),
     bodyHTML: '<div class="grid2"><div class="pick"><label>ชั้น/ห้อง</label><select id="seClass" style="width:100%"><option value="">— เลือกชั้น/ห้อง —</option>' +
-      DB.classes.map(c => '<option value="' + c.id + '"' + (cls && cls.id === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') + '</select></div>' +
+      sortedClassList(DB.classes).map(c => '<option value="' + c.id + '"' + (cls && cls.id === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') + '</select></div>' +
       '<div class="pick"><label>รายวิชาที่ใช้กับระดับชั้นนี้</label><select id="seSubject" style="width:100%">' + subjectOptions(cls ? cls.id : '', subject ? subject.id : (curSubject() || {}).id) + '</select></div>' +
       '<div class="pick"><label>ห้องเรียน/สถานที่</label><input id="seRoom" value="' + esc(entry ? entry.room || '' : '') + '" placeholder="เช่น ห้อง 324 หรือ Lab 2" style="width:100%"></div></div>' +
       ((!DB.subjects.length || !DB.classes.length) ? '<div class="notice bad" style="margin-top:10px">กรุณาเพิ่ม' + (!DB.subjects.length ? 'รายวิชา' : '') + (!DB.subjects.length && !DB.classes.length ? ' และ ' : '') + (!DB.classes.length ? 'ชั้น/ห้อง' : '') + 'จากปุ่ม “จัดการ” บนแถบด้านบนก่อน</div>' :
@@ -3498,7 +3500,7 @@ function openSpecialSession(date, slotId) {
   };
   openModal({ title: 'เช็กชื่อคาบที่ไม่ใช่คาบประจำ • ' + (slot ? slot.label : ''),
     bodyHTML: '<div class="grid2"><div class="pick"><label>กรณี</label><select id="specialType"><option value="substitute">สอนแทน</option><option value="makeup">สอนชดเชย</option></select></div>' +
-      '<div class="pick"><label>ชั้น/ห้อง</label><select id="specialClass"><option value="">— เลือกชั้น/ห้อง —</option>' + DB.classes.map(c => '<option value="' + c.id + '"' + (c.id === DB.ui.classId ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') + '</select></div>' +
+      '<div class="pick"><label>ชั้น/ห้อง</label><select id="specialClass"><option value="">— เลือกชั้น/ห้อง —</option>' + sortedClassList(DB.classes).map(c => '<option value="' + c.id + '"' + (c.id === DB.ui.classId ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') + '</select></div>' +
       '<div class="pick"><label>รายวิชาของระดับชั้น</label><select id="specialSubject">' + subjectOptions(DB.ui.classId) + '</select></div>' +
       '<div class="pick"><label>สถานที่</label><input id="specialRoom" placeholder="ห้องเรียน/สถานที่"></div></div>' +
       '<div class="pick" style="margin-top:10px"><label>หมายเหตุ เช่น แลกกับครู... / สอนแทนครู... / ชดเชยคาบ...</label><input id="specialNote" style="width:100%"></div>',
@@ -4660,7 +4662,7 @@ function renderMasterStudents(targetPane) {
     });
   pane.innerHTML = '<div class="card"><div class="row"><h3 style="margin:0">ฐานนักเรียนทั้งหมด</h3><div class="spacer"></div><button id="manageStudentAccounts">จัดการรหัสผ่านนักเรียน</button><button id="studentClassView">กลับรายชื่อห้องปัจจุบัน</button></div><div class="master-tools" style="margin-top:12px">' +
     '<div class="pick"><label>แสดงรายชื่อห้อง</label><select id="masterClassFilter"><option value="all">ทุกห้อง</option>' +
-      DB.classes.map(c => '<option value="' + c.id + '"' + (selectedClass === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') + '</select></div>' +
+      sortedClassList(DB.classes).map(c => '<option value="' + c.id + '"' + (selectedClass === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') + '</select></div>' +
     '<button id="masterAdd">เพิ่มนักเรียน</button><button class="primary" id="masterImportExcel">นำเข้าฐานด้วย Excel / CSV</button><button id="masterRefresh">รวบรวมจากรายชื่อทุกห้อง</button>' +
     '<button class="primary" id="masterPull"' + (selectedClass === 'all' ? ' disabled' : '') + '>ดึงรายชื่อเข้าห้องที่เลือก</button>' +
     '<div class="spacer"></div><span class="badge">ฐานกลาง ' + DB.studentMaster.length + ' คน</span></div>' +
@@ -4669,7 +4671,7 @@ function renderMasterStudents(targetPane) {
       (list.length ? list.map(m => '<tr data-mid="' + m.id + '"><td><input class="m-no" value="' + esc(m.no || '') + '" style="width:70px"></td>' +
         '<td><input class="m-sid" value="' + esc(m.sid || '') + '" style="width:130px"></td>' +
         '<td><input class="m-name" value="' + esc(m.name || '') + '" style="min-width:230px;width:100%"></td>' +
-        '<td><select class="m-class"><option value="">— ยังไม่จัดห้อง —</option>' + DB.classes.map(c => '<option value="' + c.id + '"' + (m.classId === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') + '</select></td>' +
+        '<td><select class="m-class"><option value="">— ยังไม่จัดห้อง —</option>' + sortedClassList(DB.classes).map(c => '<option value="' + c.id + '"' + (m.classId === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') + '</select></td>' +
         '<td style="text-align:center"><input type="checkbox" class="m-active"' + (m.active !== false ? ' checked' : '') + '></td>' +
         '<td><button class="sm danger" data-master-del>ลบ</button></td></tr>').join('') : '<tr><td colspan="6"><div class="empty">ยังไม่มีรายชื่อในตัวกรองนี้</div></td></tr>') +
     '</tbody></table></div></div>';
@@ -7757,7 +7759,7 @@ function openPendingScan(after) {
 
 /** เพิ่มรายการเอง เช่น มผ ของกิจกรรมพัฒนาผู้เรียนที่ไม่ได้อยู่ในสมุดคะแนน */
 function openPendingAdd(after) {
-  const classOpts = DB.classes.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
+  const classOpts = sortedClassList(DB.classes).map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
   openModal({ title: 'เพิ่มรายการคงค้างเอง', bodyHTML:
     '<div class="grid2"><div class="pick"><label>ห้องเรียน</label><select id="prcClass">' + classOpts + '</select></div>' +
     '<div class="pick"><label>นักเรียน</label><select id="prcStudent"></select></div>' +
@@ -8590,7 +8592,7 @@ function renderAdminTeacherRows() {
     '<td><input class="admin-phone" value="' + esc(adminDraftValue(t, 'phone') || '') + '" style="width:130px"></td>' +
     '<td><select class="admin-area">' + learningAreaOptions(adminDraftValue(t, 'learningArea')) + '</select></td>' +
     '<td>' + roleBox(t, 'teacher', 'ครู') + ' ' + roleBox(t, 'head', 'หัวหน้ากลุ่มสาระฯ') + ' ' + roleBox(t, 'executive', 'ผู้บริหาร') + ' ' + roleBox(t, 'admin', 'แอดมิน') + '</td>' +
-    '<td><select class="admin-homeroom"><option value="">— ไม่กำหนด —</option>' + DB.classes.map(c => '<option value="' + c.id + '"' + (adminDraftValue(t, 'homeroomClassId') === c.id ? ' selected' : '') + '>' + esc(c.name) + ' (' + DB.teachers.filter(x => adminDraftValue(x, 'homeroomClassId') === c.id).length + '/2)</option>').join('') + '</select></td>' +
+    '<td><select class="admin-homeroom"><option value="">— ไม่กำหนด —</option>' + sortedClassList(DB.classes).map(c => '<option value="' + c.id + '"' + (adminDraftValue(t, 'homeroomClassId') === c.id ? ' selected' : '') + '>' + esc(c.name) + ' (' + DB.teachers.filter(x => adminDraftValue(x, 'homeroomClassId') === c.id).length + '/2)</option>').join('') + '</select></td>' +
     '<td><button class="sm danger" data-del-teacher="' + t.id + '" title="ลบครูคนนี้">ลบ</button></td></tr>').join('')
     : '<tr><td colspan="7"><div class="empty">' + (DB.ui.adminSearch ? 'ไม่พบครูที่ตรงกับคำค้น “' + esc(DB.ui.adminSearch) + '”' : 'ยังไม่มีข้อมูลครู') + '</div></td></tr>';
   if (count) count.textContent = 'แสดง ' + list.length + ' จาก ' + DB.teachers.length + ' คน' +
