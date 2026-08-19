@@ -326,12 +326,11 @@ td.num,th.num{text-align:center}
 .wheel-hub{fill:url(#wheelHubFill);stroke:color-mix(in srgb,var(--line) 70%,transparent);stroke-width:2;
   filter:drop-shadow(0 4px 16px rgba(15,35,65,.10))}
 .wheel-seg{cursor:pointer;outline:none}
-.wheel-fill{stroke:var(--bg);stroke-width:9;stroke-linejoin:round;transition:filter .2s ease,opacity .2s ease}
-.wheel-icon path{fill:#fff;fill-opacity:1;pointer-events:none;filter:drop-shadow(0 2px 4px rgba(6,16,34,.34))}
-/* จานกลมรองไอคอน ทำให้แต่ละกลีบอ่านออกว่าเป็นปุ่มกด และไอคอนเด้งออกจากพื้นไล่สี */
-.wheel-plate{fill:rgba(255,255,255,.17);stroke:rgba(255,255,255,.42);stroke-width:1.6;
-  pointer-events:none;transition:fill .2s ease,stroke .2s ease}
-.wheel-seg:hover .wheel-plate,.wheel-seg:focus-visible .wheel-plate{fill:rgba(255,255,255,.32);stroke:rgba(255,255,255,.9)}
+.wheel-fill{stroke:var(--bg);stroke-width:13;stroke-linejoin:round;stroke-linecap:round;
+  transition:filter .22s ease,opacity .22s ease}
+.wheel-icon path{fill:#fff;fill-opacity:1;pointer-events:none;
+  filter:drop-shadow(0 3px 6px rgba(6,16,34,.42))}
+
 .wheel-seg:hover .wheel-fill,.wheel-seg:focus-visible .wheel-fill{filter:brightness(1.12) saturate(1.14) drop-shadow(0 4px 10px rgba(6,16,34,.3))}
 .wheel-seg:focus-visible .wheel-fill{stroke:var(--ink);stroke-width:5}
 .role-wheel:hover .wheel-seg:not(:hover) .wheel-fill{opacity:.75}
@@ -10793,17 +10792,16 @@ function roleWheelHtml() {
     'A' + R_IN + ' ' + R_IN + ' 0 0 0 ' + pt(R_IN, a0) + 'Z';
 
   const defs = GATEWAY_ROLES.map((r, i) => '<linearGradient id="wgrad' + i + '" x1="0" y1="0" x2="0.85" y2="1">' +
-    '<stop offset="0" stop-color="' + shadeHex(r.color, 0.34) + '"></stop>' +
-    '<stop offset="1" stop-color="' + shadeHex(r.color, -0.08) + '"></stop></linearGradient>').join('');
+    '<stop offset="0" stop-color="' + shadeHex(r.color, 0.42) + '"></stop>' +
+    '<stop offset="1" stop-color="' + shadeHex(r.color, -0.16) + '"></stop></linearGradient>').join('');
 
   const petals = GATEWAY_ROLES.map((r, i) => {
     const a0 = i * STEP, a1 = (i + 1) * STEP, mid = a0 + STEP / 2 - BOW * 0.34;
-    const [ix, iy] = polar((R_OUT + R_IN) / 2, mid), s = 1.92;
+    const [ix, iy] = polar((R_OUT + R_IN) / 2, mid), s = 2.75;
     return '<g class="wheel-seg" data-gateway-role="' + r.role + '" role="button" tabindex="0" aria-label="' + esc(r.label) + '" style="--seg:' + r.color + '">' +
       '<title>' + esc(r.label) + '</title>' +
       '<path class="wheel-fill" fill="url(#wgrad' + i + ')" d="' + petal(a0, a1) + '"></path>' +
       '<g transform="translate(' + n(ix) + ' ' + n(iy) + ')">' +
-      '<circle class="wheel-plate" r="33"></circle>' +
       '<g class="wheel-icon"><g transform="scale(' + s + ') translate(-12 -12)"><path d="' + r.icon + '"></path></g></g>' +
       '</g></g>';
   }).join('');
