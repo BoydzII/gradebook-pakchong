@@ -804,6 +804,17 @@ body.is-offline .topbar{box-shadow:inset 0 -3px 0 var(--warn)}
 @media print{.update-bar,.offline-chip{display:none!important}}
 /* ปุ่มเรียงลำดับและหัวตารางที่คลิกเรียงได้ */
 .sort-group{display:flex;gap:6px;flex-wrap:wrap}
+/* คอนโซลผู้ดูแลระบบ: แถบกลุ่มงานแทนการ์ดเรียงยาว เลื่อนแนวนอนได้บนจอแคบ */
+.console-nav{display:flex;gap:8px;overflow-x:auto;padding:0 0 4px;margin-bottom:14px;-webkit-overflow-scrolling:touch}
+.console-nav::-webkit-scrollbar{height:0}
+.console-tab{flex:1 1 0;min-width:170px;text-align:left;white-space:normal;padding:11px 13px;line-height:1.25;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.console-tab .ct-top{display:flex;align-items:center;gap:7px;font-weight:800;font-size:13.5px}
+.console-tab .ct-ico{font-size:15px}
+.console-tab .ct-hint{display:block;margin-top:3px;font-size:11.5px;color:var(--muted)}
+.console-tab:hover{border-color:var(--brand)}
+.console-tab.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.console-tab.on .ct-hint{color:rgba(255,255,255,.82)}
+@media(max-width:820px){.console-tab{flex:0 0 auto;min-width:152px}}
 .sort-group button.active{background:var(--brand);color:#fff;border-color:var(--brand)}
 th.sortable{cursor:pointer;user-select:none;white-space:nowrap}
 th.sortable:hover{color:var(--brand);text-decoration:underline}
@@ -948,7 +959,7 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
   <button data-tab="groups">กลุ่ม</button>
   <button data-tab="assess">คุณลักษณะ / อ่านคิดวิเคราะห์</button>
   <button data-tab="summary">สรุป / ส่งออก</button>
-  <button data-tab="settings">ตั้งค่า</button>
+  <button data-tab="settings">โปรไฟล์ครู</button>
   <button data-tab="students">นักเรียน / ฐานนักเรียน</button>
   <button data-tab="schedule">ตั้งค่าตารางสอน</button>
   <button data-tab="items">หัวข้อคะแนน</button>
@@ -1960,7 +1971,7 @@ const homeTabOfRole = role => role === 'executive' ? 'executive' : role === 'adm
    แถบบนเหลือเฉพาะสิ่งที่ใช้บ่อย ปุ่มอื่นย้ายเข้าเมนู ⋯
    บนมือถือใช้แถบล่าง 5 ปุ่ม ส่วนหน้าที่เหลือเปิดจากปุ่ม "เพิ่มเติม" */
 const TAB_SHORT = { dashboard: 'ภาพรวม', attendance: 'เช็กชื่อ', exchange: 'แลกคาบ', scores: 'คะแนน',
-  groups: 'กลุ่ม', assess: 'คุณลักษณะ', summary: 'สรุป ปพ.5', settings: 'ตั้งค่า', students: 'นักเรียน',
+  groups: 'กลุ่ม', assess: 'คุณลักษณะ', summary: 'สรุป ปพ.5', settings: 'โปรไฟล์ครู', students: 'นักเรียน',
   schedule: 'ตารางสอน', items: 'หัวข้อคะแนน', indicators: 'ตัวชี้วัด', activities: 'กิจกรรม', head: 'กลุ่มสาระ',
   executive: 'ผู้บริหาร', leaves: 'อนุมัติลา', admin: 'ผู้ดูแลระบบ' };
 const TAB_ICON = { dashboard: '◈', attendance: '◷', exchange: '⇄', scores: '✎', groups: '◉', assess: '☑',
@@ -7769,12 +7780,79 @@ async function deleteTeacherFromAdmin(id) {
   save(true); render(); toast('ลบครู ' + (t.name || t.email) + ' แล้ว', 'ok');
 }
 
+/* ---- คอนโซลผู้ดูแลระบบ ----------------------------------------------------
+   เดิมหน้านี้เป็นการ์ด 9 ใบเรียงยาวหน้าเดียว ต้องเลื่อนหาทุกครั้ง และเรื่อง
+   เดียวกันยังกระจายอยู่คนละหน้า — ข้อมูลครูอยู่ทั้งหน้านี้และหน้าตั้งค่า
+   ปฏิทินภาคเรียนอยู่ในโมดัลของแท็บตารางสอน แต่วันหยุดอยู่หน้านี้
+   จึงรวมเป็น 5 กลุ่มงาน ให้สิ่งที่ต้องดูพร้อมกันอยู่หน้าจอเดียวกัน */
+const ADMIN_SECTIONS = [
+  { key: 'people', icon: '☺', label: 'บุคลากรและสิทธิ์', hint: 'ครู • บทบาท • กลุ่มสาระ • ครูที่ปรึกษา' },
+  { key: 'school', icon: '▣', label: 'โครงสร้างโรงเรียน', hint: 'ปี/ภาคเรียน • ชั้น/ห้อง • รายวิชา • ฐานนักเรียน' },
+  { key: 'calendar', icon: '▦', label: 'ปฏิทินและตารางสอน', hint: 'เปิด-ปิดภาค • วันหยุด • ตารางสอนทั้งโรงเรียน' },
+  { key: 'documents', icon: '▤', label: 'เอกสารและอัตลักษณ์', hint: 'ชื่อ/ตราโรงเรียน • หัวเอกสาร • ผู้ลงนาม' },
+  { key: 'system', icon: '⚙', label: 'ระบบและข้อมูลกลาง', hint: 'Firebase • บุคลากรกลาง • ตรวจสุขภาพ • สำรองข้อมูล' }
+];
+const adminSection = () => ADMIN_SECTIONS.some(x => x.key === DB.ui.adminSection) ? DB.ui.adminSection : 'people';
+
+/** ตัวเลขสรุปด้านบน เปลี่ยนตามกลุ่มงานที่เปิดอยู่ จะได้เห็นเฉพาะสิ่งที่เกี่ยวกับงานตรงหน้า */
+function adminMetrics(section) {
+  const m = (color, value, label) => '<div class="metric-card" style="--metric:var(--' + color + ')"><div class="metric-value">' + value + '</div><div class="metric-label">' + esc(label) + '</div></div>';
+  if (section === 'school') {
+    const students = (DB.studentMaster || []).filter(x => x.active !== false).length;
+    return m('brand', DB.periods.length, 'ปี/ภาคเรียน') + m('ok', DB.classes.length, 'ชั้นเรียน') +
+      m('group', DB.subjects.length, 'รายวิชา') + m('warn', students, 'นักเรียนในฐานข้อมูล');
+  }
+  if (section === 'calendar') {
+    const term = currentTerm(false), entries = (DB.timetable.entries || []).filter(e => e.periodId === DB.ui.periodId);
+    const withSchedule = new Set(entries.map(e => e.teacherId)).size;
+    const noSchedule = Math.max(0, DB.teachers.length - withSchedule);
+    return m(term && term.openDate && term.closeDate ? 'ok' : 'bad', term && term.openDate ? esc(thaiDate(term.openDate)) : '—', 'วันเปิดภาคเรียน') +
+      m('brand', sortedHolidays(term).length, 'วันหยุดในปฏิทิน') + m('group', entries.length, 'คาบในตารางสอน') +
+      m(noSchedule ? 'warn' : 'ok', noSchedule, 'ครูที่ยังไม่มีตาราง');
+  }
+  if (section === 'documents') {
+    const s = DB.settings, signers = ['headAssessmentName', 'deputyName', 'directorName'].filter(k => String(s[k] || '').trim()).length;
+    return m(s.schoolName ? 'ok' : 'bad', s.schoolName ? '✓' : '—', 'ชื่อสถานศึกษา') +
+      m(s.logoData ? 'ok' : 'warn', s.logoData ? '✓' : '—', 'ตราโรงเรียน') +
+      m(s.printTitle ? 'ok' : 'warn', s.printTitle ? '✓' : '—', 'หัวเอกสาร ปพ.5') +
+      m(signers === 3 ? 'ok' : 'warn', signers + '/3', 'ผู้ลงนามที่กรอกแล้ว');
+  }
+  if (section === 'system') {
+    const linked = firebaseReady() && fbSignedIn();
+    return m(linked ? 'ok' : 'bad', linked ? 'เชื่อมแล้ว' : 'ยังไม่เชื่อม', 'ฐานข้อมูลกลาง') +
+      m('brand', DB.teachers.length, 'บุคลากรในเครื่องนี้') + m('group', (DB.auditLog || []).length, 'บันทึกตรวจสอบ') +
+      m('warn', DB.periods.length, 'ชุดข้อมูลปี/ภาค');
+  }
+  return m('brand', DB.teachers.length, 'บุคลากร') + m('ok', DB.teachers.filter(t => teacherHasRole(t, 'teacher')).length, 'ครูผู้สอน') +
+    m('group', DB.teachers.filter(t => t.homeroomClassId).length, 'ครูที่ปรึกษา') +
+    m('warn', DB.classes.filter(c => !DB.teachers.some(t => t.homeroomClassId === c.id)).length, 'ห้องยังไม่มีที่ปรึกษา');
+}
+
 function renderAdmin() {
-  const pane = $('#pane-admin');
-  pane.innerHTML = '<div class="card dash-hero"><div class="row"><div><div class="hero-sub">SYSTEM ADMINISTRATION</div><h1>ศูนย์จัดการระบบ</h1><div class="hero-sub">จัดการผู้ใช้ สิทธิ์ เบอร์โทร และครูที่ปรึกษาได้จากจุดเดียว</div></div><div class="spacer"></div><span class="role-chip">ผู้ดูแลระบบ</span></div></div>' +
-    '<div class="dash-metrics"><div class="metric-card" style="--metric:var(--brand)"><div class="metric-value">' + DB.teachers.length + '</div><div class="metric-label">บุคลากร</div></div><div class="metric-card" style="--metric:var(--ok)"><div class="metric-value">' + DB.teachers.filter(t => teacherHasRole(t, 'teacher')).length + '</div><div class="metric-label">ครูผู้สอน</div></div><div class="metric-card" style="--metric:var(--group)"><div class="metric-value">' + DB.teachers.filter(t => t.homeroomClassId).length + '</div><div class="metric-label">ครูที่ปรึกษา</div></div><div class="metric-card" style="--metric:var(--warn)"><div class="metric-value">' + DB.classes.filter(c => !DB.teachers.some(t => t.homeroomClassId === c.id)).length + '</div><div class="metric-label">ห้องยังไม่มีที่ปรึกษา</div></div></div>' +
-    '<div class="card"><div class="row"><div><h3 style="margin:0">นำเข้าตารางสอนครูหลายคน</h3><div class="hint">หนึ่งแถวต่อหนึ่งคาบ • ตรวจครูสอนซ้อน ห้องซ้อน และข้อมูลอ้างอิงก่อนบันทึกจริง</div></div><div class="spacer"></div><button id="adminTimetableTemplate">ดาวน์โหลดแม่แบบ</button><button class="primary" id="adminTimetableImport">นำเข้า Excel หลายครู</button></div><div class="request-flow" style="margin-top:12px"><span class="badge">1. เตรียมครู/วิชา/ห้อง</span><i></i><span class="badge">2. กรอกชีตตารางสอน</span><i></i><span class="badge">3. ตรวจตัวอย่าง</span><i></i><span class="badge ok">4. นำเข้า</span></div></div>' +
-    '<div class="card"><div class="row"><div><h3 style="margin:0">ข้อมูลครูและสิทธิ์ใช้งาน</h3><div class="hint">หนึ่งห้องกำหนดครูที่ปรึกษาได้สูงสุด 2 คน • กลุ่มสาระใช้จัดสิทธิ์หัวหน้ากลุ่มสาระและการหาครูสอนแทน</div></div><div class="spacer"></div><button id="adminTeacherTemplate">ดาวน์โหลดแม่แบบ</button><button id="adminTeacherImport">นำเข้า Excel</button><button class="primary" id="adminTeacherAdd">+ เพิ่มครู</button></div>' +
+  const pane = $('#pane-admin'), section = adminSection(), meta = ADMIN_SECTIONS.find(x => x.key === section) || ADMIN_SECTIONS[0];
+  pane.innerHTML = '<div class="card dash-hero"><div class="row" style="position:relative;z-index:1"><div><div class="hero-sub">SYSTEM ADMINISTRATION</div><h1>ศูนย์จัดการระบบ</h1><div class="hero-sub">' + esc(meta.label + ' — ' + meta.hint) + '</div></div><div class="spacer"></div><span class="role-chip">ผู้ดูแลระบบ</span></div></div>' +
+    '<div class="dash-metrics">' + adminMetrics(section) + '</div>' +
+    '<div class="console-nav">' + ADMIN_SECTIONS.map(x => '<button class="console-tab' + (x.key === section ? ' on' : '') + '" data-admin-section="' + x.key + '">' +
+      '<span class="ct-top"><span class="ct-ico">' + x.icon + '</span>' + esc(x.label) + '</span><span class="ct-hint">' + esc(x.hint) + '</span></button>').join('') + '</div>' +
+    '<div id="adminBody"></div>';
+  $$('[data-admin-section]', pane).forEach(btn => btn.addEventListener('click', () => {
+    collectAdminTeacherDraft();                       // ค่าที่พิมพ์ค้างในตารางครูต้องไม่หายตอนสลับกลุ่มงาน
+    DB.ui.adminSection = btn.dataset.adminSection; save(); renderAdmin();
+  }));
+  const body = $('#adminBody', pane);
+  if (section === 'school') adminSectionSchool(body);
+  else if (section === 'calendar') adminSectionCalendar(body);
+  else if (section === 'documents') adminSectionDocuments(body);
+  else if (section === 'system') adminSectionSystem(body);
+  else adminSectionPeople(body);
+  initCollapsibles(pane);
+}
+
+/* ---- ① บุคลากรและสิทธิ์ --------------------------------------------------
+   ตารางครู + ครูที่ปรึกษารายห้อง + หัวหน้ากลุ่มสาระ อยู่หน้าเดียวกัน
+   เดิมตารางครูที่ปรึกษาซ้ำอยู่ทั้งหน้านี้และหน้าตั้งค่า แก้ที่หนึ่งอีกที่ไม่รู้ */
+function adminSectionPeople(box) {
+  box.innerHTML = '<div class="card"><div class="row"><div><h3 style="margin:0">ข้อมูลครูและสิทธิ์ใช้งาน</h3><div class="hint">หนึ่งห้องกำหนดครูที่ปรึกษาได้สูงสุด 2 คน • กลุ่มสาระใช้จัดสิทธิ์หัวหน้ากลุ่มสาระและการหาครูสอนแทน</div></div><div class="spacer"></div><button id="adminTeacherTemplate">ดาวน์โหลดแม่แบบ</button><button id="adminTeacherImport">นำเข้า Excel</button><button class="primary" id="adminTeacherAdd">+ เพิ่มครู</button></div>' +
       '<div class="row" style="margin-top:12px"><div class="pick" style="flex:1;min-width:240px"><label>ค้นหา ชื่อครู / อีเมล / เบอร์โทร / กลุ่มสาระ</label><input id="adminSearch" value="' + esc(DB.ui.adminSearch || '') + '" placeholder="พิมพ์บางส่วนของชื่อ เช่น สมชาย" style="width:100%"></div>' +
       '<div class="pick"><label>เรียงลำดับตาม</label><div class="sort-group">' + ADMIN_SORTS.map(x => '<button class="sm' + (adminSortKey() === x.key ? ' active' : '') + '" data-admin-sort="' + x.key + '">' + esc(x.label) + (adminSortKey() === x.key ? (DB.ui.adminSortDir === 'desc' ? ' ▼' : ' ▲') : '') + '</button>').join('') + '</div></div>' +
       '<div class="spacer"></div><button class="sm" id="adminSearchClear">ล้างตัวกรอง</button></div>' +
@@ -7782,25 +7860,26 @@ function renderAdmin() {
       '<button class="sm" id="adminTeacherFold">' + (DB.ui.adminTeacherFold === false ? 'ย่อรายการ' : 'แสดงทั้งหมด') + '</button></div>' +
       '<div class="tablewrap listbox' + (DB.ui.adminTeacherFold === false ? '' : ' folded') + '" id="adminTeacherBox" style="margin-top:8px"><table><thead><tr>' + ADMIN_COLUMNS.map(c => '<th' + (c.key ? ' class="sortable" data-admin-sort="' + c.key + '" title="คลิกเพื่อเรียงลำดับ"' : '') + '>' + esc(c.label) + (c.key && adminSortKey() === c.key ? (DB.ui.adminSortDir === 'desc' ? ' ▼' : ' ▲') : '') + '</th>').join('') + '</tr></thead><tbody id="adminTeacherRows"></tbody></table></div>' +
       '<div class="row" style="margin-top:12px"><div class="spacer"></div><button class="primary" id="adminTeacherSave">บันทึกข้อมูลครูทั้งหมด</button></div></div>' +
-    '<div class="card" id="adminMaintainBox"></div>' +
-    '<div class="card" id="adminFirebaseBox"></div>' +
-    '<div class="card" id="adminHealthBox"></div>' +
-    '<div class="card" id="adminAuditBox"></div>' +
-    '<div class="card" id="adminCentralBox"></div>' +
-    '<div class="card" id="adminHolidayBox"></div>' +
-    '<div class="card"><div class="row"><div><h3 style="margin:0">งานอื่นของผู้ดูแลระบบ</h3><div class="hint">ตั้งค่าระบบ/เอกสาร ปพ.5 และฐานข้อมูลนักเรียน ย้ายมาอยู่ในบทบาทนี้แล้ว</div></div><div class="spacer"></div><button id="adminGoSettings">ไปหน้าตั้งค่า</button><button id="adminGoStudents">ไปหน้านักเรียน / ฐานนักเรียน</button></div>' +
-    '<div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>กลุ่มสาระ/กลุ่มงาน</th><th>จำนวนครู</th><th>หัวหน้ากลุ่มสาระฯ</th></tr></thead><tbody>' +
+    '<div class="grid2"><div class="card"><h3>ครูที่ปรึกษาแยกรายห้อง</h3><div class="hint">แก้ไขได้ที่คอลัมน์ “ห้องที่ปรึกษา” ในตารางด้านบน</div>' +
+      (DB.classes.length ? '<div class="tablewrap listbox folded" style="margin-top:12px"><table><thead><tr><th>ห้อง</th><th>ครูที่ปรึกษา</th></tr></thead><tbody>' +
+        DB.classes.map(c => { const names = DB.teachers.filter(t => t.homeroomClassId === c.id).map(t => t.name || t.email).filter(Boolean);
+          return '<tr><td><b>' + esc(c.name) + '</b></td><td>' + (names.length ? names.map(n => '<span class="level-tag">' + esc(n) + '</span>').join(' ') : '<span class="hint">ยังไม่มีครูที่ปรึกษา</span>') + ' <span class="hint">(' + names.length + '/2)</span></td></tr>'; }).join('') +
+        '</tbody></table></div>' : '<div class="empty" style="margin-top:12px">ยังไม่มีชั้นเรียน — เพิ่มได้ที่กลุ่ม “โครงสร้างโรงเรียน”</div>') + '</div>' +
+    '<div class="card"><h3>กลุ่มสาระและหัวหน้ากลุ่มสาระฯ</h3><div class="hint">ช่อง “หัวหน้ากลุ่มสาระการเรียนรู้” ในแบบพิมพ์ ปพ.5 ดึงชื่อจากตารางนี้</div>' +
+      '<div class="tablewrap listbox folded" style="margin-top:12px"><table><thead><tr><th>กลุ่มสาระ/กลุ่มงาน</th><th class="num">ครู</th><th>หัวหน้ากลุ่มสาระฯ</th></tr></thead><tbody>' +
       LEARNING_AREAS.map(area => { const members = DB.teachers.filter(t => teacherArea(t) === area), heads = members.filter(t => teacherHasRole(t, 'head')).map(t => t.name || t.email);
-        return '<tr><td><b>' + esc(area) + '</b></td><td>' + members.length + '</td><td>' + (heads.length ? heads.map(n => '<span class="level-tag">' + esc(n) + '</span>').join(' ') : '<span class="hint">ยังไม่กำหนด</span>') + '</td></tr>'; }).join('') +
-      (DB.teachers.some(t => !teacherArea(t)) ? '<tr><td><b>ยังไม่ระบุกลุ่มสาระ</b></td><td>' + DB.teachers.filter(t => !teacherArea(t)).length + '</td><td><span class="hint">—</span></td></tr>' : '') +
-      '</tbody></table></div></div>';
-  $('#adminTeacherFold').addEventListener('click', () => {
+        return '<tr><td><b>' + esc(area) + '</b></td><td class="num">' + members.length + '</td><td>' + (heads.length ? heads.map(n => '<span class="level-tag">' + esc(n) + '</span>').join(' ') : '<span class="hint">ยังไม่กำหนด</span>') + '</td></tr>'; }).join('') +
+      (DB.teachers.some(t => !teacherArea(t)) ? '<tr><td><b>ยังไม่ระบุกลุ่มสาระ</b></td><td class="num">' + DB.teachers.filter(t => !teacherArea(t)).length + '</td><td><span class="hint">—</span></td></tr>' : '') +
+      '</tbody></table></div></div></div>';
+
+  $('#adminTeacherFold', box).addEventListener('click', () => {
     DB.ui.adminTeacherFold = DB.ui.adminTeacherFold === false;   // สลับไปมา ค่าเริ่มต้นคือย่อไว้
     save(); collectAdminTeacherDraft(); renderAdmin();
   });
-  $('#adminTimetableTemplate').addEventListener('click', downloadMultiTeacherTimetableTemplate); $('#adminTimetableImport').addEventListener('click', importMultiTeacherTimetableExcel);
-  $('#adminTeacherTemplate').addEventListener('click', downloadTeacherTemplate); $('#adminTeacherImport').addEventListener('click', importTeachersExcel); $('#adminTeacherAdd').addEventListener('click', () => openAddTeacherProfile(renderAdmin, false));
-  $('#adminTeacherSave').addEventListener('click', () => {
+  $('#adminTeacherTemplate', box).addEventListener('click', downloadTeacherTemplate);
+  $('#adminTeacherImport', box).addEventListener('click', importTeachersExcel);
+  $('#adminTeacherAdd', box).addEventListener('click', () => openAddTeacherProfile(renderAdmin, false));
+  $('#adminTeacherSave', box).addEventListener('click', () => {
     collectAdminTeacherDraft();                       // เก็บค่าที่แก้ในแถวที่แสดงอยู่ก่อน
     const chosen = {}; let invalid = '';
     DB.teachers.forEach(t => { const room = adminDraftValue(t, 'homeroomClassId'); if (room) { chosen[room] = (chosen[room] || 0) + 1; if (chosen[room] > 2) invalid = (DB.classes.find(c => c.id === room) || {}).name || room; } });
@@ -7814,44 +7893,86 @@ function renderAdmin() {
     });
     adminTeacherDraft = {}; save(true); renderAdmin(); renderTop(); toast('บันทึกข้อมูลครู ' + changed + ' คนแล้ว', 'ok');
   });
-  renderAdminHolidays();
-  renderMaintainCard();
-  renderFirebaseCard();
-  renderHealthCard();
-  renderAuditCard();
-  renderCentralStaffCard();
   renderAdminTeacherRows();
-  const search = $('#adminSearch', pane);
+  const search = $('#adminSearch', box);
   search.addEventListener('input', () => { DB.ui.adminSearch = search.value; renderAdminTeacherRows(); });
-  $('#adminSearchClear', pane).addEventListener('click', () => { DB.ui.adminSearch = ''; search.value = ''; renderAdminTeacherRows(); search.focus(); });
-  $$('[data-admin-sort]', pane).forEach(el => el.addEventListener('click', () => {
+  $('#adminSearchClear', box).addEventListener('click', () => { DB.ui.adminSearch = ''; search.value = ''; renderAdminTeacherRows(); search.focus(); });
+  $$('[data-admin-sort]', box).forEach(el => el.addEventListener('click', () => {
     const key = el.dataset.adminSort;
     DB.ui.adminSortDir = adminSortKey() === key && DB.ui.adminSortDir !== 'desc' ? 'desc' : 'asc';
     DB.ui.adminSort = key; save(); renderAdmin();
   }));
-  $('#adminGoSettings').addEventListener('click', () => setTab('settings'));
-  $('#adminGoStudents').addEventListener('click', () => setTab('students'));
 }
 
-function renderSettings() {
-  const pane = $('#pane-settings'), s = DB.settings, teacher = curTeacher();
-  const teacherOpts = '<option value="">— เลือกโปรไฟล์ครู —</option>' + DB.teachers.map(t => '<option value="' + t.id + '"' + (teacher && t.id === teacher.id ? ' selected' : '') + '>' + esc(t.name || t.email || 'ยังไม่ระบุชื่อ') + '</option>').join('');
-  const homeroomOpts = '<option value="">— ไม่ได้เป็นครูที่ปรึกษา —</option>' + DB.classes.map(c => { const count = DB.teachers.filter(t => t.id !== (teacher || {}).id && t.homeroomClassId === c.id).length; return '<option value="' + c.id + '"' + (teacher && teacher.homeroomClassId === c.id ? ' selected' : '') + (count >= 2 ? ' disabled' : '') + '>' + esc(c.name) + ' (' + (count + (teacher && teacher.homeroomClassId === c.id ? 1 : 0)) + '/2)</option>'; }).join('');
-  const advisorRows = DB.classes.map(c => {
-    const names = DB.teachers.filter(t => t.homeroomClassId === c.id).map(t => t.name || t.email).filter(Boolean);
-    return '<tr><td><b>' + esc(c.name) + '</b></td><td>' + (names.length ? names.map(n => '<span class="level-tag">' + esc(n) + '</span>').join(' ') : '<span class="hint">ยังไม่มีครูที่ปรึกษา</span>') + ' <span class="hint">(' + names.length + '/2)</span></td></tr>';
-  }).join('');
-  pane.innerHTML = '<div class="card"><div class="row"><h3 style="margin:0">ตั้งค่าระบบและเอกสาร ปพ.5</h3><div class="spacer"></div>' +
-    '<button id="settingsCourse"' + (ready() ? '' : ' disabled') + '>ข้อมูลรายวิชา ปพ.5</button><button class="primary" id="settingsSave">บันทึกการตั้งค่า</button></div></div>' +
-    '<div class="card"><div class="row"><div><h3 style="margin:0">โปรไฟล์ครูและห้อง HomeRoom</h3><div class="hint">ห้องหนึ่งมีครูที่ปรึกษาได้ 1–2 คน ระบบใช้โปรไฟล์ระบุผู้บันทึกเวลาเรียน</div></div><div class="spacer"></div><button id="teacherTemplate">แม่แบบ Excel</button><button id="importTeacherProfile">นำเข้าครู</button><button id="addTeacherProfile">+ เพิ่มโปรไฟล์ครู</button><button class="danger" id="deleteTeacherProfile"' + (teacher ? '' : ' disabled') + '>ลบโปรไฟล์</button></div>' +
-      '<div class="grid2" style="margin-top:12px"><div class="pick"><label>ผู้ใช้งานปัจจุบัน</label><select id="setTeacherProfile">' + teacherOpts + '</select></div>' +
-      '<div class="pick"><label>ชื่อครู</label><input id="setTeacherName" value="' + esc(teacher ? teacher.name || '' : '') + '"' + (teacher ? '' : ' disabled') + '></div>' +
-      '<div class="pick"><label>อีเมลครู</label><input id="setTeacherEmail" type="email" value="' + esc(teacher ? teacher.email || '' : '') + '"' + (teacher ? '' : ' disabled') + '></div>' +
-      '<div class="pick"><label>เบอร์โทร</label><input id="setTeacherPhone" value="' + esc(teacher ? teacher.phone || '' : '') + '"' + (teacher ? '' : ' disabled') + '></div>' +
-      '<div class="pick"><label>กลุ่มสาระ/กลุ่มงาน</label><select id="setTeacherArea"' + (teacher ? '' : ' disabled') + '>' + learningAreaOptions(teacher ? teacher.learningArea : '') + '</select></div>' +
-      '<div class="pick"><label>ห้องที่ปรึกษา / HomeRoom ของฉัน</label><select id="setTeacherHomeroom"' + (teacher ? '' : ' disabled') + '>' + homeroomOpts + '</select></div></div>' +
-      (DB.classes.length ? '<div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>ห้อง</th><th>ครูที่ปรึกษา</th></tr></thead><tbody>' + advisorRows + '</tbody></table></div>' : '<div class="empty" style="margin-top:12px">กรุณาเพิ่มห้องเรียนก่อนกำหนด HomeRoom</div>') + '</div>' +
-    '<div class="grid2"><div class="card"><h3>ข้อมูลสถานศึกษาและตราโรงเรียน</h3><div class="pick"><label>ชื่อสถานศึกษา</label><input id="setSchool" value="' + esc(s.schoolName || '') + '" style="width:100%"></div>' +
+/* ---- ② โครงสร้างโรงเรียน -------------------------------------------------
+   ปี/ภาค ชั้นเรียน รายวิชา เดิมแก้ได้จากปุ่มเล็ก ๆ บนแถบบนเท่านั้น
+   ทั้งที่เป็นโครงสร้างที่ทุกหน้าจออ้างอิง จึงยกมาไว้ในคอนโซลด้วย */
+function adminSectionSchool(box) {
+  const period = curPeriod();
+  const masterCount = (DB.studentMaster || []).filter(x => x.active !== false).length;
+  const inClassCount = DB.classes.reduce((n, c) => n + (c.students || []).length, 0);
+  const tile = (id, icon, title, value, hint, btn) => '<button class="quick-action" data-structure="' + id + '"><span style="font-size:17px">' + icon + '</span><b>' + esc(title) + ' • ' + value + '</b><span>' + esc(hint) + '</span><span style="color:var(--brand);font-weight:700;font-size:11.5px">' + esc(btn) + ' ›</span></button>';
+  box.innerHTML = '<div class="card"><div class="row"><div><h3 style="margin:0">โครงสร้างหลักของโรงเรียน</h3><div class="hint">ทุกหน้าจอในระบบอ้างอิงสามอย่างนี้ — แก้ที่นี่แล้วมีผลทั้งระบบ</div></div></div>' +
+      '<div class="quick-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:12px">' +
+      tile('periods', '◷', 'ปี/ภาคเรียน', DB.periods.length, period ? 'กำลังใช้ ปี ' + period.academicYear + ' ภาค ' + period.semester : 'ยังไม่ได้เลือกปี/ภาคเรียน', 'จัดการปี/ภาคเรียน') +
+      tile('classes', '▣', 'ชั้นเรียน', DB.classes.length, 'นักเรียนในห้องรวม ' + inClassCount + ' คน', 'จัดการชั้น/ห้อง') +
+      tile('subjects', '☰', 'รายวิชา', DB.subjects.length, 'รหัสวิชาและระดับชั้นที่เปิดสอน', 'จัดการรายวิชา') +
+      '</div></div>' +
+    '<div class="grid2"><div class="card"><div class="row"><div><h3 style="margin:0">ฐานข้อมูลนักเรียนกลาง</h3><div class="hint">รายชื่อกลางที่ทุกห้องดึงไปใช้ • ใช้เลขประจำตัวเป็นตัวจับคู่</div></div><div class="spacer"></div><span class="badge">' + masterCount + ' คน</span></div>' +
+      '<div class="row" style="margin-top:12px"><button class="primary" id="adminGoMaster">เปิดฐานข้อมูลนักเรียน</button><button id="adminGoClassList">รายชื่อรายห้อง</button><button id="adminGoAccounts">จัดการรหัสผ่านนักเรียน</button></div>' +
+      (masterCount && inClassCount && masterCount !== inClassCount ? '<div class="notice" style="margin-top:10px">ยอดในฐานข้อมูลกลาง (' + masterCount + ') ไม่เท่ากับยอดรวมในห้อง (' + inClassCount + ') — ตรวจที่หน้าฐานข้อมูลนักเรียน</div>' : '') + '</div>' +
+    '<div class="card"><h3>จำนวนนักเรียนรายห้อง</h3>' +
+      (DB.classes.length ? '<div class="tablewrap listbox folded" style="margin-top:12px"><table><thead><tr><th>ห้อง</th><th class="num">ในห้อง</th><th class="num">ในฐานกลาง</th></tr></thead><tbody>' +
+        DB.classes.map(c => { const inMaster = (DB.studentMaster || []).filter(m => m.active !== false && m.classId === c.id).length, inRoom = (c.students || []).length;
+          return '<tr><td><b>' + esc(c.name) + '</b></td><td class="num">' + inRoom + '</td><td class="num"' + (inRoom !== inMaster ? ' style="color:var(--warn);font-weight:800"' : '') + '>' + inMaster + '</td></tr>'; }).join('') +
+        '</tbody></table></div>' : '<div class="empty" style="margin-top:12px">ยังไม่มีชั้นเรียน</div>') + '</div></div>';
+
+  const go = { periods: managePeriods, classes: manageClasses, subjects: manageSubjects };
+  $$('[data-structure]', box).forEach(btn => btn.addEventListener('click', () => go[btn.dataset.structure]()));
+  $('#adminGoMaster', box).addEventListener('click', () => { DB.ui.studentView = 'master'; save(); setTab('students'); });
+  $('#adminGoClassList', box).addEventListener('click', () => { DB.ui.studentView = 'class'; save(); setTab('students'); });
+  $('#adminGoAccounts', box).addEventListener('click', openStudentAccountManager);
+}
+
+/* ---- ③ ปฏิทินและตารางสอน -------------------------------------------------
+   วันเปิด–ปิดภาคเรียนเคยซ่อนอยู่ในโมดัลของแท็บตารางสอน แต่วันหยุดอยู่หน้านี้
+   ทั้งที่เป็นปฏิทินชุดเดียวกัน จึงยกมาไว้ด้วยกัน */
+function adminSectionCalendar(box) {
+  const period = curPeriod();
+  if (!period) { box.innerHTML = '<div class="card"><div class="empty">กรุณาเลือกปี/ภาคเรียนที่แถบด้านบนก่อน<br><span class="hint">ปฏิทินและตารางสอนแยกกันตามปี/ภาคเรียน</span></div></div>'; return; }
+  const term = currentTerm(true), entries = (DB.timetable.entries || []).filter(e => e.periodId === period.id);
+  const noSchedule = DB.teachers.filter(t => teacherHasRole(t, 'teacher') && !entries.some(e => e.teacherId === t.id));
+  box.innerHTML = '<div class="card"><div class="row"><div><h3 style="margin:0">ปฏิทินภาคเรียน <span class="sub">ปี ' + esc(period.academicYear) + ' • ภาค ' + esc(period.semester) + '</span></h3><div class="hint">ระบบใช้ช่วงวันนี้คำนวณจำนวนคาบทั้งภาค คาบค้างเช็กชื่อ และร้อยละเวลาเรียนใน ปพ.5</div></div><div class="spacer"></div><button id="adminSlotTimes">ตั้งเวลาคาบเรียน</button></div>' +
+      '<div class="grid2" style="margin-top:12px"><div class="pick"><label>วันเปิดภาคเรียน</label><input type="date" id="adminTermOpen" value="' + esc(term.openDate || '') + '"></div>' +
+      '<div class="pick"><label>วันปิดภาคเรียน</label><input type="date" id="adminTermClose" value="' + esc(term.closeDate || '') + '"></div>' +
+      '<div class="pick"><label>เวลาเรียนขั้นต่ำที่ผ่านเกณฑ์ (%)</label><input type="number" min="0" max="100" id="adminTermMin" value="' + esc(term.minAttendance == null ? 80 : term.minAttendance) + '"></div>' +
+      '<div class="pick"><label>&nbsp;</label><button class="primary" id="adminTermSave" style="width:100%">บันทึกปฏิทินภาคเรียน</button></div></div>' +
+      (!term.openDate || !term.closeDate ? '<div class="notice bad" style="margin-top:10px">ยังไม่ได้กำหนดวันเปิด–ปิดภาคเรียน ระบบจึงยังคำนวณคาบทั้งภาคและเวลาเรียนไม่ได้</div>' : '') + '</div>' +
+    '<div class="card" id="adminHolidayBox"></div>' +
+    '<div class="card"><div class="row"><div><h3 style="margin:0">ตารางสอนทั้งโรงเรียน</h3><div class="hint">หนึ่งแถวต่อหนึ่งคาบ • ตรวจครูสอนซ้อน ห้องซ้อน และข้อมูลอ้างอิงก่อนบันทึกจริง</div></div><div class="spacer"></div><button id="adminTimetableTemplate">ดาวน์โหลดแม่แบบ</button><button class="primary" id="adminTimetableImport">นำเข้า Excel หลายครู</button><button id="adminGoSchedule">เปิดตารางสอน</button></div>' +
+      '<div class="request-flow" style="margin-top:12px"><span class="badge">1. เตรียมครู/วิชา/ห้อง</span><i></i><span class="badge">2. กรอกชีตตารางสอน</span><i></i><span class="badge">3. ตรวจตัวอย่าง</span><i></i><span class="badge ok">4. นำเข้า</span></div>' +
+      '<div class="row" style="margin-top:12px"><span class="badge">คาบในตาราง ' + entries.length + '</span><span class="badge' + (noSchedule.length ? ' warn' : ' ok') + '">ครูที่ยังไม่มีตาราง ' + noSchedule.length + '</span></div>' +
+      (noSchedule.length ? '<div class="hint" style="margin-top:8px">' + esc(noSchedule.slice(0, 12).map(t => t.name || t.email).join(' • ')) + (noSchedule.length > 12 ? ' และอีก ' + (noSchedule.length - 12) + ' คน' : '') + '</div>' : '') + '</div>';
+
+  renderAdminHolidays();
+  $('#adminSlotTimes', box).addEventListener('click', editTimetableSettings);
+  $('#adminTermSave', box).addEventListener('click', () => {
+    const open = $('#adminTermOpen', box).value, close = $('#adminTermClose', box).value;
+    if (open && close && close < open) return toast('วันปิดภาคเรียนต้องไม่น้อยกว่าวันเปิดภาคเรียน', 'bad');
+    term.openDate = open; term.closeDate = close;
+    term.minAttendance = Math.max(0, Math.min(100, num($('#adminTermMin', box).value)));
+    save(true); renderAdmin(); renderTop(); toast('บันทึกปฏิทินภาคเรียนแล้ว', 'ok');
+  });
+  $('#adminTimetableTemplate', box).addEventListener('click', downloadMultiTeacherTimetableTemplate);
+  $('#adminTimetableImport', box).addEventListener('click', importMultiTeacherTimetableExcel);
+  $('#adminGoSchedule', box).addEventListener('click', () => setTab('schedule'));
+}
+
+/* ---- ④ เอกสารและอัตลักษณ์ ------------------------------------------------
+   ย้ายมาจากหน้า “ตั้งค่า” ทั้งชุด เพราะเป็นข้อมูลของโรงเรียน ไม่ใช่ของครูรายคน */
+function adminSectionDocuments(box) {
+  const s = DB.settings;
+  box.innerHTML = '<div class="grid2"><div class="card"><h3>ข้อมูลสถานศึกษาและตราโรงเรียน</h3><div class="pick"><label>ชื่อสถานศึกษา</label><input id="setSchool" value="' + esc(s.schoolName || '') + '" style="width:100%"></div>' +
       '<div class="pick" style="margin-top:8px"><label>อำเภอ/จังหวัด</label><input id="setLocation" value="' + esc(s.schoolLocation || '') + '" placeholder="อำเภอ... จังหวัด..." style="width:100%"></div>' +
       '<div class="pick" style="margin-top:8px"><label>สำนักงานเขตพื้นที่การศึกษา</label><input id="setOffice" value="' + esc(s.educationOffice || '') + '" style="width:100%"></div>' +
       '<div class="row" style="margin-top:12px"><div style="width:90px;text-align:center">' + (s.logoData ? '<img class="school-logo" src="' + s.logoData + '" alt="ตราโรงเรียน">' : '<div class="empty" style="padding:12px 4px">ยังไม่มีตรา</div>') + '</div>' +
@@ -7860,18 +7981,78 @@ function renderSettings() {
     '<div class="card"><h3>หัวเอกสารและข้อมูลเพิ่มเติม</h3><div class="pick"><label>ชื่อแบบเอกสาร</label><input id="setPrintTitle" value="' + esc(s.printTitle || '') + '" style="width:100%"></div>' +
       '<div class="pick" style="margin-top:8px"><label>ข้อมูลเพิ่มเติมใต้หัวเอกสาร</label><textarea id="setExtra" rows="5" style="width:100%">' + esc(s.printExtraInfo || '') + '</textarea></div>' +
       '<div class="pick" style="margin-top:8px"><label>วันที่อนุมัติ/ลงนาม</label><input type="date" id="setApprovalDate" value="' + esc(s.approvalDate || '') + '"></div></div></div>' +
-    '<div class="card"><h3>รายชื่อผู้อนุมัติในแบบพิมพ์</h3><div class="notice">ช่อง “หัวหน้ากลุ่มสาระการเรียนรู้” ในแบบพิมพ์จะดึงชื่อครูที่มีบทบาทหัวหน้ากลุ่มสาระฯ ของกลุ่มสาระนั้นมาให้อัตโนมัติ ค่าด้านล่างใช้เมื่อกลุ่มสาระนั้นยังไม่ได้กำหนดหัวหน้า</div><div class="grid2" style="margin-top:10px"><div class="pick"><label>หัวหน้ากลุ่มสาระการเรียนรู้ (ค่าสำรอง)</label><input id="setHeadLearning" value="' + esc(s.headLearningName || '') + '"></div>' +
+    '<div class="card"><h3>รายชื่อผู้อนุมัติในแบบพิมพ์</h3><div class="notice">ช่อง “หัวหน้ากลุ่มสาระการเรียนรู้” ในแบบพิมพ์จะดึงชื่อครูที่มีบทบาทหัวหน้ากลุ่มสาระฯ ของกลุ่มสาระนั้นมาให้อัตโนมัติ ค่าด้านล่างใช้เมื่อกลุ่มสาระนั้นยังไม่ได้กำหนดหัวหน้า</div>' +
+      '<div class="grid2" style="margin-top:10px"><div class="pick"><label>หัวหน้ากลุ่มสาระการเรียนรู้ (ค่าสำรอง)</label><input id="setHeadLearning" value="' + esc(s.headLearningName || '') + '"></div>' +
       '<div class="pick"><label>หัวหน้างานวัดผล/ประเมินผล</label><input id="setHeadAssessment" value="' + esc(s.headAssessmentName || '') + '"></div>' +
       '<div class="pick"><label>รองผู้อำนวยการ/กลุ่มบริหารวิชาการ</label><input id="setDeputy" value="' + esc(s.deputyName || '') + '"></div>' +
       '<div class="pick"><label>ชื่อผู้อำนวยการ</label><input id="setDirector" value="' + esc(s.directorName || '') + '"></div>' +
       '<div class="pick"><label>ตำแหน่งผู้อำนวยการ</label><input id="setDirectorPosition" value="' + esc(s.directorPosition || '') + '"></div></div>' +
-      '<div class="notice" style="margin-top:10px">แบบพิมพ์จะเว้นเส้นสำหรับลายเซ็น และนำชื่อ/ตำแหน่งเหล่านี้ไปวางตามโครงเอกสาร PDF ที่แนบ</div></div>';
+      '<div class="notice" style="margin-top:10px">แบบพิมพ์จะเว้นเส้นสำหรับลายเซ็น และนำชื่อ/ตำแหน่งเหล่านี้ไปวางตามโครงเอกสาร PDF ที่แนบ</div></div>' +
+    '<div class="card"><div class="row"><div class="hint">ข้อมูลชุดนี้ใช้กับแบบพิมพ์ ปพ.5 ของครูทุกคนในโรงเรียน</div><div class="spacer"></div><button class="primary" id="settingsSave">บันทึกข้อมูลโรงเรียน</button></div></div>';
 
-  const saveSettings = () => {
-    s.schoolName = $('#setSchool').value.trim(); s.schoolLocation = $('#setLocation').value.trim(); s.educationOffice = $('#setOffice').value.trim();
-    s.printTitle = $('#setPrintTitle').value.trim(); s.printExtraInfo = $('#setExtra').value.trim(); s.approvalDate = $('#setApprovalDate').value;
-    s.headLearningName = $('#setHeadLearning').value.trim(); s.headAssessmentName = $('#setHeadAssessment').value.trim(); s.deputyName = $('#setDeputy').value.trim();
-    s.directorName = $('#setDirector').value.trim(); s.directorPosition = $('#setDirectorPosition').value.trim();
+  $('#settingsSave', box).addEventListener('click', () => {
+    s.schoolName = $('#setSchool', box).value.trim(); s.schoolLocation = $('#setLocation', box).value.trim(); s.educationOffice = $('#setOffice', box).value.trim();
+    s.printTitle = $('#setPrintTitle', box).value.trim(); s.printExtraInfo = $('#setExtra', box).value.trim(); s.approvalDate = $('#setApprovalDate', box).value;
+    s.headLearningName = $('#setHeadLearning', box).value.trim();
+    s.headAssessmentName = $('#setHeadAssessment', box).value.trim(); s.deputyName = $('#setDeputy', box).value.trim();
+    s.directorName = $('#setDirector', box).value.trim(); s.directorPosition = $('#setDirectorPosition', box).value.trim();
+    save(true); renderTop(); renderAdmin(); toast('บันทึกข้อมูลโรงเรียนแล้ว', 'ok');
+  });
+  $('#setLogo', box).addEventListener('change', async e => {
+    const file = e.target.files[0]; if (!file) return;
+    try {
+      const raw = await imageFileToDataUrl(file, 600);
+      // ตัดพื้นขาวรอบตราออกให้เลย เพราะไฟล์ตราโรงเรียนส่วนใหญ่เป็นพื้นขาวทึบ
+      let cleared = 0;
+      try { const r = await removeWhiteBackground(raw); s.logoData = r.dataUrl; cleared = r.cleared; }
+      catch (err) { s.logoData = raw; }
+      save(true); renderAdmin();
+      toast('เพิ่มตราโรงเรียนแล้ว' + (cleared ? ' • ตัดพื้นขาวออกให้โปร่งใสแล้ว' : ''), 'ok');
+    } catch (err) { toast(err.message, 'bad'); }
+  });
+  $('#removeLogo', box).addEventListener('click', () => { s.logoData = ''; save(true); renderAdmin(); });
+  $('#clearLogoBg', box).addEventListener('click', async () => {
+    if (!s.logoData) return;
+    try {
+      const result = await removeWhiteBackground(s.logoData);
+      if (!result.cleared) return toast('ตรานี้ไม่มีพื้นขาวรอบ ๆ ให้ตัดออกแล้ว', 'warn');
+      s.logoData = result.dataUrl; save(true); renderAdmin();
+      toast('ตัดพื้นขาวออกแล้ว ' + result.cleared.toLocaleString('th-TH') + ' จุด', 'ok');
+    } catch (err) { toast(err.message, 'bad'); }
+  });
+}
+
+/* ---- ⑤ ระบบและข้อมูลกลาง ------------------------------------------------- */
+function adminSectionSystem(box) {
+  box.innerHTML = '<div class="card" id="adminFirebaseBox"></div>' +
+    '<div class="card" id="adminCentralBox"></div>' +
+    '<div class="card" id="adminHealthBox"></div>' +
+    '<div class="card" id="adminMaintainBox"></div>' +
+    '<div class="card" id="adminAuditBox"></div>';
+  renderFirebaseCard();
+  renderCentralStaffCard();
+  renderHealthCard();
+  renderMaintainCard();
+  renderAuditCard();
+}
+
+/* หน้า “โปรไฟล์ครู” เหลือเฉพาะเรื่องของครูรายคน
+   ข้อมูลของโรงเรียนทั้งหมดย้ายไปกลุ่ม “เอกสารและอัตลักษณ์” ในคอนโซลผู้ดูแลระบบ */
+function renderSettings() {
+  const pane = $('#pane-settings'), teacher = curTeacher();
+  const teacherOpts = '<option value="">— เลือกโปรไฟล์ครู —</option>' + DB.teachers.map(t => '<option value="' + t.id + '"' + (teacher && t.id === teacher.id ? ' selected' : '') + '>' + esc(t.name || t.email || 'ยังไม่ระบุชื่อ') + '</option>').join('');
+  const homeroomOpts = '<option value="">— ไม่ได้เป็นครูที่ปรึกษา —</option>' + DB.classes.map(c => { const count = DB.teachers.filter(t => t.id !== (teacher || {}).id && t.homeroomClassId === c.id).length; return '<option value="' + c.id + '"' + (teacher && teacher.homeroomClassId === c.id ? ' selected' : '') + (count >= 2 ? ' disabled' : '') + '>' + esc(c.name) + ' (' + (count + (teacher && teacher.homeroomClassId === c.id ? 1 : 0)) + '/2)</option>'; }).join('');
+  pane.innerHTML = '<div class="card"><div class="row"><div><h3 style="margin:0">โปรไฟล์ครูและห้อง HomeRoom</h3><div class="hint">ห้องหนึ่งมีครูที่ปรึกษาได้ 1–2 คน ระบบใช้โปรไฟล์ระบุผู้บันทึกเวลาเรียน</div></div><div class="spacer"></div><button id="teacherTemplate">แม่แบบ Excel</button><button id="importTeacherProfile">นำเข้าครู</button><button id="addTeacherProfile">+ เพิ่มโปรไฟล์ครู</button><button class="danger" id="deleteTeacherProfile"' + (teacher ? '' : ' disabled') + '>ลบโปรไฟล์</button></div>' +
+      '<div class="grid2" style="margin-top:12px"><div class="pick"><label>ผู้ใช้งานปัจจุบัน</label><select id="setTeacherProfile">' + teacherOpts + '</select></div>' +
+      '<div class="pick"><label>ชื่อครู</label><input id="setTeacherName" value="' + esc(teacher ? teacher.name || '' : '') + '"' + (teacher ? '' : ' disabled') + '></div>' +
+      '<div class="pick"><label>อีเมลครู</label><input id="setTeacherEmail" type="email" value="' + esc(teacher ? teacher.email || '' : '') + '"' + (teacher ? '' : ' disabled') + '></div>' +
+      '<div class="pick"><label>เบอร์โทร</label><input id="setTeacherPhone" value="' + esc(teacher ? teacher.phone || '' : '') + '"' + (teacher ? '' : ' disabled') + '></div>' +
+      '<div class="pick"><label>กลุ่มสาระ/กลุ่มงาน</label><select id="setTeacherArea"' + (teacher ? '' : ' disabled') + '>' + learningAreaOptions(teacher ? teacher.learningArea : '') + '</select></div>' +
+      '<div class="pick"><label>ห้องที่ปรึกษา / HomeRoom ของฉัน</label><select id="setTeacherHomeroom"' + (teacher ? '' : ' disabled') + '>' + homeroomOpts + '</select></div></div>' +
+      '<div class="row" style="margin-top:12px"><button id="settingsCourse"' + (ready() ? '' : ' disabled') + '>ข้อมูลรายวิชา ปพ.5</button><div class="spacer"></div><button class="primary" id="settingsSaveProfile">บันทึกโปรไฟล์</button></div></div>' +
+    '<div class="card"><div class="row"><div><h3 style="margin:0">ข้อมูลของโรงเรียน</h3><div class="hint">ชื่อและตราโรงเรียน หัวเอกสาร ปพ.5 และรายชื่อผู้ลงนาม ย้ายไปอยู่ที่คอนโซลผู้ดูแลระบบแล้ว เพื่อให้ทั้งโรงเรียนใช้ชุดเดียวกัน</div></div><div class="spacer"></div><button id="settingsGoDocs">ไปที่เอกสารและอัตลักษณ์</button></div></div>';
+
+  $('#settingsSaveProfile').addEventListener('click', () => {
     const activeTeacher = curTeacher();
     if (activeTeacher) {
       activeTeacher.name = $('#setTeacherName').value.trim() || activeTeacher.name || 'ครูผู้สอน';
@@ -7883,9 +8064,9 @@ function renderSettings() {
       if (activeTeacher.homeroomClassId) DB.ui.classId = activeTeacher.homeroomClassId;
       const book = curBook(false); if (book && !book.meta.teacherName) book.meta.teacherName = activeTeacher.name;
     }
-    save(true); renderTop(); renderSettings(); toast('บันทึกการตั้งค่าแล้ว', 'ok');
-  };
-  $('#settingsSave').addEventListener('click', saveSettings);
+    save(true); renderTop(); renderSettings(); toast('บันทึกโปรไฟล์แล้ว', 'ok');
+  });
+  $('#settingsGoDocs').addEventListener('click', () => { DB.ui.adminSection = 'documents'; save(); setTab('admin'); });
   $('#settingsCourse').addEventListener('click', editCourseInfo);
   $('#teacherTemplate').addEventListener('click', downloadTeacherTemplate);
   $('#importTeacherProfile').addEventListener('click', importTeachersExcel);
@@ -7899,28 +8080,6 @@ function renderSettings() {
     const active = curTeacher(); if (!active) return;
     if (!await confirmBox('ลบโปรไฟล์ครู', 'ลบโปรไฟล์ <b>' + esc(active.name || active.email) + '</b>? ข้อมูลคะแนนและเวลาเรียนจะไม่ถูกลบ', 'ลบ')) return;
     DB.teachers = DB.teachers.filter(t => t.id !== active.id); DB.ui.teacherId = DB.teachers[0] ? DB.teachers[0].id : null; save(true); renderSettings();
-  });
-  $('#setLogo').addEventListener('change', async e => {
-    const file = e.target.files[0]; if (!file) return;
-    try {
-      const raw = await imageFileToDataUrl(file, 600);
-      // ตัดพื้นขาวรอบตราออกให้เลย เพราะไฟล์ตราโรงเรียนส่วนใหญ่เป็นพื้นขาวทึบ
-      let cleared = 0;
-      try { const r = await removeWhiteBackground(raw); s.logoData = r.dataUrl; cleared = r.cleared; }
-      catch (e) { s.logoData = raw; }
-      save(true); renderSettings();
-      toast('เพิ่มตราโรงเรียนแล้ว' + (cleared ? ' • ตัดพื้นขาวออกให้โปร่งใสแล้ว' : ''), 'ok');
-    } catch (err) { toast(err.message, 'bad'); }
-  });
-  $('#removeLogo').addEventListener('click', () => { s.logoData = ''; save(true); renderSettings(); });
-  $('#clearLogoBg').addEventListener('click', async () => {
-    if (!s.logoData) return;
-    try {
-      const result = await removeWhiteBackground(s.logoData);
-      if (!result.cleared) return toast('ตรานี้ไม่มีพื้นขาวรอบ ๆ ให้ตัดออกแล้ว', 'warn');
-      s.logoData = result.dataUrl; save(true); renderSettings();
-      toast('ตัดพื้นขาวออกแล้ว ' + result.cleared.toLocaleString('th-TH') + ' จุด', 'ok');
-    } catch (err) { toast(err.message, 'bad'); }
   });
 }
 
