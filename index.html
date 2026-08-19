@@ -267,7 +267,11 @@ td.num,th.num{text-align:center}
 .att-present-c{color:var(--att-present)}.att-late-c{color:var(--att-late)}.att-leave-c{color:var(--att-leave)}
 .att-activity-c{color:var(--att-activity)}.att-absent-c{color:var(--att-absent)}
 .att-summary{padding:8px 11px}
-.att-lines{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:7px;padding-top:7px;border-top:1px dashed var(--line)}
+/* สูงคงที่เสมอ ไม่ว่าจะมีคนขาด/ลากี่คน เพราะถ้ากล่องนี้สูงขึ้น รายชื่อด้านล่าง
+   จะเลื่อนลงพอดี 1 แถว นิ้วที่จ่อรออยู่จะไปติ๊กโดนคนก่อนหน้าแทน */
+.att-lines{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:7px;padding-top:7px;border-top:1px dashed var(--line);
+  height:40px;overflow:auto;align-content:flex-start}
+@media(max-width:720px){.att-lines{height:34px}}
 .att-line{font-size:12.5px}
 .att-line b{font-weight:800}
 .att-line-nos{color:var(--muted);font-variant-numeric:tabular-nums}
@@ -750,8 +754,11 @@ body.gateway-open .sync-fab{display:none}
    หัวกับแถวปุ่มตรึงไว้ เนื้อหาเลื่อนเองข้างใน จอเล็กจึงไม่ต้องเลื่อนทั้งหน้า */
 html:has(body.modal-open){overflow:hidden}
 body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
-/* ฉากหลังของหน้าต่างเต็มจอไม่ต้องเลื่อน เพราะเนื้อหาเลื่อนเองอยู่แล้วข้างใน */
-.modal-bg:has(.modal-full){overflow:hidden;padding:0;align-items:stretch}
+/* ฉากหลังของหน้าต่างเต็มจอไม่ต้องเลื่อน เพราะเนื้อหาเลื่อนเองอยู่แล้วข้างใน
+   ต้องเป็น clip ไม่ใช่ hidden — hidden ยังนับเป็นกล่องเลื่อน เบราว์เซอร์จึงเลื่อนเองได้
+   ตอนโฟกัสช่องติ๊กที่อยู่นอกจอ แล้วดันหน้าต่างเช็กชื่อลอยพ้นจอไปทั้งบาน
+   clip ไม่สร้างกล่องเลื่อน จึงไม่มีทางถูกเลื่อนได้ไม่ว่าด้วยวิธีใด */
+.modal-bg:has(.modal-full){overflow:clip;padding:0;align-items:stretch}
 .modal.modal-full{max-width:none;width:100%;height:100%;max-height:100%;border-radius:0;
   display:flex;flex-direction:column;overflow:hidden}
 /* เนื้อหาแบ่งเป็นสองส่วน ส่วนบนอยู่กับที่ ตารางรายชื่อกินพื้นที่ที่เหลือและเลื่อนเอง
@@ -1139,6 +1146,12 @@ function openModal(opts) {
   bg.addEventListener('click', e => {
     if (e.target === bg || e.target.hasAttribute('data-close')) close();
   });
+  /* เบราว์เซอร์เก่าที่ยังไม่รู้จัก :has() หรือ overflow:clip ฉากหลังจะยังเลื่อนได้
+     ถ้าถูกเลื่อน (เช่นเบราว์เซอร์เลื่อนไปหาช่องติ๊กที่โฟกัส) ให้ดึงกลับที่เดิมทันที
+     หน้าต่างเช็กชื่อจะได้ไม่ลอยพ้นจอ */
+  if (opts.full) bg.addEventListener('scroll', () => {
+    if (bg.scrollTop || bg.scrollLeft) { bg.scrollTop = 0; bg.scrollLeft = 0; }
+  }, { passive: true });
   $('#modal-root').appendChild(bg);
   modalStack.push(bg);
   syncModalScrollLock();
@@ -3005,7 +3018,8 @@ function openAttendance(entry, date, singleMode, slotOverride) {
         const detail = ['late', 'leave', 'activity', 'absent'].filter(v => (byStatus[v] || []).length).map(line).join('');
         box.innerHTML = '<div class="att-chips">' + ATT_PICK_ORDER.map(chip).join('') +
           '<span class="spacer"></span><span class="hint">รวม ' + rows.length + ' คน</span></div>' +
-          (detail ? '<div class="att-lines">' + detail + '</div>' : '');
+          '<div class="att-lines">' + (detail ||
+            '<span class="att-line hint">ยังไม่มีคนขาด ลา สาย หรือติดกิจกรรม</span>') + '</div>';
       }
       rows.forEach(tr => $$('.att-status', tr).forEach(inp =>
         inp.addEventListener('change', () => { paint(tr); drawSummary(); })));
