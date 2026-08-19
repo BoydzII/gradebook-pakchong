@@ -680,6 +680,10 @@ body.gateway-open .sync-fab{display:none}
   .tabsheet-inner{border-radius:16px;max-width:520px;padding:14px;box-shadow:0 24px 60px rgba(15,23,42,.28)}
   .tabsheet-handle{display:none}
 }
+.tabsheet-sec{font-size:11.5px;font-weight:800;letter-spacing:.06em;color:var(--muted);
+  margin:14px 2px 7px;padding-bottom:5px;border-bottom:1px solid var(--line2)}
+.tabsheet-sec:first-of-type{margin-top:6px}
+.tabsheet-grid button .ts-ico{margin-right:6px;opacity:.75}
 .tabsheet-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .tabsheet-grid button{justify-content:flex-start;padding:14px 12px;border-radius:12px;font-weight:700;text-align:left}
 .tabsheet-grid button.active{border-color:var(--brand);color:var(--brand);background:color-mix(in srgb,var(--brand) 8%,transparent)}
@@ -892,20 +896,36 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
 .score-sheet .ss-sign{flex:1}
 .score-sheet .ss-line{border-bottom:1px dotted var(--ink);margin:0 6px 6px}
 .score-sheet .ss-sign span{color:var(--muted)}
+/* โหมดใบคะแนน — ใช้ทั้งตอนดูตัวอย่างบนจอและตอนพิมพ์จริง กฎชุดเดียวกัน
+   จึงไม่มีทางที่ตัวอย่างกับของที่พิมพ์ออกมาจะไม่ตรงกัน
+   บังคับเป็นตัวดำบนพื้นขาวเสมอ ไม่ว่าครูจะเปิดโหมดมืดอยู่หรือไม่ */
+body.print-scores main>section:not(#pane-summary),
+body.print-scores #pane-summary>.card:not(.score-sheet),
+body.print-scores .score-sheet .noprint{display:none!important}
+body.print-scores #pane-summary{display:block!important}
+body.print-scores .score-sheet{--ink:#111;--muted:#555;--line:#8a8a8a;--panel:#fff;--panel2:#f1f1f1;
+  background:#fff;color:#111;border:0;box-shadow:none}
+body.print-scores .score-sheet .tablewrap{border:0;overflow:visible;max-height:none}
+body.print-scores .ss-table th,body.print-scores .ss-table td{border:1px solid #666}
+body.print-scores .ss-dist{border:1px solid #666;background:transparent}
+/* แถบเครื่องมือตอนดูตัวอย่าง วางบนกระดาษจำลองขนาด A4 */
+body.print-scores.print-preview{background:#6b7280}
+body.print-scores.print-preview .score-sheet{max-width:820px;margin:18px auto 96px;padding:34px 30px;
+  box-shadow:0 10px 40px rgba(0,0,0,.35)}
+.preview-bar{position:fixed;left:0;right:0;bottom:0;z-index:150;display:flex;gap:9px;align-items:center;
+  justify-content:center;padding:11px 14px;background:var(--panel);border-top:1px solid var(--line);
+  box-shadow:0 -6px 24px rgba(0,0,0,.16)}
+.preview-bar .hint{margin-right:6px}
 @media print{
-  /* พิมพ์เฉพาะใบคะแนน ซ่อนทุกอย่างที่เหลือ หัวตารางซ้ำทุกหน้า แถวไม่ขาดกลาง */
-  body.print-scores main>section:not(#pane-summary),
-  body.print-scores #pane-summary>.card:not(.score-sheet){display:none!important}
-  body.print-scores #pane-summary{display:block!important}
-  body.print-scores .score-sheet{border:0;box-shadow:none;padding:0;margin:0}
-  body.print-scores .score-sheet .tablewrap{border:0;overflow:visible;max-height:none}
+  /* หัวตารางซ้ำทุกหน้า แถวไม่ขาดกลางหน้า และไม่ต้องมีกระดาษจำลอง */
+  body.print-scores .score-sheet{padding:0;margin:0;max-width:none;box-shadow:none}
+  body.print-scores.print-preview{background:#fff}
   body.print-scores .ss-table{font-size:10.5px}
-  body.print-scores .ss-table th,body.print-scores .ss-table td{border:1px solid #666;padding:2.5px 4px}
+  body.print-scores .ss-table th,body.print-scores .ss-table td{padding:2.5px 4px}
   body.print-scores .ss-table thead{display:table-header-group}
   body.print-scores .ss-table tr{break-inside:avoid;page-break-inside:avoid}
-  body.print-scores .ss-raw,body.print-scores .ss-full{color:#555}
-  body.print-scores .ss-dist{border:1px solid #666;background:transparent}
   body.print-scores .ss-signs{break-inside:avoid;page-break-inside:avoid}
+  .preview-bar{display:none!important}
   .printonly{display:block!important}
   body.print-doc>*:not(#docSheet){display:none!important}
   body.print-doc #docSheet{display:block!important;padding:0;max-width:none}
@@ -1914,10 +1934,38 @@ function updateFullscreenButton() {
   if (btn) btn.textContent = document.fullscreenElement ? 'ออกจากเต็มหน้าจอ' : 'ขยายเต็มหน้าจอ';
 }
 
+/** ดูใบคะแนนแบบที่จะพิมพ์ออกมาจริง บนกระดาษจำลอง แล้วค่อยตัดสินใจสั่งพิมพ์
+    ใช้กฎ CSS ชุดเดียวกับตอนพิมพ์ ตัวอย่างกับของจริงจึงตรงกันเสมอ */
+function openScorePreview() {
+  document.body.classList.add('print-scores', 'print-preview');
+  window.scrollTo(0, 0);
+  const bar = document.createElement('div');
+  bar.className = 'preview-bar';
+  bar.innerHTML = '<span class="hint">ตัวอย่างที่จะพิมพ์ออกมาจริง</span>' +
+    '<button class="primary" data-preview="print">พิมพ์เลย</button>' +
+    '<button data-preview="close">ปิดตัวอย่าง</button>';
+  document.body.appendChild(bar);
+  const close = () => {
+    document.body.classList.remove('print-scores', 'print-preview');
+    bar.remove(); document.removeEventListener('keydown', onKey);
+  };
+  const onKey = e => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+  $$('[data-preview]', bar).forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.preview === 'print') { document.body.classList.remove('print-preview'); bar.remove();
+      document.removeEventListener('keydown', onKey); printMode('print-scores'); return; }
+    close();
+  }));
+}
+
 function printMode(cls) {
   document.body.classList.add(cls);
-  const clean = () => document.body.classList.remove(cls);
+  const clean = () => { document.body.classList.remove(cls); document.removeEventListener('keydown', onKey); };
+  const onKey = e => { if (e.key === 'Escape') clean(); };
   window.addEventListener('afterprint', clean, { once: true });
+  // กฎของใบคะแนนมีผลบนจอด้วย ถ้าเบราว์เซอร์ไม่ยิง afterprint หน้าจอจะค้างอยู่ในโหมดพิมพ์
+  // จึงให้กด Esc ออกได้เสมอ
+  document.addEventListener('keydown', onKey);
   setTimeout(() => window.print(), 60);
 }
 
@@ -2027,6 +2075,15 @@ const TAB_SHORT = { dashboard: 'ภาพรวม', attendance: 'เช็ก�
 const TAB_ICON = { dashboard: '◈', attendance: '◷', exchange: '⇄', scores: '✎', groups: '◉', assess: '☑',
   summary: '▤', settings: '⚙', students: '☺', schedule: '▦', items: '☰', indicators: '◇', activities: '★', head: '◆',
   executive: '◎', leaves: '✈', admin: '⚙' };
+/* หมวดของเมนู "ไปที่หน้า" — เรียงตามลำดับที่ครูใช้งานจริงในหนึ่งวัน
+   เดิมเป็นปุ่ม 17 อันเรียงติดกันไม่มีหัวข้อ ต้องกวาดตาอ่านทีละอันกว่าจะเจอ */
+const TAB_SECTIONS = [
+  { label: 'งานประจำวัน', tabs: ['dashboard', 'attendance', 'exchange', 'activities'] },
+  { label: 'คะแนนและ ปพ.5', tabs: ['scores', 'items', 'indicators', 'groups', 'assess', 'summary'] },
+  { label: 'ข้อมูลโรงเรียน', tabs: ['students', 'schedule', 'settings'] },
+  { label: 'บริหารและอนุมัติ', tabs: ['head', 'executive', 'leaves', 'admin'] }
+];
+
 /* งานหลักของแต่ละบทบาท ใช้จัดปุ่มบนแถบล่างของมือถือ */
 const PRIMARY_TABS = { teacher: ['dashboard', 'attendance', 'scores', 'exchange'],
   head: ['head', 'dashboard', 'attendance', 'scores'],
@@ -2077,9 +2134,19 @@ function openTabSheet() {
   sheet.innerHTML = '<div class="tabsheet-inner"><div class="tabsheet-handle"></div>' +
     '<div class="tabsheet-head"><b>ไปที่หน้า</b><span class="hint">' + esc(roleLabel(DB.ui.staffMode || 'teacher')) + '</span>' +
     '<button class="sm tabsheet-close" data-sheet-close="1" aria-label="ปิดเมนู">✕</button></div>' +
-    '<div class="tabsheet-grid">' +
-    tabs.map(t => '<button data-goto="' + t + '"' + (t === DB.ui.tab ? ' class="active"' : '') + '>' +
-      esc(TAB_SHORT[t] || t) + '</button>').join('') + '</div>' +
+    (function () {
+      const left = tabs.slice();
+      const groups = TAB_SECTIONS.map(sec => {
+        const mine = sec.tabs.filter(t => { const at = left.indexOf(t); if (at < 0) return false; left.splice(at, 1); return true; });
+        return { label: sec.label, tabs: mine };
+      });
+      if (left.length) groups.push({ label: 'อื่น ๆ', tabs: left });   // หน้าที่เพิ่มใหม่ยังไม่ได้จัดหมวด จะได้ไม่หายไปเงียบ ๆ
+      return groups.filter(g => g.tabs.length).map(g =>
+        '<div class="tabsheet-sec">' + esc(g.label) + '</div><div class="tabsheet-grid">' +
+        g.tabs.map(t => '<button data-goto="' + t + '"' + (t === DB.ui.tab ? ' class="active"' : '') + '>' +
+          '<span class="ts-ico">' + (TAB_ICON[t] || '▸') + '</span>' + esc(TAB_SHORT[t] || t) + '</button>').join('') +
+        '</div>').join('');
+    })() +
     '<div class="tabsheet-tools"><button class="sm" data-sheet-act="search">⌕ ค้นหานักเรียน</button>' +
     '<button class="sm" data-sheet-act="theme">◐ สลับโหมดสี</button>' +
     '<button class="sm" data-sheet-act="pullschool">⤓ ดึงฐานข้อมูลจากส่วนกลาง</button>' +
@@ -2472,6 +2539,44 @@ function renderDashboard() {
 /* ============================================================================
    5) จัดการชั้นเรียน / วิชา
    ========================================================================== */
+/* ---- ผลกระทบก่อนลบ --------------------------------------------------------
+   ข้อความว่า "พร้อมคะแนนทั้งหมด" ไม่ได้บอกว่ามากแค่ไหน ครูจึงกดลบโดยไม่รู้ว่าเสียอะไร
+   นับของจริงที่จะหายไปให้ดูก่อน  kind: 'class' | 'subject' | 'period'
+   (คีย์ของสมุดคะแนนคือ classId::subjectId::periodId) */
+function deleteImpact(kind, id) {
+  const at = kind === 'class' ? 0 : kind === 'subject' ? 1 : 2;
+  const books = Object.keys(DB.books || {}).filter(k => k.split('::')[at] === id);
+  let scores = 0;
+  books.forEach(k => {
+    const b = DB.books[k] || {};
+    Object.keys(b.scores || {}).forEach(sid => { scores += Object.keys(b.scores[sid] || {}).length; });
+    Object.keys(b.exam || {}).forEach(sid => { scores += Object.keys(b.exam[sid] || {}).length; });
+  });
+  const hit = e => kind === 'class' ? e.classId === id : kind === 'subject' ? e.subjectId === id : e.periodId === id;
+  const entries = (DB.timetable.entries || []).filter(hit).concat((DB.timetable.exceptions || []).filter(hit));
+  const ids = new Set(entries.map(e => e.id));
+  const attendance = Object.values(DB.timetable.attendance || {}).filter(r => ids.has(r.entryId)).length;
+  return {
+    books: books.length, scores: scores, entries: entries.length, attendance: attendance,
+    rooms: kind === 'subject' ? new Set(books.map(k => k.split('::')[0])).size : 0,
+    students: kind === 'class' ? ((DB.classes.find(c => c.id === id) || {}).students || []).length : 0
+  };
+}
+/** บรรทัดสรุปผลกระทบ แสดงเฉพาะตัวที่มีจริง จะได้ไม่รกด้วยเลขศูนย์ */
+function deleteImpactHtml(im) {
+  const n = v => Number(v).toLocaleString('th-TH');
+  const bits = [];
+  if (im.students) bits.push('รายชื่อนักเรียน <b>' + n(im.students) + '</b> คน');
+  if (im.rooms) bits.push('ห้องที่เรียนวิชานี้ <b>' + n(im.rooms) + '</b> ห้อง');
+  if (im.books) bits.push('สมุดคะแนน <b>' + n(im.books) + '</b> เล่ม');
+  if (im.scores) bits.push('คะแนนที่กรอกไว้ <b>' + n(im.scores) + '</b> ช่อง');
+  if (im.entries) bits.push('คาบในตารางสอน <b>' + n(im.entries) + '</b> คาบ');
+  if (im.attendance) bits.push('บันทึกเช็กชื่อ <b>' + n(im.attendance) + '</b> คาบ');
+  if (!bits.length) return '<div class="notice ok" style="margin-top:10px">ยังไม่มีข้อมูลผูกอยู่กับรายการนี้ ลบได้ปลอดภัย</div>';
+  return '<div class="notice bad" style="margin-top:10px"><b>สิ่งที่จะถูกลบไปด้วย</b><br>' + bits.join(' • ') +
+    '<br><span class="hint">การลบนี้ย้อนกลับไม่ได้ ถ้าไม่แน่ใจให้สำรองข้อมูลก่อนที่แท็บสรุป</span></div>';
+}
+
 function managePeriods() {
   const body = () =>
     '<div class="row" style="margin-bottom:10px">' +
@@ -2506,7 +2611,8 @@ function managePeriods() {
   $$('[data-delp]', root).forEach(btn => btn.addEventListener('click', async () => {
     if (DB.periods.length <= 1) return toast('ต้องมีอย่างน้อย 1 ปี/ภาคเรียน', 'bad');
     const p = DB.periods.find(x => x.id === btn.dataset.delp);
-    if (!await confirmBox('ลบปี/ภาคเรียน', 'ลบปี <b>' + esc(p.academicYear) + '</b> ภาค <b>' + esc(p.semester) + '</b> พร้อมสมุดคะแนนทั้งหมดในช่วงนี้?', 'ลบ')) return;
+    if (!await confirmBox('ลบปี/ภาคเรียน', 'ลบปี <b>' + esc(p.academicYear) + '</b> ภาค <b>' + esc(p.semester) + '</b> พร้อมสมุดคะแนนทั้งหมดในช่วงนี้?' +
+      deleteImpactHtml(deleteImpact('period', p.id)), 'ลบ')) return;
     DB.periods = DB.periods.filter(x => x.id !== p.id);
     Object.keys(DB.books).forEach(k => { if (k.split('::')[2] === p.id) delete DB.books[k]; });
     if (DB.ui.periodId === p.id) DB.ui.periodId = DB.periods[0].id;
@@ -2576,8 +2682,8 @@ function manageClasses() {
           const id = b.dataset.del;
           const c = DB.classes.find(x => x.id === id);
           if (!await confirmBox('ลบชั้นเรียน',
-            'ลบชั้น <b>' + esc(c.name) + '</b> พร้อมรายชื่อนักเรียน ' + (c.students || []).length +
-            ' คน และคะแนนของทุกวิชาในชั้นนี้?<br><span class="hint">การลบนี้ย้อนกลับไม่ได้</span>', 'ลบ')) return;
+            'ลบชั้น <b>' + esc(c.name) + '</b> และคะแนนของทุกวิชาในชั้นนี้?' +
+            deleteImpactHtml(deleteImpact('class', id)), 'ลบ')) return;
           DB.classes = DB.classes.filter(x => x.id !== id);
           Object.keys(DB.books).forEach(k => { if (k.split('::')[0] === id) delete DB.books[k]; });
           const removedEntries = new Set(DB.timetable.entries.filter(e => e.classId === id).map(e => e.id));
@@ -2640,7 +2746,8 @@ function manageSubjects() {
         $$('[data-del]', root).forEach(b => b.addEventListener('click', async () => {
           const id = b.dataset.del;
           const s = DB.subjects.find(x => x.id === id);
-          if (!await confirmBox('ลบวิชา', 'ลบวิชา <b>' + esc(s.name) + '</b> พร้อมคะแนนของทุกชั้นในวิชานี้?', 'ลบ')) return;
+          if (!await confirmBox('ลบวิชา', 'ลบวิชา <b>' + esc(s.name) + '</b> พร้อมคะแนนของทุกชั้นในวิชานี้?' +
+            deleteImpactHtml(deleteImpact('subject', id)), 'ลบ')) return;
           DB.subjects = DB.subjects.filter(x => x.id !== id);
           Object.keys(DB.books).forEach(k => { if (k.split('::')[1] === id) delete DB.books[k]; });
           const removedEntries = new Set(DB.timetable.entries.filter(e => e.subjectId === id).map(e => e.id));
@@ -6357,7 +6464,8 @@ function scoreSheetHtml(b, rows) {
 
   return '<div class="card score-sheet"><div class="row noprint"><div><h3 style="margin:0">ใบคะแนน 4 ส่วน</h3>' +
       '<div class="hint">ก่อนกลางภาค • กลางภาค • หลังกลางภาค • ปลายภาค • รวม • เกรด — ตัดคอลัมน์อื่นออกให้พิมพ์อ่านง่าย</div></div>' +
-      '<div class="spacer"></div><button class="primary" id="btnPrintScores">พิมพ์ใบคะแนน</button></div>' +
+      '<div class="spacer"></div><button id="btnPreviewScores">ดูตัวอย่างก่อนพิมพ์</button>' +
+      '<button class="primary" id="btnPrintScores">พิมพ์ใบคะแนน</button></div>' +
 
     '<div class="ss-head">' +
       (s.logoData ? '<img class="ss-logo" src="' + s.logoData + '" alt="">' : '') +
@@ -6565,6 +6673,8 @@ function renderSummary() {
   $('#btnPrint').addEventListener('click', () => printMode('print-cover'));
   const btnScores = $('#btnPrintScores', pane);
   if (btnScores) btnScores.addEventListener('click', () => printMode('print-scores'));
+  const btnPreview = $('#btnPreviewScores', pane);
+  if (btnPreview) btnPreview.addEventListener('click', openScorePreview);
   $('#btnXlsx').addEventListener('click', () => exportWorkbook(false));
   $('#btnGroupSheet').addEventListener('click', () => exportWorkbook(true));
 }
@@ -8550,7 +8660,10 @@ function renderSettings() {
   $('#addTeacherProfile').addEventListener('click', () => openAddTeacherProfile(renderSettings, true));
   $('#deleteTeacherProfile').addEventListener('click', async () => {
     const active = curTeacher(); if (!active) return;
-    if (!await confirmBox('ลบโปรไฟล์ครู', 'ลบโปรไฟล์ <b>' + esc(active.name || active.email) + '</b>? ข้อมูลคะแนนและเวลาเรียนจะไม่ถูกลบ', 'ลบ')) return;
+    const own = (DB.timetable.entries || []).filter(e => e.teacherId === active.id).length;
+    if (!await confirmBox('ลบโปรไฟล์ครู', 'ลบโปรไฟล์ <b>' + esc(active.name || active.email) + '</b>? ข้อมูลคะแนนและเวลาเรียนจะไม่ถูกลบ' +
+      (own ? '<div class="notice" style="margin-top:10px">ครูคนนี้มีคาบในตารางสอน <b>' + own + '</b> คาบ ' +
+        'คาบเหล่านั้นจะยังอยู่แต่จะไม่มีเจ้าของ ควรย้ายให้ครูคนอื่นก่อนลบ</div>' : ''), 'ลบ')) return;
     DB.teachers = DB.teachers.filter(t => t.id !== active.id); DB.ui.teacherId = DB.teachers[0] ? DB.teachers[0].id : null; save(true); renderSettings();
   });
 }
