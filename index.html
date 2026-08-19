@@ -8571,6 +8571,52 @@ function renderMaintainCard() {
   });
 }
 
+/* ---------- ข้อมูลหลักที่ผู้ดูแลระบบเป็นเจ้าของ ------------------------------
+   เดิมมีแต่ปุ่ม "ส่งข้อมูลทั้งหมดขึ้นครั้งแรก" ซึ่งอ่านแล้วเหมือนกดได้หนเดียว
+   ผู้ดูแลระบบแก้ห้องหรือตารางสอนทีหลังจึงไม่กล้ากดซ้ำ ข้อมูลบนส่วนกลางเลยค้างเก่า
+   ที่นี่เทียบลายเซ็นของแต่ละชุด บอกว่าชุดไหนเปลี่ยนแล้วยังไม่ได้ส่ง และส่งเฉพาะชุดนั้น */
+function adminDataSets() {
+  const tt = DB.timetable || {};
+  return [
+    { key: 'staff', group: 'staff', label: 'บุคลากรและสิทธิ์',
+      count: DB.teachers.filter(t => t.email).length + ' คน',
+      sig: quickSig(JSON.stringify(DB.teachers.filter(t => t.email).map(fbTeacherDoc))) },
+    { key: 'classes', group: 'shared', label: 'ห้องเรียนและรายชื่อนักเรียน',
+      count: DB.classes.length + ' ห้อง • ' + DB.classes.reduce((n, c) => n + ((c.students || []).length), 0) + ' คน',
+      sig: quickSig(JSON.stringify(DB.classes)) },
+    { key: 'subjects', group: 'shared', label: 'รายวิชา', count: DB.subjects.length + ' วิชา',
+      sig: quickSig(JSON.stringify(DB.subjects)) },
+    { key: 'periods', group: 'shared', label: 'ปี/ภาคเรียน', count: DB.periods.length + ' ภาค',
+      sig: quickSig(JSON.stringify(DB.periods)) },
+    { key: 'settings', group: 'shared', label: 'ตั้งค่าโรงเรียน', count: esc(DB.settings.schoolName || 'ยังไม่ตั้งชื่อ'),
+      sig: quickSig(JSON.stringify(DB.settings)) },
+    { key: 'timetable', group: 'timetable', label: 'ตารางสอนและปฏิทินภาคเรียน',
+      count: (tt.entries || []).length + ' คาบ',
+      sig: quickSig(JSON.stringify({ e: tt.entries || [], x: tt.exceptions || [], t: tt.terms || {} })) }
+  ];
+}
+const adminUnsyncedSets = () => { const sigs = (DB.cloud || {}).adminSigs || {}; return adminDataSets().filter(x => sigs[x.key] !== x.sig); };
+
+/** ส่งเฉพาะชุดที่เปลี่ยนไปจากครั้งก่อน กดซ้ำได้ตลอด ไม่ต้องกลัวส่งซ้ำทั้งก้อน */
+async function pushAdminChanges(force) {
+  const sets = adminDataSets(), sigs = DB.cloud.adminSigs = DB.cloud.adminSigs || {};
+  const changed = force ? sets : sets.filter(x => sigs[x.key] !== x.sig);
+  if (!changed.length) return { sent: 0, failed: [], nothing: true, labels: [] };
+  const groups = [];
+  changed.forEach(x => { if (groups.indexOf(x.group) < 0) groups.push(x.group); });
+  let sent = 0; const failed = [], okGroups = [];
+  for (const g of groups) {
+    const r = await pushToFirebase(g);
+    sent += r.sent;
+    if (r.failed.length) failed.push.apply(failed, r.failed); else okGroups.push(g);
+  }
+  // จำลายเซ็นเฉพาะชุดที่ส่งขึ้นสำเร็จจริง ชุดที่ล้มจะยังขึ้นว่ารอส่งอยู่
+  changed.forEach(x => { if (okGroups.indexOf(x.group) >= 0) sigs[x.key] = x.sig; });
+  if (okGroups.length) DB.cloud.lastAdminPush = new Date().toISOString();
+  save(true);
+  return { sent: sent, failed: failed, labels: changed.map(x => x.label) };
+}
+
 /** การ์ดตั้งค่า Firebase ในหน้าผู้ดูแลระบบ */
 function renderFirebaseCard() {
   const box = $('#adminFirebaseBox'); if (!box) return;
@@ -8582,10 +8628,15 @@ function renderFirebaseCard() {
     : signed ? { text: 'เชื่อมต่อแล้ว • ' + esc(DB.cloud.accountEmail || ''), kind: 'ok' }
     : { text: 'พร้อมใช้ • ยังไม่ได้เข้าสู่ระบบ', kind: 'warn' };
 
+  const pendingSets = adminUnsyncedSets();
+  const lastAdminPush = (DB.cloud || {}).lastAdminPush ? new Date(DB.cloud.lastAdminPush).toLocaleString('th-TH') : '';
   box.innerHTML = '<div class="row"><div><h3 style="margin:0">ฐานข้อมูลกลาง Firebase</h3>' +
       '<div class="hint">ครูเข้าสู่ระบบด้วยบัญชี Google และเห็นข้อมูลชุดเดียวกันทุกอุปกรณ์ • ' +
       'ต้องมีชื่อในรายการบุคลากรก่อนจึงจะเข้าใช้ได้</div></div>' +
-      '<div class="spacer"></div><span class="badge ' + state.kind + '">' + state.text + '</span></div>' +
+      '<div class="spacer"></div>' +
+      (signed ? '<span class="badge ' + (pendingSets.length ? 'warn' : 'ok') + '">' +
+        (pendingSets.length ? 'รอส่งขึ้น ' + pendingSets.length + ' ชุด' : 'ตรงกับส่วนกลางแล้ว') + '</span>' : '') +
+      '<span class="badge ' + state.kind + '">' + state.text + '</span></div>' +
     (missing.length ? '<div class="notice bad" style="margin-top:12px">ยังขาดค่าในไฟล์ <b>config.js</b>: <b>' + esc(missing.join(', ')) + '</b><br>' +
       'คัดลอกจาก Firebase Console → ตั้งค่าโปรเจกต์ → แอปของคุณ → SDK setup and configuration</div>' : '') +
     '<div class="tablewrap" style="margin-top:12px"><table><tbody>' +
@@ -8595,11 +8646,20 @@ function renderFirebaseCard() {
     '</tbody></table></div>' +
     '<div class="row" style="margin-top:12px">' +
       '<button id="fbSignIn"' + (configured && !signed ? '' : ' disabled') + '>เข้าสู่ระบบด้วย Google</button>' +
-      '<button id="fbPushStaff"' + (signed ? '' : ' disabled') + '>ส่งรายชื่อบุคลากรขึ้น</button>' +
-      '<button id="fbPushShared"' + (signed ? '' : ' disabled') + '>ส่งห้องเรียน/รายวิชา/ตารางสอนขึ้น</button>' +
-      '<button class="primary" id="fbPushAll"' + (signed ? '' : ' disabled') + '>ส่งข้อมูลทั้งหมดขึ้นครั้งแรก</button>' +
+      '<button class="primary" id="fbPushChanges"' + (signed ? '' : ' disabled') + '>อัปเดตขึ้นส่วนกลาง' +
+        (pendingSets.length ? ' (' + pendingSets.length + ')' : '') + '</button>' +
+      '<button id="fbPushStaff"' + (signed ? '' : ' disabled') + '>ส่งเฉพาะรายชื่อบุคลากร</button>' +
+      '<button id="fbPushShared"' + (signed ? '' : ' disabled') + '>ส่งเฉพาะห้อง/วิชา/ตารางสอน</button>' +
+      '<button id="fbPushAll"' + (signed ? '' : ' disabled') + '>ส่งใหม่ทั้งหมด รวมใบลาและคำขอ</button>' +
       '<button id="fbInspect"' + (signed ? '' : ' disabled') + '>ตรวจสอบข้อมูลบนส่วนกลาง</button></div>' +
     '<div id="fbResult" class="hint" style="margin-top:10px"></div>' +
+    '<div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>ชุดข้อมูลในเครื่องนี้</th><th>ปริมาณ</th><th>สถานะ</th></tr></thead><tbody>' +
+      adminDataSets().map(x => { const dirty = pendingSets.some(y => y.key === x.key);
+        return '<tr><td><b>' + esc(x.label) + '</b></td><td>' + x.count + '</td>' +
+          '<td class="' + (dirty ? 'badtext' : 'oktext') + '">' + (dirty ? 'แก้แล้ว รอส่งขึ้น' : 'ตรงกับส่วนกลาง') + '</td></tr>'; }).join('') +
+      '</tbody></table></div>' +
+    '<div class="hint" style="margin-top:8px">' + (lastAdminPush ? 'อัปเดตขึ้นส่วนกลางล่าสุด ' + esc(lastAdminPush) : 'ยังไม่เคยอัปเดตขึ้นจากเครื่องนี้') +
+      ' • กดอัปเดตซ้ำได้ทุกครั้งที่แก้ข้อมูล ระบบส่งเฉพาะชุดที่เปลี่ยน</div>' +
     '<div class="notice" style="margin-top:10px">รอบนี้ซิงก์: บุคลากร • ห้องเรียน • รายวิชา • ปี/ภาค • ตารางสอน • ใบลา • คำขอแลกคาบ<br>' +
       'การเช็กชื่อและคะแนนในสมุดยังเก็บในเครื่องแต่ละคน</div>';
 
@@ -8620,7 +8680,10 @@ function renderFirebaseCard() {
           Array.from(byMsg.entries()).map(([msg, labels]) => '<tr><td><b>' + esc(labels.slice(0, 4).join(', ')) +
             (labels.length > 4 ? ' และอีก ' + (labels.length - 4) + ' รายการ' : '') + '</b></td><td class="badtext">' + esc(msg) + '</td></tr>').join('') +
           '</tbody></table></div>';
-      } else html = '<span class="badge ok">' + esc(label + 'สำเร็จ • ' + sent + ' รายการ') + '</span>';
+      } else if (r && r.nothing) html = '<span class="badge ok">ข้อมูลตรงกับส่วนกลางอยู่แล้ว ไม่มีอะไรต้องส่ง</span>';
+      else html = '<span class="badge ok">' + esc(label + 'สำเร็จ • ' + sent + ' รายการ') + '</span>' +
+        (r && r.labels && r.labels.length ? '<div class="exec-sum" style="margin-top:8px">' +
+          r.labels.map(x => '<span>' + esc(x) + '</span>').join('') + '</div>' : '');
     }
     catch (e) { html = '<span class="badge bad">' + esc(fbErrorMessage(e)) + '</span>'; }
     renderFirebaseCard(); renderHealthCard();
@@ -8639,15 +8702,48 @@ function renderFirebaseCard() {
       toast('เข้าสู่ระบบแล้ว • ' + (r.staff.name || r.staff.email), 'ok'); }
     catch (e) { show(fbErrorMessage(e), 'bad'); }
   });
-  $('#fbPushStaff', box).addEventListener('click', () => run('ส่งรายชื่อ', () => pushToFirebase('staff')));
+  $('#fbPushChanges', box).addEventListener('click', async () => {
+    const pend = adminUnsyncedSets();
+    if (!pend.length) return toast('ข้อมูลในเครื่องนี้ตรงกับส่วนกลางอยู่แล้ว', 'ok');
+    if (!await confirmBox('อัปเดตข้อมูลขึ้นส่วนกลาง',
+      '<div class="exec-note">ส่งเฉพาะชุดที่แก้ไปหลังจากอัปเดตครั้งก่อน ข้อมูลบนส่วนกลางของชุดนั้นจะถูกเขียนทับด้วยของเครื่องนี้<br>' +
+      'ทำซ้ำได้ทุกครั้งที่แก้ข้อมูล ไม่ใช่การตั้งระบบครั้งแรกเท่านั้น</div>' +
+      '<div class="exec-sum">' + pend.map(x => '<span>' + esc(x.label) + '</span>').join('') + '</div>', 'อัปเดตขึ้น')) return;
+    await run('อัปเดตขึ้นส่วนกลาง', () => pushAdminChanges(false));
+  });
+  $('#fbPushStaff', box).addEventListener('click', () => run('ส่งรายชื่อ', async () => {
+    const r = await pushToFirebase('staff');
+    if (!r.failed.length) {
+      const sigs = DB.cloud.adminSigs = DB.cloud.adminSigs || {};
+      adminDataSets().filter(x => x.group === 'staff').forEach(x => { sigs[x.key] = x.sig; });
+      DB.cloud.lastAdminPush = new Date().toISOString(); save(true);
+    }
+    return r;
+  }));
   $('#fbPushShared', box).addEventListener('click', () => run('ส่งข้อมูลหลัก', async () => {
     const a = await pushToFirebase('shared'), b = await pushToFirebase('timetable');
-    return { sent: a.sent + b.sent, failed: a.failed.concat(b.failed) };
+    const failed = a.failed.concat(b.failed);
+    if (!failed.length) {
+      const sigs = DB.cloud.adminSigs = DB.cloud.adminSigs || {};
+      adminDataSets().filter(x => x.group !== 'staff').forEach(x => { sigs[x.key] = x.sig; });
+      DB.cloud.lastAdminPush = new Date().toISOString(); save(true);
+    }
+    return { sent: a.sent + b.sent, failed: failed };
   }));
   $('#fbPushAll', box).addEventListener('click', async () => {
-    if (!await confirmBox('ส่งข้อมูลทั้งหมดขึ้นส่วนกลาง',
-      'ใช้ตอนตั้งระบบครั้งแรกเท่านั้น ข้อมูลบนส่วนกลางที่ซ้ำกันจะถูกเขียนทับด้วยข้อมูลในเครื่องนี้', 'ส่งขึ้นทั้งหมด')) return;
-    await run('ส่งข้อมูลทั้งหมด', () => pushToFirebase());
+    if (!await confirmBox('ส่งใหม่ทั้งหมด',
+      '<div class="exec-note">ส่งข้อมูลหลักทุกชุดขึ้นใหม่ รวมใบลาและคำขอแลกคาบทั้งหมด ' +
+      'ข้อมูลบนส่วนกลางที่ซ้ำกันจะถูกเขียนทับด้วยของเครื่องนี้<br>' +
+      'ปกติใช้ปุ่ม <b>อัปเดตขึ้นส่วนกลาง</b> ก็พอ ปุ่มนี้ใช้ตอนตั้งระบบใหม่หรือสงสัยว่าส่วนกลางไม่ครบ</div>', 'ส่งใหม่ทั้งหมด')) return;
+    await run('ส่งข้อมูลทั้งหมด', async () => {
+      const r = await pushToFirebase();
+      if (!r.failed.length) {
+        const sigs = DB.cloud.adminSigs = DB.cloud.adminSigs || {};
+        adminDataSets().forEach(x => { sigs[x.key] = x.sig; });
+        DB.cloud.lastAdminPush = new Date().toISOString(); save(true);
+      }
+      return r;
+    });
   });
 }
 
