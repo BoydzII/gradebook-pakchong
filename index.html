@@ -3,16 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ปพ.5 Online - สมุดคะแนนอัจฉริยะ</title>
+<title>KruSpace</title>
 <!-- ติดตั้งเป็นแอปบนคอม มือถือ และไอแพด (PWA) -->
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#1f6feb">
-<meta name="description" content="บันทึกคะแนน เวลาเรียน ตารางสอน แลกคาบและการลา สำหรับครูและผู้บริหาร">
+<meta name="description" content="KruSpace — บันทึกคะแนน เวลาเรียน ตารางสอน แลกคาบและการลา สำหรับครูและผู้บริหาร">
 <link rel="icon" href="./icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="ปพ.5 Online">
+<meta name="apple-mobile-web-app-title" content="KruSpace">
 <style>
 /* ============================================================
    ธีมและตัวแปรสี
@@ -64,7 +64,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .brand{font-weight:800;font-size:17px;white-space:nowrap;display:flex;align-items:center;gap:9px;letter-spacing:-.2px}
 .brand small{display:block;font-size:10.5px;line-height:1.1;color:var(--muted);font-weight:600;letter-spacing:.2px}
 .brand .dot{width:30px;height:30px;border-radius:10px;background:var(--hero);display:inline-grid;place-items:center;color:#fff;box-shadow:0 6px 14px rgba(31,111,235,.28)}
-.brand .dot:after{content:'๕';font-size:17px;font-weight:800}
+.brand .dot:after{content:'S';font-size:17px;font-weight:800}
 .pickers{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .pick{display:flex;align-items:center;gap:5px}
 .pick label{font-size:13px;color:var(--muted);white-space:nowrap}
@@ -916,7 +916,7 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
 
 <div class="stickytop">
 <header class="topbar">
-  <div class="brand"><span class="dot"></span><span>ปพ.5 Online<small>SMART GRADEBOOK</small></span></div>
+  <div class="brand"><span class="dot"></span><span>KruSpace<small>ห้องทำงานของครู</small></span></div>
   <div class="pickers">
     <div class="pick" data-pick="period">
       <label for="selPeriod">ปี/ภาค</label>
@@ -10014,11 +10014,11 @@ function showRoleGateway() {
   const s = DB.settings, logo = s.logoData || './icons/school-logo.png';
   gateway.innerHTML = '<div class="gateway-shell"><div class="gateway-brand">' +
       '<img class="brand-logo" src="' + esc(logo) + '" alt="ตราโรงเรียน" onerror="this.style.display=\'none\'">' +
-      '<h1>' + esc(s.schoolName || 'ปพ.5 Online') + '</h1>' +
+      '<h1>' + esc(s.schoolName || 'KruSpace') + '</h1>' +
       (s.schoolLocation ? '<p>' + esc(s.schoolLocation) + '</p>' : '') +
       (s.educationOffice ? '<p>สังกัดสำนักงานเขตพื้นที่การศึกษา' + esc(s.educationOffice) + '</p>' : '') + '</div>' +
     roleWheelHtml() +
-    '<div class="gateway-foot"><span class="gateway-storage">' + esc(storageText) + '</span><span>ข้อมูลนักเรียนเป็นข้อมูลส่วนบุคคล ควรเข้าใช้ด้วยบัญชีของตนเองและออกจากระบบทุกครั้ง</span></div></div>';
+    '<div class="gateway-foot"><span class="gateway-storage">KruSpace • ' + esc(storageText) + '</span><span>ข้อมูลนักเรียนเป็นข้อมูลส่วนบุคคล ควรเข้าใช้ด้วยบัญชีของตนเองและออกจากระบบทุกครั้ง</span></div></div>';
   const nameBox = $('#wheelName', gateway);
   $$('[data-gateway-role]', gateway).forEach(g => {
     const role = g.dataset.gatewayRole, label = g.getAttribute('aria-label');
@@ -10371,7 +10371,7 @@ function showIOSInstallHelp() {
       '<ol style="margin:12px 0 0 18px;line-height:2">' +
       '<li>กดปุ่ม <b>แชร์</b> (รูปสี่เหลี่ยมมีลูกศรขึ้น) ที่แถบล่างหรือมุมขวาบนของ Safari</li>' +
       '<li>เลื่อนหาแล้วกด <b>เพิ่มไปยังหน้าจอโฮม</b> (Add to Home Screen)</li>' +
-      '<li>กด <b>เพิ่ม</b> มุมขวาบน จะได้ไอคอน “ปพ.5 Online” บนหน้าจอ</li></ol>' +
+      '<li>กด <b>เพิ่ม</b> มุมขวาบน จะได้ไอคอน “KruSpace” บนหน้าจอ</li></ol>' +
       '<div class="hint" style="margin-top:12px">ต้องเปิดด้วย Safari เท่านั้น ถ้าเปิดจาก Chrome บน iOS จะไม่มีเมนูนี้</div>' });
 }
 
