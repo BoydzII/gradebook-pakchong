@@ -2015,6 +2015,7 @@ function openTabSheet() {
       esc(TAB_SHORT[t] || t) + '</button>').join('') + '</div>' +
     '<div class="tabsheet-tools"><button class="sm" data-sheet-act="search">⌕ ค้นหานักเรียน</button>' +
     '<button class="sm" data-sheet-act="theme">◐ สลับโหมดสี</button>' +
+    '<button class="sm" data-sheet-act="pullschool">⤓ ดึงฐานข้อมูลจากส่วนกลาง</button>' +
     '<button class="sm danger" data-sheet-act="logout">⏻ ออกจากระบบ</button></div>' +
     '<div class="tabsheet-foot"><span class="hint" data-app-version></span><div class="spacer"></div>' +
     '<button class="sm" id="sheetRefresh">ตรวจหาเวอร์ชันใหม่</button></div></div>';
@@ -2028,6 +2029,7 @@ function openTabSheet() {
     const act = b.dataset.sheetAct; closeTabSheet();
     if (act === 'search') return openStudentSearch();
     if (act === 'theme') { const t = $('#btnTheme'); if (t) t.click(); return; }
+    if (act === 'pullschool') { setTab('dashboard'); setTimeout(() => { const b = $('#btnPullSchool'); if (b) { b.scrollIntoView({ block: 'center' }); b.click(); } }, 250); return; }
     if (act === 'logout') { const t = $('#btnStaffLogout'); if (t) t.click(); }
   }));
   const refresh = $('#sheetRefresh', sheet);
@@ -2374,14 +2376,15 @@ function renderDashboard() {
       '<div class="metric-card" style="--metric:var(--bad)"><div class="metric-icon">⏱</div><div class="metric-value">' + missed.length + '</div><div class="metric-label">คาบค้างเช็กชื่อ</div></div>' +
       '<div class="metric-card" style="--metric:var(--ok)"><div class="metric-icon">✓</div><div class="metric-value">' + completeScores + '/' + students.length + '</div><div class="metric-label">คะแนนครบทุกส่วน</div></div>' +
       '<div class="metric-card" style="--metric:var(--group)"><div class="metric-icon">◎</div><div class="metric-value">' + fmt(average, 1) + '</div><div class="metric-label">คะแนนเฉลี่ยปัจจุบัน</div></div></div>' +
-    approvalCardHtml() +
+    (schoolDataMissing() ? schoolDataCard() : '') + approvalCardHtml() +
     '<div class="dash-columns"><div><div class="card"><div class="row"><h3 style="margin:0">ตารางสอนวันนี้</h3><div class="spacer"></div><button class="sm" data-go-tab="schedule">ดูตารางทั้งหมด</button></div><div class="today-list" style="margin-top:10px">' +
       (todayEntries.length ? todayEntries.map(e => { const slot = DB.timetable.slots.find(s => s.id === String(e.slotId)), subject = subjectOf(e), c = classOf(e); const current = slot && nowMin >= timeToMinutes(slot.start) && nowMin <= timeToMinutes(slot.end); const checked = !!DB.timetable.attendance[attendanceKey(e.id, today)]; return '<div class="today-card' + (current ? ' current' : '') + '"><div class="today-time"><b>' + esc(slot ? slot.label : '') + '</b>' + esc(slot ? slot.start + '-' + slot.end : '') + '</div><div><b>' + esc((subject.code ? subject.code + ' ' : '') + subject.name) + '</b><div class="hint">' + esc(c.name) + (e.room ? ' • ' + esc(e.room) : '') + '</div></div><div class="spacer"></div>' + (checked ? '<span class="badge ok">เช็กแล้ว</span>' : '<button class="sm primary" data-dash-att="' + e.id + '">เช็กชื่อ</button>') + '</div>'; }).join('') : '<div class="empty">วันนี้ไม่มีคาบสอนในตาราง</div>') + '</div></div>' +
       '<div class="card"><h3>ทางลัดงานประจำ</h3><div class="quick-grid"><button class="quick-action" data-go-tab="scores">✎<b>กรอกคะแนน</b><span>คะแนนเก็บ สอบ และซ่อม</span></button><button class="quick-action" data-go-tab="attendance">◷<b>เช็กเวลาเรียน</b><span>คาบประจำ แลกคาบ สอนแทน และชดเชย</span></button><button class="quick-action" data-go-tab="groups">◉<b>จัดกลุ่มเรียนรู้</b><span>กลุ่มและผู้นำเสนอ</span></button><button class="quick-action" data-go-tab="summary">▤<b>สรุป ปพ.5</b><span>เกรด เวลาเรียน และส่งออก</span></button></div></div></div>' +
       '<div><div class="card"><h3>ผู้ช่วยแนะนำงาน</h3><div class="insight-list">' + insights.map(i => '<button class="insight-item" data-go-tab="' + i.tab + '" style="text-align:left;width:100%"><span class="insight-dot" style="--insight:' + i.color + '"></span><span>' + esc(i.text) + '</span><span class="spacer"></span><span>›</span></button>').join('') + '</div></div>' +
-      '<div class="card"><div class="row"><h3 style="margin:0">ความพร้อมของระบบ</h3><div class="spacer"></div><b>' + setupPct + '%</b></div><div class="setup-progress"><i style="width:' + setupPct + '%"></i></div><div class="hint">สถานศึกษา • ห้อง • วิชา • รายชื่อ • ตารางสอน • ปฏิทิน • หัวข้อคะแนน • ฐานข้อมูลกลาง</div><button class="sm" data-go-tab="settings" style="margin-top:9px">ตรวจสอบการตั้งค่า</button></div></div></div>' + exchangeRequestCard() + '<div class="card" id="pendingBox"></div>';
+      '<div class="card"><div class="row"><h3 style="margin:0">ความพร้อมของระบบ</h3><div class="spacer"></div><b>' + setupPct + '%</b></div><div class="setup-progress"><i style="width:' + setupPct + '%"></i></div><div class="hint">สถานศึกษา • ห้อง • วิชา • รายชื่อ • ตารางสอน • ปฏิทิน • หัวข้อคะแนน • ฐานข้อมูลกลาง</div><button class="sm" data-go-tab="settings" style="margin-top:9px">ตรวจสอบการตั้งค่า</button></div></div></div>' + exchangeRequestCard() + '<div class="card" id="pendingBox"></div>' + (schoolDataMissing() ? '' : schoolDataCard());
 
   bindApprovalCard(pane);
+  bindPullSchoolButton(pane);
   renderPendingCard(pane);
   $$('[data-go-tab]', pane).forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.goTab)));
   $$('[data-dash-att]', pane).forEach(btn => btn.addEventListener('click', () => { const e = todayEntries.find(x => x.id === btn.dataset.dashAtt); if (e) openAttendance(e, today); }));
@@ -9065,6 +9068,121 @@ function renderSyncChip() {
 // กลับมาออนไลน์แล้วส่งที่ค้างไว้ทันที และส่งก่อนสลับไปหน้าอื่นหรือปิดแอป
 window.addEventListener('online', flushBookSync);
 document.addEventListener('visibilitychange', () => { if (document.hidden) flushBookSync(); });
+
+/** การ์ดบอกว่าเครื่องนี้มีข้อมูลโรงเรียนครบไหม พร้อมปุ่มดึงลงมาใหม่ */
+function schoolDataCard() {
+  const d = schoolDataSummary(), missing = schoolDataMissing();
+  const last = (DB.cloud || {}).lastSchoolPull ? new Date(DB.cloud.lastSchoolPull).toLocaleString('th-TH') : '';
+  const ready = firebaseReady() && fbSignedIn();
+  return '<div class="card" id="schoolDataCard"><div class="exec-head row"><div><div class="exec-eyebrow">SCHOOL DATA</div>' +
+    '<h3>ข้อมูลโรงเรียนในเครื่องนี้</h3></div><div class="spacer"></div>' +
+    '<span class="badge ' + (missing ? 'bad' : 'ok') + '">' + (missing ? 'ยังไม่ครบ' : 'ครบแล้ว') + '</span>' +
+    '<button class="primary" id="btnPullSchool"' + (ready ? '' : ' disabled') + '>ดึงฐานข้อมูลจากส่วนกลาง</button></div>' +
+    (missing ? '<div class="notice bad">เครื่องนี้ยังไม่มีข้อมูลหลักของโรงเรียน จึงเลือกห้อง วิชา หรือดูตารางสอนไม่ได้<br>' +
+      'กดปุ่ม <b>ดึงฐานข้อมูลจากส่วนกลาง</b> เพื่อโหลดลงมา ทำได้เองไม่ต้องรอผู้ดูแลระบบ</div>' : '') +
+    (!ready ? '<div class="notice">ยังไม่ได้เข้าสู่ระบบด้วยบัญชีโรงเรียน จึงดึงข้อมูลไม่ได้</div>' : '') +
+    '<div class="exec-sum"><span>ครู <b>' + d.teachers + '</b></span><span>ห้องเรียน <b>' + d.classes + '</b></span>' +
+    '<span>นักเรียน <b>' + d.students + '</b></span><span>รายวิชา <b>' + d.subjects + '</b></span>' +
+    '<span>ปี/ภาค <b>' + d.periods + '</b></span><span>คาบสอนภาคนี้ <b>' + d.entries + '</b></span></div>' +
+    '<div class="hint">' + (last ? 'ดึงจากส่วนกลางล่าสุด ' + esc(last) : 'ยังไม่เคยกดดึงจากเครื่องนี้') +
+    ' • คะแนนและการเช็กชื่อของคุณจะไม่ถูกแตะต้อง</div><div id="pullSchoolResult"></div></div>';
+}
+
+/** ผูกปุ่มดึงข้อมูล ใช้ได้ทั้งการ์ดในหน้าภาพรวมและปุ่มในเมนู */
+function bindPullSchoolButton(root) {
+  const btn = $('#btnPullSchool', root); if (!btn) return;
+  btn.addEventListener('click', async () => {
+    if (!await confirmBox('ดึงฐานข้อมูลจากส่วนกลาง',
+      '<div class="exec-note">โหลดรายชื่อครู ห้องเรียน รายวิชา ปี/ภาคเรียน ตารางสอน ใบลา และคำขอแลกคาบ ' +
+      'จากส่วนกลางมาทับข้อมูลหลักในเครื่องนี้<br><b>คะแนนและการเช็กชื่อของคุณไม่ถูกแตะต้อง</b></div>', 'ดึงลงมา')) return;
+    const out = $('#pullSchoolResult');
+    btn.disabled = true; const old = btn.textContent; btn.textContent = 'กำลังดึง...';
+    if (out) out.innerHTML = '<div class="hint" style="margin-top:8px">กำลังดึงข้อมูลจากส่วนกลาง...</div>';
+    try {
+      const r = await pullSchoolData();
+      toast('ดึงข้อมูลลงเครื่องแล้ว • ห้อง ' + r.summary.classes + ' • วิชา ' + r.summary.subjects + ' • คาบ ' + r.summary.entries, 'ok');
+      const box = $('#pullSchoolResult');
+      if (box) box.innerHTML = '<div class="exec-sum" style="margin-top:10px">' + r.got.map(x => '<span>' + esc(x) + '</span>').join('') + '</div>' +
+        (r.failed.length ? '<div class="notice bad" style="margin-top:8px">ดึงไม่ได้ ' + r.failed.length + ' รายการ<br>' +
+          r.failed.map(esc).join('<br>') + '</div>' : '');
+    } catch (e) {
+      toast(fbErrorMessage(e), 'bad');
+      const box = $('#pullSchoolResult');
+      if (box) box.innerHTML = '<div class="notice bad" style="margin-top:8px">' + esc(fbErrorMessage(e)) + '</div>';
+    }
+    const b2 = $('#btnPullSchool'); if (b2) { b2.disabled = false; b2.textContent = old; }
+  });
+}
+
+/* ---------- ดึงฐานข้อมูลโรงเรียนลงเครื่องนี้ --------------------------------
+   ปกติข้อมูลกลางไหลลงมาเองผ่านตัวฟังแบบเรียลไทม์ แต่ถ้าตัวฟังไม่ทำงาน
+   เช่นเข้าระบบคนละทาง กฎยังไม่อนุญาต หรือเน็ตหลุดตอนเข้าครั้งแรก
+   ครูจะเปิดมาแล้วไม่มีห้อง ไม่มีวิชา ไม่มีตารางสอน และแก้เองไม่ได้เลย
+   ปุ่มนี้ดึงลงมาตรง ๆ จากเซิร์ฟเวอร์ ไม่เอาจากแคช และบอกว่าได้อะไรมาบ้าง */
+function schoolDataSummary() {
+  const pid = DB.ui.periodId;
+  return {
+    teachers: (DB.teachers || []).length,
+    classes: (DB.classes || []).length,
+    students: (DB.classes || []).reduce((n, c) => n + ((c.students || []).length), 0),
+    subjects: (DB.subjects || []).length,
+    periods: (DB.periods || []).length,
+    entries: (DB.timetable.entries || []).filter(e => !pid || e.periodId === pid).length
+  };
+}
+const schoolDataMissing = () => { const s2 = schoolDataSummary(); return !s2.classes || !s2.subjects || !s2.entries; };
+
+async function pullSchoolData() {
+  if (!firebaseReady() || !fbSignedIn()) throw new Error('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อน จึงจะดึงข้อมูลลงเครื่องได้');
+  const fromServer = ref => ref.get({ source: 'server' });
+  const got = [], failed = [];
+  const step = async (label, fn) => { try { got.push(label + ' ' + (await fn())); } catch (e) { failed.push(label + ': ' + fbErrorMessage(e)); } };
+  fbApplying = true;                       // กันไม่ให้ตัวส่งอัตโนมัติทำงานระหว่างเขียนทับ
+  try {
+    await step('บุคลากร', async () => {
+      const snap = await fromServer(fbDb.collection('staff'));
+      const list = snap.docs.map(d => Object.assign({ email: d.id }, fbDecodeNested(d.data()))).filter(x => x.active !== false);
+      mergeCentralStaff(list);
+      return list.length + ' คน';
+    });
+    for (const def of FB_SHARED_DOCS) {
+      await step(def.key === 'classes' ? 'ห้องเรียน' : def.key === 'subjects' ? 'รายวิชา' : def.key === 'periods' ? 'ปี/ภาคเรียน' : 'ตั้งค่าโรงเรียน', async () => {
+        const doc = await fromServer(fbDb.collection('shared').doc(def.doc));
+        if (!doc.exists) return 'ยังไม่มีบนส่วนกลาง';
+        const data = fbDecodeNested(doc.data()[def.field]);
+        if (data == null) return 'ไม่มีข้อมูล';
+        if (def.key === 'settings') { DB.settings = Object.assign(defaultSettings(), DB.settings, data); return 'อัปเดตแล้ว'; }
+        if (Array.isArray(data)) { DB[def.key] = data; return data.length + ' รายการ'; }
+        return 'อัปเดตแล้ว';
+      });
+    }
+    resolveHomerooms();
+    await step('ตารางสอน', async () => {
+      const snap = await fromServer(fbDb.collection('timetable'));
+      let periods = 0, slots = 0;
+      snap.docs.forEach(d => {
+        const t = fbDecodeNested(d.data() || {});
+        DB.timetable.entries = (DB.timetable.entries || []).filter(e => e.periodId !== d.id).concat(t.entries || []);
+        DB.timetable.exceptions = (DB.timetable.exceptions || []).filter(e => e.periodId !== d.id).concat(t.exceptions || []);
+        if (t.term) DB.timetable.terms[d.id] = t.term;
+        periods++; slots += (t.entries || []).length;
+      });
+      return periods + ' ปี/ภาค • ' + slots + ' คาบ';
+    });
+    for (const pair of [['leaves', 'leaveRequests', 'ใบลา'], ['swaps', 'exchangeRequests', 'คำขอแลกคาบ'], ['activities', 'activities', 'กิจกรรม']]) {
+      await step(pair[2], async () => {
+        const snap = await fromServer(fbDb.collection(pair[0]));
+        DB.timetable[pair[1]] = snap.docs.map(d => Object.assign({}, fbDecodeNested(d.data()), { id: d.id })).filter(x => x.status !== 'deleted');
+        return snap.size + ' รายการ';
+      });
+    }
+    applyStoredTeacherIdMap();             // ข้อมูลที่ดึงมาอาจยังใช้รหัสครูแบบเก่า
+    normalizeTeacherIds();
+    DB.cloud.lastSchoolPull = new Date().toISOString();
+  } finally { fbApplying = false; }
+  save(true); render();
+  return { got: got, failed: failed, summary: schoolDataSummary() };
+}
 
 /** อ่านข้อมูลจากเซิร์ฟเวอร์ตรง ๆ (ไม่เอาจากแคชในเครื่อง) เพื่อดูว่าส่งขึ้นไปถึงจริงหรือยัง */
 async function inspectFirebase() {
