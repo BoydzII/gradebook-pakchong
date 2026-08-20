@@ -21,7 +21,7 @@
   --bg:#f4f6fa; --panel:#ffffff; --panel2:#f9fafc; --ink:#16202e; --muted:#67748a;
   --line:#dde3ec; --line2:#eef2f7; --brand:#1f6feb; --brand-ink:#ffffff;
   --ok:#0f8a53; --ok-bg:#e6f6ee; --bad:#c62828; --bad-bg:#fdecec;
-  --warn:#a05a00; --warn-bg:#fff5e2; --group:#6b3fd4; --group-bg:#f1ecfd;
+  --warn:#a05a00; --warn-bg:#fff5e2; --group:#6b3fd4; --group-bg:#f1ecfd; --swapc:#b0560c; --swapc-bg:#fff0e0;
   --shadow:0 1px 2px rgba(16,30,54,.06),0 8px 24px rgba(16,30,54,.08);
   --r:14px; --brand2:#7457e8; --cyan:#0891b2; --hero:linear-gradient(135deg,#0f5fbb 0%,#1f6feb 52%,#6b4fd3 100%);
 }
@@ -30,19 +30,19 @@
     --bg:#11151c; --panel:#181e27; --panel2:#1e2530; --ink:#e6ecf5; --muted:#95a3b8;
     --line:#2b3441; --line2:#232b36; --brand:#4d8dfb; --brand-ink:#0b1220;
     --ok:#4bd08b; --ok-bg:#123024; --bad:#ff7b7b; --bad-bg:#3a1c1c;
-    --warn:#ffc46b; --warn-bg:#3a2c12; --group:#b79bff; --group-bg:#2a2340;
+    --warn:#ffc46b; --warn-bg:#3a2c12; --group:#b79bff; --group-bg:#2a2340; --swapc:#ffab5e; --swapc-bg:#3a2a15;
     --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35);
   }
 }
 :root[data-theme="light"]{
   --bg:#f3f6fb;--panel:#fff;--panel2:#f7f9fc;--ink:#142033;--muted:#64748b;--line:#dce4ef;--line2:#edf2f7;
   --brand:#1769d2;--brand-ink:#fff;--ok:#078651;--ok-bg:#e7f8ef;--bad:#c72c3b;--bad-bg:#fff0f1;
-  --warn:#9a5b00;--warn-bg:#fff6df;--group:#6842ca;--group-bg:#f1edff;--shadow:0 1px 2px rgba(16,30,54,.04),0 10px 30px rgba(16,46,90,.08);
+  --warn:#9a5b00;--warn-bg:#fff6df;--group:#6842ca;--group-bg:#f1edff;--swapc:#ad540b;--swapc-bg:#fff1e1;--shadow:0 1px 2px rgba(16,30,54,.04),0 10px 30px rgba(16,46,90,.08);
 }
 :root[data-theme="dark"]{
   --bg:#0d1420;--panel:#151e2c;--panel2:#1b2636;--ink:#edf3fb;--muted:#98a8bd;--line:#2a394d;--line2:#223044;
   --brand:#69a3ff;--brand-ink:#07111f;--ok:#53d99a;--ok-bg:#153628;--bad:#ff8790;--bad-bg:#3a2027;
-  --warn:#ffd078;--warn-bg:#3a301b;--group:#b8a1ff;--group-bg:#2d2745;--shadow:0 1px 2px rgba(0,0,0,.25),0 12px 34px rgba(0,0,0,.32);
+  --warn:#ffd078;--warn-bg:#3a301b;--group:#b8a1ff;--group-bg:#2d2745;--swapc:#ffb26b;--swapc-bg:#3d2d18;--shadow:0 1px 2px rgba(0,0,0,.25),0 12px 34px rgba(0,0,0,.32);
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
@@ -529,17 +529,27 @@ body.gateway-open .sync-fab,body:has(#studentPortal:not([hidden])) .sync-fab{dis
 @media(max-width:700px){.roster-grid{grid-template-columns:repeat(2,1fr)}.exec-toolbar input,.exec-toolbar select{min-width:0;flex:1 1 130px}}
 .exchange-request{border-left:4px solid var(--group);padding:10px 12px;border-radius:9px;background:var(--group-bg);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .exchange-layout{display:grid;grid-template-columns:minmax(320px,.9fr) minmax(0,1.25fr);gap:14px}.candidate-list{display:grid;gap:9px}.candidate-card{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel2)}
-/* สลับคาบกับสอนแทนต้องแยกออกจากกันด้วยสายตา เพราะผลต่างกันมาก
-   สลับคาบ = ได้คาบคืน (ม่วง) • สอนแทน = ไม่ต้องสอนคืน (ฟ้าเขียว) */
-.candidate-card.mode-exchange{border-color:color-mix(in srgb,var(--group) 55%,var(--line));
+/* สามวิธีนี้ผลต่างกันมาก จึงต้องแยกด้วยสีให้ครูเห็นตั้งแต่แวบแรก
+   แลกคาบ = เขาว่างคาบเรา เราว่างคาบเขา (ม่วง) • สลับคาบ = ห้องเดียวกันคนละวัน (ส้มอำพัน)
+   สอนแทน = ไม่ต้องสอนคืน (ฟ้าเขียว) */
+.candidate-card.mode-trade{border-color:color-mix(in srgb,var(--group) 55%,var(--line));
   box-shadow:inset 4px 0 0 var(--group)}
+.candidate-card.mode-swap{border-color:color-mix(in srgb,var(--swapc) 55%,var(--line));
+  box-shadow:inset 4px 0 0 var(--swapc)}
 .candidate-card.mode-substitute{border-color:color-mix(in srgb,var(--cyan) 55%,var(--line));
   box-shadow:inset 4px 0 0 var(--cyan)}
 .mode-tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.02em;
   padding:3px 10px;border-radius:999px;margin-bottom:6px}
-.mode-tag.mode-exchange{background:var(--group-bg);color:var(--group)}
+.mode-tag.mode-trade{background:var(--group-bg);color:var(--group)}
+.mode-tag.mode-swap{background:var(--swapc-bg);color:var(--swapc)}
 .mode-tag.mode-substitute{background:color-mix(in srgb,var(--cyan) 14%,transparent);color:var(--cyan)}
-.candidate-card.recommended{border-color:var(--group);box-shadow:inset 4px 0 0 var(--group)}.candidate-rank{font-size:10px;font-weight:900;color:var(--group);letter-spacing:.03em}.leave-card{border-left:4px solid var(--warn)}.request-flow{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.request-flow i{width:24px;height:1px;background:var(--line)}
+.candidate-card.mode-swap .candidate-rank{color:var(--swapc)}
+.candidate-card.mode-substitute .candidate-rank{color:var(--cyan)}
+.candidate-card.mode-swap .pick-chip.on{background:var(--swapc);border-color:var(--swapc);
+  box-shadow:0 4px 12px color-mix(in srgb,var(--swapc) 35%,transparent)}
+.candidate-card.mode-substitute .pick-chip.on{background:var(--cyan);border-color:var(--cyan);
+  box-shadow:0 4px 12px color-mix(in srgb,var(--cyan) 35%,transparent)}
+.candidate-card.recommended{outline:2px solid color-mix(in srgb,var(--brand) 42%,transparent);outline-offset:1px}.candidate-rank{font-size:10px;font-weight:900;color:var(--group);letter-spacing:.03em}.leave-card{border-left:4px solid var(--warn)}.request-flow{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.request-flow i{width:24px;height:1px;background:var(--line)}
 /* เบอร์โทรครูที่จับคู่กันได้ตอนแลกคาบ/สอนแทน — แตะเพื่อโทรได้บนมือถือ */
 .phone-link{display:inline-flex;align-items:center;gap:4px;font-weight:800;color:var(--group);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:1px 8px;background:var(--panel)}
 .phone-link:hover{border-color:var(--group)}
@@ -554,7 +564,17 @@ body.gateway-open .sync-fab,body:has(#studentPortal:not([hidden])) .sync-fab{dis
   font-size:12px;font-weight:800;border:1.5px solid;line-height:1}
 .slot-box.free{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent);background:var(--ok-bg)}
 .slot-box.busy{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,transparent);background:var(--bad-bg)}
-.slot-box.swap{color:#fff;background:var(--group);border-color:var(--group);box-shadow:0 3px 10px color-mix(in srgb,var(--group) 40%,transparent)}
+/* คู่สีของคาบที่จับคู่กัน: ทึบ = คาบที่ยกให้ครูอีกฝ่าย • เส้นประอ่อน = คาบที่ต้องไปสอนคืน */
+.slot-box.mark,.slot-block{--tone:var(--group);--tone-bg:var(--group-bg)}
+.slot-box.mark.swap,.slot-block.swap{--tone:var(--swapc);--tone-bg:var(--swapc-bg)}
+.slot-box.mark.sub,.slot-block.sub{--tone:var(--cyan);--tone-bg:color-mix(in srgb,var(--cyan) 15%,transparent)}
+.slot-box.mark.pick,.slot-block.pick{--tone:var(--brand);--tone-bg:color-mix(in srgb,var(--brand) 13%,transparent)}
+.slot-box.mark.give{color:var(--brand-ink);background:var(--tone);border-color:var(--tone);box-shadow:0 3px 10px color-mix(in srgb,var(--tone) 40%,transparent)}
+.slot-box.mark.take{color:var(--tone);background:var(--tone-bg);border-color:var(--tone);border-style:dashed}
+/* คาบคู่ต้องย้ายพร้อมกันทั้งก้อน จึงล้อมเป็นกรอบเดียวและติดป้ายว่านับเป็นกี่คาบ */
+.slot-block{display:inline-flex;align-items:center;gap:3px;padding:2px 7px 2px 3px;border-radius:12px;
+  background:var(--tone-bg);outline:1.5px dashed color-mix(in srgb,var(--tone) 62%,transparent)}
+.slot-block .blk-tag{font-size:10px;font-weight:900;color:var(--tone);letter-spacing:.02em;white-space:nowrap}
 .slot-count{font-size:11.5px;font-weight:700;color:var(--muted);margin-left:4px}
 /* ชิปเลือกวัน/คาบที่จะแลก — ทรงรียาว อ่านง่าย ไม่ใช้คลาส .chip เดิมที่ถูกล็อกความกว้างไว้ */
 .pick-week{margin-top:8px}
@@ -565,16 +585,22 @@ body.gateway-open .sync-fab,body:has(#studentPortal:not([hidden])) .sync-fab{dis
   border:1px solid var(--line);background:var(--panel2);color:var(--ink)}
 .pick-chip b{font-weight:800}
 .pick-chip:hover{border-color:var(--brand)}
-.pick-chip.on{background:var(--group);color:#fff;border-color:var(--group);box-shadow:0 4px 12px color-mix(in srgb,var(--group) 35%,transparent)}
+.pick-chip.on{background:var(--group);color:var(--brand-ink);border-color:var(--group);box-shadow:0 4px 12px color-mix(in srgb,var(--group) 35%,transparent)}
 /* กล่องคาบที่กดเลือกได้ */
-.slot-box.pickable{cursor:pointer;outline:2px dashed color-mix(in srgb,var(--group) 55%,transparent);outline-offset:1px}
+.slot-box.pickable{cursor:pointer;outline:2px dashed color-mix(in srgb,var(--brand) 60%,transparent);outline-offset:1px}
 .slot-box.pickable:hover{transform:translateY(-1px)}
 .slot-legend{display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:11.5px;font-weight:700;color:var(--muted);margin-top:8px}
 .slot-legend span.k{display:inline-flex;align-items:center;gap:5px}
 .slot-legend i{width:13px;height:13px;border-radius:5px;border:1.5px solid;display:inline-block}
 .slot-legend i.free{background:var(--ok-bg);border-color:var(--ok)}
 .slot-legend i.busy{background:var(--bad-bg);border-color:var(--bad)}
-.slot-legend i.swap{background:var(--group);border-color:var(--group)}
+.slot-legend i.mark,.slot-legend i.blk{--tone:var(--group);--tone-bg:var(--group-bg)}
+.slot-legend i.mark.swap{--tone:var(--swapc);--tone-bg:var(--swapc-bg)}
+.slot-legend i.mark.sub{--tone:var(--cyan);--tone-bg:color-mix(in srgb,var(--cyan) 16%,transparent)}
+.slot-legend i.mark.pick{--tone:var(--brand);--tone-bg:color-mix(in srgb,var(--brand) 14%,transparent)}
+.slot-legend i.mark.give{background:var(--tone);border-color:var(--tone)}
+.slot-legend i.mark.take{background:var(--tone-bg);border-color:var(--tone);border-style:dashed}
+.slot-legend i.blk{background:transparent;border-style:dashed;border-color:var(--muted)}
 .audit-item{border-left:3px solid var(--bad)}
 /* การ์ดแจ้งเตือนงานที่รอเราดำเนินการ */
 .alert-card{border-left:4px solid var(--bad)}
@@ -901,6 +927,7 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
 .memo-table{border-collapse:collapse;width:100%;margin:10px 0;font-size:11.5px;text-align:center}
 .memo-table th,.memo-table td{border:1px solid #000;padding:3px 4px;height:26px}
 .memo-table td.lt{text-align:left}
+.memo-table .memo-sub{font-size:9.5px;line-height:1.3;color:#333}
 .memo-opinion{border-collapse:collapse;width:100%;margin-top:14px;font-size:12.5px}
 .memo-opinion td{border:1px solid #000;padding:8px 10px;vertical-align:top;width:50%}
 /* ---- ใบคะแนน 4 ส่วน ---- */
@@ -962,6 +989,7 @@ body.print-scores.print-preview .score-sheet{max-width:820px;margin:18px auto 96
   body.print-doc .stat-table{font-size:9.5px}
   body.print-doc .stat-table th,body.print-doc .stat-table td{padding:1px 2px}
   body.print-doc .memo-table{font-size:9.5px}
+  body.print-doc .memo-table .memo-sub{font-size:8px}
   body.print-doc .memo-table th,body.print-doc .memo-table td{padding:2px 3px;height:22px}
   body.print-doc .memo-opinion{font-size:11px}
   body.print-doc .memo-head h2{font-size:20px}
@@ -2503,13 +2531,13 @@ function pendingApprovals() {
   if (mySelfCover.length) {
     const kinds = Array.from(new Set(mySelfCover.map(r => (EXCHANGE_REASONS.find(x => x.value === r.reason) || {}).label).filter(Boolean)));
     list.push({ tone: 'bad', icon: '⇄', role: 'teacher', tab: 'exchange',
-      title: 'ต้องแลกคาบเอง ' + mySelfCover.length + ' คาบ',
+      title: 'ต้องแลกคาบเอง ' + totalSlotCount(mySelfCover) + ' คาบ',
       detail: (kinds.length ? kinds.join(' • ') + ' — ' : '') + 'ยังไม่มีครูรับดูแล กรุณาเลือกครูท่านอื่นก่อนถึงวันลา' });
   }
   const myHeadWait = swaps.filter(r => r.requesterTeacherId === me.id && r.status === 'unassigned' &&
     r.leaveRequestId && leaveCoverMode(leaves.find(l => l.id === r.leaveRequestId)) === 'head');
   if (myHeadWait.length) list.push({ tone: 'warn', icon: '◆', role: 'teacher', tab: 'exchange',
-    title: 'รอหัวหน้ากลุ่มสาระจัดครูให้ ' + myHeadWait.length + ' คาบ',
+    title: 'รอหัวหน้ากลุ่มสาระจัดครูให้ ' + totalSlotCount(myHeadWait) + ' คาบ',
     detail: 'คุณเลือกให้หัวหน้ากลุ่มสาระจัดครูแทน ยังไม่ต้องดำเนินการเอง' });
 
   const myDraft = leaves.filter(l => l.teacherId === me.id && ['draft', 'rejected'].indexOf((l.approval || {}).status || 'draft') >= 0);
@@ -3610,8 +3638,15 @@ function weekSchoolDates(baseISO) {
 function entryDateInWeek(entry, baseISO) {
   return weekSchoolDates(baseISO)[Math.max(0, Math.min(4, num(entry.day) - 1))];
 }
+/* ตอนค้นหาคู่แลก/สลับคาบ ระบบเช็กความว่างหลายพันครั้ง จึงจำคาบประจำของแต่ละวันไว้ชั่วคราว */
+let _dayEntryCache = null;
+function dayEntriesCached(date) {
+  if (!_dayEntryCache) return effectiveDayEntries(date, true);
+  if (!_dayEntryCache[date]) _dayEntryCache[date] = effectiveDayEntries(date, true);
+  return _dayEntryCache[date];
+}
 function teacherBusyAt(teacherId, date, slotId, exceptEntryId) {
-  const regular = effectiveDayEntries(date, true).some(x => x.entry.teacherId === teacherId && x.slotId === String(slotId) && x.entry.id !== exceptEntryId);
+  const regular = dayEntriesCached(date).some(x => x.entry.teacherId === teacherId && x.slotId === String(slotId) && x.entry.id !== exceptEntryId);
   const special = (DB.timetable.exceptions || []).some(e => e.teacherId === teacherId && e.date === date && String(e.slotId) === String(slotId));
   return regular || special;
 }
@@ -3722,8 +3757,30 @@ const shortDayMonth = iso => { const d = parseISODate(iso); return d ? d.getDate
 
 /** คาบที่ติดกันของครูคนเดียวกัน ห้องเดียวกัน วิชาเดียวกัน = หนึ่งคาบคู่
     ต่างจาก adjacentAttendanceEntries ตรงที่มองครูทุกคน ใช้หาคู่ของอีกฝ่ายได้ */
+let _blockIndex = null;   // ทำดัชนีคาบคู่ไว้ก่อน เพราะการหาคู่แลกคาบเรียก entryBlock หลายร้อยครั้ง
+function buildBlockIndex() {
+  const order = DB.timetable.slots.map(x => String(x.id)), byId = {}, groups = new Map();
+  scheduleEntries(true).forEach(e => {
+    if (String(e.slotId) === 'assembly' || order.indexOf(String(e.slotId)) < 0) { byId[e.id] = [e]; return; }
+    const key = [e.teacherId, num(e.day), e.classId, e.subjectId].join('|');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(e);
+  });
+  groups.forEach(list => {
+    list.sort((a, b) => order.indexOf(String(a.slotId)) - order.indexOf(String(b.slotId)));
+    let run = [];
+    const flush = () => { const done = run; done.forEach(e => { byId[e.id] = done; }); run = []; };
+    list.forEach(e => {
+      if (run.length && order.indexOf(String(run[run.length - 1].slotId)) + 1 !== order.indexOf(String(e.slotId))) flush();
+      run.push(e);
+    });
+    flush();
+  });
+  return byId;
+}
 function entryBlock(entry) {
   if (!entry || String(entry.slotId) === 'assembly') return entry ? [entry] : [];
+  if (_blockIndex && _blockIndex[entry.id]) return _blockIndex[entry.id];
   const order = DB.timetable.slots.map(x => String(x.id)), all = scheduleEntries(true);
   const at = (i) => all.find(e => e.periodId === entry.periodId && e.teacherId === entry.teacherId &&
     num(e.day) === num(entry.day) && e.classId === entry.classId && e.subjectId === entry.subjectId && String(e.slotId) === order[i]);
@@ -3742,65 +3799,149 @@ function teacherFreeForBlock(teacherId, date, block, exceptIds) {
   return block.every(e => !teacherBusyAt(teacherId, date, e.slotId, skip[block.indexOf(e)] || ''));
 }
 
+/* ---- แลกคาบ • สลับคาบ • สอนแทน ต่างกันที่วิธีหาคู่ -------------------------
+   สลับคาบ = ครูอีกคนสอน "ห้องเดียวกัน" คนละวัน เอาคาบมาสลับกันตรง ๆ ห้องยังได้เรียนครบทั้งสองวิชา
+   แลกคาบ  = ครูอีกคน "ว่างตรงคาบเรา" และเราก็ "ว่างตรงคาบเขา" จึงแลกกันไปสอนคนละคาบ
+   สอนแทน  = ครูที่ว่างมาคุมให้ ไม่ต้องสอนคืน
+   ทุกกรณีคาบคู่ต้องย้ายพร้อมกันทั้งก้อน จึงจับคู่เฉพาะก้อนที่ยาวเท่ากัน และนับเป็น 2 คาบเสมอ */
+const SWAP_KINDS = {
+  swap:  { label: 'สลับคาบ', tone: 'swap',  base: 0,   tag: '⇄ สลับคาบ — ห้องเดียวกัน คนละวัน ได้คาบคืน', send: 'ส่งคำขอสลับคาบ' },
+  trade: { label: 'แลกคาบ',  tone: 'trade', base: 500, tag: '⇆ แลกคาบ — เขาว่างคาบเรา เราว่างคาบเขา',    send: 'ส่งคำขอแลกคาบ' }
+};
+const swapKindOf = req => ((req || {}).swapKind === 'trade' ? 'trade' : 'swap');
+/** ป้ายวิธีจัดคาบของคำขอหนึ่งรายการ ใช้ให้ตรงกันทุกหน้าจอและในเอกสาร */
+const coverageKindLabel = req => (((req || {}).type || 'exchange') !== 'exchange' ? 'สอนแทน' : SWAP_KINDS[swapKindOf(req)].label);
+/** จำนวนคาบจริงของคำขอ — คาบคู่นับเป็น 2 คาบ ไม่ใช่ 1 รายการ */
+const requestSlotCount = req => Math.max(1, num((req || {}).slotCount) || ((req || {}).blockEntryIds || []).length);
+const totalSlotCount = list => (list || []).reduce((n, r) => n + requestSlotCount(r), 0);
+const leavePeriodCount = leave => totalSlotCount((DB.timetable.exchangeRequests || []).filter(r => r.leaveRequestId === (leave || {}).id));
+const toneOfCandidate = c => (c && c.mode === 'exchange' ? SWAP_KINDS[c.swapKind === 'trade' ? 'trade' : 'swap'].tone : 'sub');
+/** ช่วงคาบแบบอ่านง่าย คาบคู่แสดงเป็น "คาบ 1-2" ไม่ใช่ "คาบ 1" */
+function slotSpanText(block) {
+  const order = DB.timetable.slots.map(x => String(x.id));
+  const ids = (block || []).map(e => String(e.slotId)).sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  if (!ids.length) return '';
+  if (ids.length > 1) return 'คาบ ' + ids[0] + '-' + ids[ids.length - 1];
+  return (DB.timetable.slots.find(x => String(x.id) === ids[0]) || {}).label || ('คาบ ' + ids[0]);
+}
+
 function findCoverageCandidates(source, sourceDate) {
   if (!source || isHomeroomEntry(source)) return [];
-  const me = curTeacher(), sourceTeacher = DB.teachers.find(t => t.id === source.teacherId);
+  _blockIndex = buildBlockIndex(); _dayEntryCache = {};
+  try { return coverageCandidateList(source, sourceDate); }
+  finally { _blockIndex = null; _dayEntryCache = null; }
+}
+function coverageCandidateList(source, sourceDate) {
+  const sourceTeacher = DB.teachers.find(t => t.id === source.teacherId);
   const myArea = teacherArea(sourceTeacher) || learningAreaOf(source.subjectId, source.periodId);
   const all = scheduleEntries(true);
   const srcBlock = entryBlock(source), srcIds = srcBlock.map(e => e.id);
-  const exchanges = [], seenBlocks = new Set();
+  const areaCache = {}, sameAreaAs = id => {
+    if (!(id in areaCache)) areaCache[id] = myArea !== 'ยังไม่ระบุกลุ่มสาระ' && teacherLearningAreas(id).has(myArea);
+    return areaCache[id];
+  };
+  const out = [], seen = new Set();
+  const addBlock = (kindKey, teacher, tgtBlock, tierText) => {
+    if (tgtBlock.length !== srcBlock.length) return;                  // คาบคู่ต้องแลกกับคาบคู่ที่ยาวเท่ากัน ไม่งั้นเหลือคาบค้างข้างเดียว
+    if (tgtBlock.some(e => srcIds.indexOf(e.id) >= 0)) return;
+    const key = kindKey + '|' + teacher.id + '|' + num(tgtBlock[0].day) + '|' + tgtBlock.map(e => e.slotId).join('-');
+    if (seen.has(key)) return; seen.add(key);
+    const head = tgtBlock[0], kind = entryPeriodKind(head), tgtIds = tgtBlock.map(e => e.id);
+    EXCHANGE_WEEK_OFFSETS.forEach(week => {
+      const targetDate = shiftISODate(entryDateInWeek(head, sourceDate), week * 7);
+      if (targetDate === sourceDate) return;                                              // ห้ามสลับในวันเดียวกัน
+      if (targetDate < todayISO()) return;                                                // ผ่านไปแล้ว
+      if (holidayOf(targetDate, source.periodId)) return;                                 // ตรงกับวันหยุด
+      if (!teacherFreeForBlock(teacher.id, sourceDate, srcBlock, tgtIds)) return;          // เขาต้องว่างทุกคาบที่จะมาสอนแทนเรา
+      if (!teacherFreeForBlock(source.teacherId, targetDate, tgtBlock, srcIds)) return;    // เราต้องว่างทุกคาบที่ต้องไปสอนคืน
+      out.push({ mode: 'exchange', swapKind: kindKey, teacher: teacher, targetEntry: head, targetBlock: tgtBlock, sourceBlock: srcBlock,
+        targetDate: targetDate, weekAhead: week, kind: kind,
+        rank: SWAP_KINDS[kindKey].base + Math.abs(week) * 10 + (week < 0 ? 5 : 0) + kind.rank,
+        tier: SWAP_KINDS[kindKey].label + ' • ' + tierText + ' • ' + weekOffsetLabel(week) +
+          (srcBlock.length > 1 ? ' • ' + blockLabel(srcBlock) : '') });
+    });
+  };
+  // สลับคาบ — ครูที่สอนห้องเดียวกันแต่คนละวิชา จับคาบมาสลับกันได้เลย จึงเป็นทางเลือกอันดับแรก
   all.filter(e => e.periodId === source.periodId && e.teacherId && e.teacherId !== source.teacherId &&
       e.classId === source.classId && e.subjectId !== source.subjectId && srcIds.indexOf(e.id) < 0 && !isHomeroomEntry(e))
     .forEach(target => {
-      const teacher = DB.teachers.find(t => t.id === target.teacherId); if (!teacher) return;
-      const tgtBlock = entryBlock(target);
-      // แลกคาบคู่กับคาบคู่ที่ยาวเท่ากันเท่านั้น ไม่งั้นจะเหลือคาบค้างข้างเดียว
-      if (tgtBlock.length !== srcBlock.length) return;
-      const bkey = target.teacherId + '|' + tgtBlock.map(e => e.slotId).join('-');
-      if (seenBlocks.has(bkey)) return; seenBlocks.add(bkey);
-      const head = tgtBlock[0], kind = entryPeriodKind(head);
-      EXCHANGE_WEEK_OFFSETS.forEach(week => {
-        const targetDate = shiftISODate(entryDateInWeek(head, sourceDate), week * 7);
-        if (targetDate === sourceDate) return;                                        // ห้ามสลับในวันเดียวกัน
-        if (targetDate < todayISO()) return;                                          // ผ่านไปแล้ว
-        if (holidayOf(targetDate, source.periodId)) return;                           // ตรงกับวันหยุด
-        if (!teacherFreeForBlock(target.teacherId, sourceDate, srcBlock, tgtBlock.map(e => e.id))) return;  // เขาต้องว่างทุกคาบที่จะมาสอนแทนเรา
-        if (!teacherFreeForBlock(source.teacherId, targetDate, tgtBlock, srcIds)) return;                   // เราต้องว่างทุกคาบที่ต้องไปสอนคืน
-        exchanges.push({ mode: 'exchange', teacher: teacher, targetEntry: head, targetBlock: tgtBlock, sourceBlock: srcBlock,
-          targetDate: targetDate, weekAhead: week, kind: kind, rank: Math.abs(week) * 10 + (week < 0 ? 5 : 0) + kind.rank,
-          tier: 'ห้องเดียวกัน • ' + weekOffsetLabel(week) + (srcBlock.length > 1 ? ' • ' + blockLabel(srcBlock) : '') });
-      });
+      const teacher = DB.teachers.find(t => t.id === target.teacherId);
+      if (teacher) addBlock('swap', teacher, entryBlock(target), 'ห้องเดียวกัน');
     });
-  exchanges.sort((a, b) => a.rank - b.rank || num(a.targetEntry.slotId) - num(b.targetEntry.slotId));
-  if (exchanges.length) return exchanges;
-  return DB.teachers.filter(t => t.id !== (me || {}).id && teacherHasRole(t, 'teacher') && teacherFreeForBlock(t.id, sourceDate, srcBlock)).map(t => {
-    const sameArea = myArea !== 'ยังไม่ระบุกลุ่มสาระ' && teacherLearningAreas(t.id).has(myArea);
-    return { mode: 'substitute', teacher: t, targetEntry: null, sourceBlock: srcBlock, targetDate: sourceDate, sameArea: sameArea,
+  // แลกคาบ — มองหาคาบที่ว่างตรงกันทั้งสองฝ่าย ไม่จำเป็นต้องเป็นห้องเดียวกัน
+  const freeTeachers = new Map();
+  DB.teachers.forEach(t => {
+    if (t.id !== source.teacherId && teacherHasRole(t, 'teacher') && teacherFreeForBlock(t.id, sourceDate, srcBlock)) freeTeachers.set(t.id, t);
+  });
+  if (freeTeachers.size) all.filter(e => e.periodId === source.periodId && freeTeachers.has(e.teacherId) &&
+      e.classId !== source.classId && !isHomeroomEntry(e))
+    .forEach(target => {
+      const teacher = freeTeachers.get(target.teacherId);
+      addBlock('trade', teacher, entryBlock(target), sameAreaAs(teacher.id) ? 'ว่างตรงกัน • กลุ่มสาระเดียวกัน' : 'ว่างตรงกัน');
+    });
+  out.sort((a, b) => a.rank - b.rank || num(a.targetEntry.slotId) - num(b.targetEntry.slotId));
+  if (out.length) return capCoverageOptions(out);
+  // ไม่มีใครแลกหรือสลับได้ จึงเหลือทางเลือกสุดท้ายคือขอให้มาสอนแทน โดยไม่ต้องสอนคืน
+  return Array.from(freeTeachers.values()).map(t => {
+    const sameArea = sameAreaAs(t.id);
+    return { mode: 'substitute', swapKind: '', teacher: t, targetEntry: null, sourceBlock: srcBlock, targetDate: sourceDate, sameArea: sameArea,
       rank: sameArea ? 100 : 200, tier: (sameArea ? 'ขอสอนแทน • กลุ่มสาระเดียวกัน' : 'ขอสอนแทน • ครูที่ว่างตรงคาบ') +
         (srcBlock.length > 1 ? ' • ' + blockLabel(srcBlock) : '') };
   }).sort((a, b) => a.rank - b.rank || String(a.teacher.name || '').localeCompare(String(b.teacher.name || ''), 'th'));
 }
-/** แถบคาบของครูหนึ่งคนในวันหนึ่ง ใช้ดูว่าวันนั้นแน่นแค่ไหนและคาบที่จะแลกอยู่ตรงไหน
-   เขียว = ว่าง • แดง = มีคาบสอนอยู่แล้ว • ม่วง = คาบที่กำลังจะแลกหรือให้สอนแทน */
-function slotStripHtml(teacherId, date, swapSlotIds, pickBySlot) {
-  const swap = (swapSlotIds || []).map(String), picks = pickBySlot || {};
+/** ตัดตัวเลือกที่เกินความจำเป็นออก ไม่ให้รายการยาวจนหาของจริงไม่เจอ */
+function capCoverageOptions(list) {
+  const perGroup = {}, teachers = { swap: new Set(), trade: new Set() }, out = [];
+  list.forEach(o => {
+    const kind = o.swapKind === 'trade' ? 'trade' : 'swap', key = kind + '|' + o.teacher.id;
+    if (!teachers[kind].has(o.teacher.id) && teachers[kind].size >= (kind === 'trade' ? 12 : 30)) return;
+    perGroup[key] = (perGroup[key] || 0) + 1;
+    if (perGroup[key] > (kind === 'trade' ? 6 : 9)) return;
+    teachers[kind].add(o.teacher.id); out.push(o);
+  });
+  return out;
+}
+/** แถบคาบของครูหนึ่งคนในวันหนึ่ง ใช้ดูว่าวันนั้นแน่นแค่ไหนและคาบที่จะจัดอยู่ตรงไหน
+   เขียว = ว่าง • แดง = มีคาบสอนอยู่แล้ว • กล่องสีตามวิธีจัด (ม่วง = แลกคาบ, ส้มอำพัน = สลับคาบ, ฟ้าเขียว = สอนแทน)
+   ทึบ = คาบที่ยกให้ครูอีกฝ่าย • เส้นประอ่อน = คาบที่ต้องไปสอนคืน • คาบคู่ล้อมกรอบเป็นก้อนเดียว */
+function slotStripHtml(teacherId, date, markSlotIds, pickBySlot, tone, role) {
+  const mark = (markSlotIds || []).map(String), picks = pickBySlot || {};
   const slots = DB.timetable.slots.filter(x => String(x.id) !== 'assembly');
-  let busy = 0;
-  const boxes = slots.map(slot => {
-    const id = String(slot.id), isSwap = swap.indexOf(id) >= 0, taken = teacherBusyAt(teacherId, date, id, '');
-    if (taken && !isSwap) busy++;
-    const cls = isSwap ? 'swap' : taken ? 'busy' : 'free';
-    const canPick = picks[id] !== undefined && !isSwap;
-    const note = isSwap ? 'คาบที่จะแลก/ให้สอนแทน' : canPick ? 'กดเพื่อเลือกแลกคาบนี้' : taken ? 'ไม่ว่าง มีคาบสอนอยู่แล้ว' : 'ว่าง';
-    return '<span class="slot-box ' + cls + (canPick ? ' pickable" data-pick-index="' + picks[id] + '' : '') + '" title="' +
-      esc((slot.label || ('คาบ ' + id)) + ' • ' + note) + '">' + esc(id) + '</span>';
-  }).join('');
-  return '<div class="slot-strip">' + boxes + '<span class="slot-count">ติดสอน ' + busy + '/' + slots.length + ' คาบ</span></div>';
+  const kindCls = (tone || 'trade') + ' ' + (role === 'take' ? 'take' : 'give');
+  const markNote = tone === 'pick' ? 'คาบที่เลือกไว้จัดการ' : role === 'take' ? 'คาบที่ฉันต้องไปสอนคืน' : 'คาบที่ยกให้ครูท่านนี้';
+  let busy = 0, html = '', i = 0;
+  while (i < slots.length) {
+    const id = String(slots[i].id), label = slots[i].label || ('คาบ ' + id);
+    if (mark.indexOf(id) >= 0) {
+      let j = i;
+      while (j + 1 < slots.length && mark.indexOf(String(slots[j + 1].id)) >= 0) j++;
+      const run = slots.slice(i, j + 1);
+      const boxes = run.map(x => '<span class="slot-box mark ' + kindCls + '" title="' +
+        esc((x.label || ('คาบ ' + x.id)) + ' • ' + markNote) + '">' + esc(String(x.id)) + '</span>').join('');
+      html += run.length > 1
+        ? '<span class="slot-block ' + kindCls + '" title="' + esc('คาบคู่ ' + run.length + ' คาบ ย้ายพร้อมกัน นับเป็น ' + run.length + ' คาบ') + '">' +
+            boxes + '<span class="blk-tag">คาบคู่ ' + run.length + ' คาบ</span></span>'
+        : boxes;
+      i = j + 1; continue;
+    }
+    const taken = teacherBusyAt(teacherId, date, id, '');
+    if (taken) busy++;
+    const canPick = picks[id] !== undefined;
+    const note = canPick ? 'กดเพื่อเลือกคาบนี้' : taken ? 'ไม่ว่าง มีคาบสอนอยู่แล้ว' : 'ว่าง';
+    html += '<span class="slot-box ' + (taken ? 'busy' : 'free') + (canPick ? ' pickable" data-pick-index="' + picks[id] + '' : '') +
+      '" title="' + esc(label + ' • ' + note) + '">' + esc(id) + '</span>';
+    i++;
+  }
+  return '<div class="slot-strip">' + html + '<span class="slot-count">ติดสอน ' + busy + '/' + slots.length + ' คาบ</span></div>';
 }
 function slotLegendHtml() {
   return '<div class="slot-legend"><span class="k"><i class="free"></i>คาบว่าง</span>' +
     '<span class="k"><i class="busy"></i>ไม่ว่าง</span>' +
-    '<span class="k"><i class="swap"></i>คาบที่จะแลก/สอนแทน</span></div>';
+    '<span class="k"><i class="mark trade give"></i><i class="mark trade take"></i>แลกคาบ (ยกให้ / สอนคืน)</span>' +
+    '<span class="k"><i class="mark swap give"></i><i class="mark swap take"></i>สลับคาบ (ยกให้ / สอนคืน)</span>' +
+    '<span class="k"><i class="mark sub give"></i>สอนแทน</span>' +
+    '<span class="k"><i class="mark pick give"></i>คาบที่เลือกไว้จัดการ</span>' +
+    '<span class="k"><i class="blk"></i>กรอบประ = คาบคู่ นับเป็น 2 คาบ</span></div>';
 }
 
 /** รวมตัวเลือกของครูคนเดียวกันไว้การ์ดเดียว แล้วให้ครูคลิกเลือกคาบเองได้
@@ -3811,8 +3952,8 @@ function weekPickerHtml(group) {
     const opts = group.options.map((o, oi) => ({ o: o, oi: oi })).filter(x => x.o.weekAhead === week);
     if (!opts.length) return '';
     return '<div class="pick-week"><div class="pick-week-label">' + esc(weekOffsetLabel(week)) + '</div><div class="pick-chips">' +
-      opts.map(x => '<button class="pick-chip' + (x.oi === group.pick ? ' on' : '') + '" data-pick-teacher="' + group.teacherId + '" data-pick-index="' + x.oi + '">' +
-        '<b>' + esc(shortDayMonth(x.o.targetDate)) + '</b> คาบ ' + esc(String(x.o.targetEntry.slotId)) + '</button>').join('') +
+      opts.map(x => '<button class="pick-chip' + (x.oi === group.pick ? ' on' : '') + '" data-pick-group="' + esc(group.key) + '" data-pick-index="' + x.oi + '">' +
+        '<b>' + esc(shortDayMonth(x.o.targetDate)) + '</b> ' + esc(slotSpanText(x.o.targetBlock || [x.o.targetEntry])) + '</button>').join('') +
       '</div></div>';
   }).join('');
 }
@@ -3820,18 +3961,19 @@ function weekPickerHtml(group) {
 /** คาบไหนในวันนั้นที่กดเลือกได้บ้าง (มีตัวเลือกจริงรองรับ) */
 function slotPicksFor(group, date) {
   const map = {};
-  group.options.forEach((o, oi) => { if (o.targetDate === date) map[String(o.targetEntry.slotId)] = oi; });
+  group.options.forEach((o, oi) => { if (o.targetDate === date) (o.targetBlock || [o.targetEntry]).forEach(e => { map[String(e.slotId)] = oi; }); });
   return map;
 }
 
+/* ครูคนเดียวอาจทั้งสลับคาบและแลกคาบได้ จึงต้องแยกการ์ดตามวิธี ไม่งั้นสีกับปุ่มจะไม่ตรงกับตัวเลือกที่เลือกไว้ */
 function candidateGroups(list) {
-  const picks = DB.ui.exchangeChoice || {}, groups = [], byTeacher = {};
+  const picks = DB.ui.exchangeChoice || {}, groups = [], byKey = {};
   (list || []).forEach(c => {
-    const id = c.teacher.id;
-    if (!byTeacher[id]) { byTeacher[id] = { teacherId: id, options: [], pick: 0 }; groups.push(byTeacher[id]); }
-    byTeacher[id].options.push(c);
+    const key = (c.mode === 'exchange' ? (c.swapKind === 'trade' ? 'trade' : 'swap') : 'sub') + ':' + c.teacher.id;
+    if (!byKey[key]) { byKey[key] = { key: key, teacherId: c.teacher.id, options: [], pick: 0 }; groups.push(byKey[key]); }
+    byKey[key].options.push(c);
   });
-  groups.forEach(g => { const want = num(picks[g.teacherId]); g.pick = want >= 0 && want < g.options.length ? want : 0; });
+  groups.forEach(g => { const want = num(picks[g.key]); g.pick = want >= 0 && want < g.options.length ? want : 0; });
   return groups;
 }
 
@@ -3842,7 +3984,7 @@ function sourceEntryText(entry, date) {
 function createCoverageRequest(source, sourceDate, candidate, reason, reasonOther, note, leaveRequestId) {
   const srcBlock = (candidate && candidate.sourceBlock) || entryBlock(source);
   const tgtBlock = (candidate && candidate.targetBlock) || (candidate && candidate.targetEntry ? [candidate.targetEntry] : []);
-  const req = { id: uid('swap'), periodId: source.periodId, type: candidate && candidate.mode || 'substitute', sourceDate: sourceDate, date: sourceDate, targetDate: candidate && candidate.targetDate || sourceDate, classId: source.classId,
+  const req = { id: uid('swap'), periodId: source.periodId, type: candidate && candidate.mode || 'substitute', swapKind: (candidate && candidate.swapKind) || '', sourceDate: sourceDate, date: sourceDate, targetDate: candidate && candidate.targetDate || sourceDate, classId: source.classId,
     blockEntryIds: srcBlock.map(e => e.id), targetBlockEntryIds: tgtBlock.map(e => e.id), slotCount: srcBlock.length,
     requesterTeacherId: source.teacherId, targetTeacherId: candidate && candidate.teacher ? candidate.teacher.id : '', requesterEntryId: source.id, targetEntryId: candidate && candidate.targetEntry ? candidate.targetEntry.id : '',
     reason: reason || 'other', reasonOther: reasonOther || '', note: note || '', tier: candidate ? candidate.tier : 'ยังไม่พบครูว่าง', leaveRequestId: leaveRequestId || '', status: candidate ? 'pending' : 'unassigned', createdAt: new Date().toISOString() };
@@ -3882,8 +4024,14 @@ function respondExchangeRequest(id, accept) {
     periodId: req.periodId, date: date, day: (parseISODate(date) || new Date()).getDay(), slotId: String(slotId),
     teacherId: teacherId, subjectId: base.subjectId, classId: base.classId, room: base.room || '',
     sessionType: kind === 'xswap' ? 'exchange' : 'substitute', exchangeRequestId: req.id, note: noteText });
-  if (accept && (req.type || 'exchange') === 'exchange') {
-    // ครูผู้ลาไปสอนคาบของอีกฝ่าย และอีกฝ่ายมาสอนคาบของครูผู้ลา จับคู่กันตามลำดับคาบ
+  if (accept && (req.type || 'exchange') === 'exchange' && swapKindOf(req) === 'trade') {
+    /* แลกคาบ — คนละห้องกัน คาบจึงอยู่ที่เดิมทั้งสองฝั่ง เปลี่ยนแค่คนสอน
+       เขามาสอนคาบเราในวันที่เราไม่อยู่ แล้วเราไปสอนคาบของเขาคืนในวันที่ตกลงกัน
+       ถ้าย้ายคาบข้ามวันแบบสลับคาบ ห้องจะได้เรียนวิชาที่ไม่ใช่ของตัวเอง */
+    srcBlock.forEach(e => addException('xswap', e, sourceDate, e.slotId, target.teacherId));
+    tgtBlock.forEach(e => addException('xswap', e, targetDate, e.slotId, source.teacherId));
+  } else if (accept && (req.type || 'exchange') === 'exchange') {
+    // สลับคาบ — ห้องเดียวกัน จึงยกคาบข้ามวันมาสลับกันได้จริง ห้องยังได้เรียนครบทั้งสองวิชา
     srcBlock.forEach((e, i) => { const slot = (tgtBlock[i] || tgtBlock[0]).slotId; addException('xswap', e, targetDate, slot, source.teacherId); });
     tgtBlock.forEach((e, i) => { const slot = (srcBlock[i] || srcBlock[0]).slotId; addException('xswap', e, sourceDate, slot, target.teacherId); });
   } else if (accept) {
@@ -3945,7 +4093,7 @@ function deleteExchangeRequest(id) {
   const perm = canDeleteRequest(req.requesterTeacherId);
   if (!perm.ok) return toast('ลบได้เฉพาะคำขอของตัวเอง หรือโดยผู้ดูแลระบบ', 'bad');
   const owner = (DB.teachers.find(t => t.id === req.requesterTeacherId) || {}).name || 'ครู';
-  const kind = (req.type || 'exchange') === 'exchange' ? 'แลกคาบ' : 'สอนแทน';
+  const kind = coverageKindLabel(req);
   const entry = DB.timetable.entries.find(e => e.id === req.requesterEntryId);
   const accepted = req.status === 'accepted';
   askDeleteReason('ลบคำขอ' + kind,
@@ -3995,7 +4143,7 @@ function openMergedExchangeDocument(ids) {
   if (!list.length) return toast('กรุณาเลือกคำขออย่างน้อย 1 รายการ', 'bad');
   const leaveIds = Array.from(new Set(list.map(r => r.leaveRequestId).filter(Boolean)));
   const leave = leaveIds.length === 1 ? (DB.timetable.leaveRequests || []).find(l => l.id === leaveIds[0]) : null;
-  openDocumentPreview('บันทึกข้อความแลกคาบ • รวม ' + list.length + ' คาบ', exchangeMemoHtml(list, leave));
+  openDocumentPreview('บันทึกข้อความแลกคาบ • รวม ' + totalSlotCount(list) + ' คาบ', exchangeMemoHtml(list, leave));
 }
 
 function exchangeRequestCard(limit) {
@@ -4006,9 +4154,10 @@ function exchangeRequestCard(limit) {
   // ตอบรับแล้วให้ออกจากรายการที่ต้องจัดการ เหลือไว้เป็นบรรทัดสรุปอย่างเดียว
   const active = mine.filter(r => r.status !== 'accepted'), done = mine.filter(r => r.status === 'accepted');
   const entryLabel = (id, date) => { const e = DB.timetable.entries.find(x => x.id === id); return e ? sourceEntryText(e, date) : 'คาบถูกลบ'; };
-  const doneHtml = done.length ? '<div class="accepted-box"><b>ตอบรับแล้ว ' + done.length + ' คาบ</b><div class="hint">' +
+  const doneHtml = done.length ? '<div class="accepted-box"><b>ตอบรับแล้ว ' + totalSlotCount(done) + ' คาบ</b><div class="hint">' +
     done.map(r => { const other = DB.teachers.find(t => t.id === (r.targetTeacherId === me.id ? r.requesterTeacherId : r.targetTeacherId)) || {};
-      return esc((other.name || 'ครู') + ' • ' + thaiDate(r.sourceDate || r.date) + ' • ' + ((r.type || 'exchange') === 'exchange' ? 'แลกคาบ' : 'สอนแทน')); }).join('<br>') +
+      return esc((other.name || 'ครู') + ' • ' + thaiDate(r.sourceDate || r.date) + ' • ' + coverageKindLabel(r) +
+          (requestSlotCount(r) > 1 ? ' • คาบคู่ ' + requestSlotCount(r) + ' คาบ' : '')); }).join('<br>') +
     '</div><div class="row" style="margin-top:8px"><button class="sm" data-done-doc="1">พิมพ์เอกสารรวมที่ตอบรับแล้ว</button></div></div>' : '';
   if (!active.length && !done.length) return '';
   return '<div class="card"><div class="row"><h3 style="margin:0">คำขอแลกคาบและสอนแทน</h3><div class="spacer"></div>' +
@@ -4018,7 +4167,7 @@ function exchangeRequestCard(limit) {
     doneHtml +
     (active.length ? '<div class="alert-list" style="margin-top:10px">' + active.map(r => {
       const incoming = r.targetTeacherId === me.id, other = DB.teachers.find(t => t.id === (incoming ? r.requesterTeacherId : r.targetTeacherId)),
-        type = (r.type || 'exchange') === 'exchange' ? 'แลกคาบ' : 'สอนแทน',
+        type = coverageKindLabel(r),
         status = r.status === 'pending' ? 'รอดำเนินการ' : r.status === 'unassigned' ? 'ยังไม่พบครู' : 'ปฏิเสธแล้ว',
         sourceDate = r.sourceDate || r.date, canDel = canDeleteRequest(r.requesterTeacherId);
       return '<div class="alert-item exchange-request">' +
@@ -4026,7 +4175,7 @@ function exchangeRequestCard(limit) {
         '<div><b>' + esc(type + ' • ' + (incoming ? 'คำขอจาก ' + ((other || {}).name || 'ครู') : r.targetTeacherId ? 'ส่งถึง ' + ((other || {}).name || 'ครู') : 'รอจัดผู้สอน')) + '</b> ' +
         (other ? teacherPhoneHtml(other) : '') + '<div class="hint">' + esc(entryLabel(r.requesterEntryId, sourceDate)) +
         ((r.type || 'exchange') === 'exchange' && r.targetEntryId ? '<br>⇄ ' + esc(entryLabel(r.targetEntryId, r.targetDate || sourceDate)) : '') +
-        (num(r.slotCount) > 1 ? '<br><span class="badge group">คาบคู่ ' + num(r.slotCount) + ' คาบ ย้ายพร้อมกัน</span>' : '') +
+        (requestSlotCount(r) > 1 ? '<br><span class="badge grp">คาบคู่ ' + requestSlotCount(r) + ' คาบ ย้ายพร้อมกัน (นับเป็น ' + requestSlotCount(r) + ' คาบ)</span>' : '') +
         '<br><b>เหตุผล:</b> ' + esc(exchangeReasonLabel(r)) + (r.note ? ' • ' + esc(r.note) : '') + '<br>' + esc(r.tier || '') + '</div></div>' +
         '<div class="spacer"></div>' +
         (incoming && r.status === 'pending' && canApprove() ? '<button class="sm" data-swap-reject="' + r.id + '">ปฏิเสธ</button><button class="sm primary" data-swap-accept="' + r.id + '">ยอมรับ</button>'
@@ -4108,7 +4257,7 @@ function leaveStatsByTeacher(periodId) {
     const row = rows.get(l.teacherId), type = exchangeReasonLabel(l).split(' — ')[0];
     row.times++; row.days += leaveDays(l); row.byType[type] = (row.byType[type] || 0) + 1;
     const linked = (DB.timetable.exchangeRequests || []).filter(r => r.leaveRequestId === l.id);
-    row.periods += linked.length; row.covered += linked.filter(r => r.status === 'accepted').length; row.pending += linked.filter(r => r.status !== 'accepted').length;
+    row.periods += totalSlotCount(linked); row.covered += totalSlotCount(linked.filter(r => r.status === 'accepted')); row.pending += totalSlotCount(linked.filter(r => r.status !== 'accepted'));
   });
   return Array.from(rows.values()).sort((a, b) => b.days - a.days || b.times - a.times);
 }
@@ -4119,7 +4268,7 @@ function coverageRanking(periodId) {
     if (!r.targetTeacherId) return;
     if (!rows.has(r.targetTeacherId)) { const t = DB.teachers.find(x => x.id === r.targetTeacherId); if (!t) return; rows.set(r.targetTeacherId, { name: t.name || 'ไม่พบครู', area: teacherArea(t), substitute: 0, exchange: 0 }); }
     const row = rows.get(r.targetTeacherId);
-    if ((r.type || 'exchange') === 'exchange') row.exchange++; else row.substitute++;
+    if ((r.type || 'exchange') === 'exchange') row.exchange += requestSlotCount(r); else row.substitute += requestSlotCount(r);
   });
   return Array.from(rows.values()).map(r => Object.assign(r, { total: r.substitute + r.exchange })).sort((a, b) => b.total - a.total || b.substitute - a.substitute);
 }
@@ -4259,22 +4408,31 @@ function exchangeMemoHtml(requests, leave) {
   const created = thaiDateParts(String((leave || first).createdAt || '').slice(0, 10) || dates[0]);
   const note = (leave && (leave.note || leave.reasonOther)) || first.note || '';
 
+  /* คาบคู่ต้องขึ้นเป็นช่วง เช่น "คาบ 1-2" และนับเป็น 2 คาบ ไม่ใช่ 1 รายการ ไม่งั้นยอดในเอกสารขาด */
+  const entriesOf = (ids, fallback) => {
+    const found = (ids || []).map(id => DB.timetable.entries.find(e => e.id === id)).filter(Boolean);
+    return found.length ? found : (fallback ? [fallback] : []);
+  };
   const rows = list.map(r => {
-    const src = DB.timetable.entries.find(e => e.id === r.requesterEntryId) || {};
+    const src = DB.timetable.entries.find(e => e.id === r.requesterEntryId) || null;
     const dst = DB.timetable.entries.find(e => e.id === r.targetEntryId) || null;
+    const srcBlock = entriesOf(r.blockEntryIds, src), dstBlock = entriesOf(r.targetBlockEntryIds, dst);
     const cover = DB.teachers.find(t => t.id === r.targetTeacherId);
     const info = e => ({
-      slot: (DB.timetable.slots.find(x => String(x.id) === String(e.slotId)) || {}).label || '',
       subject: (function () { const sub = DB.subjects.find(x => x.id === e.subjectId); return sub ? (sub.code ? sub.code + ' ' : '') + sub.name : ''; })(),
       cls: (DB.classes.find(c => c.id === e.classId) || {}).name || ''
     });
-    const a = info(src), b = dst ? info(dst) : null;
+    const a = info(src || {}), b = dst ? info(dst) : null;
     const srcDate = thaiDateParts(r.sourceDate || r.date), dstDate = dst ? thaiDateParts(r.targetDate || r.date) : null;
+    const pairNote = n => n > 1 ? '<div class="memo-sub">คาบคู่ นับ ' + n + ' คาบ</div>' : '';
     return '<tr><td>' + (srcDate.day ? srcDate.day + '/' + (parseISODate(r.sourceDate || r.date).getMonth() + 1) + '/' + srcDate.year : '') + '</td>' +
-      '<td>' + esc(a.slot) + '</td><td class="lt">' + esc(a.subject) + '</td><td>' + esc(a.cls) + '</td>' +
-      '<td class="lt">' + esc(cover ? cover.name || cover.email : '') + '</td>' +
+      '<td>' + esc(slotSpanText(srcBlock)) + pairNote(srcBlock.length) + '</td>' +
+      '<td class="lt">' + esc(a.subject) + '</td><td>' + esc(a.cls) + '</td>' +
+      '<td class="lt">' + esc(cover ? cover.name || cover.email : '') +
+        (cover ? '<div class="memo-sub">' + esc(coverageKindLabel(r)) + '</div>' : '') + '</td>' +
       '<td>' + (dstDate ? dstDate.day + '/' + (parseISODate(r.targetDate || r.date).getMonth() + 1) + '/' + dstDate.year : '') + '</td>' +
-      '<td>' + esc(b ? b.cls : '') + '</td><td class="lt">' + esc(b ? b.subject : '') + '</td><td>' + esc(b ? b.slot : '') + '</td>' +
+      '<td>' + esc(b ? b.cls : '') + '</td><td class="lt">' + esc(b ? b.subject : '') + '</td>' +
+      '<td>' + (b ? esc(slotSpanText(dstBlock)) + pairNote(dstBlock.length) : '') + '</td>' +
       '<td></td></tr>';
   }).join('');
   const blanks = Array.from({ length: Math.max(0, 5 - list.length) }, () =>
@@ -4289,7 +4447,7 @@ function exchangeMemoHtml(requests, leave) {
     '<div class="doc-line"><b>เรียน</b> รองผู้อำนวยการโรงเรียน กลุ่มบริหารวิชาการ</div>' +
     '<div class="doc-line doc-indent">ด้วยข้าพเจ้า ' + fill(requester.name, 300) + ' ตำแหน่ง ' + fill('ครู', 90) + ' อันดับ ' + fill('', 60) + '</div>' +
     '<div class="doc-line">ขออนุญาตมอบหมายการสอน /แลกคาบสอน รวมเป็นเวลา ' + fill(leave ? leaveDays(leave) : new Set(dates).size, 60) +
-      ' วัน รวม ' + fill(list.length, 60) + ' คาบ</div>' +
+      ' วัน รวม ' + fill(totalSlotCount(list), 60) + ' คาบ</div>' +
     '<div class="doc-line">เนื่องจาก ' + tick(official, 'ข้าพเจ้าได้ขออนุญาตไปปฏิบัติราชการ ที่') + fill('', 200) + '</div>' +
     '<div class="doc-line">เรื่อง ' + fill(note, 560) + '</div>' +
     '<div class="doc-line">ตั้งแต่วันที่ ' + fill(from.day, 36) + ' เดือน ' + fill(from.month, 100) + ' พ.ศ. ' + fill(from.year, 56) +
@@ -4324,7 +4482,7 @@ function openLeaveExchangeMemo(leaveId) {
   const leave = (DB.timetable.leaveRequests || []).find(l => l.id === leaveId); if (!leave) return;
   const list = (DB.timetable.exchangeRequests || []).filter(r => r.leaveRequestId === leave.id);
   if (!list.length) return toast('ใบลานี้ยังไม่มีคาบที่ต้องแลกหรือให้สอนแทน', 'bad');
-  openDocumentPreview('บันทึกข้อความแลกคาบ • ' + list.length + ' คาบ', exchangeMemoHtml(list, leave));
+  openDocumentPreview('บันทึกข้อความแลกคาบ • ' + totalSlotCount(list) + ' คาบ', exchangeMemoHtml(list, leave));
 }
 
 function openDocumentPreview(title, html) {
@@ -4380,7 +4538,7 @@ function exchangeDayStatus(date) {
     return { entry: e, req: req || null, state: state, who: who,
       slot: slot ? slot.label : '', className: cls ? cls.name : '',
       subject: sub ? (sub.code ? sub.code + ' ' : '') + sub.name : '',
-      mode: req ? (req.type === 'exchange' ? 'exchange' : 'substitute') : '' };
+      mode: req ? coverageKindLabel(req) : '' };
   }).sort((a, b) => DB.timetable.slots.findIndex(x => String(x.id) === String(a.entry.slotId)) -
                     DB.timetable.slots.findIndex(x => String(x.id) === String(b.entry.slotId)));
   return { rows: rows,
@@ -4396,9 +4554,9 @@ function exchangeSummaryHtml(date) {
     '<div class="empty" style="margin-top:10px">วันนี้ไม่มีคาบสอนที่ต้องจัด</div></div>';
   const total = st.rows.length, ok = st.done, pct = Math.round(ok * 100 / total);
   const chip = r => r.state === 'done'
-      ? '<span class="badge ok">' + (r.mode === 'exchange' ? 'สลับแล้ว' : 'มีคนสอนแทนแล้ว') + '</span>'
+      ? '<span class="badge ok">' + esc((r.mode || 'จัด') + 'แล้ว') + '</span>'
       : r.state === 'waiting'
-      ? '<span class="badge warn">' + (r.mode === 'exchange' ? 'รอตอบรับการสลับ' : 'รอตอบรับสอนแทน') + '</span>'
+      ? '<span class="badge warn">' + esc('รอตอบรับ' + (r.mode ? ' • ' + r.mode : '')) + '</span>'
       : '<span class="badge bad">ยังไม่ได้จัด</span>';
   return '<div class="card"><div class="row"><div><h3 style="margin:0">สรุปการจัดคาบ <span class="sub">' + esc(thaiDate(date)) + '</span></h3>' +
       '<div class="hint">คาบของฉันวันนี้ทั้งหมด ' + total + ' คาบ • ต้องจัดให้ครบทุกคาบก่อนถึงวันจริง</div></div>' +
@@ -4419,9 +4577,9 @@ function renderExchangeCenter() {
   const date = DB.ui.exchangeDate || todayISO(), day = (parseISODate(date) || new Date()).getDay(), own = effectiveDayEntries(date).map(x => x.entry).filter(e => !isHomeroomEntry(e)), source = own.find(e => e.id === DB.ui.exchangeSourceEntryId) || own[0] || null; if (source) DB.ui.exchangeSourceEntryId = source.id;
   const candidates = source ? findCoverageCandidates(source, date) : [], leaves = (DB.timetable.leaveRequests || []).filter(l => l.teacherId === me.id && l.periodId === DB.ui.periodId).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   const reasonOptions = EXCHANGE_REASONS.map(x => '<option value="' + x.value + '">' + x.label + '</option>').join('');
-  pane.innerHTML = '<div class="card dash-hero"><div class="row"><div><div class="hero-sub">SMART PERIOD EXCHANGE</div><h1>ศูนย์แลกคาบและการลา</h1><div class="hero-sub">ค้นหาครูห้องเดียวกันก่อน • คาบคู่ก่อนคาบเดี่ยว • หากไม่พบจึงหาครูสอนแทน</div></div><div class="spacer"></div><span class="role-chip">ครูผู้ใช้งาน ' + esc(me.name || me.email) + '</span></div></div>' +
+  pane.innerHTML = '<div class="card dash-hero"><div class="row"><div><div class="hero-sub">SMART PERIOD EXCHANGE</div><h1>ศูนย์แลกคาบและการลา</h1><div class="hero-sub">สลับคาบกับครูห้องเดียวกันก่อน • แล้วจึงแลกคาบกับครูที่ว่างตรงกัน • หากไม่พบจึงหาครูสอนแทน</div></div><div class="spacer"></div><span class="role-chip">ครูผู้ใช้งาน ' + esc(me.name || me.email) + '</span></div></div>' +
     '<div class="exchange-layout"><div><div class="card"><h3>1. เลือกคาบที่ต้องการจัดการ</h3><div class="pick"><label>วันที่</label><input type="date" id="exchangeDate" value="' + date + '"></div><div class="pick" style="margin-top:10px"><label>คาบของฉัน</label><select id="exchangeSource" style="width:100%">' + (own.length ? own.map(e => '<option value="' + e.id + '"' + (source && source.id === e.id ? ' selected' : '') + '>' + esc(sourceEntryText(e, date)) + '</option>').join('') : '<option value="">— ไม่มีคาบสอนในวันนี้ —</option>') + '</select></div><div class="grid2" style="margin-top:10px"><div class="pick"><label>เหตุผล</label><select id="exchangeReason">' + reasonOptions + '</select></div><div class="pick"><label>กรณีอื่นๆ โปรดระบุ</label><input id="exchangeOther" placeholder="ระบุเมื่อเลือก อื่นๆ"></div></div><div class="pick" style="margin-top:10px"><label>รายละเอียดเพิ่มเติม</label><input id="exchangeNote" style="width:100%" placeholder="เช่น มีนัดหมายช่วงเช้า"></div>' +
-      (source ? '<div class="hint" style="margin-top:10px">คาบของฉันวันนี้</div>' + slotStripHtml(me.id, date, [String(source.slotId)]) + slotLegendHtml() : '') + '</div>' +
+      (source ? '<div class="hint" style="margin-top:10px">คาบของฉันวันนี้</div>' + slotStripHtml(me.id, date, entryBlock(source).map(e => String(e.slotId)), null, 'pick', 'give') + slotLegendHtml() : '') + '</div>' +
       '<div class="card leave-card"><h3>แจ้งการลา / ขออนุญาตไปราชการ</h3>' +
       '<div class="hint" style="margin-bottom:8px">เลือกช่วงวันที่แล้วกดบันทึก ระบบจะหาครูดูแลให้ทุกคาบในช่วงนั้นโดยอัตโนมัติ (ยกเว้นคาบเข้าแถว/โฮมรูม)<br>เลือก “ไปราชการ” ระบบจะไม่นับเป็นวันลา และพิมพ์เป็นบันทึกขออนุญาตไปราชการแทนใบลา</div>' +
       '<div class="grid2"><div class="pick"><label>ตั้งแต่วันที่</label><input type="date" id="leaveFrom" value="' + date + '"></div><div class="pick"><label>ถึงวันที่</label><input type="date" id="leaveTo" value="' + date + '"></div><div class="pick"><label>ประเภทการลา</label><select id="leaveReason">' + reasonOptions + '</select></div><div class="pick"><label>กรณีอื่นๆ โปรดระบุ</label><input id="leaveOther"></div></div><div class="pick" style="margin-top:10px"><label>ใครหาครูดูแลคาบให้</label><select id="leaveCoverMode" style="width:100%"><option value="self">แลกคาบ/หาครูสอนแทนเอง</option><option value="head">ให้หัวหน้ากลุ่มสาระจัดครูให้</option></select></div><div class="cover-note" id="leaveCoverHint"></div><div class="pick" style="margin-top:10px"><label>รายละเอียด</label><input id="leaveNote" style="width:100%"></div><button class="primary" id="submitLeave" style="margin-top:12px;width:100%">บันทึกการลาและส่งหาครูดูแลทุกคาบ</button><div class="hint" style="margin-top:8px">ระบบจะตรวจทุกคาบของคุณในช่วงวันที่ลา แล้วส่งคำขอตามลำดับความเหมาะสมอัตโนมัติ</div></div></div>' +
@@ -4431,21 +4589,22 @@ function renderExchangeCenter() {
       '<div class="candidate-list" style="margin-top:12px">' + (source ? candidates.length ? candidateGroups(candidates).map((g, gi) => {
         const c = g.options[g.pick] || g.options[0];
         const targetText = c.targetEntry ? sourceEntryText(c.targetEntry, c.targetDate) : 'ว่างตรง ' + sourceEntryText(source, date);
-        return '<div class="candidate-card mode-' + (c.mode === 'exchange' ? 'exchange' : 'substitute') + (gi === 0 ? ' recommended' : '') + '"><div>' +
-          '<div class="mode-tag mode-' + (c.mode === 'exchange' ? 'exchange' : 'substitute') + '">' +
-          (c.mode === 'exchange' ? '⇄ สลับคาบ — ได้คาบคืน' : '↷ สอนแทน — ไม่ต้องสอนคืน') + '</div>' +
+        const tone = toneOfCandidate(c), kindTag = c.mode === 'exchange' ? SWAP_KINDS[swapKindOf(c)].tag : '↷ สอนแทน — ไม่ต้องสอนคืน';
+        return '<div class="candidate-card mode-' + (tone === 'sub' ? 'substitute' : tone) + (gi === 0 ? ' recommended' : '') + '"><div>' +
+          '<div class="mode-tag mode-' + (tone === 'sub' ? 'substitute' : tone) + '">' + kindTag + '</div>' +
           '<div class="candidate-rank">' + (gi === 0 ? 'แนะนำอันดับ 1 • ' : '') + esc(c.tier) + '</div><b>' + esc(c.teacher.name || c.teacher.email || 'ไม่ระบุชื่อ') + '</b> ' + teacherPhoneHtml(c.teacher) + '<div class="hint">' + esc(c.mode === 'exchange' ? (c.kind.label + ' • ' + targetText) : targetText) + '</div>' +
-        (g.options.length > 1 ? '<div class="hint" style="margin-top:8px">เลือกวันและคาบที่จะแลก (' + g.options.length + ' ตัวเลือก)</div>' +
+        (c.sourceBlock && c.sourceBlock.length > 1 ? '<div class="hint" style="margin-top:6px"><b>คาบคู่ ' + c.sourceBlock.length + ' คาบ</b> ย้ายพร้อมกัน นับเป็น ' + c.sourceBlock.length + ' คาบ</div>' : '') +
+        (g.options.length > 1 ? '<div class="hint" style="margin-top:8px">เลือกวันและคาบที่จะจัด (' + g.options.length + ' ตัวเลือก)</div>' +
           weekPickerHtml(g) : '') +
         '<div class="hint" style="margin-top:8px">คาบของครูท่านนี้ • ' + esc(thaiDate(date)) + '</div>' +
-        slotStripHtml(c.teacher.id, date, [String(source.slotId)]) +
+        slotStripHtml(c.teacher.id, date, (c.sourceBlock || [source]).map(e => String(e.slotId)), null, tone, 'give') +
         (c.mode === 'exchange' && c.targetEntry && c.targetDate !== date ?
           '<div class="hint" style="margin-top:8px">คาบของฉันที่ต้องไปสอนแทน • ' + esc(thaiDate(c.targetDate)) + ' <span class="hint">(กดกล่องที่มีเส้นประเพื่อเปลี่ยนคาบ)</span></div>' +
-          slotStripHtml(me.id, c.targetDate, [String(c.targetEntry.slotId)], slotPicksFor(g, c.targetDate)) : '') +
-        '</div><button class="sm primary" data-send-candidate="' + candidates.indexOf(c) + '">' + (c.mode === 'exchange' ? 'ส่งคำขอสลับคาบ' : 'ขอให้มาสอนแทน') + '</button></div>'; }).join('') : '<div class="empty">ยังไม่พบครูว่างในคาบนี้ ระบบจะเก็บเป็นรายการรอผู้ดูแลจัดครูแทน</div>' : '<div class="empty">วันที่เลือกไม่มีคาบสอนของคุณ</div>') + '</div></div>' +
+          slotStripHtml(me.id, c.targetDate, (c.targetBlock || [c.targetEntry]).map(e => String(e.slotId)), slotPicksFor(g, c.targetDate), tone, 'take') : '') +
+        '</div><button class="sm primary" data-send-candidate="' + candidates.indexOf(c) + '">' + (c.mode === 'exchange' ? SWAP_KINDS[swapKindOf(c)].send : 'ขอให้มาสอนแทน') + '</button></div>'; }).join('') : '<div class="empty">ยังไม่พบครูว่างในคาบนี้ ระบบจะเก็บเป็นรายการรอผู้ดูแลจัดครูแทน</div>' : '<div class="empty">วันที่เลือกไม่มีคาบสอนของคุณ</div>') + '</div></div>' +
       '<div class="card"><h3>ประวัติการลาและเอกสาร</h3>' + (leaves.length ? '<div class="alert-list">' + leaves.slice(0, 20).map(l => {
         const approval = (l.approval || {}).status || 'draft', head = (l.headApproval || {}).status || 'none';
-        return '<div class="alert-item"><div><b>' + esc(exchangeReasonLabel(l)) + '</b> <span class="badge ' + (isOfficialTrip(l) ? 'group' : '') + '">' + esc(leaveKindLabel(l)) + '</span> <span class="badge ' + (leaveCoverMode(l) === 'head' ? 'warn' : '') + '">' + esc(coverModeLabel(leaveCoverMode(l))) + '</span><div class="hint">' + thaiDate(l.fromDate) + (l.toDate !== l.fromDate ? ' ถึง ' + thaiDate(l.toDate) : '') + ' • รวม ' + leaveDays(l) + ' วัน' + (isOfficialTrip(l) ? ' (ไม่นับเป็นวันลา)' : '') + ' • ' + l.requestIds.length + ' คาบ' + (l.note ? '<br>' + esc(l.note) : '') +
+        return '<div class="alert-item"><div><b>' + esc(exchangeReasonLabel(l)) + '</b> <span class="badge ' + (isOfficialTrip(l) ? 'group' : '') + '">' + esc(leaveKindLabel(l)) + '</span> <span class="badge ' + (leaveCoverMode(l) === 'head' ? 'warn' : '') + '">' + esc(coverModeLabel(leaveCoverMode(l))) + '</span><div class="hint">' + thaiDate(l.fromDate) + (l.toDate !== l.fromDate ? ' ถึง ' + thaiDate(l.toDate) : '') + ' • รวม ' + leaveDays(l) + ' วัน' + (isOfficialTrip(l) ? ' (ไม่นับเป็นวันลา)' : '') + ' • ' + leavePeriodCount(l) + ' คาบ' + (l.note ? '<br>' + esc(l.note) : '') +
           '<br>' + esc(l.coverageStatus === 'covered' ? 'มีผู้สอนแทนครบ' : l.coverageStatus === 'attention' ? 'ต้องจัดครูเพิ่ม' : l.coverageStatus === 'none' ? 'ไม่มีคาบสอน' : 'กำลังประสาน') +
           (head === 'endorsed' ? ' • หัวหน้ากลุ่มสาระเห็นควรอนุญาต' : head === 'waiting' ? ' • รอหัวหน้ากลุ่มสาระ' : head === 'rejected' ? ' • หัวหน้ากลุ่มสาระไม่เห็นชอบ' : '') + '</div></div><div class="spacer"></div>' +
           leaveApprovalBadge(approval) + '<button class="sm" data-leave-doc="' + l.id + '">พิมพ์' + esc(leaveDocTitle(l)) + '</button>' +
@@ -4455,17 +4614,17 @@ function renderExchangeCenter() {
       }).join('') + '</div>' : '<div class="empty">ยังไม่มีประวัติการลา</div>') + '</div></div></div>' + exchangeRequestCard(30);
   $('#exchangeDate').addEventListener('change', e => { DB.ui.exchangeDate = e.target.value || todayISO(); DB.ui.exchangeSourceEntryId = ''; save(); renderExchangeCenter(); });
   $('#exchangeSource').addEventListener('change', e => { DB.ui.exchangeSourceEntryId = e.target.value; save(); renderExchangeCenter(); });
-  $$('[data-pick-teacher]', pane).forEach(btn => btn.addEventListener('click', () => {
+  $$('[data-pick-group]', pane).forEach(btn => btn.addEventListener('click', () => {
     DB.ui.exchangeChoice = DB.ui.exchangeChoice || {};
-    DB.ui.exchangeChoice[btn.dataset.pickTeacher] = num(btn.dataset.pickIndex);
+    DB.ui.exchangeChoice[btn.dataset.pickGroup] = num(btn.dataset.pickIndex);
     save(); renderExchangeCenter();
   }));
   // กล่องคาบที่มีเส้นประ กดเพื่อเปลี่ยนคาบที่จะแลกได้เลย
   $$('.slot-box.pickable', pane).forEach(box => box.addEventListener('click', () => {
-    const card = box.closest('.candidate-card'), anyChip = card && $('[data-pick-teacher]', card);
+    const card = box.closest('.candidate-card'), anyChip = card && $('[data-pick-group]', card);
     if (!anyChip) return;
     DB.ui.exchangeChoice = DB.ui.exchangeChoice || {};
-    DB.ui.exchangeChoice[anyChip.dataset.pickTeacher] = num(box.dataset.pickIndex);
+    DB.ui.exchangeChoice[anyChip.dataset.pickGroup] = num(box.dataset.pickIndex);
     save(); renderExchangeCenter();
   }));
   $$('[data-send-candidate]', pane).forEach(btn => btn.addEventListener('click', () => { if (blockAdminApproval()) return; const reason = $('#exchangeReason').value, other = $('#exchangeOther').value.trim(); if (reason === 'other' && !other) return toast('กรุณาระบุเหตุผลอื่นๆ', 'bad'); const newReq = createCoverageRequest(source, date, candidates[num(btn.dataset.sendCandidate)], reason, other, $('#exchangeNote').value.trim(), ''); save(true); pushRequestDoc('swap', newReq); renderExchangeCenter(); renderTop(); toast('ส่งคำขอเรียบร้อย', 'ok'); }));
