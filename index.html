@@ -529,6 +529,16 @@ body.gateway-open .sync-fab,body:has(#studentPortal:not([hidden])) .sync-fab{dis
 @media(max-width:700px){.roster-grid{grid-template-columns:repeat(2,1fr)}.exec-toolbar input,.exec-toolbar select{min-width:0;flex:1 1 130px}}
 .exchange-request{border-left:4px solid var(--group);padding:10px 12px;border-radius:9px;background:var(--group-bg);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .exchange-layout{display:grid;grid-template-columns:minmax(320px,.9fr) minmax(0,1.25fr);gap:14px}.candidate-list{display:grid;gap:9px}.candidate-card{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel2)}
+/* สลับคาบกับสอนแทนต้องแยกออกจากกันด้วยสายตา เพราะผลต่างกันมาก
+   สลับคาบ = ได้คาบคืน (ม่วง) • สอนแทน = ไม่ต้องสอนคืน (ฟ้าเขียว) */
+.candidate-card.mode-exchange{border-color:color-mix(in srgb,var(--group) 55%,var(--line));
+  box-shadow:inset 4px 0 0 var(--group)}
+.candidate-card.mode-substitute{border-color:color-mix(in srgb,var(--cyan) 55%,var(--line));
+  box-shadow:inset 4px 0 0 var(--cyan)}
+.mode-tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.02em;
+  padding:3px 10px;border-radius:999px;margin-bottom:6px}
+.mode-tag.mode-exchange{background:var(--group-bg);color:var(--group)}
+.mode-tag.mode-substitute{background:color-mix(in srgb,var(--cyan) 14%,transparent);color:var(--cyan)}
 .candidate-card.recommended{border-color:var(--group);box-shadow:inset 4px 0 0 var(--group)}.candidate-rank{font-size:10px;font-weight:900;color:var(--group);letter-spacing:.03em}.leave-card{border-left:4px solid var(--warn)}.request-flow{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.request-flow i{width:24px;height:1px;background:var(--line)}
 /* เบอร์โทรครูที่จับคู่กันได้ตอนแลกคาบ/สอนแทน — แตะเพื่อโทรได้บนมือถือ */
 .phone-link{display:inline-flex;align-items:center;gap:4px;font-weight:800;color:var(--group);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:1px 8px;background:var(--panel)}
@@ -4352,6 +4362,58 @@ function decideLeave(id, decision, kind) {
     } }] });
 }
 
+/* ---- สรุปว่าวันนั้นจัดคนครบทุกคาบหรือยัง --------------------------------
+   ครูที่ลาหลายคาบต้องรู้ว่าเหลือคาบไหนที่ยังไม่มีใครรับ ไม่ใช่ไล่ดูทีละใบ
+   คืนสถานะรายคาบ: สลับแล้ว / สอนแทนแล้ว / รอตอบรับ / ยังไม่ได้จัด */
+function exchangeDayStatus(date) {
+  const me = curTeacher(); if (!me) return { rows: [], done: 0, waiting: 0, todo: 0 };
+  const mine = effectiveDayEntries(date).map(x => x.entry)
+    .filter(e => e.teacherId === me.id && !isHomeroomEntry(e));
+  const reqs = (DB.timetable.exchangeRequests || []).filter(r => (r.sourceDate || r.date) === date);
+  const rows = mine.map(e => {
+    const req = reqs.find(r => (r.blockEntryIds && r.blockEntryIds.indexOf(e.id) >= 0) || r.requesterEntryId === e.id);
+    const slot = DB.timetable.slots.find(x => String(x.id) === String(e.slotId));
+    const cls = DB.classes.find(c => c.id === e.classId), sub = DB.subjects.find(x => x.id === e.subjectId);
+    const who = req ? DB.teachers.find(t => t.id === req.targetTeacherId) : null;
+    let state = 'todo';
+    if (req) state = req.status === 'accepted' ? 'done' : req.status === 'rejected' ? 'todo' : 'waiting';
+    return { entry: e, req: req || null, state: state, who: who,
+      slot: slot ? slot.label : '', className: cls ? cls.name : '',
+      subject: sub ? (sub.code ? sub.code + ' ' : '') + sub.name : '',
+      mode: req ? (req.type === 'exchange' ? 'exchange' : 'substitute') : '' };
+  }).sort((a, b) => DB.timetable.slots.findIndex(x => String(x.id) === String(a.entry.slotId)) -
+                    DB.timetable.slots.findIndex(x => String(x.id) === String(b.entry.slotId)));
+  return { rows: rows,
+    done: rows.filter(r => r.state === 'done').length,
+    waiting: rows.filter(r => r.state === 'waiting').length,
+    todo: rows.filter(r => r.state === 'todo').length };
+}
+
+/** การ์ดสรุป บอกยอดและรายคาบ พร้อมแถบความคืบหน้า */
+function exchangeSummaryHtml(date) {
+  const st = exchangeDayStatus(date);
+  if (!st.rows.length) return '<div class="card"><h3>สรุปการจัดคาบ <span class="sub">' + esc(thaiDate(date)) + '</span></h3>' +
+    '<div class="empty" style="margin-top:10px">วันนี้ไม่มีคาบสอนที่ต้องจัด</div></div>';
+  const total = st.rows.length, ok = st.done, pct = Math.round(ok * 100 / total);
+  const chip = r => r.state === 'done'
+      ? '<span class="badge ok">' + (r.mode === 'exchange' ? 'สลับแล้ว' : 'มีคนสอนแทนแล้ว') + '</span>'
+      : r.state === 'waiting'
+      ? '<span class="badge warn">' + (r.mode === 'exchange' ? 'รอตอบรับการสลับ' : 'รอตอบรับสอนแทน') + '</span>'
+      : '<span class="badge bad">ยังไม่ได้จัด</span>';
+  return '<div class="card"><div class="row"><div><h3 style="margin:0">สรุปการจัดคาบ <span class="sub">' + esc(thaiDate(date)) + '</span></h3>' +
+      '<div class="hint">คาบของฉันวันนี้ทั้งหมด ' + total + ' คาบ • ต้องจัดให้ครบทุกคาบก่อนถึงวันจริง</div></div>' +
+      '<div class="spacer"></div><span class="badge ' + (st.todo ? 'bad' : 'ok') + '">' +
+      (st.todo ? 'ยังเหลือ ' + st.todo + ' คาบ' : 'จัดครบแล้ว') + '</span></div>' +
+    '<div class="setup-progress" style="margin-top:10px"><i style="width:' + pct + '%"></i></div>' +
+    '<div class="row" style="margin-top:8px"><span class="badge ok">ตกลงแล้ว ' + st.done + '</span>' +
+      '<span class="badge warn">รอตอบรับ ' + st.waiting + '</span>' +
+      '<span class="badge ' + (st.todo ? 'bad' : '') + '">ยังไม่ได้จัด ' + st.todo + '</span></div>' +
+    '<div class="tablewrap" style="margin-top:10px"><table><thead><tr><th>คาบ</th><th>วิชา / ห้อง</th><th>วิธีจัด</th><th>ผู้รับ</th></tr></thead><tbody>' +
+    st.rows.map(r => '<tr><td><b>' + esc(r.slot) + '</b></td><td>' + esc(r.subject) + '<br><span class="hint">' + esc(r.className) + '</span></td>' +
+      '<td>' + chip(r) + '</td><td>' + esc(r.who ? (r.who.name || r.who.email) : '—') + '</td></tr>').join('') +
+    '</tbody></table></div></div>';
+}
+
 function renderExchangeCenter() {
   const pane = $('#pane-exchange'), me = curTeacher(); if (!curPeriod() || !me) { pane.innerHTML = '<div class="card"><div class="empty">กรุณาเลือกปี/ภาคเรียนและโปรไฟล์ครูก่อน</div></div>'; return; }
   const date = DB.ui.exchangeDate || todayISO(), day = (parseISODate(date) || new Date()).getDay(), own = effectiveDayEntries(date).map(x => x.entry).filter(e => !isHomeroomEntry(e)), source = own.find(e => e.id === DB.ui.exchangeSourceEntryId) || own[0] || null; if (source) DB.ui.exchangeSourceEntryId = source.id;
@@ -4363,12 +4425,16 @@ function renderExchangeCenter() {
       '<div class="card leave-card"><h3>แจ้งการลา / ขออนุญาตไปราชการ</h3>' +
       '<div class="hint" style="margin-bottom:8px">เลือกช่วงวันที่แล้วกดบันทึก ระบบจะหาครูดูแลให้ทุกคาบในช่วงนั้นโดยอัตโนมัติ (ยกเว้นคาบเข้าแถว/โฮมรูม)<br>เลือก “ไปราชการ” ระบบจะไม่นับเป็นวันลา และพิมพ์เป็นบันทึกขออนุญาตไปราชการแทนใบลา</div>' +
       '<div class="grid2"><div class="pick"><label>ตั้งแต่วันที่</label><input type="date" id="leaveFrom" value="' + date + '"></div><div class="pick"><label>ถึงวันที่</label><input type="date" id="leaveTo" value="' + date + '"></div><div class="pick"><label>ประเภทการลา</label><select id="leaveReason">' + reasonOptions + '</select></div><div class="pick"><label>กรณีอื่นๆ โปรดระบุ</label><input id="leaveOther"></div></div><div class="pick" style="margin-top:10px"><label>ใครหาครูดูแลคาบให้</label><select id="leaveCoverMode" style="width:100%"><option value="self">แลกคาบ/หาครูสอนแทนเอง</option><option value="head">ให้หัวหน้ากลุ่มสาระจัดครูให้</option></select></div><div class="cover-note" id="leaveCoverHint"></div><div class="pick" style="margin-top:10px"><label>รายละเอียด</label><input id="leaveNote" style="width:100%"></div><button class="primary" id="submitLeave" style="margin-top:12px;width:100%">บันทึกการลาและส่งหาครูดูแลทุกคาบ</button><div class="hint" style="margin-top:8px">ระบบจะตรวจทุกคาบของคุณในช่วงวันที่ลา แล้วส่งคำขอตามลำดับความเหมาะสมอัตโนมัติ</div></div></div>' +
-    '<div><div class="card"><div class="row"><div><h3 style="margin:0">2. ครูที่ระบบแนะนำ</h3><div class="hint">เรียงจากเงื่อนไขที่เหมาะสมที่สุด • ดูแถบคาบเพื่อเทียบภาระงานก่อนส่งคำขอ</div></div><div class="spacer"></div><span class="badge group">' + candidateGroups(candidates).length + ' ครู</span></div>' + slotLegendHtml() +
+    '<div>' + exchangeSummaryHtml(date) +
+    '<div class="card"><div class="row"><div><h3 style="margin:0">2. ครูที่ระบบแนะนำ</h3><div class="hint">เรียงจากเงื่อนไขที่เหมาะสมที่สุด • ดูแถบคาบเพื่อเทียบภาระงานก่อนส่งคำขอ</div></div><div class="spacer"></div><span class="badge group">' + candidateGroups(candidates).length + ' ครู</span></div>' + slotLegendHtml() +
       '<div class="hint" style="margin-top:6px">คลิกเลือกคาบที่จะแลกได้เอง ถ้าตกลงกับครูไว้แล้ว</div>' +
       '<div class="candidate-list" style="margin-top:12px">' + (source ? candidates.length ? candidateGroups(candidates).map((g, gi) => {
         const c = g.options[g.pick] || g.options[0];
         const targetText = c.targetEntry ? sourceEntryText(c.targetEntry, c.targetDate) : 'ว่างตรง ' + sourceEntryText(source, date);
-        return '<div class="candidate-card' + (gi === 0 ? ' recommended' : '') + '"><div><div class="candidate-rank">' + (gi === 0 ? 'แนะนำอันดับ 1 • ' : '') + esc(c.tier) + '</div><b>' + esc(c.teacher.name || c.teacher.email || 'ไม่ระบุชื่อ') + '</b> ' + teacherPhoneHtml(c.teacher) + '<div class="hint">' + esc(c.mode === 'exchange' ? (c.kind.label + ' • ' + targetText) : targetText) + '</div>' +
+        return '<div class="candidate-card mode-' + (c.mode === 'exchange' ? 'exchange' : 'substitute') + (gi === 0 ? ' recommended' : '') + '"><div>' +
+          '<div class="mode-tag mode-' + (c.mode === 'exchange' ? 'exchange' : 'substitute') + '">' +
+          (c.mode === 'exchange' ? '⇄ สลับคาบ — ได้คาบคืน' : '↷ สอนแทน — ไม่ต้องสอนคืน') + '</div>' +
+          '<div class="candidate-rank">' + (gi === 0 ? 'แนะนำอันดับ 1 • ' : '') + esc(c.tier) + '</div><b>' + esc(c.teacher.name || c.teacher.email || 'ไม่ระบุชื่อ') + '</b> ' + teacherPhoneHtml(c.teacher) + '<div class="hint">' + esc(c.mode === 'exchange' ? (c.kind.label + ' • ' + targetText) : targetText) + '</div>' +
         (g.options.length > 1 ? '<div class="hint" style="margin-top:8px">เลือกวันและคาบที่จะแลก (' + g.options.length + ' ตัวเลือก)</div>' +
           weekPickerHtml(g) : '') +
         '<div class="hint" style="margin-top:8px">คาบของครูท่านนี้ • ' + esc(thaiDate(date)) + '</div>' +
@@ -4376,7 +4442,7 @@ function renderExchangeCenter() {
         (c.mode === 'exchange' && c.targetEntry && c.targetDate !== date ?
           '<div class="hint" style="margin-top:8px">คาบของฉันที่ต้องไปสอนแทน • ' + esc(thaiDate(c.targetDate)) + ' <span class="hint">(กดกล่องที่มีเส้นประเพื่อเปลี่ยนคาบ)</span></div>' +
           slotStripHtml(me.id, c.targetDate, [String(c.targetEntry.slotId)], slotPicksFor(g, c.targetDate)) : '') +
-        '</div><button class="sm primary" data-send-candidate="' + candidates.indexOf(c) + '">' + (c.mode === 'exchange' ? 'ส่งคำขอแลก' : 'ขอสอนแทน') + '</button></div>'; }).join('') : '<div class="empty">ยังไม่พบครูว่างในคาบนี้ ระบบจะเก็บเป็นรายการรอผู้ดูแลจัดครูแทน</div>' : '<div class="empty">วันที่เลือกไม่มีคาบสอนของคุณ</div>') + '</div></div>' +
+        '</div><button class="sm primary" data-send-candidate="' + candidates.indexOf(c) + '">' + (c.mode === 'exchange' ? 'ส่งคำขอสลับคาบ' : 'ขอให้มาสอนแทน') + '</button></div>'; }).join('') : '<div class="empty">ยังไม่พบครูว่างในคาบนี้ ระบบจะเก็บเป็นรายการรอผู้ดูแลจัดครูแทน</div>' : '<div class="empty">วันที่เลือกไม่มีคาบสอนของคุณ</div>') + '</div></div>' +
       '<div class="card"><h3>ประวัติการลาและเอกสาร</h3>' + (leaves.length ? '<div class="alert-list">' + leaves.slice(0, 20).map(l => {
         const approval = (l.approval || {}).status || 'draft', head = (l.headApproval || {}).status || 'none';
         return '<div class="alert-item"><div><b>' + esc(exchangeReasonLabel(l)) + '</b> <span class="badge ' + (isOfficialTrip(l) ? 'group' : '') + '">' + esc(leaveKindLabel(l)) + '</span> <span class="badge ' + (leaveCoverMode(l) === 'head' ? 'warn' : '') + '">' + esc(coverModeLabel(leaveCoverMode(l))) + '</span><div class="hint">' + thaiDate(l.fromDate) + (l.toDate !== l.fromDate ? ' ถึง ' + thaiDate(l.toDate) : '') + ' • รวม ' + leaveDays(l) + ' วัน' + (isOfficialTrip(l) ? ' (ไม่นับเป็นวันลา)' : '') + ' • ' + l.requestIds.length + ' คาบ' + (l.note ? '<br>' + esc(l.note) : '') +
