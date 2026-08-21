@@ -3805,7 +3805,7 @@ function teacherFreeForBlock(teacherId, date, block, exceptIds) {
    สอนแทน  = ครูที่ว่างมาคุมให้ ไม่ต้องสอนคืน
    ทุกกรณีคาบคู่ต้องย้ายพร้อมกันทั้งก้อน จึงจับคู่เฉพาะก้อนที่ยาวเท่ากัน และนับเป็น 2 คาบเสมอ */
 const SWAP_KINDS = {
-  swap:  { label: 'สลับคาบ', tone: 'swap',  base: 0,   tag: '⇄ สลับคาบ — ห้องเดียวกัน คนละวัน ได้คาบคืน', send: 'ส่งคำขอสลับคาบ' },
+  swap:  { label: 'สลับคาบ', tone: 'swap',  base: 0,   tag: '⇄ สลับคาบ — ห้องเดียวกัน เลขคาบตรงกัน คนละวัน', send: 'ส่งคำขอสลับคาบ' },
   trade: { label: 'แลกคาบ',  tone: 'trade', base: 500, tag: '⇆ แลกคาบ — เขาว่างคาบเรา เราไปสอนคืนคาบเขา', send: 'ส่งคำขอแลกคาบ' }
 };
 const swapKindOf = req => ((req || {}).swapKind === 'trade' ? 'trade' : 'swap');
@@ -3838,6 +3838,7 @@ function coverageCandidateList(source, sourceDate) {
   const srcLevel = classLevel((DB.classes.find(c => c.id === source.classId) || {}).name);
   const all = scheduleEntries(true);
   const srcBlock = entryBlock(source), srcIds = srcBlock.map(e => e.id);
+  const srcSlotKey = srcBlock.map(e => String(e.slotId)).join('-');
   const areaCache = {}, sameAreaAs = id => {
     if (!(id in areaCache)) areaCache[id] = areaKnown && teacherLearningAreas(id).has(myArea);
     return areaCache[id];
@@ -3850,7 +3851,6 @@ function coverageCandidateList(source, sourceDate) {
      ถ้าโรงเรียนยังไม่ได้กรอกกลุ่มสาระของครู ก็กรองไม่ได้ จึงปล่อยผ่านไว้ก่อน
      กรณีตกลงข้ามกลุ่มสาระกันเอง ให้ครูบันทึกเป็นคาบสอนแทนเองในแท็บเช็กชื่อของวันนั้น */
   const canCover = id => !areaKnown || sameAreaAs(id);
-  const levelOfBlock = block => classLevel((DB.classes.find(c => c.id === block[0].classId) || {}).name);
   const out = [], seen = new Set();
   const addBlock = (kindKey, teacher, tgtBlock, tierText) => {
     if (tgtBlock.length !== srcBlock.length) return;                  // คาบคู่ต้องแลกกับคาบคู่ที่ยาวเท่ากัน ไม่งั้นเหลือคาบค้างข้างเดียว
@@ -3872,33 +3872,26 @@ function coverageCandidateList(source, sourceDate) {
           (srcBlock.length > 1 ? ' • ' + blockLabel(srcBlock) : '') });
     });
   };
-  // สลับคาบ — ครูที่สอนห้องเดียวกันแต่คนละวิชา จับคาบมาสลับกันได้เลย จึงเป็นทางเลือกอันดับแรก
+  /* สลับคาบกับแลกคาบใช้ครูกลุ่มเดียวกัน คือครูที่สอน "ห้องเดียวกัน" กับคาบที่เราจะจัด
+     ห้องนั้นจึงยังได้เรียนครบทุกวิชาของตัวเอง ไม่มีวิชาแปลกปลอมโผล่เข้ามา
+     ต่างกันที่เลขคาบ — ตรงกัน = สลับคาบ (ยกคาบข้ามวันมาสลับที่กันตรง ๆ)
+                       ไม่ตรงกัน = แลกคาบ (เขาว่างตรงคาบที่เราลา จึงมาคุมให้ แล้วเราไปสอนคืนคาบของเขา)
+     ทั้งสองแบบ addBlock ตรวจให้แล้วว่าอีกฝ่ายว่างตรงคาบเรา และเราว่างตรงคาบเขา */
   all.filter(e => e.periodId === source.periodId && e.teacherId && e.teacherId !== source.teacherId &&
       e.classId === source.classId && e.subjectId !== source.subjectId && srcIds.indexOf(e.id) < 0 && !isHomeroomEntry(e))
     .forEach(target => {
-      const teacher = DB.teachers.find(t => t.id === target.teacherId);
-      if (teacher) addBlock('swap', teacher, entryBlock(target), 'ห้องเดียวกัน');
-    });
-  /* แลกคาบ — คาบที่จะแลกไม่ใช่คาบสอนของอีกฝ่าย เขาแค่ว่างตรงคาบเรา แล้วเราไปสอนคืนคาบของเขา
-     เราจึงต้องสอนคาบนั้นแทนได้จริง คือกลุ่มสาระเดียวกันและระดับชั้นเดียวกันเท่านั้น
-     ต่างวิชาต่างระดับชั้นถูกตัดออก เพราะเลือกไปก็สอนไม่ได้ */
-  const freeTeachers = new Map();
-  DB.teachers.forEach(t => {
-    if (t.id !== source.teacherId && teacherHasRole(t, 'teacher') && canCover(t.id) &&
-      teacherFreeForBlock(t.id, sourceDate, srcBlock)) freeTeachers.set(t.id, t);
-  });
-  if (freeTeachers.size) all.filter(e => e.periodId === source.periodId && freeTeachers.has(e.teacherId) &&
-      e.classId !== source.classId && !isHomeroomEntry(e))
-    .forEach(target => {
-      const teacher = freeTeachers.get(target.teacherId), tgtBlock = entryBlock(target);
-      if (srcLevel && levelOfBlock(tgtBlock) !== srcLevel) return;                        // คนละระดับชั้น เราไปสอนคืนไม่ได้
-      addBlock('trade', teacher, tgtBlock, 'ว่างตรงกัน • กลุ่มสาระเดียวกัน' + (srcLevel ? ' • ' + srcLevel : ''));
+      const teacher = DB.teachers.find(t => t.id === target.teacherId); if (!teacher) return;
+      const tgtBlock = entryBlock(target), aligned = tgtBlock.map(e => String(e.slotId)).join('-') === srcSlotKey;
+      addBlock(aligned ? 'swap' : 'trade', teacher, tgtBlock,
+        aligned ? 'ห้องเดียวกัน • เลขคาบตรงกัน' : 'ห้องเดียวกัน • เขาว่างตรงคาบที่เราลา');
     });
   out.sort((a, b) => a.rank - b.rank || num(a.targetEntry.slotId) - num(b.targetEntry.slotId));
   if (out.length) return capCoverageOptions(out);
   /* ไม่มีใครแลกหรือสลับได้ จึงเหลือทางเลือกสุดท้ายคือขอให้มาสอนแทน โดยไม่ต้องสอนคืน
      สอนแทนดูแค่คาบว่าง แต่ต้องอยู่กลุ่มสาระเดียวกัน และเรียงครูที่สอนระดับชั้นเดียวกันขึ้นก่อน */
-  return Array.from(freeTeachers.values()).map(t => {
+  const freeTeachers = DB.teachers.filter(t => t.id !== source.teacherId && teacherHasRole(t, 'teacher') &&
+    canCover(t.id) && teacherFreeForBlock(t.id, sourceDate, srcBlock));
+  return freeTeachers.map(t => {
     const level = teachesMyLevel(t.id);
     return { mode: 'substitute', swapKind: '', teacher: t, targetEntry: null, sourceBlock: srcBlock, targetDate: sourceDate,
       sameArea: sameAreaAs(t.id), sameLevel: level,
@@ -4596,14 +4589,14 @@ function renderExchangeCenter() {
   const date = DB.ui.exchangeDate || todayISO(), day = (parseISODate(date) || new Date()).getDay(), own = effectiveDayEntries(date).map(x => x.entry).filter(e => !isHomeroomEntry(e)), source = own.find(e => e.id === DB.ui.exchangeSourceEntryId) || own[0] || null; if (source) DB.ui.exchangeSourceEntryId = source.id;
   const candidates = source ? findCoverageCandidates(source, date) : [], leaves = (DB.timetable.leaveRequests || []).filter(l => l.teacherId === me.id && l.periodId === DB.ui.periodId).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   const reasonOptions = EXCHANGE_REASONS.map(x => '<option value="' + x.value + '">' + x.label + '</option>').join('');
-  pane.innerHTML = '<div class="card dash-hero"><div class="row"><div><div class="hero-sub">SMART PERIOD EXCHANGE</div><h1>ศูนย์แลกคาบและการลา</h1><div class="hero-sub">สลับคาบกับครูห้องเดียวกันก่อน • แลกคาบเฉพาะกลุ่มสาระและระดับชั้นเดียวกัน • หากไม่พบจึงหาครูในกลุ่มสาระที่ว่างมาสอนแทน</div></div><div class="spacer"></div><span class="role-chip">ครูผู้ใช้งาน ' + esc(me.name || me.email) + '</span></div></div>' +
+  pane.innerHTML = '<div class="card dash-hero"><div class="row"><div><div class="hero-sub">SMART PERIOD EXCHANGE</div><h1>ศูนย์แลกคาบและการลา</h1><div class="hero-sub">ครูห้องเดียวกันก่อนเสมอ — เลขคาบตรงกันคือสลับคาบ ไม่ตรงกันคือแลกคาบ • หากไม่พบจึงหาครูในกลุ่มสาระที่ว่างมาสอนแทน</div></div><div class="spacer"></div><span class="role-chip">ครูผู้ใช้งาน ' + esc(me.name || me.email) + '</span></div></div>' +
     '<div class="exchange-layout"><div><div class="card"><h3>1. เลือกคาบที่ต้องการจัดการ</h3><div class="pick"><label>วันที่</label><input type="date" id="exchangeDate" value="' + date + '"></div><div class="pick" style="margin-top:10px"><label>คาบของฉัน</label><select id="exchangeSource" style="width:100%">' + (own.length ? own.map(e => '<option value="' + e.id + '"' + (source && source.id === e.id ? ' selected' : '') + '>' + esc(sourceEntryText(e, date)) + '</option>').join('') : '<option value="">— ไม่มีคาบสอนในวันนี้ —</option>') + '</select></div><div class="grid2" style="margin-top:10px"><div class="pick"><label>เหตุผล</label><select id="exchangeReason">' + reasonOptions + '</select></div><div class="pick"><label>กรณีอื่นๆ โปรดระบุ</label><input id="exchangeOther" placeholder="ระบุเมื่อเลือก อื่นๆ"></div></div><div class="pick" style="margin-top:10px"><label>รายละเอียดเพิ่มเติม</label><input id="exchangeNote" style="width:100%" placeholder="เช่น มีนัดหมายช่วงเช้า"></div>' +
       (source ? '<div class="hint" style="margin-top:10px">คาบของฉันวันนี้</div>' + slotStripHtml(me.id, date, entryBlock(source).map(e => String(e.slotId)), null, 'pick', 'give') + slotLegendHtml() : '') + '</div>' +
       '<div class="card leave-card"><h3>แจ้งการลา / ขออนุญาตไปราชการ</h3>' +
       '<div class="hint" style="margin-bottom:8px">เลือกช่วงวันที่แล้วกดบันทึก ระบบจะหาครูดูแลให้ทุกคาบในช่วงนั้นโดยอัตโนมัติ (ยกเว้นคาบเข้าแถว/โฮมรูม)<br>เลือก “ไปราชการ” ระบบจะไม่นับเป็นวันลา และพิมพ์เป็นบันทึกขออนุญาตไปราชการแทนใบลา</div>' +
       '<div class="grid2"><div class="pick"><label>ตั้งแต่วันที่</label><input type="date" id="leaveFrom" value="' + date + '"></div><div class="pick"><label>ถึงวันที่</label><input type="date" id="leaveTo" value="' + date + '"></div><div class="pick"><label>ประเภทการลา</label><select id="leaveReason">' + reasonOptions + '</select></div><div class="pick"><label>กรณีอื่นๆ โปรดระบุ</label><input id="leaveOther"></div></div><div class="pick" style="margin-top:10px"><label>ใครหาครูดูแลคาบให้</label><select id="leaveCoverMode" style="width:100%"><option value="self">แลกคาบ/หาครูสอนแทนเอง</option><option value="head">ให้หัวหน้ากลุ่มสาระจัดครูให้</option></select></div><div class="cover-note" id="leaveCoverHint"></div><div class="pick" style="margin-top:10px"><label>รายละเอียด</label><input id="leaveNote" style="width:100%"></div><button class="primary" id="submitLeave" style="margin-top:12px;width:100%">บันทึกการลาและส่งหาครูดูแลทุกคาบ</button><div class="hint" style="margin-top:8px">ระบบจะตรวจทุกคาบของคุณในช่วงวันที่ลา แล้วส่งคำขอตามลำดับความเหมาะสมอัตโนมัติ</div></div></div>' +
     '<div>' + exchangeSummaryHtml(date) +
-    '<div class="card"><div class="row"><div><h3 style="margin:0">2. ครูที่ระบบแนะนำ</h3><div class="hint">เรียงจากเงื่อนไขที่เหมาะสมที่สุด • ดูแถบคาบเพื่อเทียบภาระงานก่อนส่งคำขอ<br>ระบบเสนอเฉพาะครูในกลุ่มสาระเดียวกัน ถ้าตกลงข้ามกลุ่มสาระกันเอง ให้บันทึกเป็นคาบสอนแทนในแท็บ “เช็กชื่อ” ของวันนั้น</div></div><div class="spacer"></div><span class="badge group">' + candidateGroups(candidates).length + ' ครู</span></div>' + slotLegendHtml() +
+    '<div class="card"><div class="row"><div><h3 style="margin:0">2. ครูที่ระบบแนะนำ</h3><div class="hint">เรียงจากเงื่อนไขที่เหมาะสมที่สุด • ดูแถบคาบเพื่อเทียบภาระงานก่อนส่งคำขอ<br>แลกคาบและสลับคาบเสนอเฉพาะครูที่สอนห้องเดียวกัน • สอนแทนเสนอเฉพาะครูในกลุ่มสาระเดียวกัน<br>ถ้าตกลงกันเองนอกเงื่อนไขนี้ ให้บันทึกเป็นคาบสอนแทนในแท็บ “เช็กชื่อ” ของวันนั้น</div></div><div class="spacer"></div><span class="badge group">' + candidateGroups(candidates).length + ' ครู</span></div>' + slotLegendHtml() +
       '<div class="hint" style="margin-top:6px">คลิกเลือกคาบที่จะแลกได้เอง ถ้าตกลงกับครูไว้แล้ว</div>' +
       '<div class="candidate-list" style="margin-top:12px">' + (source ? candidates.length ? candidateGroups(candidates).map((g, gi) => {
         const c = g.options[g.pick] || g.options[0];
@@ -4620,7 +4613,7 @@ function renderExchangeCenter() {
         (c.mode === 'exchange' && c.targetEntry && c.targetDate !== date ?
           '<div class="hint" style="margin-top:8px">คาบของฉันที่ต้องไปสอนแทน • ' + esc(thaiDate(c.targetDate)) + ' <span class="hint">(กดกล่องที่มีเส้นประเพื่อเปลี่ยนคาบ)</span></div>' +
           slotStripHtml(me.id, c.targetDate, (c.targetBlock || [c.targetEntry]).map(e => String(e.slotId)), slotPicksFor(g, c.targetDate), tone, 'take') : '') +
-        '</div><button class="sm primary" data-send-candidate="' + candidates.indexOf(c) + '">' + (c.mode === 'exchange' ? SWAP_KINDS[swapKindOf(c)].send : 'ขอให้มาสอนแทน') + '</button></div>'; }).join('') : '<div class="empty">ยังไม่พบครูในกลุ่มสาระเดียวกันที่ว่างตรงคาบนี้ ระบบจะเก็บเป็นรายการรอผู้ดูแลจัดครูแทน<br>ระบบไม่เสนอครูต่างกลุ่มสาระให้อัตโนมัติ — ถ้าตกลงกับครูท่านอื่นไว้แล้ว บันทึกเป็นคาบสอนแทนเองในแท็บ “เช็กชื่อ” ของวันนั้นได้เลย</div>' : '<div class="empty">วันที่เลือกไม่มีคาบสอนของคุณ</div>') + '</div></div>' +
+        '</div><button class="sm primary" data-send-candidate="' + candidates.indexOf(c) + '">' + (c.mode === 'exchange' ? SWAP_KINDS[swapKindOf(c)].send : 'ขอให้มาสอนแทน') + '</button></div>'; }).join('') : '<div class="empty">ยังไม่พบครูห้องเดียวกันที่แลกหรือสลับคาบได้ และไม่พบครูในกลุ่มสาระเดียวกันที่ว่างตรงคาบนี้<br>ระบบจะเก็บเป็นรายการรอผู้ดูแลจัดครูแทน — ถ้าตกลงกับครูท่านอื่นไว้แล้ว บันทึกเป็นคาบสอนแทนเองในแท็บ “เช็กชื่อ” ของวันนั้นได้เลย</div>' : '<div class="empty">วันที่เลือกไม่มีคาบสอนของคุณ</div>') + '</div></div>' +
       '<div class="card"><h3>ประวัติการลาและเอกสาร</h3>' + (leaves.length ? '<div class="alert-list">' + leaves.slice(0, 20).map(l => {
         const approval = (l.approval || {}).status || 'draft', head = (l.headApproval || {}).status || 'none';
         return '<div class="alert-item"><div><b>' + esc(exchangeReasonLabel(l)) + '</b> <span class="badge ' + (isOfficialTrip(l) ? 'group' : '') + '">' + esc(leaveKindLabel(l)) + '</span> <span class="badge ' + (leaveCoverMode(l) === 'head' ? 'warn' : '') + '">' + esc(coverModeLabel(leaveCoverMode(l))) + '</span><div class="hint">' + thaiDate(l.fromDate) + (l.toDate !== l.fromDate ? ' ถึง ' + thaiDate(l.toDate) : '') + ' • รวม ' + leaveDays(l) + ' วัน' + (isOfficialTrip(l) ? ' (ไม่นับเป็นวันลา)' : '') + ' • ' + leavePeriodCount(l) + ' คาบ' + (l.note ? '<br>' + esc(l.note) : '') +
