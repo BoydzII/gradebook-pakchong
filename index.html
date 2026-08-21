@@ -8587,6 +8587,176 @@ function holidayRowsHtml(term) {
     }).join('') + '</tbody></table></div>';
 }
 
+/* ---- นำเข้าวันหยุดราชการจากปฏิทิน Google ----------------------------------
+   ปฏิทิน "วันหยุดในประเทศไทย" ของ Google แยกประเภทไว้ในช่องคำอธิบาย
+   ขึ้นต้นด้วย "วันหยุด" = วันหยุดนักขัตฤกษ์ ราชการหยุดจริง
+   ขึ้นต้นด้วย "วันสำคัญ" = เช่น วันวาเลนไทน์ วันคริสต์มาส ซึ่งโรงเรียนยังเปิดสอน
+   ระบบจึงติ๊กให้เฉพาะกลุ่มแรก ที่เหลือแสดงไว้ให้ผู้ดูแลติ๊กเองถ้าโรงเรียนหยุดด้วย
+   ดึงได้สองทาง: ออนไลน์ผ่าน Calendar API หรือเลือกไฟล์ .ics ที่โหลดมาจาก Google */
+const GOOGLE_TH_HOLIDAY_CALENDAR = 'th.th#holiday@group.v.calendar.google.com';
+const GOOGLE_HOLIDAY_ICS_URL = 'https://calendar.google.com/calendar/ical/' +
+  encodeURIComponent(GOOGLE_TH_HOLIDAY_CALENDAR) + '/public/basic.ics';
+/* ต้องดูแค่ "ขึ้นต้นด้วย" เท่านั้น เพราะคำอธิบายของวันสำคัญมีคำว่า "วันหยุดในไทย" อยู่ท้ายข้อความด้วย
+   ถ้าค้นทั้งข้อความจะเหมาเอาวันวาเลนไทน์เป็นวันหยุดราชการไปด้วย */
+const isOfficialHolidayNote = text => /^\s*(วันหยุด|public holiday)/i.test(String(text || ''));
+const icsToISO = v => /^\d{8}$/.test(v) ? v.slice(0, 4) + '-' + v.slice(4, 6) + '-' + v.slice(6) : '';
+const unescapeIcsText = v => String(v || '').replace(/\\n/gi, ' ').replace(/\\([,;\\])/g, '$1').trim();
+
+async function fetchGoogleHolidays(fromISO, toISO) {
+  const key = ((window.GRADEBOOK_CONFIG || {}).firebase || {}).apiKey || '';
+  if (!key) { const e = new Error('ยังไม่ได้กรอก apiKey ในไฟล์ config.js'); e.code = 'noKey'; throw e; }
+  const url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(GOOGLE_TH_HOLIDAY_CALENDAR) +
+    '/events?key=' + encodeURIComponent(key) + '&timeMin=' + fromISO + 'T00:00:00Z&timeMax=' + toISO + 'T23:59:59Z' +
+    '&singleEvents=true&orderBy=startTime&maxResults=250';
+  const res = await fetch(url);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = data.error || {}, reason = ((err.errors || [])[0] || {}).reason || '';
+    const e = new Error(err.message || ('ดึงข้อมูลไม่สำเร็จ (HTTP ' + res.status + ')'));
+    /* คีย์ของ Firebase มักถูกจำกัดว่าเรียกได้เฉพาะบาง API ต้องไปปลดที่หน้าข้อมูลรับรองด้วย
+       ไม่ใช่แค่เปิด Calendar API อย่างเดียว จึงต้องแยกสองกรณีนี้ให้ผู้ดูแลรู้ว่าต้องแก้ตรงไหน */
+    e.code = reason === 'accessNotConfigured' ? 'apiOff'
+      : (reason === 'API_KEY_SERVICE_BLOCKED' || /blocked/i.test(err.message || '')) ? 'keyBlocked'
+      : reason || 'failed';
+    throw e;
+  }
+  return (data.items || []).map(ev => ({
+    date: (ev.start || {}).date || String((ev.start || {}).dateTime || '').slice(0, 10),
+    endDate: (ev.end || {}).date || '',
+    name: String(ev.summary || '').trim(),
+    official: isOfficialHolidayNote(ev.description)
+  })).filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x.date));
+}
+
+/** อ่านไฟล์ .ics โดยคลี่บรรทัดที่ถูกพับตั้งแต่ยังเป็นไบต์
+    Google พับบรรทัดทุก 75 ไบต์ ซึ่งตัดกลางตัวอักษรไทยได้ ถ้าถอดรหัสก่อนคลี่ ชื่อวันหยุดจะเพี้ยน */
+async function parseHolidayIcs(file) {
+  const bytes = new Uint8Array(await file.arrayBuffer()), flat = [];
+  for (let i = 0; i < bytes.length; i++) {
+    if (bytes[i] === 13 && bytes[i + 1] === 10 && (bytes[i + 2] === 32 || bytes[i + 2] === 9)) { i += 2; continue; }
+    if (bytes[i] === 10 && (bytes[i + 1] === 32 || bytes[i + 1] === 9)) { i += 1; continue; }
+    flat.push(bytes[i]);
+  }
+  const text = new TextDecoder('utf-8').decode(new Uint8Array(flat));
+  return text.split('BEGIN:VEVENT').slice(1).map(chunk => {
+    const body = chunk.split('END:VEVENT')[0];
+    const pick = re => { const m = body.match(re); return m ? m[1] : ''; };
+    return { date: icsToISO(pick(/DTSTART[^:\n]*:(\d{8})/)), endDate: icsToISO(pick(/DTEND[^:\n]*:(\d{8})/)),
+      name: unescapeIcsText(pick(/[\r\n]SUMMARY[^:\n]*:([^\r\n]*)/)),
+      official: isOfficialHolidayNote(unescapeIcsText(pick(/[\r\n]DESCRIPTION[^:\n]*:([^\r\n]*)/))) };
+  }).filter(x => x.date);
+}
+
+/** DTEND ของ ICS และ end.date ของ Calendar API เป็นวันถัดจากวันสุดท้าย จึงต้องถอยหนึ่งวัน
+    วันหยุดยาวอย่างสงกรานต์จะได้กระจายออกเป็นรายวันครบทุกวัน */
+function expandHolidayEvent(ev) {
+  const out = [], last = ev.endDate && ev.endDate > ev.date ? shiftISODate(ev.endDate, -1) : ev.date;
+  const d = parseISODate(ev.date);
+  for (let guard = 0; d && guard < 31; guard++) {
+    const iso = isoDate(d);
+    out.push({ date: iso, name: ev.name, official: ev.official });
+    if (iso >= last) break;
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+
+/* วันหยุดกระทบครูทั้งโรงเรียน ทั้งการเช็กชื่อและการคิด % เวลาเรียน
+   จึงต้องให้ผู้ดูแลเห็นรายการและติ๊กยืนยันก่อนเสมอ ไม่เพิ่มให้เองอัตโนมัติ */
+function openHolidayImport(events, sourceLabel) {
+  const term = currentTerm(true);
+  const have = new Set((term.holidays || []).map(h => h.date));
+  const seen = new Set(), all = [];
+  (events || []).forEach(ev => expandHolidayEvent(ev).forEach(x => { if (!seen.has(x.date)) { seen.add(x.date); all.push(x); } }));
+  all.sort((a, b) => a.date.localeCompare(b.date));
+  const list = all.filter(x => !term.openDate || !term.closeDate || (x.date >= term.openDate && x.date <= term.closeDate));
+  const skipped = all.length - list.length;
+  if (!list.length) return toast('ไม่พบวันหยุดในช่วงเปิด-ปิดภาคเรียนนี้ (อ่านมาทั้งหมด ' + all.length + ' วัน)', 'bad');
+  const weekendOf = iso => { const d = (parseISODate(iso) || new Date()).getDay(); return d === 0 || d === 6; };
+  const dayNameOf = iso => (SCHOOL_DAYS.find(x => x.value === (parseISODate(iso) || new Date()).getDay()) || { label: 'เสาร์-อาทิตย์' }).label;
+  const rows = list.map((x, i) => {
+    const exists = have.has(x.date), weekend = weekendOf(x.date), day = (parseISODate(x.date) || new Date()).getDay();
+    const affected = weekend ? 0 : (DB.timetable.entries || []).filter(e => e.periodId === DB.ui.periodId && num(e.day) === day).length;
+    return '<tr><td><input type="checkbox" class="hol-pick" data-i="' + i + '"' + (x.official && !weekend && !exists ? ' checked' : '') + '></td>' +
+      '<td><b>' + esc(thaiDate(x.date)) + '</b><br><span class="hint">' + esc(dayNameOf(x.date)) + '</span></td>' +
+      '<td class="lt">' + esc(x.name || 'วันหยุด') + '</td>' +
+      '<td><span class="badge ' + (x.official ? 'grp' : 'warn') + '">' + (x.official ? 'วันหยุดนักขัตฤกษ์' : 'วันสำคัญ • ไม่ใช่วันหยุดราชการ') + '</span></td>' +
+      '<td>' + (weekend ? '<span class="badge">เสาร์-อาทิตย์ ไม่มีคาบเรียนอยู่แล้ว</span>' : affected + ' คาบ') +
+        (exists ? '<br><span class="badge ok">มีในปฏิทินแล้ว</span>' : '') + '</td></tr>';
+  }).join('');
+  openModal({ title: 'วันหยุดจากปฏิทิน Google • ' + sourceLabel, wide: true,
+    bodyHTML: '<div class="notice">พบ <b>' + list.length + '</b> วันในช่วงเปิด-ปิดภาคเรียนนี้' +
+        (skipped ? ' (อีก ' + skipped + ' วันอยู่นอกช่วง จึงไม่แสดง)' : '') +
+        '<br>ระบบติ๊กให้เฉพาะ <b>วันหยุดนักขัตฤกษ์</b> ที่ยังไม่มีในปฏิทินและไม่ตรงเสาร์-อาทิตย์' +
+        '<br>วันสำคัญอย่างวันวาเลนไทน์หรือวันคริสต์มาส โรงเรียนยังเปิดสอนตามปกติ จึงไม่ติ๊กให้ ถ้าโรงเรียนหยุดจริงติ๊กเองได้</div>' +
+      '<div class="row" style="margin-bottom:8px"><button class="sm" id="holPickOfficial">ติ๊กเฉพาะวันหยุดนักขัตฤกษ์</button>' +
+        '<button class="sm" id="holPickNone">ล้างการติ๊ก</button><div class="spacer"></div><span class="badge" id="holPickCount"></span></div>' +
+      '<div class="tablewrap" style="max-height:50vh"><table><thead><tr><th></th><th>วันที่</th><th>ชื่อวันหยุด</th><th>ประเภท</th><th>ผลกับตารางสอน</th></tr></thead><tbody>' +
+        rows + '</tbody></table></div>',
+    buttons: [{ label: 'ยกเลิก' }, { label: 'เพิ่มวันที่ติ๊กไว้ลงปฏิทิน', cls: 'primary', act(close, root) {
+      const picked = $$('.hol-pick:checked', root).map(x => list[num(x.dataset.i)]).filter(Boolean);
+      if (!picked.length) return toast('ยังไม่ได้ติ๊กวันไหนเลย', 'bad');
+      term.holidays = Array.isArray(term.holidays) ? term.holidays : [];
+      let added = 0, updated = 0;
+      picked.forEach(x => {
+        const found = term.holidays.find(h => h.date === x.date);
+        if (found) { if (x.name && found.name !== x.name) { found.name = x.name; updated++; } }
+        else { term.holidays.push({ date: x.date, name: x.name || 'วันหยุดราชการ' }); added++; }
+      });
+      save(true); close(); renderAdminHolidays(); renderTop();
+      toast('เพิ่มวันหยุด ' + added + ' วัน' + (updated ? ' • อัปเดตชื่อ ' + updated + ' วัน' : ''), 'ok');
+    } }],
+    onMount(root) {
+      const count = () => { $('#holPickCount', root).textContent = 'ติ๊กไว้ ' + $$('.hol-pick:checked', root).length + ' วัน'; };
+      $$('.hol-pick', root).forEach(x => x.addEventListener('change', count));
+      $('#holPickOfficial', root).addEventListener('click', () => {
+        $$('.hol-pick', root).forEach(x => { const it = list[num(x.dataset.i)]; x.checked = !!(it && it.official && !weekendOf(it.date)); });
+        count();
+      });
+      $('#holPickNone', root).addEventListener('click', () => { $$('.hol-pick', root).forEach(x => { x.checked = false; }); count(); });
+      count();
+    } });
+}
+
+/** ดึงออนไลน์ไม่ได้ ก็ยังนำเข้าไฟล์ .ics ได้ทันที ไม่ต้องรอเปิด API */
+function openHolidayApiHelp(err) {
+  const project = ((window.GRADEBOOK_CONFIG || {}).firebase || {}).projectId || '';
+  const code = (err || {}).code, known = code === 'apiOff' || code === 'keyBlocked';
+  const why = code === 'apiOff' ? 'โปรเจกต์ <b>' + esc(project) + '</b> ยังไม่ได้เปิดใช้ Google Calendar API'
+    : code === 'keyBlocked' ? 'คีย์ที่ใช้อยู่ถูกจำกัดให้เรียกได้เฉพาะบาง API และยังไม่รวม Google Calendar API'
+    : esc((err || {}).message || 'เชื่อมต่อ Google ไม่ได้ กรุณาตรวจอินเทอร์เน็ต');
+  openModal({ title: known ? 'ยังดึงออนไลน์ไม่ได้ • ใช้ไฟล์ .ics แทนได้เลย' : 'ดึงวันหยุดออนไลน์ไม่สำเร็จ', wide: true,
+    bodyHTML: '<div class="notice' + (known ? '' : ' bad') + '">' + why +
+        '<br>วิธีนำเข้าไฟล์ด้านล่างใช้ได้ทันที ได้วันหยุดชุดเดียวกันเป๊ะ ไม่ต้องตั้งค่าอะไรเพิ่ม</div>' +
+      '<b>วิธีที่ 1 — นำเข้าไฟล์ .ics (ใช้ได้เลยตอนนี้)</b>' +
+      '<ol><li>เปิด <a href="' + esc(GOOGLE_HOLIDAY_ICS_URL) + '" target="_blank" rel="noopener">ไฟล์วันหยุดในประเทศไทยของ Google</a> เบราว์เซอร์จะดาวน์โหลดไฟล์ basic.ics มาให้</li>' +
+      '<li>กลับมาที่หน้านี้ กดปุ่ม <b>นำเข้าไฟล์ .ics</b> แล้วเลือกไฟล์ที่ดาวน์โหลดไว้</li>' +
+      '<li>ทำปีละครั้งก็พอ เพราะวันหยุดทั้งปีอยู่ในไฟล์เดียว</li></ol>' +
+      '<b>วิธีที่ 2 — ตั้งค่าให้กดดึงออนไลน์ได้ตลอด (ทำครั้งเดียว ไม่มีค่าใช้จ่าย)</b>' +
+      '<ol><li>เปิด <a href="https://console.cloud.google.com/apis/library/calendar-json.googleapis.com?project=' + esc(project) + '" target="_blank" rel="noopener">หน้าเปิดใช้ Google Calendar API</a> ด้วยบัญชีเจ้าของโปรเจกต์ แล้วกด <b>เปิดใช้ (Enable)</b></li>' +
+      '<li>เปิด <a href="https://console.cloud.google.com/apis/credentials?project=' + esc(project) + '" target="_blank" rel="noopener">หน้าข้อมูลรับรอง (Credentials)</a> → เลือกคีย์ที่เว็บนี้ใช้ → หัวข้อ <b>ข้อจำกัดของ API</b> → เพิ่ม <b>Google Calendar API</b> เข้าไปในรายการที่อนุญาต แล้วบันทึก</li>' +
+      '<li>รอสักครู่ให้ Google อัปเดต แล้วกลับมากด <b>ดึงวันหยุดราชการจาก Google</b> อีกครั้ง</li></ol>' +
+      '<div class="hint">ปฏิทินนี้เป็นข้อมูลสาธารณะของ Google ไม่ต้องเข้าสู่ระบบและไม่มีข้อมูลของโรงเรียนถูกส่งออกไป</div>',
+    buttons: [{ label: 'ปิด' }] });
+}
+
+async function startGoogleHolidayImport(btn) {
+  const term = currentTerm(true);
+  if (!curPeriod()) return toast('กรุณาเลือกปี/ภาคเรียนก่อน', 'bad');
+  if (!term.openDate || !term.closeDate) return toast('กรุณากำหนดวันเปิด-ปิดภาคเรียนก่อน ระบบจะได้ดึงเฉพาะช่วงนั้น', 'bad');
+  const label = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'กำลังดึงจาก Google…'; }
+  try {
+    const events = await fetchGoogleHolidays(term.openDate, term.closeDate);
+    if (!events.length) return toast('ปฏิทิน Google ไม่มีวันหยุดในช่วงเปิด-ปิดภาคเรียนนี้', 'bad');
+    openHolidayImport(events, 'ดึงออนไลน์');
+  } catch (e) {
+    openHolidayApiHelp(e);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+  }
+}
+
 function renderAdminHolidays() {
   const box = $('#adminHolidayBox'); if (!box) return;
   const term = currentTerm(true), period = curPeriod();
@@ -8599,6 +8769,10 @@ function renderAdminHolidays() {
       '<datalist id="holidayPresets">' + HOLIDAY_PRESETS.map(x => '<option value="' + esc(x) + '">').join('') + '</datalist></div>' +
       '<div class="pick"><label>&nbsp;</label><button class="primary" id="holidayAdd" style="width:100%">+ เพิ่มวันหยุด</button></div></div>' +
     '<label style="display:block;margin:8px 0"><input type="checkbox" id="holidaySkipWeekend" checked> ข้ามเสาร์-อาทิตย์เมื่อเพิ่มเป็นช่วงวัน</label>' +
+    '<div class="row" style="margin-top:4px"><button id="holidayGoogle">⤓ ดึงวันหยุดราชการจาก Google</button>' +
+      '<button id="holidayIcsPick">นำเข้าไฟล์ .ics</button>' +
+      '<input type="file" id="holidayIcsFile" accept=".ics,text/calendar" hidden>' +
+      '<div class="spacer"></div><span class="hint">ปฏิทิน “วันหยุดในประเทศไทย” ของ Google • แสดงให้ติ๊กยืนยันก่อนเพิ่มเสมอ</span></div>' +
     '<div style="margin-top:10px">' + holidayRowsHtml(term) + '</div>' +
     '<div class="row" style="margin-top:10px"><div class="spacer"></div><button id="holidaySaveNames">บันทึกชื่อวันหยุดที่แก้ไข</button></div>';
 
@@ -8621,6 +8795,19 @@ function renderAdminHolidays() {
     if (!added && !updated) return toast('ไม่มีวันที่ถูกเพิ่ม (อาจเป็นเสาร์-อาทิตย์ทั้งช่วง)', 'bad');
     save(true); renderAdminHolidays(); renderTop();
     toast('เพิ่มวันหยุด ' + added + ' วัน' + (updated ? ' • อัปเดต ' + updated : '') + (outside ? ' • มี ' + outside + ' วันอยู่นอกช่วงเปิด-ปิดภาคเรียน' : ''), outside ? 'warn' : 'ok');
+  });
+  $('#holidayGoogle', box).addEventListener('click', e => startGoogleHolidayImport(e.currentTarget));
+  $('#holidayIcsPick', box).addEventListener('click', () => $('#holidayIcsFile', box).click());
+  $('#holidayIcsFile', box).addEventListener('change', async e => {
+    const file = e.target.files && e.target.files[0]; e.target.value = '';
+    if (!file) return;
+    const term = currentTerm(true);
+    if (!term.openDate || !term.closeDate) return toast('กรุณากำหนดวันเปิด-ปิดภาคเรียนก่อน', 'bad');
+    try {
+      const events = await parseHolidayIcs(file);
+      if (!events.length) return toast('ไม่พบรายการวันหยุดในไฟล์นี้ • ต้องเป็นไฟล์ .ics จากปฏิทิน Google', 'bad');
+      openHolidayImport(events, file.name);
+    } catch (err) { toast('อ่านไฟล์ไม่สำเร็จ: ' + (err && err.message ? err.message : 'รูปแบบไฟล์ไม่ถูกต้อง'), 'bad'); }
   });
   $('#holidaySaveNames', box).addEventListener('click', () => {
     $$('.holiday-name', box).forEach(inp => { const h = (term.holidays || []).find(x => x.date === inp.dataset.holidayDate); if (h) h.name = inp.value.trim(); });
