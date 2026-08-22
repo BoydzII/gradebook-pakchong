@@ -898,6 +898,9 @@ th.sortable{cursor:pointer;user-select:none;white-space:nowrap}
 th.sortable:hover{color:var(--brand);text-decoration:underline}
 /* วันหยุดตามปฏิทินสถานศึกษา */
 .holiday-card{border-left:6px solid var(--warn)}
+/* แผงสถานะการกรอกข้อมูลของภาคเรียน — ต้องเห็นชัดว่าตอนนี้ล็อกอยู่หรือเปล่า */
+.lock-box{margin-top:12px;padding:11px 13px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel2)}
+.lock-box.on{border-color:color-mix(in srgb,var(--bad) 45%,var(--line));background:var(--bad-bg)}
 .holiday-card .hero-sub{color:var(--warn);font-weight:700;letter-spacing:.06em}
 
 .statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
@@ -1822,6 +1825,72 @@ function headNameOfArea(area) {
 }
 /** ผู้ดูแลระบบเปิดดูได้ทุกหน้า แต่ลงนามอนุมัติแทนบทบาทอื่นไม่ได้ */
 const canApprove = () => (DB.ui.staffMode || 'teacher') !== 'admin';
+/* ---- ปิดภาคเรียน ---------------------------------------------------------
+   พอขึ้นภาคเรียนใหม่ ข้อมูลของภาคเก่าต้องนิ่ง ไม่งั้นคะแนนที่ส่ง ปพ.5 ไปแล้ว
+   ยังถูกแก้ได้เรื่อย ๆ โดยไม่มีใครรู้ ระบบจึงล็อกภาคที่เลยวันปิดไปแล้ว
+   เหลือทางเดียวคือแก้ผลการเรียนของเด็กที่ติด 0 ให้เป็น 1 เมื่อสอบแก้ตัวผ่าน
+   ซึ่งเป็นงานที่เกิดหลังปิดภาคเรียนอยู่แล้วโดยธรรมชาติ
+   ตัดสินจากวันปิดภาคเรียนที่ผู้ดูแลลงไว้ ไม่ต้องมีใครมากดปิดทุกเทอม
+   แต่ผู้ดูแลสั่งเปิดกลับหรือปิดก่อนกำหนดได้ เผื่อกรณีที่ยังตามเก็บคะแนนไม่ครบ */
+function termLockInfo(periodId) {
+  const pid = periodId || DB.ui.periodId;
+  const term = (DB.timetable.terms || {})[pid] || {};
+  const mode = (term.lockMode === 'open' || term.lockMode === 'locked') ? term.lockMode : 'auto';
+  const past = !!(term.closeDate && todayISO() > term.closeDate);
+  return { mode: mode, past: past, closeDate: term.closeDate || '',
+    locked: mode === 'locked' || (mode === 'auto' && past) };
+}
+const periodLocked = periodId => termLockInfo(periodId).locked;
+/** กันการเขียนข้อมูลของภาคเรียนที่ปิดแล้ว วางไว้ต้นทางของทุกจุดที่บันทึก */
+function blockClosedTerm() {
+  if (!periodLocked()) return false;
+  toast('ภาคเรียนนี้ปิดแล้ว แก้ไขข้อมูลไม่ได้ • แก้ได้เฉพาะผลการเรียนของนักเรียนที่ติด 0 ที่แท็บสรุป', 'bad');
+  return true;
+}
+/** แถบแจ้งบนหน้าที่ถูกล็อก บอกว่าล็อกเพราะอะไรและยังทำอะไรได้ */
+function termLockNotice() {
+  const info = termLockInfo();
+  if (!info.locked) return '';
+  return '<div class="notice bad" style="margin-top:10px"><b>ภาคเรียนนี้ปิดแล้ว — กรอกหรือแก้ข้อมูลไม่ได้</b>' +
+    (info.mode === 'locked' ? ' (ผู้ดูแลระบบสั่งปิด)' : info.closeDate ? ' ปิดเมื่อ ' + esc(thaiDate(info.closeDate)) : '') +
+    '<br>ล็อกไว้เพื่อไม่ให้คะแนนที่ส่ง ปพ.5 ไปแล้วเปลี่ยนโดยไม่มีใครรู้ ' +
+    'สิ่งที่ยังทำได้คือแก้ผลการเรียนของนักเรียนที่ติด 0 ให้เป็น 1 ที่แท็บ <b>สรุป / ส่งออก</b>' +
+    '<br><span class="hint">ถ้ายังต้องกรอกเพิ่ม ให้ผู้ดูแลระบบสั่งเปิดภาคเรียนนี้กลับที่หน้าผู้ดูแลระบบ</span></div>';
+}
+/** ปิดช่องกรอกที่เห็นอยู่ ให้ครูรู้ตั้งแต่ยังไม่ได้พิมพ์ว่าแก้ไม่ได้ */
+function lockPaneFields(pane, selector) {
+  if (!periodLocked()) return;
+  $$(selector, pane).forEach(el => { el.disabled = true; el.title = 'ภาคเรียนนี้ปิดแล้ว แก้ไขไม่ได้'; });
+}
+
+/** แผงสั่งเปิด/ปิดภาคเรียนของผู้ดูแลระบบ อยู่ต่อจากวันเปิด–ปิดภาคเรียน
+    เพราะเป็นเรื่องเดียวกัน ผู้ดูแลจะได้เห็นว่าวันที่ลงไว้ทำให้ระบบล็อกหรือยัง */
+function termLockAdminHtml(period) {
+  const info = termLockInfo(period.id);
+  const modes = [
+    { key: 'auto', label: 'อัตโนมัติ', desc: 'ปิดเองเมื่อเลยวันปิดภาคเรียน' },
+    { key: 'open', label: 'เปิดให้กรอก', desc: 'ฝืนเปิดไว้แม้เลยวันปิดแล้ว' },
+    { key: 'locked', label: 'ปิดทันที', desc: 'ล็อกเลยแม้ยังไม่ถึงวันปิด' }
+  ];
+  return '<div class="lock-box' + (info.locked ? ' on' : '') + '">' +
+    '<div class="row"><div><b>สถานะการกรอกข้อมูลของภาคเรียนนี้</b>' +
+      '<div class="hint">ปิดแล้วครูจะกรอกคะแนน เช็กชื่อ และประเมินคุณลักษณะของภาคนี้ไม่ได้ ' +
+      'เหลือทางเดียวคือแก้ผลการเรียนของนักเรียนที่ติด 0 ให้เป็น 1 เมื่อสอบแก้ตัวผ่าน</div></div>' +
+      '<div class="spacer"></div><span class="badge ' + (info.locked ? 'bad' : 'ok') + '">' +
+      (info.locked ? 'ปิดการกรอกแล้ว' : 'เปิดให้กรอกอยู่') + '</span></div>' +
+    '<div class="row" style="margin-top:10px;flex-wrap:wrap">' +
+      modes.map(m => '<button class="sm' + (info.mode === m.key ? ' primary' : '') + '" data-term-lock="' + m.key + '" title="' + esc(m.desc) + '">' +
+        esc(m.label) + '</button>').join('') + '</div>' +
+    '<div class="hint" style="margin-top:8px">' +
+      (info.mode === 'auto'
+        ? (info.closeDate
+            ? (info.past ? 'เลยวันปิดภาคเรียน (' + esc(thaiDate(info.closeDate)) + ') แล้ว ระบบจึงปิดให้อัตโนมัติ'
+                         : 'จะปิดเองในวันที่ ' + esc(thaiDate(info.closeDate)))
+            : 'ยังไม่ได้ลงวันปิดภาคเรียน ระบบจึงยังไม่ปิดให้ — ลงวันปิดไว้ด้านบนแล้วระบบจะจัดการเอง')
+        : info.mode === 'open' ? 'ผู้ดูแลระบบสั่งเปิดไว้ ระบบจะไม่ปิดเองแม้เลยวันปิดภาคเรียนแล้ว'
+        : 'ผู้ดูแลระบบสั่งปิดไว้ ไม่ว่าวันปิดภาคเรียนจะถึงหรือยัง') + '</div></div>';
+}
+
 function blockAdminApproval() {
   if (canApprove()) return false;
   toast('ผู้ดูแลระบบดูข้อมูลได้ แต่อนุมัติหรือตอบรับแทนครู หัวหน้ากลุ่มสาระฯ และผู้บริหารไม่ได้', 'bad');
@@ -3297,6 +3366,7 @@ function inheritNoticeHtml(inherited, students) {
 }
 
 function openAttendance(entry, date, singleMode, slotOverride) {
+  if (blockClosedTerm()) return;
   const subject = DB.subjects.find(s => s.id === entry.subjectId), cls = DB.classes.find(c => c.id === entry.classId);
   // คาบที่ถูกยกมาจากวันอื่นจะเรียนในช่องเวลาของวันนี้ ไม่ใช่เวลาเดิมของวันต้นทาง
   const slotIdFor = e => (slotOverride && e.id === entry.id) ? String(slotOverride) : String(e.slotId);
@@ -6100,6 +6170,7 @@ function renderItems() {
 
   /* --- เหตุการณ์ --- */
   $('#btnAddItem').addEventListener('click', () => {
+    if (blockClosedTerm()) return;
     b.items.push({ id: uid('it'), name: 'หัวข้อ ' + (b.items.length + 1), max: 10, kind: 'individual', groupSetId: '', components: [], scoreSection: 'before' });
     save(true); renderItems();
   });
@@ -6325,12 +6396,13 @@ function renderScores() {
         'เดินด้วยลูกศร ↑↓←→ • กด Enter เพื่อลงช่องถัดไป • เว้นว่าง = ยังไม่ได้กรอก (ไม่ใช่ 0) • ' +
         '<b>คัดลอกคะแนนทั้งคอลัมน์จาก Excel มาวางได้</b> คลิกช่องแรกแล้วกด Ctrl+V ระบบจะเติมลงมาตามลำดับแถว • ' +
         '<span class="badge grp">ช่องสีม่วง</span> คือคะแนนกลุ่ม • <span class="badge bad">ตัวแดง</span> ต่ำกว่าเกณฑ์ 60% รายส่วน • คะแนนตกยังนำมารวมตามจริง และเมื่อกรอกซ่อมจะใช้คะแนนซ่อมแทนโดยอัตโนมัติ' +
-      '</div>' + partToggleHtml +
+      '</div>' + termLockNotice() + partToggleHtml +
       (b.partialMode ? '<div class="notice" style="margin-top:8px">กำลังใช้โหมด “เฉพาะส่วนที่กรอกแล้ว” — คะแนนรวมเป็นการประมาณการระหว่างภาค ไม่ใช่คะแนนสุดท้าย</div>' : '') +
     '</div>' +
     '<div class="tablewrap tall"><table class="grid" id="scGrid"><thead>' + head + '</thead><tbody>' +
       sts.map(rowHtml).join('') + '</tbody></table></div>';
 
+  lockPaneFields(pane, 'input.cell');
   $('#pmode').addEventListener('change', e => { b.partialMode = e.target.checked; save(true); renderScores(); });
   $$('[data-part]', pane).forEach(btn => btn.addEventListener('click', () => {
     const k = btn.dataset.part;
@@ -6353,6 +6425,7 @@ function renderScores() {
 
   grid.addEventListener('input', e => {
     const inp = e.target;
+    if (blockClosedTerm()) { inp.value = ''; return; }
     if (inp.classList.contains('ksa-raw')) {
       const tr = inp.closest('tr'), sid = tr.dataset.sid, item = b.items.find(it => it.id === inp.dataset.item);
       if (!item) return;
@@ -6458,6 +6531,7 @@ function renderScores() {
   grid.addEventListener('paste', e => {
     const inp = e.target;
     if (!inp || !inp.classList || !inp.classList.contains('cell')) return;
+    if (blockClosedTerm()) { e.preventDefault(); return; }
     const data = e.clipboardData || window.clipboardData;
     const text = data ? data.getData('text') : '';
     if (!text) return;
@@ -6745,7 +6819,9 @@ function renderGroups() {
     }
     save(true); reapplyGroupScores(b, gs, g, byNo); renderGroups();
   }));
+  lockPaneFields(pane, '.gscore');
   $$('.gscore').forEach(inp => inp.addEventListener('change', () => {
+    if (blockClosedTerm()) return renderGroups();
     const gsId = inp.closest('[data-gs]').dataset.gs;
     const gs = b.groupSets.find(x => x.id === gsId);
     const g = gs.groups.find(x => x.id === inp.dataset.g);
@@ -6948,10 +7024,12 @@ function renderAssessments() {
   if (!sts.length) { pane.innerHTML = '<div class="card"><div class="empty">ยังไม่มีรายชื่อนักเรียน</div></div>'; return; }
   pane.innerHTML = '<div class="card noprint"><div class="row"><h3 style="margin:0">ประเมินคุณภาพผู้เรียน <span class="sub">' +
     esc(curSubject().name) + ' • ' + esc(curClass().name) + '</span></h3><div class="spacer"></div><button id="btnPrintAssess">พิมพ์</button></div>' +
-    '<div class="hint" style="margin-top:6px">ระดับ 3 = ดีเยี่ยม • 2 = ดี • 1 = ผ่าน • 0 = ไม่ผ่าน • “–” = ยังไม่ประเมิน</div></div>' +
+    '<div class="hint" style="margin-top:6px">ระดับ 3 = ดีเยี่ยม • 2 = ดี • 1 = ผ่าน • 0 = ไม่ผ่าน • “–” = ยังไม่ประเมิน</div>' + termLockNotice() + '</div>' +
     assessmentSectionHtml(b, sts, 'traits') + assessmentSectionHtml(b, sts, 'reading');
+  lockPaneFields(pane, '.assess-cell');
 
   $$('.assess-cell', pane).forEach(sel => sel.addEventListener('change', () => {
+    if (blockClosedTerm()) return renderAssessments();
     const tr = sel.closest('.assess-row'), type = tr.dataset.type, sid = tr.dataset.sid, i = +sel.dataset.i;
     b.assessments[type][sid] = (b.assessments[type][sid] || []).slice();
     b.assessments[type][sid][i] = sel.value === '' ? null : +sel.value;
@@ -7262,6 +7340,8 @@ function renderSummary() {
         '<button id="btnPrint">พิมพ์ปก ปพ.5</button>' +
       '</div>' +
       (b.partialMode ? '<div class="notice" style="margin-top:8px">โหมด “เฉพาะส่วนที่กรอกแล้ว” เปิดอยู่ — ตัวเลขเป็นการประมาณการระหว่างภาค</div>' : '') +
+      (periodLocked() ? '<div class="notice" style="margin-top:8px"><b>ภาคเรียนนี้ปิดแล้ว</b> — คะแนนถูกล็อกไว้ ' +
+        'แก้ได้เฉพาะช่อง <b>แก้ผล 0</b> ของนักเรียนที่ติด 0 เมื่อสอบแก้ตัวผ่านแล้ว ระบบจะเปลี่ยนเกรดให้เป็น 1</div>' : '') +
     '</div>' +
 
     '<div class="card cover5">' +
@@ -9440,7 +9520,8 @@ function adminSectionCalendar(box) {
       '<div class="pick"><label>วันปิดภาคเรียน</label><input type="date" id="adminTermClose" value="' + esc(term.closeDate || '') + '"></div>' +
       '<div class="pick"><label>เวลาเรียนขั้นต่ำที่ผ่านเกณฑ์ (%)</label><input type="number" min="0" max="100" id="adminTermMin" value="' + esc(term.minAttendance == null ? 80 : term.minAttendance) + '"></div>' +
       '<div class="pick"><label>&nbsp;</label><button class="primary" id="adminTermSave" style="width:100%">บันทึกปฏิทินภาคเรียน</button></div></div>' +
-      (!term.openDate || !term.closeDate ? '<div class="notice bad" style="margin-top:10px">ยังไม่ได้กำหนดวันเปิด–ปิดภาคเรียน ระบบจึงยังคำนวณคาบทั้งภาคและเวลาเรียนไม่ได้</div>' : '') + '</div>' +
+      (!term.openDate || !term.closeDate ? '<div class="notice bad" style="margin-top:10px">ยังไม่ได้กำหนดวันเปิด–ปิดภาคเรียน ระบบจึงยังคำนวณคาบทั้งภาคและเวลาเรียนไม่ได้</div>' : '') +
+      termLockAdminHtml(period) + '</div>' +
     '<div class="card" id="adminHolidayBox"></div>' +
     '<div class="card" id="adminDayShiftBox"></div>' +
     '<div class="card"><div class="row"><div><h3 style="margin:0">ตารางสอนทั้งโรงเรียน</h3><div class="hint">หนึ่งแถวต่อหนึ่งคาบ • ตรวจครูสอนซ้อน ห้องซ้อน และข้อมูลอ้างอิงก่อนบันทึกจริง</div></div><div class="spacer"></div><button id="adminTimetableTemplate">ดาวน์โหลดแม่แบบ</button><button class="primary" id="adminTimetableImport">นำเข้า Excel หลายครู</button><button id="adminGoSchedule">เปิดตารางสอน</button></div>' +
@@ -9456,6 +9537,13 @@ function adminSectionCalendar(box) {
   renderAdminHolidays();
   renderAdminDayShifts();
   $('#adminSlotTimes', box).addEventListener('click', editTimetableSettings);
+  $$('[data-term-lock]', box).forEach(btn => btn.addEventListener('click', () => {
+    term.lockMode = btn.dataset.termLock;
+    save(true);
+    toast(periodLocked() ? 'ปิดการกรอกข้อมูลของภาคเรียนนี้แล้ว' : 'เปิดให้กรอกข้อมูลภาคเรียนนี้แล้ว',
+      periodLocked() ? 'warn' : 'ok');
+    renderAdmin(); render();
+  }));
   $('#adminTermSave', box).addEventListener('click', () => {
     const open = $('#adminTermOpen', box).value, close = $('#adminTermClose', box).value;
     if (open && close && close < open) return toast('วันปิดภาคเรียนต้องไม่น้อยกว่าวันเปิดภาคเรียน', 'bad');
