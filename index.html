@@ -884,6 +884,16 @@ body.is-offline .topbar{box-shadow:inset 0 -3px 0 var(--warn)}
 .console-tab.on .ct-hint{color:rgba(255,255,255,.82)}
 @media(max-width:820px){.console-tab{flex:0 0 auto;min-width:152px}}
 .sort-group button.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+/* ปุ่มซ่อน/แสดงคะแนนแต่ละส่วน — ตารางกรอกคะแนนกว้างมากเมื่อหัวข้อเยอะ
+   ครูที่กำลังกรอกเฉพาะส่วนใดส่วนหนึ่งจึงพับส่วนที่ยังไม่ใช้เก็บไว้ก่อนได้ */
+.part-toggle{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:9px}
+.part-toggle .pt-label{font-size:12px;font-weight:800;color:var(--muted);letter-spacing:.02em}
+.part-toggle button{border:1px solid var(--line);background:var(--panel2);color:var(--muted);
+  border-radius:999px;padding:5px 13px;font-size:12.5px;font-weight:700;line-height:1.3}
+.part-toggle button:hover{border-color:var(--brand);color:var(--ink)}
+.part-toggle button.on{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.part-toggle button.on:hover{color:var(--brand-ink)}
+.part-toggle .pt-hidden{font-size:11.5px;font-weight:700;color:var(--warn)}
 th.sortable{cursor:pointer;user-select:none;white-space:nowrap}
 th.sortable:hover{color:var(--brand);text-decoration:underline}
 /* วันหยุดตามปฏิทินสถานศึกษา */
@@ -6210,26 +6220,47 @@ function renderScores() {
     const components = itemComponents(it), section = itemScoreSection(it), start = cols.length;
     if (components.length) {
       components.forEach(comp => cols.push({ key: 'ksa:' + it.id + ':' + comp.key, type: 'ksa', itemId: it.id, item: it, comp: comp,
-        label: comp.key, max: num(comp.rawMax), givenMax: num(comp.max), section: section, threshold: true }));
+        label: comp.key, max: num(comp.rawMax), givenMax: num(comp.max), section: section, part: section, threshold: true }));
     } else {
       cols.push({ key: 'it:' + it.id, type: 'item', itemId: it.id, item: it, label: 'คะแนน', max: num(it.max), grp: it.kind === 'group',
-        section: section, unit: it.kind === 'unit', threshold: true, gname: gname });
+        section: section, part: section, unit: it.kind === 'unit', threshold: true, gname: gname });
     }
-    headGroups.push({ label: it.name, span: cols.length - start, item: it, section: section, grp: it.kind === 'group', gname: gname });
+    headGroups.push({ label: it.name, span: cols.length - start, item: it, section: section, part: section, grp: it.kind === 'group', gname: gname });
     if (it.kind === 'unit') {
-      cols.push({ key: 'rt:' + it.id, type: 'retake', itemId: it.id, item: it, label: 'คะแนนซ่อม', max: num(it.max), unit: true, retake: true, threshold: true });
-      headGroups.push({ label: 'ซ่อม ' + it.name, span: 1, retake: true });
+      cols.push({ key: 'rt:' + it.id, type: 'retake', itemId: it.id, item: it, label: 'คะแนนซ่อม', max: num(it.max), unit: true, retake: true, part: section, threshold: true });
+      headGroups.push({ label: 'ซ่อม ' + it.name, span: 1, retake: true, part: section });
     }
   };
   b.items.filter(it => itemScoreSection(it) === 'before').forEach(addItemColumns);
-  cols.push({ key: 'calc:before', type: 'sectionTotal', section: 'before', label: 'คะแนนรวม', max: num(b.weights.before) });
-  headGroups.push({ label: 'รวมก่อนกลางภาค', span: 1, total: true, section: 'before' });
-  if (num(b.exams.midMax)) { cols.push({ key: 'ex:mid', type: 'exam', label: 'คะแนน', max: num(b.exams.midMax), sep: true, threshold: true }); headGroups.push({ label: 'สอบกลางภาค', span: 1, exam: true }); }
-  if (num(b.exams.midMax) && b.exams.retakeEnabled) { cols.push({ key: 'ex:retake', type: 'exam', label: 'คะแนนซ่อม', max: num(b.exams.midMax), threshold: true }); headGroups.push({ label: 'สอบซ่อมกลางภาค', span: 1, exam: true }); }
+  cols.push({ key: 'calc:before', type: 'sectionTotal', section: 'before', part: 'before', label: 'คะแนนรวม', max: num(b.weights.before) });
+  headGroups.push({ label: 'รวมก่อนกลางภาค', span: 1, total: true, section: 'before', part: 'before' });
+  if (num(b.exams.midMax)) { cols.push({ key: 'ex:mid', type: 'exam', label: 'คะแนน', max: num(b.exams.midMax), part: 'mid', sep: true, threshold: true }); headGroups.push({ label: 'สอบกลางภาค', span: 1, exam: true, part: 'mid' }); }
+  if (num(b.exams.midMax) && b.exams.retakeEnabled) { cols.push({ key: 'ex:retake', type: 'exam', label: 'คะแนนซ่อม', max: num(b.exams.midMax), part: 'mid', threshold: true }); headGroups.push({ label: 'สอบซ่อมกลางภาค', span: 1, exam: true, part: 'mid' }); }
   b.items.filter(it => itemScoreSection(it) === 'after').forEach(addItemColumns);
-  cols.push({ key: 'calc:after', type: 'sectionTotal', section: 'after', label: 'คะแนนรวม', max: num(b.weights.after) });
-  headGroups.push({ label: 'รวมหลังกลางภาค', span: 1, total: true, section: 'after' });
-  if (num(b.exams.finalMax)) { cols.push({ key: 'ex:final', type: 'exam', label: 'คะแนน', max: num(b.exams.finalMax), sep: !num(b.exams.midMax), threshold: true }); headGroups.push({ label: 'สอบปลายภาค', span: 1, exam: true }); }
+  cols.push({ key: 'calc:after', type: 'sectionTotal', section: 'after', part: 'after', label: 'คะแนนรวม', max: num(b.weights.after) });
+  headGroups.push({ label: 'รวมหลังกลางภาค', span: 1, total: true, section: 'after', part: 'after' });
+  if (num(b.exams.finalMax)) { cols.push({ key: 'ex:final', type: 'exam', label: 'คะแนน', max: num(b.exams.finalMax), part: 'final', sep: !num(b.exams.midMax), threshold: true }); headGroups.push({ label: 'สอบปลายภาค', span: 1, exam: true, part: 'final' }); }
+
+  /* ---- ซ่อน/แสดงคะแนนแต่ละส่วน ------------------------------------------
+     ตัดคอลัมน์ของส่วนที่ปิดไว้ออกตั้งแต่ตอนสร้าง ทั้งหัวตารางและช่องกรอก
+     จึงยังเดินด้วยลูกศร วางจาก Excel และคำนวณได้ตามปกติ เพราะเลขคอลัมน์
+     ถูกไล่ใหม่ให้ตรงกับที่เห็นจริง ไม่ใช่แค่ซ่อนด้วย CSS แล้วเหลือช่องผี
+     คอลัมน์สรุปท้ายตาราง (กลาง ปลาย รวม เกรด) ยังอยู่เสมอ เพราะเป็นผลลัพธ์ ไม่ใช่ช่องกรอก */
+  const SCORE_PARTS = [{ key: 'before', label: 'ก่อนกลางภาค' }, { key: 'mid', label: 'กลางภาค' },
+    { key: 'after', label: 'หลังกลางภาค' }, { key: 'final', label: 'ปลายภาค' }];
+  DB.ui.scoreParts = DB.ui.scoreParts || {};
+  const partOn = k => DB.ui.scoreParts[k] !== false;          // ไม่เคยตั้งค่า = แสดงทุกส่วน
+  const hasPart = {}; cols.forEach(c => { if (c.part && c.type !== 'sectionTotal') hasPart[c.part] = true; });
+  const usableParts = SCORE_PARTS.filter(p => hasPart[p.key]);
+  for (let i = cols.length - 1; i >= 0; i--) if (cols[i].part && !partOn(cols[i].part)) cols.splice(i, 1);
+  for (let i = headGroups.length - 1; i >= 0; i--) if (headGroups[i].part && !partOn(headGroups[i].part)) headGroups.splice(i, 1);
+  const hiddenParts = usableParts.filter(p => !partOn(p.key));
+  const partToggleHtml = usableParts.length < 2 ? '' :
+    '<div class="part-toggle"><span class="pt-label">แสดงคะแนนส่วน</span>' +
+    usableParts.map(p => '<button data-part="' + p.key + '" class="' + (partOn(p.key) ? 'on' : '') + '" title="' +
+      (partOn(p.key) ? 'กดเพื่อซ่อน' : 'กดเพื่อแสดง') + esc(p.label) + '">' + esc(p.label) + '</button>').join('') +
+    (hiddenParts.length ? '<button data-part-all="1">แสดงทั้งหมด</button>' +
+      '<span class="pt-hidden">ซ่อนอยู่ ' + hiddenParts.length + ' ส่วน</span>' : '') + '</div>';
 
   const head =
     '<tr>' +
@@ -6294,13 +6325,21 @@ function renderScores() {
         'เดินด้วยลูกศร ↑↓←→ • กด Enter เพื่อลงช่องถัดไป • เว้นว่าง = ยังไม่ได้กรอก (ไม่ใช่ 0) • ' +
         '<b>คัดลอกคะแนนทั้งคอลัมน์จาก Excel มาวางได้</b> คลิกช่องแรกแล้วกด Ctrl+V ระบบจะเติมลงมาตามลำดับแถว • ' +
         '<span class="badge grp">ช่องสีม่วง</span> คือคะแนนกลุ่ม • <span class="badge bad">ตัวแดง</span> ต่ำกว่าเกณฑ์ 60% รายส่วน • คะแนนตกยังนำมารวมตามจริง และเมื่อกรอกซ่อมจะใช้คะแนนซ่อมแทนโดยอัตโนมัติ' +
-      '</div>' +
+      '</div>' + partToggleHtml +
       (b.partialMode ? '<div class="notice" style="margin-top:8px">กำลังใช้โหมด “เฉพาะส่วนที่กรอกแล้ว” — คะแนนรวมเป็นการประมาณการระหว่างภาค ไม่ใช่คะแนนสุดท้าย</div>' : '') +
     '</div>' +
     '<div class="tablewrap tall"><table class="grid" id="scGrid"><thead>' + head + '</thead><tbody>' +
       sts.map(rowHtml).join('') + '</tbody></table></div>';
 
   $('#pmode').addEventListener('change', e => { b.partialMode = e.target.checked; save(true); renderScores(); });
+  $$('[data-part]', pane).forEach(btn => btn.addEventListener('click', () => {
+    const k = btn.dataset.part;
+    DB.ui.scoreParts = DB.ui.scoreParts || {};
+    DB.ui.scoreParts[k] = DB.ui.scoreParts[k] === false;      // ปิดอยู่ก็เปิด เปิดอยู่ก็ปิด
+    save(); renderScores();
+  }));
+  const showAll = $('[data-part-all]', pane);
+  if (showAll) showAll.addEventListener('click', () => { DB.ui.scoreParts = {}; save(); renderScores(); });
 
   const grid = $('#scGrid');
   const cellAt = (r, c) => grid.querySelector('input.cell:not(:disabled)[data-r="' + r + '"][data-c="' + c + '"]');
