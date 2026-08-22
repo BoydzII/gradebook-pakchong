@@ -1092,7 +1092,7 @@ body.print-scores.print-preview .score-sheet{max-width:820px;margin:18px auto 96
   <button data-tab="attendance">เช็กชื่อ <span id="missedBadge"></span></button>
   <button data-tab="exchange">แลกคาบ / การลา <span id="exchangeBadge"></span></button>
   <button data-tab="scores">กรอกคะแนน</button>
-  <button data-tab="groups">กลุ่ม</button>
+  <button data-tab="groups">คะแนนกลุ่ม</button>
   <button data-tab="assess">คุณลักษณะ / อ่านคิดวิเคราะห์</button>
   <button data-tab="summary">สรุป / ส่งออก</button>
   <button data-tab="settings">โปรไฟล์ครู</button>
@@ -2217,7 +2217,7 @@ const homeTabOfRole = role => role === 'executive' ? 'executive' : role === 'adm
    แถบบนเหลือเฉพาะสิ่งที่ใช้บ่อย ปุ่มอื่นย้ายเข้าเมนู ⋯
    บนมือถือใช้แถบล่าง 5 ปุ่ม ส่วนหน้าที่เหลือเปิดจากปุ่ม "เพิ่มเติม" */
 const TAB_SHORT = { dashboard: 'ภาพรวม', attendance: 'เช็กชื่อ', exchange: 'แลกคาบ', scores: 'คะแนน',
-  groups: 'กลุ่ม', assess: 'คุณลักษณะ', summary: 'สรุป ปพ.5', settings: 'โปรไฟล์ครู', students: 'นักเรียน',
+  groups: 'คะแนนกลุ่ม', assess: 'คุณลักษณะ', summary: 'สรุป ปพ.5', settings: 'โปรไฟล์ครู', students: 'นักเรียน',
   schedule: 'ตารางสอน', items: 'หัวข้อคะแนน', indicators: 'ตัวชี้วัด', activities: 'กิจกรรม', head: 'กลุ่มสาระ',
   executive: 'ผู้บริหาร', leaves: 'อนุมัติลา', admin: 'ผู้ดูแลระบบ' };
 const TAB_ICON = { dashboard: '◈', attendance: '◷', exchange: '⇄', scores: '✎', groups: '◉', assess: '☑',
@@ -2239,7 +2239,7 @@ const PRIMARY_TABS = { teacher: ['dashboard', 'attendance', 'scores', 'exchange'
   admin: ['admin', 'students', 'schedule', 'settings'] };
 
 /* แท็บที่ปักหมุดไว้บนแถบเสมอ ที่เหลือเก็บในเมนู เพื่อให้แถบบนโล่งและหาของง่าย */
-const PINNED_TABS = ['dashboard', 'attendance', 'scores'];
+const PINNED_TABS = ['dashboard', 'attendance', 'scores', 'groups'];
 const isPinnedTab = (tab, mode) => PINNED_TABS.indexOf(tab) >= 0 || (mode !== 'teacher' && tab === homeTabOfRole(mode));
 /* ทุกหน้าที่บทบาทนี้เข้าได้ (รวมที่อยู่ในเมนู) */
 const allowedTabs = () => $$('#tabs button').map(b => b.dataset.tab).filter(t => canSeeTab(t, DB.ui.staffMode || 'teacher'));
@@ -2665,7 +2665,7 @@ function renderDashboard() {
     (schoolDataMissing() ? schoolDataCard() : '') + approvalCardHtml() +
     '<div class="dash-columns"><div><div class="card"><div class="row"><h3 style="margin:0">ตารางสอนวันนี้</h3>' + (todayShift ? '<span class="badge group" title="' + esc(dayShiftText(todayShift)) + '">↷ ' + esc(todayShift.mode === 'day' ? 'ใช้ตารางวัน' + schoolDayName(todayShift.sourceDay) : 'สลับคาบ') + '</span>' : '') + '<div class="spacer"></div><button class="sm" data-go-tab="schedule">ดูตารางทั้งหมด</button></div><div class="today-list" style="margin-top:10px">' +
       (todayEntries.length ? todayEntries.map(x => { const e = x.entry, slot = DB.timetable.slots.find(s => s.id === x.slotId), subject = subjectOf(e), c = classOf(e); const current = slot && nowMin >= timeToMinutes(slot.start) && nowMin <= timeToMinutes(slot.end); const checked = !!DB.timetable.attendance[attendanceKey(e.id, today)]; return '<div class="today-card' + (current ? ' current' : '') + '"><div class="today-time"><b>' + esc(slot ? slot.label : '') + '</b>' + esc(slot ? slot.start + '-' + slot.end : '') + '</div><div><b>' + esc((subject.code ? subject.code + ' ' : '') + subject.name) + '</b><div class="hint">' + esc(c.name) + (e.room ? ' • ' + esc(e.room) : '') + '</div></div><div class="spacer"></div>' + (checked ? '<span class="badge ok">เช็กแล้ว</span>' : '<button class="sm primary" data-dash-att="' + e.id + '">เช็กชื่อ</button>') + '</div>'; }).join('') : '<div class="empty">วันนี้ไม่มีคาบสอนในตาราง</div>') + '</div></div>' +
-      '<div class="card"><h3>ทางลัดงานประจำ</h3><div class="quick-grid"><button class="quick-action" data-go-tab="scores">✎<b>กรอกคะแนน</b><span>คะแนนเก็บ สอบ และซ่อม</span></button><button class="quick-action" data-go-tab="attendance">◷<b>เช็กเวลาเรียน</b><span>คาบประจำ แลกคาบ สอนแทน และชดเชย</span></button><button class="quick-action" data-go-tab="groups">◉<b>จัดกลุ่มเรียนรู้</b><span>กลุ่มและผู้นำเสนอ</span></button><button class="quick-action" data-go-tab="summary">▤<b>สรุป ปพ.5</b><span>เกรด เวลาเรียน และส่งออก</span></button></div></div></div>' +
+      '<div class="card"><h3>ทางลัดงานประจำ</h3><div class="quick-grid"><button class="quick-action" data-go-tab="scores">✎<b>กรอกคะแนน</b><span>คะแนนเก็บ สอบ และซ่อม</span></button><button class="quick-action" data-go-tab="attendance">◷<b>เช็กเวลาเรียน</b><span>คาบประจำ แลกคาบ สอนแทน และชดเชย</span></button><button class="quick-action" data-go-tab="groups">◉<b>คะแนนกลุ่ม</b><span>จัดกลุ่ม ให้คะแนน และผู้นำเสนอ</span></button><button class="quick-action" data-go-tab="summary">▤<b>สรุป ปพ.5</b><span>เกรด เวลาเรียน และส่งออก</span></button></div></div></div>' +
       '<div><div class="card"><h3>ผู้ช่วยแนะนำงาน</h3><div class="insight-list">' + insights.map(i => '<button class="insight-item" data-go-tab="' + i.tab + '" style="text-align:left;width:100%"><span class="insight-dot" style="--insight:' + i.color + '"></span><span>' + esc(i.text) + '</span><span class="spacer"></span><span>›</span></button>').join('') + '</div></div>' +
       '<div class="card"><div class="row"><h3 style="margin:0">ความพร้อมของระบบ</h3><div class="spacer"></div><b>' + setupPct + '%</b></div><div class="setup-progress"><i style="width:' + setupPct + '%"></i></div><div class="hint">สถานศึกษา • ห้อง • วิชา • รายชื่อ • ตารางสอน • ปฏิทิน • หัวข้อคะแนน • ฐานข้อมูลกลาง</div><button class="sm" data-go-tab="settings" style="margin-top:9px">ตรวจสอบการตั้งค่า</button></div></div></div>' + exchangeRequestCard() + leaveHistoryCard(5, true) + '<div class="card" id="pendingBox"></div>' + (schoolDataMissing() ? '' : schoolDataCard());
 
