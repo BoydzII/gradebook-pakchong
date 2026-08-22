@@ -3398,8 +3398,9 @@ function openAttendance(entry, date, singleMode, slotOverride) {
             '" title="ตั้งเป็น' + esc(s2.label) + 'ทั้งห้อง">' + esc(s2.label) + '</button></th>'; }).join('') +
         '<th class="c-hist">สถิติสะสม<br><span class="hint">มา/ขาด/ลา/กิจกรรม</span></th><th class="c-pct">เวลาเรียน</th></tr></thead><tbody>' + students.map(st => {
         const onActivity = activityFor(st.sid, date, entry.slotId);
-        const status = statusSource && statusSource.statuses && statusSource.statuses[st.sid] ? statusSource.statuses[st.sid]
-          : (onActivity ? 'activity' : 'present');
+        const status = old && old.statuses && old.statuses[st.sid] ? old.statuses[st.sid]
+          : onActivity ? 'activity'
+          : ((inherited && inherited.statuses && inherited.statuses[st.sid]) || 'present');
         const att = attendanceStudentResult(cls.id, entry.subjectId, st, entry.periodId);
         const nm = 'att_' + String(st.sid).replace(/[^A-Za-z0-9_-]/g, '_');
         return '<tr data-att-sid="' + esc(st.sid) + '" data-att-no="' + esc(st.no) + '" class="att-' + status + '">' +
