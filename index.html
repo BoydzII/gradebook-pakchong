@@ -6292,6 +6292,7 @@ function renderScores() {
       '</div>' +
       '<div class="hint" style="margin-top:6px">' +
         'เดินด้วยลูกศร ↑↓←→ • กด Enter เพื่อลงช่องถัดไป • เว้นว่าง = ยังไม่ได้กรอก (ไม่ใช่ 0) • ' +
+        '<b>คัดลอกคะแนนทั้งคอลัมน์จาก Excel มาวางได้</b> คลิกช่องแรกแล้วกด Ctrl+V ระบบจะเติมลงมาตามลำดับแถว • ' +
         '<span class="badge grp">ช่องสีม่วง</span> คือคะแนนกลุ่ม • <span class="badge bad">ตัวแดง</span> ต่ำกว่าเกณฑ์ 60% รายส่วน • คะแนนตกยังนำมารวมตามจริง และเมื่อกรอกซ่อมจะใช้คะแนนซ่อมแทนโดยอัตโนมัติ' +
       '</div>' +
       (b.partialMode ? '<div class="notice" style="margin-top:8px">กำลังใช้โหมด “เฉพาะส่วนที่กรอกแล้ว” — คะแนนรวมเป็นการประมาณการระหว่างภาค ไม่ใช่คะแนนสุดท้าย</div>' : '') +
@@ -6408,6 +6409,44 @@ function renderScores() {
     else return;
     if (t) { e.preventDefault(); t.focus(); t.select(); }
     else if (e.key === 'Enter') e.preventDefault();
+  });
+  /* ---- วางคะแนนจาก Excel ทั้งคอลัมน์ -------------------------------------
+     ครูหลายคนคิดคะแนนในไฟล์ Excel ก่อนแล้วค่อยมากรอก ห้องละ 40 คนถ้าพิมพ์ทีละช่อง
+     ทั้งช้าและพลาดง่าย จึงรับการวางหลายบรรทัดมาเติมลงมาตามลำดับแถวเลย
+     ยึด "แถวที่เท่าไร" เป็นหลัก ไม่ใช่ "ช่องว่างถัดไป" เพราะถ้าเจอช่องที่กรอกไม่ได้
+     (เช่นช่องซ่อมของคนที่ไม่ตก) แล้วเลื่อนไปเติมช่องถัดไป คะแนนจะไปตกผิดคนทั้งคอลัมน์
+     รองรับหลายคอลัมน์ด้วย เพราะ Excel คั่นคอลัมน์ด้วยแท็บอยู่แล้ว */
+  grid.addEventListener('paste', e => {
+    const inp = e.target;
+    if (!inp || !inp.classList || !inp.classList.contains('cell')) return;
+    const data = e.clipboardData || window.clipboardData;
+    const text = data ? data.getData('text') : '';
+    if (!text) return;
+    const block = text.replace(/\r\n?/g, '\n').replace(/\n+$/, '').split('\n').map(line => line.split('\t'));
+    if (block.length === 1 && block[0].length === 1) return;      // ค่าเดียว ปล่อยให้วางตามปกติ
+    e.preventDefault();
+    const r0 = num(inp.dataset.r), c0 = num(inp.dataset.c);
+    const anyCellAt = (r, c) => grid.querySelector('input.cell[data-r="' + r + '"][data-c="' + c + '"]');
+    let filled = 0, locked = 0, outside = 0;
+    block.forEach((line, i) => line.forEach((raw, j) => {
+      const cell = cellAt(r0 + i, c0 + j);
+      const value = String(raw == null ? '' : raw).trim().replace(/,/g, '');
+      if (!cell) {
+        if (value !== '') { if (anyCellAt(r0 + i, c0 + j)) locked++; else outside++; }
+        return;
+      }
+      cell.value = value;
+      cell.dispatchEvent(new Event('input', { bubbles: true }));
+      filled++;
+    }));
+    save(true);
+    const landing = cellAt(Math.min(r0 + block.length - 1, sts.length - 1), c0) || inp;
+    landing.focus(); landing.select();
+    const skipped = [];
+    if (locked) skipped.push('ช่องที่ยังกรอกไม่ได้ ' + locked + ' ค่า (เช่นช่องซ่อมของคนที่ไม่ตก)');
+    if (outside) skipped.push('เลยขอบตาราง ' + outside + ' ค่า');
+    toast('วางคะแนนแล้ว ' + filled + ' ช่อง' + (skipped.length ? ' • ข้าม ' + skipped.join(' และ ') : ''),
+      skipped.length ? 'warn' : 'ok');
   });
   grid.addEventListener('focusin', e => { if (e.target.classList.contains('cell')) e.target.select(); });
 }
