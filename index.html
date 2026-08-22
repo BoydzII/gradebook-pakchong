@@ -7071,8 +7071,10 @@ function scoreSheetHtml(b, rows) {
   const cell = (r, p) => '<td class="num"><b>' + fmt(p.val(r)) + '</b></td>';
 
   return '<div class="card score-sheet"><div class="row noprint"><div><h3 style="margin:0">คะแนนสำหรับกรอก SGS</h3>' +
-      '<div class="hint">เรียงตามลำดับช่องที่ต้องคีย์ — ก่อนกลางภาค • กลางภาค • หลังกลางภาค • ปลายภาค • รวม • เกรด</div></div>' +
+      '<div class="hint">เรียงตามลำดับช่องที่ต้องคีย์ — ก่อนกลางภาค • กลางภาค • หลังกลางภาค • ปลายภาค • รวม • เกรด' +
+      '<br>ส่งออกเป็น Excel ได้ ถ้าอยากคัดลอกทีละคอลัมน์ไปวางแทนการคีย์ทีละช่อง</div></div>' +
       '<div class="spacer"></div><button id="btnPreviewScores">ดูตัวอย่างก่อนพิมพ์</button>' +
+      '<button id="btnSgsXlsx">ส่งออก Excel (.xlsx)</button>' +
       '<button class="primary" id="btnPrintScores">พิมพ์คะแนน SGS</button></div>' +
 
     '<div class="ss-head">' +
@@ -7107,6 +7109,57 @@ function scoreSheetHtml(b, rows) {
         '<div class="ss-sign"><div class="ss-line"></div>' + esc(s.directorPosition || 'ผู้อำนวยการสถานศึกษา') +
           '<br><span>(' + esc(s.directorName || '') + ')</span></div>' +
       '</div></div></div>';
+}
+
+/** ส่งออกใบคะแนน SGS เป็น Excel — คอลัมน์ตรงกับใบพิมพ์ทุกช่อง ไม่เพิ่มไม่ลด
+    เพราะจุดประสงค์เดียวกันคือคีย์เข้า SGS ให้ตรงช่อง ตัวเลขส่วนเกินทำให้คีย์ผิด
+    ต่างกันแค่ตรงนี้ส่งค่าเป็นตัวเลขจริง ไม่ใช่ข้อความ จะได้คัดลอกทั้งคอลัมน์ไปวางได้ */
+function exportSgsWorkbook() {
+  const b = curBook(true), cls = curClass(), sub = curSubject(), period = curPeriod();
+  const sts = curStudents().slice().sort((a, c) => num(a.no) - num(c.no));
+  if (!sts.length) return toast('ยังไม่มีรายชื่อนักเรียนในชั้นนี้', 'bad');
+  const rows = summaryRows(b, sts, cls.id, sub.id);
+  const W = b.weights;
+  const parts = [
+    { label: 'ก่อนกลางภาค', w: num(W.before), val: r => r.wBefore },
+    { label: 'กลางภาค', w: num(W.mid), val: r => r.wM },
+    { label: 'หลังกลางภาค', w: num(W.after), val: r => r.wAfter },
+    { label: 'ปลายภาค', w: num(W.final), val: r => r.wF }
+  ];
+  const H = v => ({ v: v, s: 1 });
+  const teacher = curTeacher();
+  const head = ['เลขที่', 'เลขประจำตัว', 'ชื่อ-นามสกุล']
+    .concat(parts.map(p => p.label + ' (เต็ม ' + fmt(p.w) + ')'))
+    .concat(['รวม (เต็ม 100)', 'เกรด']).map(H);
+  const body = rows.map(x => [num(x.st.no), x.st.sid, x.st.name]
+    .concat(parts.map(p => { const v = p.val(x.r); return isFinite(v) ? Number(Number(v).toFixed(2)) : ''; }))
+    .concat([isFinite(x.r.total) ? Number(Number(x.r.total).toFixed(2)) : '', String(x.r.grade)]));
+  const infoRows = [
+    [H('คะแนนสำหรับกรอก SGS'), ''],
+    ['สถานศึกษา', DB.settings.schoolName || ''],
+    ['ปีการศึกษา', period.academicYear], ['ภาคเรียน', period.semester],
+    ['รหัสวิชา', sub.code || ''], ['รายวิชา', sub.name],
+    ['ชั้น/ห้อง', cls.name], ['หน่วยกิต', b.meta.credits || ''],
+    ['ครูผู้สอน', teacher ? (teacher.name || teacher.email) : (b.meta.teacherName || '')],
+    ['จำนวนนักเรียน', rows.length],
+    ['วันที่ส่งออก', thaiDate(todayISO())]
+  ];
+  const sheets = [
+    /* ชีตคะแนนเริ่มที่แถวแรกเลย ไม่มีหัวกระดาษคั่น ครูจะได้ลากคลุมทั้งคอลัมน์ไปวางใน SGS ได้ทันที
+       ข้อมูลรายวิชาแยกไปอีกชีตเพื่อไม่ให้ไปดันแถวของตาราง */
+    { name: 'กรอก SGS', rows: [head].concat(body),
+      cols: [8, 15, 30, 17, 14, 17, 14, 15, 9], freeze: { rows: 1, cols: 3 } },
+    { name: 'ข้อมูลรายวิชา', rows: infoRows, cols: [22, 40], freeze: { rows: 0, cols: 0 } }
+  ];
+  const safe = v => String(v || '').replace(/[\\\/:*?"<>|]/g, '_');
+  const fn = 'SGS_' + safe(sub.code || sub.name) + '_' + safe(cls.name) +
+    '_ปี' + safe(period.academicYear) + '_ภาค' + safe(period.semester) + '.xlsx';
+  try {
+    download(buildXlsx(sheets), fn);
+    toast('ส่งออก ' + fn, 'ok');
+  } catch (e) {
+    toast('ส่งออกไม่สำเร็จ: ' + (e.message || e), 'bad');
+  }
 }
 
 function renderSummary() {
@@ -7283,6 +7336,8 @@ function renderSummary() {
   if (btnScores) btnScores.addEventListener('click', () => printMode('print-scores'));
   const btnPreview = $('#btnPreviewScores', pane);
   if (btnPreview) btnPreview.addEventListener('click', openScorePreview);
+  const btnSgs = $('#btnSgsXlsx', pane);
+  if (btnSgs) btnSgs.addEventListener('click', exportSgsWorkbook);
   $('#btnXlsx').addEventListener('click', () => exportWorkbook(false));
   $('#btnGroupSheet').addEventListener('click', () => exportWorkbook(true));
 }
