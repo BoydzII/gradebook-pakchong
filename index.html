@@ -3673,59 +3673,6 @@ function openSpecialSession(date, slotId) {
   });
 }
 
-function openExchangeRequest(date, targetSlotId, preferredClassId) {
-  const me = curTeacher(); if (!me) return toast('กรุณาเลือกโปรไฟล์ครูก่อน', 'bad');
-  const dayIdx = dayEntryIndex(date, true), all = dayIdx.entries, slotFor = dayIdx.slotFor;
-  const targets = all.filter(e => e.teacherId !== me.id && slotFor(e) === String(targetSlotId) && (!preferredClassId || e.classId === preferredClassId));
-  if (!targets.length) return toast('ไม่พบครูคนอื่นที่สอนห้องนี้ในคาบที่เลือก', 'bad');
-  const label = e => {
-    const t = DB.teachers.find(x => x.id === e.teacherId), s = DB.subjects.find(x => x.id === e.subjectId), c = DB.classes.find(x => x.id === e.classId), slot = DB.timetable.slots.find(x => x.id === slotFor(e));
-    return (slot ? slot.label + ' • ' : '') + (c ? c.name + ' • ' : '') + (s ? (s.code ? s.code + ' ' : '') + s.name : 'ไม่พบวิชา') + ' • ' + (t ? t.name : 'ไม่พบครู');
-  };
-  const sourceFor = target => all.filter(e => e.teacherId === me.id && e.classId === target.classId && e.subjectId !== target.subjectId && slotFor(e) !== slotFor(target));
-  openModal({ title: 'ส่งคำขอแลกคาบ • ' + thaiDate(date), bodyHTML:
-    '<div class="notice">เลือกคาบของครูปลายทางและคาบของคุณ ระบบจะส่งคำขอไปที่หน้าภาพรวมของครูคนนั้น</div>' +
-    '<div class="pick" style="margin-top:12px"><label>คาบของครูปลายทาง</label><select id="exchangeTarget" style="width:100%">' + targets.map(e => '<option value="' + e.id + '">' + esc(label(e)) + '</option>').join('') + '</select></div>' +
-    '<div class="pick" style="margin-top:10px"><label>คาบของฉันที่จะนำไปแลก</label><select id="exchangeSource" style="width:100%"></select></div>' +
-    '<div class="pick" style="margin-top:10px"><label>ข้อความถึงครูปลายทาง</label><input id="exchangeNote" style="width:100%" placeholder="เช่น ขอแลกเนื่องจากติดประชุม"></div>',
-    buttons: [{ label: 'ยกเลิก' }, { label: 'ส่งคำขอ', cls: 'primary', act(close, root) {
-      const target = targets.find(e => e.id === $('#exchangeTarget', root).value), source = all.find(e => e.id === $('#exchangeSource', root).value);
-      if (!target || !source) return toast('ไม่พบคาบของคุณที่ใช้แลกในห้องเดียวกัน', 'bad');
-      DB.timetable.exchangeRequests.push({ id: uid('swap'), periodId: DB.ui.periodId, date: date, classId: target.classId, requesterTeacherId: me.id, targetTeacherId: target.teacherId, requesterEntryId: source.id, targetEntryId: target.id, note: $('#exchangeNote', root).value.trim(), status: 'pending', createdAt: new Date().toISOString() });
-      save(true); close(); renderDashboard(); toast('ส่งคำขอแลกคาบแล้ว', 'ok');
-    } }],
-    onMount(root) {
-      const refresh = () => { const target = targets.find(e => e.id === $('#exchangeTarget', root).value), choices = target ? sourceFor(target) : []; $('#exchangeSource', root).innerHTML = choices.length ? choices.map(e => '<option value="' + e.id + '">' + esc(label(e)) + '</option>').join('') : '<option value="">— ไม่มีคาบของคุณในห้องนี้ —</option>'; };
-      $('#exchangeTarget', root).addEventListener('change', refresh); refresh();
-    }
-  });
-}
-
-function respondExchangeRequest(id, accept) {
-  if (blockAdminApproval()) return;
-  const req = (DB.timetable.exchangeRequests || []).find(r => r.id === id); if (!req || req.status !== 'pending') return;
-  req.status = accept ? 'accepted' : 'rejected'; req.respondedAt = new Date().toISOString();
-  if (accept) {
-    const source = DB.timetable.entries.find(e => e.id === req.requesterEntryId), target = DB.timetable.entries.find(e => e.id === req.targetEntryId);
-    if (!source || !target) return toast('คาบที่ขอแลกถูกแก้ไขหรือลบไปแล้ว', 'bad');
-    [
-      { base: source, slotId: target.slotId, teacherId: source.teacherId },
-      { base: target, slotId: source.slotId, teacherId: target.teacherId }
-    ].forEach(x => DB.timetable.exceptions.push({ id: uid('xswap'), periodId: req.periodId, date: req.date, day: (parseISODate(req.date) || new Date()).getDay(), slotId: String(x.slotId), teacherId: x.teacherId, subjectId: x.base.subjectId, classId: x.base.classId, room: x.base.room || '', sessionType: 'exchange', exchangeRequestId: req.id, note: req.note || '' }));
-  }
-  save(true); renderDashboard(); toast(accept ? 'ยอมรับคำขอ ตารางวันดังกล่าวเปลี่ยนแล้ว' : 'ปฏิเสธคำขอแล้ว', accept ? 'ok' : '');
-}
-
-function exchangeRequestCard() {
-  const me = curTeacher(); if (!me) return '';
-  const requests = (DB.timetable.exchangeRequests || []).filter(r => r.requesterTeacherId === me.id || r.targetTeacherId === me.id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-  if (!requests.length) return '';
-  const entryLabel = id => { const e = DB.timetable.entries.find(x => x.id === id), s = e && DB.subjects.find(x => x.id === e.subjectId), slot = e && DB.timetable.slots.find(x => x.id === String(e.slotId)); return e ? (slot ? slot.label + ' • ' : '') + (s ? (s.code ? s.code + ' ' : '') + s.name : 'ไม่พบวิชา') : 'คาบถูกลบ'; };
-  return '<div class="card"><div class="row"><h3 style="margin:0">คำขอแลกคาบ</h3><div class="spacer"></div><span class="badge">' + requests.filter(r => r.status === 'pending' && r.targetTeacherId === me.id).length + ' รอตอบรับ</span></div><div class="alert-list" style="margin-top:10px">' + requests.slice(0, 12).map(r => {
-    const incoming = r.targetTeacherId === me.id, other = DB.teachers.find(t => t.id === (incoming ? r.requesterTeacherId : r.targetTeacherId)), status = r.status === 'pending' ? 'รอดำเนินการ' : r.status === 'accepted' ? 'ยอมรับแล้ว' : 'ปฏิเสธแล้ว';
-    return '<div class="alert-item exchange-request"><div><b>' + esc(incoming ? 'คำขอจาก ' + ((other || {}).name || 'ครู') : 'ส่งถึง ' + ((other || {}).name || 'ครู')) + '</b><div class="hint">' + thaiDate(r.date) + ' • ' + esc(entryLabel(r.requesterEntryId)) + ' ⇄ ' + esc(entryLabel(r.targetEntryId)) + (r.note ? '<br>' + esc(r.note) : '') + '</div></div><div class="spacer"></div>' + (incoming && r.status === 'pending' && canApprove() ? '<button class="sm" data-swap-reject="' + r.id + '">ปฏิเสธ</button><button class="sm primary" data-swap-accept="' + r.id + '">ยอมรับ</button>' : '<span class="badge ' + (r.status === 'accepted' ? 'ok' : r.status === 'rejected' ? 'bad' : 'warn') + '">' + status + '</span>') + '</div>';
-  }).join('') + '</div></div>';
-}
 
 /** การ์ดประวัติการลาและเอกสารที่พิมพ์ได้ — ใช้ทั้งในศูนย์แลกคาบและหน้าภาพรวม
     ที่ไหนเอาไปวางต้องเรียก bindLeaveHistory ด้วย ปุ่มถึงจะทำงาน */
@@ -4157,6 +4104,71 @@ function openExchangeRequest(date, targetSlotId, preferredClassId) {
   DB.ui.exchangeSourceEntryId = own ? own.id : ''; save(true); setTab('exchange');
 }
 
+/* ---- คาบสอนแทน/แลกคาบ คำนวณใหม่จากคำขอได้เสมอ --------------------------
+   เดิมสร้างตอนกดตอบรับแล้วเก็บไว้ในเครื่องอย่างเดียว ส่งขึ้นส่วนกลางไม่ได้
+   เพราะกฎความปลอดภัยให้เฉพาะผู้ดูแลระบบเขียนตารางสอน แต่ตัวรับข้อมูลจากส่วนกลาง
+   กลับล้างคาบพวกนี้ทิ้งทุกครั้งที่ตารางสอนซิงก์ลงมา คาบที่ตกลงกันแล้วจึงหายเงียบ ๆ
+   ทั้งที่คำขอยังขึ้นว่า "ตอบรับแล้ว"
+   จึงเลิกเก็บเป็นข้อมูลถาวร เปลี่ยนเป็นคำนวณใหม่จากคำขอที่ตอบรับแล้วทุกครั้ง
+   คำขอซิงก์เป็นรายเอกสารซึ่งเชื่อถือได้ ข้อมูลจึงซ่อมตัวเองได้เสมอ */
+const exceptionKeyOf = e => [e.exchangeRequestId, e.date, String(e.slotId), e.teacherId].join('|');
+
+/** คาบทั้งหมดที่เกิดจากคำขอหนึ่งรายการ — คืนอาร์เรย์ว่างถ้าคำขอยังไม่ตอบรับ
+    หรือคาบต้นทาง/ปลายทางถูกแก้จนหาไม่เจอแล้ว */
+function exceptionsForRequest(req) {
+  if (!req || req.status !== 'accepted') return [];
+  const byId = id => DB.timetable.entries.find(e => e.id === id);
+  const source = byId(req.requesterEntryId);
+  if (!source) return [];
+  const twoWay = (req.type || 'exchange') === 'exchange';
+  const target = byId(req.targetEntryId);
+  if (twoWay && !target) return [];
+  const pick = ids => (ids || []).map(byId).filter(Boolean);
+  const srcBlock = pick(req.blockEntryIds).length ? pick(req.blockEntryIds) : [source];
+  const tgtBlock = pick(req.targetBlockEntryIds).length ? pick(req.targetBlockEntryIds) : (target ? [target] : []);
+  const sourceDate = req.sourceDate || req.date, targetDate = req.targetDate || req.date;
+  const noteText = exchangeReasonLabel(req) + (req.note ? ' • ' + req.note : '');
+  const out = [];
+  /* รหัสคาบคิดจากรหัสคำขอ ไม่สุ่มใหม่ คำนวณกี่รอบก็ได้ค่าเดิม ไม่เกิดคาบซ้ำ */
+  const add = (kind, base, date, slotId, teacherId, tag) => out.push({
+    id: 'x_' + req.id + '_' + tag, periodId: req.periodId, date: date,
+    day: (parseISODate(date) || new Date()).getDay(), slotId: String(slotId), teacherId: teacherId,
+    subjectId: base.subjectId, classId: base.classId, room: base.room || '',
+    sessionType: kind === 'xswap' ? 'exchange' : 'substitute', exchangeRequestId: req.id, note: noteText });
+  if (twoWay && swapKindOf(req) === 'trade') {
+    // แลกคาบ — คาบอยู่ที่เดิมทั้งสองฝั่ง เปลี่ยนแค่คนสอน
+    srcBlock.forEach((e, i) => add('xswap', e, sourceDate, e.slotId, target.teacherId, 'a' + i));
+    tgtBlock.forEach((e, i) => add('xswap', e, targetDate, e.slotId, source.teacherId, 'b' + i));
+  } else if (twoWay) {
+    // สลับคาบ — ห้องเดียวกัน ยกคาบข้ามวันมาสลับที่กัน
+    srcBlock.forEach((e, i) => add('xswap', e, targetDate, (tgtBlock[i] || tgtBlock[0]).slotId, source.teacherId, 'a' + i));
+    tgtBlock.forEach((e, i) => add('xswap', e, sourceDate, (srcBlock[i] || srcBlock[0]).slotId, target.teacherId, 'b' + i));
+  } else {
+    srcBlock.forEach((e, i) => add('xsub', e, sourceDate, e.slotId, req.targetTeacherId, 'a' + i));
+  }
+  return out;
+}
+
+/** คำนวณคาบสอนแทน/แลกคาบใหม่ทั้งหมดจากคำขอที่ตอบรับแล้ว
+    คาบที่ผู้ดูแลระบบสร้างเอง (ไม่มี exchangeRequestId) ไม่ถูกแตะ
+    คาบเดิมที่ตรงกันให้ใช้ตัวเดิมต่อ เพราะการเช็กชื่อผูกกับรหัสคาบไว้
+    ถ้าออกรหัสใหม่ ประวัติการเช็กชื่อของคาบนั้นจะหลุด */
+function rebuildExchangeExceptions() {
+  const all = DB.timetable.exceptions || [];
+  const manual = [], reuse = {};
+  all.forEach(e => { if (!e.exchangeRequestId) manual.push(e); else reuse[exceptionKeyOf(e)] = e; });
+  const fresh = [];
+  (DB.timetable.exchangeRequests || []).forEach(req => {
+    exceptionsForRequest(req).forEach(made => {
+      const old = reuse[exceptionKeyOf(made)];
+      fresh.push(old ? Object.assign(old, made, { id: old.id }) : made);
+    });
+  });
+  const changed = manual.length + fresh.length !== all.length;
+  DB.timetable.exceptions = manual.concat(fresh);
+  return changed;
+}
+
 function respondExchangeRequest(id, accept) {
   if (blockAdminApproval()) return;
   const req = (DB.timetable.exchangeRequests || []).find(r => r.id === id); if (!req || req.status !== 'pending') return;
@@ -4164,28 +4176,8 @@ function respondExchangeRequest(id, accept) {
   if (accept && !source) return toast('คาบต้นทางถูกแก้ไขหรือลบไปแล้ว', 'bad');
   if (accept && (req.type || 'exchange') === 'exchange' && !target) return toast('คาบปลายทางถูกแก้ไขหรือลบไปแล้ว', 'bad');
   req.status = accept ? 'accepted' : 'rejected'; req.respondedAt = new Date().toISOString();
-  // คาบคู่ต้องย้ายไปพร้อมกันทุกคาบ ไม่งั้นจะเหลือคาบค้างที่ไม่มีใครสอน
-  const idsToEntries = ids => (ids || []).map(id => DB.timetable.entries.find(e => e.id === id)).filter(Boolean);
-  const srcBlock = idsToEntries(req.blockEntryIds).length ? idsToEntries(req.blockEntryIds) : (source ? [source] : []);
-  const tgtBlock = idsToEntries(req.targetBlockEntryIds).length ? idsToEntries(req.targetBlockEntryIds) : (target ? [target] : []);
-  const noteText = exchangeReasonLabel(req) + (req.note ? ' • ' + req.note : '');
-  const addException = (kind, base, date, slotId, teacherId) => DB.timetable.exceptions.push({ id: uid(kind),
-    periodId: req.periodId, date: date, day: (parseISODate(date) || new Date()).getDay(), slotId: String(slotId),
-    teacherId: teacherId, subjectId: base.subjectId, classId: base.classId, room: base.room || '',
-    sessionType: kind === 'xswap' ? 'exchange' : 'substitute', exchangeRequestId: req.id, note: noteText });
-  if (accept && (req.type || 'exchange') === 'exchange' && swapKindOf(req) === 'trade') {
-    /* แลกคาบ — คนละห้องกัน คาบจึงอยู่ที่เดิมทั้งสองฝั่ง เปลี่ยนแค่คนสอน
-       เขามาสอนคาบเราในวันที่เราไม่อยู่ แล้วเราไปสอนคาบของเขาคืนในวันที่ตกลงกัน
-       ถ้าย้ายคาบข้ามวันแบบสลับคาบ ห้องจะได้เรียนวิชาที่ไม่ใช่ของตัวเอง */
-    srcBlock.forEach(e => addException('xswap', e, sourceDate, e.slotId, target.teacherId));
-    tgtBlock.forEach(e => addException('xswap', e, targetDate, e.slotId, source.teacherId));
-  } else if (accept && (req.type || 'exchange') === 'exchange') {
-    // สลับคาบ — ห้องเดียวกัน จึงยกคาบข้ามวันมาสลับกันได้จริง ห้องยังได้เรียนครบทั้งสองวิชา
-    srcBlock.forEach((e, i) => { const slot = (tgtBlock[i] || tgtBlock[0]).slotId; addException('xswap', e, targetDate, slot, source.teacherId); });
-    tgtBlock.forEach((e, i) => { const slot = (srcBlock[i] || srcBlock[0]).slotId; addException('xswap', e, sourceDate, slot, target.teacherId); });
-  } else if (accept) {
-    srcBlock.forEach(e => addException('xsub', e, sourceDate, e.slotId, req.targetTeacherId));
-  }
+  // ลงคาบจริงด้วยตัวสร้างกลาง จะได้ผลเหมือนกันทุกครั้งที่คำนวณใหม่
+  rebuildExchangeExceptions();
   if (req.leaveRequestId) {
     const leave = (DB.timetable.leaveRequests || []).find(l => l.id === req.leaveRequestId), linked = leave ? (DB.timetable.exchangeRequests || []).filter(r => r.leaveRequestId === leave.id) : [];
     if (leave) leave.coverageStatus = linked.length && linked.every(r => r.status === 'accepted') ? 'covered' : linked.some(r => r.status === 'rejected' || r.status === 'unassigned') ? 'attention' : 'pending';
@@ -10870,19 +10862,29 @@ function startFirebaseSync() {
       if (t.term) DB.timetable.terms[d.id] = t.term;
     });
     applyStoredTeacherIdMap();   // ตารางที่เครื่องอื่นส่งขึ้นอาจยังใช้รหัสครูเก่า
+    rebuildExchangeExceptions();  // ตารางที่เพิ่งลงมาล้างคาบสอนแทนทิ้ง ต้องคำนวณคืนทันที
     save(true); render();
   }), quiet));
 
   fbUnsub.push(fbDb.collection('activities').onSnapshot(snap => apply(() => {
-    DB.timetable.activities = snap.docs.map(d => Object.assign({}, fbDecodeNested(d.data()), { id: d.id }));
+    const waiting = outboxIdsOf('activity');
+    const central = snap.docs.map(d => Object.assign({}, fbDecodeNested(d.data()), { id: d.id }));
+    const onCentral = {}; central.forEach(x => { onCentral[x.id] = true; });
+    DB.timetable.activities = central.concat((DB.timetable.activities || []).filter(x => waiting[x.id] && !onCentral[x.id]));
     applyStoredTeacherIdMap();
     save(true); render();
   }), quiet));
 
   [['leaves', 'leaveRequests'], ['swaps', 'exchangeRequests']].forEach(pair => {
     fbUnsub.push(fbDb.collection(pair[0]).onSnapshot(snap => apply(() => {
-      DB.timetable[pair[1]] = snap.docs.map(d => Object.assign({}, fbDecodeNested(d.data()), { id: d.id })).filter(x => x.status !== 'deleted');
+      /* รายการที่ยังส่งขึ้นไม่สำเร็จต้องไม่ถูกลบทิ้ง ไม่งั้นสิ่งที่ครูกรอกตอนเน็ตหลุดจะหาย */
+      const kind = pair[0] === 'leaves' ? 'leave' : 'swap', waiting = outboxIdsOf(kind);
+      const central = snap.docs.map(d => Object.assign({}, fbDecodeNested(d.data()), { id: d.id })).filter(x => x.status !== 'deleted');
+      const onCentral = {}; central.forEach(x => { onCentral[x.id] = true; });
+      const held = (DB.timetable[pair[1]] || []).filter(x => waiting[x.id] && !onCentral[x.id]);
+      DB.timetable[pair[1]] = central.concat(held);
       applyStoredTeacherIdMap();
+      rebuildExchangeExceptions();   // คำขอเปลี่ยน คาบที่เกิดจากคำขอต้องเปลี่ยนตาม
       save(true); render();
     }), quiet));
   });
@@ -11010,8 +11012,16 @@ function flushBookSync() { if (unsyncedBookCount()) runBookSync(); }
 /** ป้ายเล็ก ๆ บนแถบบน บอกว่าที่กรอกไปขึ้นส่วนกลางแล้วหรือยัง */
 function renderSyncChip() {
   const chip = $('#syncChip'); if (!chip) return;
-  if (!bookSyncOn() || !myBookRoot()) { chip.hidden = true; return; }
-  const n = unsyncedBookCount();
+  const held = outboxCount();
+  if (!bookSyncOn() || !myBookRoot()) {
+    /* ถึงจะปิดการซิงก์สมุดคะแนน ก็ยังต้องบอกว่ามีใบลา/คำขอค้างส่งอยู่ */
+    if (!held) { chip.hidden = true; return; }
+    chip.hidden = false; chip.className = 'sync-chip wait';
+    chip.textContent = 'รอส่ง ' + held + ' รายการ';
+    chip.title = 'ใบลา/คำขอที่ยังส่งขึ้นส่วนกลางไม่สำเร็จ • จะส่งให้เองเมื่อเน็ตกลับมา';
+    return;
+  }
+  const n = unsyncedBookCount() + held;
   const last = DB.cloud.lastBookSync ? new Date(DB.cloud.lastBookSync).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '';
   chip.hidden = false;
   chip.className = 'sync-chip' + (bookSyncBusy ? ' busy' : bookSyncError ? ' bad' : n ? ' wait' : ' ok');
@@ -11025,8 +11035,8 @@ function renderSyncChip() {
 }
 
 // กลับมาออนไลน์แล้วส่งที่ค้างไว้ทันที และส่งก่อนสลับไปหน้าอื่นหรือปิดแอป
-window.addEventListener('online', flushBookSync);
-document.addEventListener('visibilitychange', () => { if (document.hidden) flushBookSync(); });
+window.addEventListener('online', () => { flushBookSync(); flushOutbox(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { flushBookSync(); flushOutbox(); } });
 
 /** นับยอดข้อมูลที่อยู่บนส่วนกลาง เพื่อเทียบกับในเครื่องว่าตรงกันหรือยัง */
 async function fetchCentralCounts() {
@@ -11367,22 +11377,76 @@ function deepCopy(obj) { return JSON.parse(JSON.stringify(obj)); }
 /** Firestore รับเฉพาะข้อมูลธรรมดา จึงตัด undefined อ็อบเจกต์แปลก ๆ และอาร์เรย์ซ้อนออกก่อน */
 function fbPlain(obj) { return fbEncodeNested(JSON.parse(JSON.stringify(obj))); }
 
+/* ---- ตะกร้าส่งออก --------------------------------------------------------
+   เดิมส่งขึ้นส่วนกลางแบบยิงแล้วลืม ถ้าเน็ตหลุดหรือส่งไม่ผ่านก็แค่ขึ้นข้อความเตือน
+   รายการยังอยู่แค่ในเครื่อง แล้วตัวรับข้อมูลของ leaves/swaps ซึ่งแทนที่ทั้งรายการ
+   จากส่วนกลาง จะลบรายการนั้นทิ้งตอน snapshot ถัดไป ครูจึงเสียใบลา/คำขอไปเงียบ ๆ
+   แอปนี้เป็น PWA ที่ตั้งใจให้ใช้ตอนออฟไลน์ได้ ปัญหานี้จึงเกิดจริง
+   จึงจดไว้ว่ายังมีอะไรค้างส่ง ลองใหม่เมื่อกลับมาออนไลน์ และกันไม่ให้ตัวรับข้อมูลลบทิ้ง
+   ใช้แนวเดียวกับที่สมุดคะแนนใช้อยู่แล้ว (syncSigs) ซึ่งพิสูจน์แล้วว่าใช้ได้ */
+const OUTBOX_COLLECTION = { swap: 'swaps', leave: 'leaves', activity: 'activities' };
+const outboxBag = () => (DB.cloud.outbox = DB.cloud.outbox && typeof DB.cloud.outbox === 'object' ? DB.cloud.outbox : {});
+const outboxKey = (kind, id) => kind + ':' + id;
+const outboxCount = () => Object.keys(outboxBag()).length;
+/** รหัสของรายการชนิดนี้ที่ยังส่งไม่ขึ้น ใช้กันไม่ให้ตัวรับข้อมูลลบทิ้ง */
+function outboxIdsOf(kind) {
+  const pre = kind + ':', out = {};
+  Object.keys(outboxBag()).forEach(k => { if (k.indexOf(pre) === 0) out[k.slice(pre.length)] = true; });
+  return out;
+}
+function outboxMark(kind, id) { outboxBag()[outboxKey(kind, id)] = new Date().toISOString(); }
+function outboxClear(kind, id) { delete outboxBag()[outboxKey(kind, id)]; }
+
+/** ส่งรายการหนึ่งขึ้นส่วนกลาง จดค้างไว้ก่อน ลบออกจากตะกร้าเมื่อขึ้นสำเร็จ */
+function outboxSend(kind, item, quiet) {
+  if (!item || !item.id) return Promise.resolve(false);
+  outboxMark(kind, item.id);
+  if (!firebaseReady() || !fbSignedIn() || !navigator.onLine) { renderSyncChip(); return Promise.resolve(false); }
+  return fbDb.collection(OUTBOX_COLLECTION[kind]).doc(item.id).set(fbPlain(item))
+    .then(() => { outboxClear(kind, item.id); save(); renderSyncChip(); return true; })
+    .catch(e => {
+      if (!quiet) toast('ยังส่งขึ้นส่วนกลางไม่ได้ • เก็บไว้ในเครื่องแล้ว จะส่งให้เองเมื่อเน็ตกลับมา', 'warn');
+      renderSyncChip(); return false;
+    });
+}
+
+/** หารายการจริงจากรหัสในตะกร้า — ถ้าหาไม่เจอแปลว่าถูกลบไปแล้ว เอาออกจากตะกร้า */
+function outboxItem(kind, id) {
+  if (kind === 'leave') return (DB.timetable.leaveRequests || []).find(x => x.id === id);
+  if (kind === 'swap') return (DB.timetable.exchangeRequests || []).find(x => x.id === id);
+  return (DB.timetable.activities || []).find(x => x.id === id);
+}
+
+let outboxBusy = false;
+/** ลองส่งของที่ค้างทั้งหมดอีกครั้ง เรียกตอนกลับมาออนไลน์และตอนเปิดแอป */
+function flushOutbox() {
+  if (outboxBusy || !outboxCount() || !firebaseReady() || !fbSignedIn() || !navigator.onLine) return;
+  outboxBusy = true;
+  const jobs = Object.keys(outboxBag()).map(key => {
+    const at = key.indexOf(':'), kind = key.slice(0, at), id = key.slice(at + 1);
+    const item = outboxItem(kind, id);
+    if (!item) { delete outboxBag()[key]; return Promise.resolve(true); }
+    return outboxSend(kind, item, true);
+  });
+  Promise.all(jobs).then(() => { outboxBusy = false; save(); renderSyncChip(); });
+}
+
 /** ส่งกิจกรรมนักเรียนขึ้นส่วนกลาง เพื่อให้ครูเจ้าของคาบเห็นด้วย */
 function pushActivityDoc(act) {
-  if (!firebaseReady() || !fbSignedIn() || fbApplying || !act || !act.id) return;
-  fbDb.collection('activities').doc(act.id).set(fbPlain(act))
-    .catch(e => toast('ส่งกิจกรรมขึ้นส่วนกลางไม่สำเร็จ: ' + e.message, 'bad'));
+  if (fbApplying || !act || !act.id) return;
+  outboxSend('activity', act);
 }
 function removeActivityDoc(id) {
-  if (!firebaseReady() || !fbSignedIn() || !id) return;
+  if (!id) return;
+  outboxClear('activity', id);
+  if (!firebaseReady() || !fbSignedIn()) return;
   fbDb.collection('activities').doc(id).delete().catch(() => {});
 }
 
 /** ส่งใบลา/คำขอแลกคาบขึ้นส่วนกลางทันทีที่เปลี่ยนแปลง */
 function pushRequestDoc(kind, item) {
-  if (!firebaseReady() || !fbSignedIn() || fbApplying || !item || !item.id) return;
-  fbDb.collection(kind === 'leave' ? 'leaves' : 'swaps').doc(item.id).set(fbPlain(item))
-    .catch(e => toast('ส่งขึ้นส่วนกลางไม่สำเร็จ: ' + e.message, 'bad'));
+  if (fbApplying || !item || !item.id) return;
+  outboxSend(kind === 'leave' ? 'leave' : 'swap', item);
 }
 
 function googleLogout() {
@@ -11759,6 +11823,9 @@ let pendingTeacherIdFix = false;
 loadDB();
 // รหัสครูอ้างจากอีเมล จัดให้ตรงตั้งแต่เปิดแอป แม้ยังไม่ได้ต่อส่วนกลาง
 if (pendingTeacherIdFix) { const r = normalizeTeacherIds(); applyStoredTeacherIdMap(); if (r.renamed || r.fixed) save(true); }
+/* คาบสอนแทน/แลกคาบที่เครื่องนี้เคยเก็บไว้อาจถูกตารางสอนจากส่วนกลางล้างไปแล้ว
+   คำนวณคืนจากคำขอที่ตอบรับแล้วตั้งแต่เปิดแอป ก่อนที่ครูจะเห็นตารางผิด */
+if (rebuildExchangeExceptions()) save(true);
 applyTheme(DB.settings.theme || 'light');
 renderStorageWarn();
 enableRightDragScroll();
@@ -11801,7 +11868,7 @@ if (launchTab && $('#tabs button[data-tab="' + launchTab.replace(/[^a-z]/gi, '')
 
 setTab(DB.ui.tab || 'dashboard');
 initFirebase();
-if (fbAuth) fbAuth.onAuthStateChanged(u => { if (u) { fbUser = u; startFirebaseSync(); } });
+if (fbAuth) fbAuth.onAuthStateChanged(u => { if (u) { fbUser = u; startFirebaseSync(); flushOutbox(); } });
 initGatewaySession();
 
 /* ============================================================================
@@ -11927,7 +11994,11 @@ window.addEventListener('offline', () => { renderOnlineState(); toast('ออฟ
 $('#btnInstall').addEventListener('click', installApp);
 updateInstallButton();
 const syncChipEl = $('#syncChip');
-if (syncChipEl) syncChipEl.addEventListener('click', () => { if (unsyncedBookCount()) runBookSync(); else toast('ส่งขึ้นส่วนกลางครบแล้ว', 'ok'); });
+if (syncChipEl) syncChipEl.addEventListener('click', () => {
+  const n = unsyncedBookCount() + outboxCount();
+  if (!n) return toast('ส่งขึ้นส่วนกลางครบแล้ว', 'ok');
+  runBookSync(); flushOutbox();
+});
 renderSyncChip();
 renderOnlineState();
 </script>
