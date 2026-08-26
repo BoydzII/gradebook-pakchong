@@ -5,7 +5,7 @@
    วิธีอัปเดตแอปหลังแก้โค้ด: เปลี่ยนเลขเวอร์ชันที่ CACHE_VERSION แล้วอัปโหลดใหม่
    ผู้ใช้จะเห็นแถบแจ้ง "มีเวอร์ชันใหม่" ให้กดอัปเดต */
 
-const CACHE_VERSION = 'v84';
+const CACHE_VERSION = 'v85';
 const CACHE_NAME = 'gradebook-' + CACHE_VERSION;
 
 /* ไฟล์แกนของแอป โหลดไว้ล่วงหน้าให้เปิดออฟไลน์ได้ */
@@ -21,7 +21,18 @@ const APP_SHELL = [
   './icons/school-logo.png',
   './vendor/firebase-app-compat.js',
   './vendor/firebase-auth-compat.js',
-  './vendor/firebase-firestore-compat.js'
+  './vendor/firebase-firestore-compat.js',
+  /* ฟอนต์ Sarabun เก็บในเครื่อง ต้องแคชด้วย ไม่งั้นตอนออฟไลน์ตัวอักษรจะเปลี่ยนไปใช้ฟอนต์สำรอง */
+  './vendor/fonts/sarabun-latin-400.woff2',
+  './vendor/fonts/sarabun-latin-500.woff2',
+  './vendor/fonts/sarabun-latin-600.woff2',
+  './vendor/fonts/sarabun-latin-700.woff2',
+  './vendor/fonts/sarabun-latin-800.woff2',
+  './vendor/fonts/sarabun-thai-400.woff2',
+  './vendor/fonts/sarabun-thai-500.woff2',
+  './vendor/fonts/sarabun-thai-600.woff2',
+  './vendor/fonts/sarabun-thai-700.woff2',
+  './vendor/fonts/sarabun-thai-800.woff2'
 ];
 
 self.addEventListener('install', event => {
