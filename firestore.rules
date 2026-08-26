@@ -160,6 +160,41 @@ service cloud.firestore {
       allow delete: if isAdmin() || (isStaff() && resource.data.ownerId == myId());
     }
 
+    /* ---------- บัตรผลการเรียนของนักเรียน ----------
+       นักเรียนเปิดเว็บบนมือถือตัวเองแล้วเข้าดูผลของตัวเองได้ โดยไม่ต้องมีอีเมลโรงเรียน
+       ใช้การเข้าระบบแบบไม่ระบุตัวตน (anonymous) ซึ่งได้ uid ประจำเครื่องมา
+       แล้วผูก uid นั้นกับบัตรของตัวเองครั้งเดียวด้วย "รหัสรับสิทธิ์" ที่ครูแจกให้
+
+       จุดสำคัญด้านความปลอดภัย
+       - ก่อนผูกสำเร็จ นักเรียนอ่านบัตรไม่ได้เลย จึงมองไม่เห็นรหัสรับสิทธิ์ของใคร
+         การพิสูจน์ว่ารู้รหัสทำโดยเขียนค่าที่กรอกลงช่อง claimAttempt แล้วให้กฎเป็นคนเทียบ
+       - ผูกได้ครั้งเดียว บัตรที่มีเจ้าของแล้วจะถูกผูกซ้ำไม่ได้ (ครูล้างให้ได้ถ้าเปลี่ยนเครื่อง)
+       - แก้ได้เฉพาะสามช่องที่เกี่ยวกับการผูกเท่านั้น แตะคะแนนไม่ได้
+       - อ่านได้เฉพาะบัตรที่ uid ตรงกับตัวเอง จึงไม่มีทางเปิดดูของเพื่อน */
+    function claimingOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['uid', 'claimedAt', 'claimAttempt']);
+    }
+    match /studentCards/{sid} {
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow create, delete: if isStaff();
+      // ครูแก้ข้อมูลบัตรได้ทุกช่อง ส่วนนักเรียนแก้ได้แค่ตอนผูกเครื่องครั้งแรก
+      allow update: if isStaff()
+        || (request.auth != null
+            && resource.data.uid == ''
+            && request.resource.data.uid == request.auth.uid
+            && request.resource.data.claimAttempt == resource.data.claimCode
+            && claimingOnly());
+
+      /* ผลรายวิชา ครูเจ้าของวิชาเป็นคนเผยแพร่เอง จึงคุมได้ว่าจะให้เห็นตอนไหน
+         นักเรียนอ่านได้เมื่อผูกบัตรแม่แล้วเท่านั้น */
+      match /subjects/{bookKey} {
+        allow read: if request.auth != null
+          && get(/databases/$(database)/documents/studentCards/$(sid)).data.uid == request.auth.uid;
+        allow write: if isStaff();
+      }
+    }
+
     /* ปิดทุกอย่างที่ไม่ได้ระบุไว้ข้างบน */
     match /{document=**} {
       allow read, write: if false;

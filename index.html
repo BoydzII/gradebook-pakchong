@@ -960,6 +960,13 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
 .doc-opt input{transform:scale(1.15)}
 .memo-opinion{border-collapse:collapse;width:100%;margin-top:14px;font-size:12.5px}
 .memo-opinion td{border:1px solid #000;padding:8px 10px;vertical-align:top;width:50%}
+/* ใบรหัสรับสิทธิ์ — ตัดแจกรายคน รหัสต้องเด่นและอ่านไม่ผิด */
+.claim-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.claim-slip{border:1px dashed #000;border-radius:6px;padding:8px 10px}
+.claim-name{font-weight:700;font-size:13px}
+.claim-sid{font-size:11.5px;color:#333}
+.claim-code{font-family:ui-monospace,Consolas,monospace;font-size:20px;font-weight:800;letter-spacing:.18em;margin:4px 0}
+.claim-note{font-size:10px;color:#444;line-height:1.35}
 /* ---- ใบคะแนน 4 ส่วน ---- */
 .score-sheet .ss-head{display:flex;align-items:center;gap:14px;margin:10px 0 12px}
 .score-sheet .ss-logo{height:62px;width:auto}
@@ -7104,6 +7111,45 @@ function summaryRows(b, sts, classId, subjectId) {
   return sts.map(st => ({ st: st, r: calcRow(b, st), att: attendanceStudentResult(classId, subjectId, st) }));
 }
 
+/** การ์ดเผยแพร่ผลให้นักเรียนดูจากมือถือตัวเอง อยู่ท้ายหน้าสรุป/ส่งออก
+    เพราะเป็นขั้นตอนสุดท้ายหลังตรวจคะแนนเสร็จแล้ว */
+function studentPortalCard() {
+  if (!ready()) return '';
+  const cls = curClass(), sub = curSubject();
+  const students = (cls.students || []).filter(x => String(x.sid || '').trim());
+  const withCode = students.filter(x => (DB.studentAccounts[x.sid] || {}).claimCode).length;
+  const online = firebaseReady() && fbSignedIn();
+  return '<div class="card"><div class="row"><div><h3 style="margin:0">ให้นักเรียนดูผลจากมือถือตัวเอง</h3>' +
+    '<div class="hint">นักเรียนเปิดเว็บเดียวกันนี้ เลือก “นักเรียน” แล้วกรอกเลขประจำตัวกับรหัสรับสิทธิ์ครั้งแรกครั้งเดียว</div></div></div>' +
+    (online ? '' : '<div class="notice bad" style="margin-top:10px">ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อนจึงจะเผยแพร่ได้</div>') +
+    '<div class="row" style="margin-top:12px;flex-wrap:wrap">' +
+      '<button class="sm primary" data-portal-act="publish"' + (online ? '' : ' disabled') + '>เผยแพร่ผลวิชานี้ • ' + esc(sub.name) + '</button>' +
+      '<button class="sm" data-portal-act="unpublish"' + (online ? '' : ' disabled') + '>ยกเลิกการเผยแพร่วิชานี้</button>' +
+      '<button class="sm" data-portal-act="codes"' + (online ? '' : ' disabled') + '>ออกรหัสรับสิทธิ์ให้ทั้งห้อง</button>' +
+      '<button class="sm" data-portal-act="print">พิมพ์ใบรหัสแจกนักเรียน</button>' +
+    '</div>' +
+    '<div class="hint" style="margin-top:9px">' + esc(cls.name) + ' • นักเรียน ' + students.length + ' คน • ' +
+      'มีรหัสรับสิทธิ์แล้ว ' + withCode + ' คน' +
+      (DB.cloud.lastPortalPublish ? ' • เผยแพร่ล่าสุด ' + esc(new Date(DB.cloud.lastPortalPublish).toLocaleString('th-TH')) : '') + '</div>' +
+    '<div class="hint" style="margin-top:6px">เผยแพร่แล้วนักเรียนจะเห็นเฉพาะผลของตัวเอง — คะแนน 4 ส่วน คะแนนรวม เกรด และเวลาเรียน ' +
+      'ไม่เห็นคะแนนรายข้อ และไม่เห็นของเพื่อน</div></div>';
+}
+
+/** ใบรหัสรับสิทธิ์ ตัดแจกเป็นใบเล็กรายคน */
+function claimCodeSheetHtml(cls) {
+  const students = (cls.students || []).filter(x => String(x.sid || '').trim());
+  const s = DB.settings;
+  return '<div class="doc-sheet"><h2 style="text-align:center;margin:0 0 4px">รหัสรับสิทธิ์เข้าดูผลการเรียน</h2>' +
+    '<div style="text-align:center;margin-bottom:12px">' + esc(s.schoolName || '') + ' • ' + esc(cls.name) + '</div>' +
+    '<div class="claim-grid">' + students.map(st => {
+      const code = (DB.studentAccounts[st.sid] || {}).claimCode || '— ยังไม่ได้ออกรหัส —';
+      return '<div class="claim-slip"><div class="claim-name">' + esc(st.no) + '. ' + esc(st.name) + '</div>' +
+        '<div class="claim-sid">เลขประจำตัว ' + esc(st.sid) + '</div>' +
+        '<div class="claim-code">' + esc(code) + '</div>' +
+        '<div class="claim-note">เปิดเว็บของโรงเรียน เลือก “นักเรียน” กรอกเลขประจำตัวและรหัสนี้ครั้งเดียว</div></div>';
+    }).join('') + '</div></div>';
+}
+
 /** กล่องเครื่องมือท้ายหน้า สรุป/ส่งออก — ข้อมูลหน้าปก ปพ.5 และการสำรอง/กู้คืน */
 function summaryToolsCard() {
   return '<div class="card"><div class="row"><div><h3 style="margin:0">ข้อมูลรายวิชาและการสำรองข้อมูล</h3>' +
@@ -7112,7 +7158,7 @@ function summaryToolsCard() {
       '<button class="sm" data-sum-act="courseinfo">ข้อมูล ปพ.5</button>' +
       '<button class="sm primary" data-sum-act="backup">สำรองข้อมูล</button>' +
       '<button class="sm" data-sum-act="restore">กู้คืนข้อมูล</button></div>' +
-    '<div class="hint" style="margin-top:9px">' + esc(backupAgeText()) + '</div></div>' + bookSyncCard();
+    '<div class="hint" style="margin-top:9px">' + esc(backupAgeText()) + '</div></div>' + bookSyncCard() + studentPortalCard();
 }
 /** ข้อความบอกว่าสำรองข้อมูลครั้งล่าสุดเมื่อไร */
 function backupAgeText() {
@@ -7140,6 +7186,25 @@ function bookSyncCard() {
 }
 
 function bindSummaryTools(pane) {
+  $$('[data-portal-act]', pane).forEach(btn => btn.addEventListener('click', async () => {
+    const act = btn.dataset.portalAct, cls = curClass();
+    if (act === 'print') return openDocumentPreview('ใบรหัสรับสิทธิ์ • ' + cls.name, claimCodeSheetHtml(cls));
+    btn.disabled = true;
+    try {
+      if (act === 'codes') {
+        const r = await publishClassCards(cls.id);
+        toast('ออกรหัสรับสิทธิ์แล้ว • ทั้งห้อง ' + r.total + ' คน (ใหม่ ' + r.made + ' คน)', 'ok');
+      } else if (act === 'publish') {
+        const n = await publishBookToStudents(bookKey());
+        DB.cloud.lastPortalPublish = new Date().toISOString(); save(true);
+        toast('เผยแพร่ผลให้นักเรียนแล้ว ' + n + ' คน', 'ok');
+      } else if (act === 'unpublish') {
+        const n = await unpublishBookFromStudents(bookKey());
+        toast('ยกเลิกการเผยแพร่วิชานี้แล้ว ' + n + ' คน', 'ok');
+      }
+      renderSummary();
+    } catch (e) { toast(fbErrorMessage(e), 'bad'); btn.disabled = false; }
+  }));
   $$('[data-sum-act]', pane).forEach(btn => btn.addEventListener('click', async () => {
     const act = btn.dataset.sumAct;
     if (act === 'courseinfo') return editCourseInfo();
@@ -11759,16 +11824,24 @@ function closeStudentPortal() {
 
 function renderStudentPortal() {
   if (!studentSession) return;
-  const sid = studentSession.sid, matches = studentMatches(sid);
-  if (!matches.length) { closeStudentPortal(); return toast('ไม่พบข้อมูลนักเรียนแล้ว', 'bad'); }
+  const sid = studentSession.sid, fromCloud = studentSession.source === 'cloud';
+  const matches = fromCloud ? [] : studentMatches(sid);
+  if (!fromCloud && !matches.length) { closeStudentPortal(); return toast('ไม่พบข้อมูลนักเรียนแล้ว', 'bad'); }
   const periodId = DB.periods.some(p => p.id === studentSession.periodId) ? studentSession.periodId : (DB.ui.periodId || (DB.periods[0] || {}).id);
   studentSession.periodId = periodId;
-  const period = DB.periods.find(p => p.id === periodId), contexts = studentSubjectContexts(sid, periodId), profile = matches[0].st;
+  /* บัตรจากส่วนกลางมาในรูปแบบเดียวกับที่คำนวณในเครื่องอยู่แล้ว ส่วนที่เหลือจึงใช้ร่วมกันได้ */
+  const period = DB.periods.find(p => p.id === periodId);
+  const contexts = fromCloud
+    ? (studentSession.contexts || []).filter(x => !x.periodId || x.periodId === periodId || !period)
+    : studentSubjectContexts(sid, periodId);
+  const profile = fromCloud
+    ? { name: (studentSession.card || {}).name || 'นักเรียน', sid: sid }
+    : matches[0].st;
   const portal = $('#studentPortal'); portal.hidden = false; document.body.style.overflow = 'hidden';
   portal.innerHTML = '<div class="portal-top"><div class="brand"><span class="dot"></span><span>พอร์ทัลนักเรียน<small>คะแนนและเวลาเรียนส่วนบุคคล</small></span></div><div class="spacer"></div>' +
     '<div class="pick"><label style="color:#aebbd0">ปี/ภาคเรียน</label><select id="portalPeriod">' + DB.periods.map(p => '<option value="' + p.id + '"' + (p.id === periodId ? ' selected' : '') + '>ปี ' + esc(p.academicYear) + ' • ภาค ' + esc(p.semester) + '</option>').join('') + '</select></div>' +
     '<button id="portalPassword">เปลี่ยนรหัสผ่าน</button><button id="portalLogout">ออกจากระบบ</button></div>' +
-    '<div class="portal-main"><div class="card portal-hero"><div class="row"><div><h2 style="margin:0 0 5px">' + esc(profile.name) + '</h2><div class="hint">เลขประจำตัว ' + esc(sid) + ' • ' + esc(matches.map(x => x.cls.name).join(', ')) + '</div></div><div class="spacer"></div><span class="badge">' + (period ? 'ปี ' + esc(period.academicYear) + ' ภาค ' + esc(period.semester) : '') + '</span></div></div>' +
+    '<div class="portal-main"><div class="card portal-hero"><div class="row"><div><h2 style="margin:0 0 5px">' + esc(profile.name) + '</h2><div class="hint">เลขประจำตัว ' + esc(sid) + ' • ' + esc(fromCloud ? ((studentSession.card || {}).className || '') : matches.map(x => x.cls.name).join(', ')) + '</div></div><div class="spacer"></div><span class="badge">' + (period ? 'ปี ' + esc(period.academicYear) + ' ภาค ' + esc(period.semester) : '') + '</span></div></div>' +
     '<div class="row" style="margin:18px 0 10px"><h3 style="margin:0">รายวิชาและผลการเรียน</h3><div class="spacer"></div><span class="hint">เวลาเรียน ≥80% = ผ • 60–79.99% = มส • ต่ำกว่า 60% = เรียนซ้ำ</span></div>' +
     (contexts.length ? '<div class="portal-subjects">' + contexts.map(x => {
       const r = x.score, a = x.attendance, teacher = x.book.meta.teacherName || 'ยังไม่ระบุครูผู้สอน';
@@ -11778,7 +11851,8 @@ function renderStudentPortal() {
         '<div class="tablewrap" style="margin-top:10px"><table><thead><tr><th>ก่อนกลาง</th><th>กลางภาค</th><th>หลังกลาง</th><th>ปลายภาค</th><th>รวม</th></tr></thead><tbody><tr><td>' + fmt(r.wBefore) + '</td><td>' + fmt(r.wM) + '</td><td>' + fmt(r.wAfter) + '</td><td>' + fmt(r.wF) + '</td><td><b>' + fmt(r.total) + '</b></td></tr></tbody></table></div></div>';
     }).join('') + '</div>' : '<div class="card"><div class="empty">ยังไม่พบสมุดคะแนนหรือตารางเรียนที่เชื่อมกับนักเรียนในภาคเรียนนี้</div></div>') +
     '<div class="portal-login-note" style="margin-top:16px">ข้อมูลแต่ละวิชาแยกตามห้อง วิชา ปี/ภาค และครูผู้สอน จึงรองรับนักเรียนหนึ่งคนเรียนหลายวิชาและมีครูหลายคนได้ภายในฐานข้อมูลกลางเดียวกัน</div></div>';
-  $('#portalPeriod').addEventListener('change', e => { studentSession.periodId = e.target.value; renderStudentPortal(); });
+  const periodSel = $('#portalPeriod');
+  if (periodSel) periodSel.addEventListener('change', e => { studentSession.periodId = e.target.value; renderStudentPortal(); });
   $('#portalPassword').addEventListener('click', openStudentChangePassword);
   $('#portalLogout').addEventListener('click', closeStudentPortal);
 }
@@ -11800,18 +11874,204 @@ function openStudentChangePassword() {
   });
 }
 
+/* ---- บัตรผลการเรียนของนักเรียน -------------------------------------------
+   เดิมพอร์ทัลนักเรียนอ่านจากข้อมูลในเครื่องที่ใช้อยู่ ซึ่งมีเฉพาะเครื่องที่ครูล็อกอินไว้
+   นักเรียนเปิดบนมือถือตัวเองจึงเจอ "ไม่พบเลขประจำตัวนักเรียนในฐานข้อมูล" ทุกกรณี
+   เพราะกฎความปลอดภัยล็อกข้อมูลทั้งหมดไว้ให้เฉพาะบุคลากรที่ล็อกอินแล้วอ่านได้
+
+   ทางแก้: ทำ "บัตรผลการเรียน" รายคนไว้บนส่วนกลาง แล้วให้นักเรียนผูกบัตรกับเครื่องตัวเอง
+   ครั้งเดียวด้วยรหัสรับสิทธิ์ที่ครูแจก จากนั้นเข้าดูได้เลยโดยไม่ต้องกรอกอะไรอีก
+
+   ทำไมไม่เอาข้อมูลทั้งก้อนไปไว้บนเครื่องนักเรียนแล้วตรวจรหัสผ่านในเบราว์เซอร์
+   เพราะการตรวจฝั่งเบราว์เซอร์ไม่ใช่การกั้นจริง ใครเปิดเครื่องมือนักพัฒนาก็อ่านคะแนน
+   ของเพื่อนได้หมด การกั้นจึงต้องอยู่ที่กฎของฐานข้อมูล ไม่ใช่ที่หน้าจอ */
+
+/* ตัดตัวที่อ่านสับสนออก (0/O, 1/I/L) เพราะรหัสนี้พิมพ์ใส่กระดาษแจกเด็ก */
+const CLAIM_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+function makeClaimCode(len) {
+  const n = len || 8, bytes = new Uint8Array(n);
+  crypto.getRandomValues(bytes);
+  let out = '';
+  for (let i = 0; i < n; i++) out += CLAIM_ALPHABET[bytes[i] % CLAIM_ALPHABET.length];
+  return out;
+}
+const normalizeClaimCode = v => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const studentCardRef = sid => fbDb.collection('studentCards').doc(String(sid));
+/** รหัสรับสิทธิ์ที่เก็บไว้ในเครื่องครู ใช้พิมพ์แจกซ้ำได้โดยไม่ต้องออกรหัสใหม่ */
+function claimCodeOf(sid, create) {
+  DB.studentAccounts = DB.studentAccounts || {};
+  const acc = DB.studentAccounts[sid] = DB.studentAccounts[sid] || {};
+  if (!acc.claimCode && create) acc.claimCode = makeClaimCode(8);
+  return acc.claimCode || '';
+}
+
+/** ผลรายวิชาของนักเรียนหนึ่งคน ในรูปแบบเดียวกับที่พอร์ทัลใช้แสดงผลอยู่แล้ว
+    เก็บเฉพาะตัวเลขสรุป ไม่ส่งคะแนนรายข้อขึ้นไป เพราะนักเรียนไม่ได้ใช้ */
+function studentSubjectPayload(book, cls, subject, st, periodId, key) {
+  const r = calcRow(book, st), a = attendanceStudentResult(cls.id, subject.id, st, periodId);
+  return {
+    bookKey: key, periodId: periodId,
+    subject: { code: subject.code || '', name: subject.name || '' },
+    cls: { name: cls.name || '' },
+    book: { meta: { teacherName: book.meta.teacherName || '' } },
+    score: { wBefore: r.wBefore, wM: r.wM, wAfter: r.wAfter, wF: r.wF, total: r.total, grade: String(r.grade) },
+    attendance: { counts: a.counts, checked: a.checked, pct: a.pct },
+    publishedAt: new Date().toISOString(),
+    publishedBy: (curTeacher() || {}).name || myEmailForSync() || ''
+  };
+}
+
+/** ครูเผยแพร่ผลของวิชาที่ตัวเองสอนให้นักเรียนห้องนั้นเห็น
+    แยกเป็นรายวิชา ครูจึงคุมได้เองว่าจะให้เห็นตอนไหน ไม่ใช่เห็นสด ๆ ระหว่างยังกรอกไม่เสร็จ */
+async function publishBookToStudents(key) {
+  if (!firebaseReady() || !fbSignedIn()) throw new Error('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อน');
+  const parts = String(key).split('::');
+  const cls = DB.classes.find(c => c.id === parts[0]);
+  const subject = DB.subjects.find(x => x.id === parts[1]);
+  const periodId = parts[2];
+  if (!cls || !subject) throw new Error('ไม่พบห้องเรียนหรือรายวิชาของสมุดเล่มนี้');
+  const book = normalizeBook(DB.books[key] || defaultBook());
+  const students = (cls.students || []).filter(st => String(st.sid || '').trim());
+  if (!students.length) throw new Error('ห้องนี้ยังไม่มีรายชื่อนักเรียน');
+  const docId = bookDocId(key);
+  await Promise.all(students.map(st =>
+    studentCardRef(st.sid).collection('subjects').doc(docId)
+      .set(fbPlain(studentSubjectPayload(book, cls, subject, st, periodId, key)))));
+  return students.length;
+}
+
+/** ยกเลิกการเผยแพร่วิชานี้ ถ้าครูเผลอเผยแพร่ก่อนตรวจทาน */
+async function unpublishBookFromStudents(key) {
+  if (!firebaseReady() || !fbSignedIn()) throw new Error('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อน');
+  const cls = DB.classes.find(c => c.id === String(key).split('::')[0]);
+  const students = cls ? (cls.students || []).filter(st => String(st.sid || '').trim()) : [];
+  const docId = bookDocId(key);
+  await Promise.all(students.map(st => studentCardRef(st.sid).collection('subjects').doc(docId).delete().catch(() => {})));
+  return students.length;
+}
+
+/** สร้าง/อัปเดตบัตรของนักเรียนทั้งห้อง พร้อมออกรหัสรับสิทธิ์ให้คนที่ยังไม่มี
+    ไม่แตะช่อง uid ของคนที่ผูกเครื่องไปแล้ว จะได้ไม่หลุดออกจากระบบ */
+async function publishClassCards(classId) {
+  if (!firebaseReady() || !fbSignedIn()) throw new Error('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อน');
+  const cls = DB.classes.find(c => c.id === classId);
+  if (!cls) throw new Error('ไม่พบห้องเรียน');
+  const students = (cls.students || []).filter(st => String(st.sid || '').trim());
+  if (!students.length) throw new Error('ห้องนี้ยังไม่มีรายชื่อนักเรียน');
+  const stamp = new Date().toISOString();
+  let made = 0;
+  await Promise.all(students.map(async st => {
+    const sid = String(st.sid).trim(), code = claimCodeOf(sid, true);
+    const ref = studentCardRef(sid);
+    const snap = await ref.get().catch(() => null);
+    const base = { sid: sid, name: st.name || '', className: cls.name || '', claimCode: code, updatedAt: stamp };
+    if (snap && snap.exists) {
+      await ref.set(base, { merge: true });          // ของเดิมมีเจ้าของอยู่แล้ว ไม่แตะ uid
+    } else {
+      await ref.set(Object.assign({ uid: '', claimedAt: '', claimAttempt: '' }, base));
+      made++;
+    }
+  }));
+  save(true);
+  return { total: students.length, made: made };
+}
+
+/** ล้างการผูกเครื่องของนักเรียนคนหนึ่ง ใช้ตอนเปลี่ยนมือถือหรือกดผูกผิดคน */
+async function resetStudentCard(sid) {
+  if (!firebaseReady() || !fbSignedIn()) throw new Error('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อน');
+  const code = makeClaimCode(8);
+  DB.studentAccounts[sid] = Object.assign({}, DB.studentAccounts[sid], { claimCode: code });
+  await studentCardRef(sid).set({ uid: '', claimedAt: '', claimAttempt: '', claimCode: code, updatedAt: new Date().toISOString() }, { merge: true });
+  save(true);
+  return code;
+}
+
+/* ---- ฝั่งนักเรียน --------------------------------------------------------- */
+/** เข้าระบบแบบไม่ระบุตัวตน เพื่อให้ได้ uid ประจำเครื่องไว้ผูกกับบัตร
+    ถ้าเครื่องนี้มีครูล็อกอินอยู่ ห้ามใช้บัญชีครูมาผูกบัตรนักเรียนเด็ดขาด */
+async function studentAnonUser() {
+  if (!firebaseReady()) throw new Error('เครื่องนี้ยังต่อฐานข้อมูลกลางไม่ได้ กรุณาเช็กอินเทอร์เน็ต');
+  const current = fbAuth.currentUser;
+  if (current && current.isAnonymous) return current;
+  if (current && !current.isAnonymous) throw new Error('เครื่องนี้มีบัญชีครูเข้าใช้อยู่ กรุณาออกจากระบบก่อน');
+  const cred = await fbAuth.signInAnonymously();
+  return cred.user;
+}
+
+/** ผูกบัตรกับเครื่องนี้ครั้งแรก — กฎของฐานข้อมูลเป็นคนเทียบรหัสให้ ไม่ได้เทียบในเบราว์เซอร์ */
+async function claimStudentCard(sid, code) {
+  const user = await studentAnonUser();
+  await studentCardRef(sid).set({ uid: user.uid, claimedAt: new Date().toISOString(), claimAttempt: normalizeClaimCode(code) }, { merge: true });
+  return user;
+}
+
+/** ดึงบัตรและผลรายวิชาของตัวเองจากส่วนกลาง */
+async function fetchStudentCard(sid) {
+  const snap = await studentCardRef(sid).get({ source: 'server' });
+  if (!snap.exists) throw new Error('ยังไม่มีบัตรของเลขประจำตัวนี้ กรุณาแจ้งครูที่ปรึกษา');
+  const card = snap.data() || {};
+  const subs = await studentCardRef(sid).collection('subjects').get({ source: 'server' });
+  const contexts = subs.docs.map(d => d.data()).filter(Boolean)
+    .sort((a, b) => String((a.subject || {}).code || '').localeCompare(String((b.subject || {}).code || ''), 'th'));
+  return { card: card, contexts: contexts };
+}
+
 function openStudentLogin() {
+  /* สองทางเข้า
+     1) เครื่องนักเรียนเอง — ดึงบัตรจากส่วนกลาง ต้องกรอกรหัสรับสิทธิ์ครั้งแรกครั้งเดียว
+     2) เครื่องครูที่ล็อกอินไว้แล้ว — อ่านจากข้อมูลในเครื่องได้เลยเหมือนเดิม
+     ระบบเลือกให้เองตามสภาพเครื่อง ครูกับนักเรียนไม่ต้องรู้ว่าต่างกันอย่างไร */
+  const onStaffDevice = DB.classes.some(c => (c.students || []).length);
+  const remembered = String((DB.ui || {}).studentSid || '');
   openModal({ title: 'นักเรียนเข้าสู่ระบบ', bodyHTML:
-    '<div class="portal-login-note" style="margin-bottom:12px">ใช้เลขประจำตัวนักเรียนเป็น Username และรหัสเริ่มต้น <b>1234</b> เมื่อเข้าสู่ระบบแล้วควรเปลี่ยนรหัสทันที</div>' +
-    '<div class="pick"><label>เลขประจำตัวนักเรียน / Username</label><input id="studentLoginUser" autocomplete="username" style="width:100%" placeholder="กรอกเลขประจำตัว"></div>' +
-    '<div class="pick" style="margin-top:10px"><label>รหัสผ่าน</label><input type="password" id="studentLoginPassword" autocomplete="current-password" style="width:100%" placeholder="กรอกรหัสผ่าน"></div>',
+    '<div class="portal-login-note" style="margin-bottom:12px">' +
+      (onStaffDevice
+        ? 'เครื่องนี้มีข้อมูลของโรงเรียนอยู่แล้ว กรอกเลขประจำตัวกับรหัสผ่านได้เลย'
+        : 'ครั้งแรกให้กรอก <b>รหัสรับสิทธิ์</b> ที่ครูที่ปรึกษาแจกให้ ครั้งต่อไปเครื่องนี้จะจำไว้ ไม่ต้องกรอกอีก') +
+    '</div>' +
+    '<div class="pick"><label>เลขประจำตัวนักเรียน</label><input id="studentLoginUser" autocomplete="username" style="width:100%" placeholder="กรอกเลขประจำตัว" value="' + esc(remembered) + '"></div>' +
+    (onStaffDevice
+      ? '<div class="pick" style="margin-top:10px"><label>รหัสผ่าน</label><input type="password" id="studentLoginPassword" autocomplete="current-password" style="width:100%" placeholder="รหัสเริ่มต้น 1234"></div>'
+      : '<div class="pick" style="margin-top:10px"><label>รหัสรับสิทธิ์ (เว้นว่างได้ถ้าเคยเข้าเครื่องนี้แล้ว)</label>' +
+        '<input id="studentClaimCode" autocomplete="one-time-code" style="width:100%;text-transform:uppercase;letter-spacing:.14em" placeholder="เช่น K7M2PQXT"></div>') +
+    '<div class="hint" id="studentLoginHint" style="margin-top:10px"></div>',
     buttons: [{ label: 'ยกเลิก' }, { label: 'เข้าสู่ระบบ', cls: 'primary', async act(close, root) {
-      const sid = $('#studentLoginUser', root).value.trim(), pass = $('#studentLoginPassword', root).value;
-      if (!sid || !pass) return toast('กรุณากรอก Username และรหัสผ่าน', 'bad');
-      if (!studentMatches(sid).length) return toast('ไม่พบเลขประจำตัวนักเรียนในฐานข้อมูล', 'bad');
-      const account = DB.studentAccounts[sid], valid = account && account.passwordHash ? await passwordDigest(pass) === account.passwordHash : pass === '1234';
-      if (!valid) return toast('Username หรือรหัสผ่านไม่ถูกต้อง', 'bad');
-      studentSession = { sid: sid, periodId: DB.ui.periodId }; close(); hideRoleGateway(); renderStudentPortal();
+      const sid = $('#studentLoginUser', root).value.trim();
+      const hint = $('#studentLoginHint', root);
+      if (!sid) return toast('กรุณากรอกเลขประจำตัวนักเรียน', 'bad');
+
+      if (onStaffDevice) {
+        const pass = $('#studentLoginPassword', root).value;
+        if (!pass) return toast('กรุณากรอกรหัสผ่าน', 'bad');
+        if (!studentMatches(sid).length) return toast('ไม่พบเลขประจำตัวนี้ในข้อมูลของเครื่องนี้', 'bad');
+        const account = DB.studentAccounts[sid], valid = account && account.passwordHash ? await passwordDigest(pass) === account.passwordHash : pass === '1234';
+        if (!valid) return toast('เลขประจำตัวหรือรหัสผ่านไม่ถูกต้อง', 'bad');
+        studentSession = { sid: sid, periodId: DB.ui.periodId, source: 'local' };
+        close(); hideRoleGateway(); renderStudentPortal();
+        return;
+      }
+
+      const code = normalizeClaimCode($('#studentClaimCode', root).value);
+      hint.textContent = 'กำลังตรวจสอบ...';
+      try {
+        if (code) await claimStudentCard(sid, code);
+        else await studentAnonUser();
+        const data = await fetchStudentCard(sid);
+        DB.ui.studentSid = sid; save();
+        studentSession = { sid: sid, source: 'cloud', card: data.card, contexts: data.contexts,
+          periodId: (data.contexts[0] || {}).periodId || DB.ui.periodId };
+        close(); hideRoleGateway(); renderStudentPortal();
+      } catch (e) {
+        const msg = String(e && e.message || e);
+        /* กฎของฐานข้อมูลปฏิเสธ = รหัสผิด หรือบัตรถูกผูกกับเครื่องอื่นไปแล้ว
+           แยกสองกรณีนี้ให้ชัด เพราะทางแก้คนละอย่าง */
+        hint.textContent = '';
+        if (/permission|insufficient/i.test(msg))
+          return toast(code ? 'รหัสรับสิทธิ์ไม่ถูกต้อง หรือบัตรนี้ถูกผูกกับเครื่องอื่นไปแล้ว' : 'เครื่องนี้ยังไม่ได้ผูกกับบัตร กรุณากรอกรหัสรับสิทธิ์ที่ครูแจกให้', 'bad');
+        if (/admin-restricted|operation-not-allowed/i.test(msg))
+          return toast('ผู้ดูแลระบบยังไม่ได้เปิดการเข้าใช้แบบไม่ระบุตัวตนใน Firebase', 'bad');
+        toast(msg, 'bad');
+      }
     } }],
     onMount(root) { $('#studentLoginUser', root).focus(); }
   });
