@@ -927,7 +927,7 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
 .bar>i{display:block;height:100%;background:var(--brand)}
 
 /* เอกสารราชการ: ใบลา / บันทึกขอแลกคาบ */
-.doc-sheet{background:#fff;color:#000;padding:18mm 16mm;max-width:210mm;margin:0 auto;font-size:15px;line-height:1.9}
+.doc-sheet{background:#fff;color:#000;padding:18mm 16mm;max-width:210mm;margin:0 auto;font-size:15px;line-height:1.9;font-family:'Sarabun',sans-serif}
 .doc-sheet .doc-logo{display:block;width:70px;margin:0 auto 6px}
 .doc-sheet h2{text-align:center;font-size:19px;margin:0 0 4px}
 .doc-sheet .doc-head{text-align:center;margin-bottom:14px}
@@ -954,6 +954,10 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
 .form-sheet .doc-flow>.nw{flex:0 0 auto}
 .form-sheet .doc-flow.doc-indent{text-indent:0;padding-left:2.5cm}
 .doc-tick{margin-right:26px;white-space:nowrap}
+/* ช่องติ๊กวาดด้วย CSS ไม่ใช้อักขระ ☐ ☑ เพราะ Sarabun ไม่มีรูปอักษรสองตัวนี้
+   เบราว์เซอร์จะสลับไปใช้ฟอนต์อื่นเฉพาะตรงนั้น เอกสารที่พิมพ์เลยมีฟอนต์ปนกัน */
+.doc-box{display:inline-block;width:.7em;height:.7em;border:1px solid #000;position:relative;margin-right:.32em;vertical-align:baseline}
+.doc-box.on::after{content:'';position:absolute;left:.24em;top:-.04em;width:.18em;height:.44em;border:solid #000;border-width:0 1.4px 1.4px 0;transform:rotate(42deg)}
 .dotted-line{position:relative;min-height:1.7em;margin:2px 0}
 .form-bottom{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:16px;font-size:13px;line-height:1.9}
 .stat-table{border-collapse:collapse;width:100%;margin-top:6px;font-size:12px;text-align:center}
@@ -4487,7 +4491,7 @@ function flow(value, weight) {
 const nowrap = text => '<span class="nw">' + esc(text) + '</span>';
 /** ช่องติ๊กเลือก */
 function tick(checked, label) {
-  return '<span class="doc-tick">' + (checked ? '☑' : '☐') + '&nbsp;' + esc(label) + '</span>';
+  return '<span class="doc-tick"><span class="doc-box' + (checked ? ' on' : '') + '"></span>' + esc(label) + '</span>';
 }
 const schoolFullName = () => (DB.settings.schoolName || 'โรงเรียน') + (DB.settings.schoolLocation ? ' ' + DB.settings.schoolLocation : '');
 
