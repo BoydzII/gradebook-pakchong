@@ -1003,6 +1003,14 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
 .memo-dense .memo-table{font-size:10.5px}
 .memo-dense .memo-table th,.memo-dense .memo-table td{padding:2px 3px;height:20px}
 /* ตัวเลือกด้านบนหน้าต่างพรีวิวเอกสาร */
+/* การ์ดตั้งค่ารูปแบบบันทึกข้อความมีป้ายยาวและมีคำอธิบายใต้ช่อง แต่ .pick ปกติ
+   เป็น flex แนวนอนและป้ายห้ามตัดบรรทัด ป้ายกับช่องกรอกจึงเบียดกันจนตัวหนังสือทับกัน
+   การ์ดนี้จึงวางป้าย/ช่อง/คำอธิบายเป็นแนวตั้ง โดยไม่ไปแตะ .pick ที่หน้าอื่นใช้ร่วมกัน */
+.memo-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-top:10px}
+.memo-fields .pick{display:block;min-width:0}
+.memo-fields .pick label{display:block;white-space:normal;margin-bottom:4px;line-height:1.35}
+.memo-fields .pick input,.memo-fields .pick select{width:100%;min-width:0}
+.memo-fields .pick .hint{margin-top:3px;line-height:1.35}
 .doc-opt{display:flex;align-items:center;gap:8px;font-weight:700;font-size:13px;margin-bottom:4px}
 .doc-opt input{transform:scale(1.15)}
 .memo-opinion{border-collapse:collapse;width:100%;margin-top:14px;font-size:12.5px}
@@ -4760,18 +4768,47 @@ function openLeaveExchangeMemo(leaveId) {
 }
 
 /** rebuild = ฟังก์ชันสร้าง HTML ใหม่ ใส่มาเมื่อเอกสารนั้นมีตัวเลือกให้ปรับก่อนพิมพ์ */
+/* ย่อทั้งแผ่นด้วย transform แทนการปล่อยให้กระดาษถูกบีบให้แคบลง
+   ถ้าปล่อยให้บีบ ตัวอักษรจะยังเท่าเดิมเพราะตั้งเป็นพอยท์ สัดส่วนตัวอักษร
+   ต่อหน้ากระดาษบนจอจึงใหญ่กว่าที่พิมพ์ออกมาจริง ครูตั้งขนาดตามที่เห็นแล้วไม่ตรงกับ Word */
+function fitDocPreview(root) {
+  const box = $('#docPreviewBox', root), fit = $('#docPreviewFit', root), page = $('#docPreviewPage', root);
+  if (!box || !fit || !page) return;
+  page.style.transform = 'none'; fit.style.height = 'auto';
+  const scale = Math.min(1, box.clientWidth / (page.offsetWidth || 1));
+  page.style.transform = 'scale(' + scale + ')';
+  fit.style.height = Math.ceil(page.offsetHeight * scale) + 'px';
+  const label = $('#docPreviewScale', root);
+  if (label) label.textContent = 'ตัวอย่างนี้คือกระดาษ A4 ขนาดจริง ย่อให้พอดีจอที่ ' + Math.round(scale * 100) +
+    '% • สัดส่วนตัวอักษรต่อหน้ากระดาษเท่ากับที่พิมพ์ออกมาและเท่ากับที่ตั้งใน Word';
+}
+
 function openDocumentPreview(title, html, rebuild) {
   let current = html;
-  const box = h => '<div id="docPreviewBox" style="max-height:64vh;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:8px">' + h + '</div>';
+  const box = h => '<div class="hint" id="docPreviewScale" style="margin-bottom:6px"></div>' +
+    '<div id="docPreviewBox" style="max-height:64vh;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:8px">' +
+      '<div id="docPreviewFit" style="overflow:hidden"><div id="docPreviewPage" style="width:210mm;transform-origin:top left">' + h + '</div></div></div>';
   openModal({ title: title, wide: true,
     bodyHTML: (rebuild ? memoDetailToggleHtml() : '') + box(html),
     buttons: [{ label: 'ปิด' }, { label: 'พิมพ์เอกสาร', cls: 'primary', act(close) { close(); printDocument(current); } }],
     onMount(root) {
+      fitDocPreview(root);
+      /* หน้าต่างเปลี่ยนความกว้างเมื่อไหร่ก็ย่อใหม่ แต่ดูเฉพาะความกว้าง
+         เพราะเราไปตั้งความสูงเองในฟังก์ชัน ถ้าดูความสูงด้วยจะวนไม่จบ */
+      const previewBox = $('#docPreviewBox', root);
+      if (previewBox && window.ResizeObserver) {
+        let lastWidth = previewBox.clientWidth;
+        new ResizeObserver(() => {
+          if (previewBox.clientWidth === lastWidth) return;
+          lastWidth = previewBox.clientWidth; fitDocPreview(root);
+        }).observe(previewBox);
+      }
       const cb = $('#memoDetailToggle', root); if (!cb || !rebuild) return;
       cb.addEventListener('change', () => {
         DB.ui.memoDetail = cb.checked; save();
         current = rebuild();
-        $('#docPreviewBox', root).innerHTML = current;
+        $('#docPreviewPage', root).innerHTML = current;
+        fitDocPreview(root);
       });
     } });
 }
@@ -9760,8 +9797,7 @@ function memoStyleCardHtml() {
       'ลงวันที่ 13 พฤศจิกายน 2553 (คำอธิบายการพิมพ์หนังสือราชการภาษาไทยด้วยโปรแกรมการพิมพ์ในเครื่องคอมพิวเตอร์) ' +
       'ท้ายหนังสือมีหมายเหตุให้ส่วนราชการปรับให้ต่างจากนี้ได้ตามความเหมาะสม จึงปรับได้ที่นี่ ' +
       'ยิ่งตัวอักษรใหญ่ เอกสารยิ่งกินที่ ถ้าคำขอเกินราว 6 คาบอาจขึ้นหน้าที่สอง</div>' +
-    /* การ์ดนี้มีช่องเยอะ จึงจัดเป็นคอลัมน์อัตโนมัติเฉพาะที่นี่ ไม่ไปแตะ .grid2 ที่การ์ดอื่นใช้ร่วมกัน */
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin-top:10px">' +
+    '<div class="memo-fields">' +
       memoNumField('memoTitle', 'ขนาดหัว “บันทึกข้อความ”', m.title, 1, 'พอยท์ • มาตรฐาน 29') +
       memoWeightField('memoTitleWeight', 'ความหนาหัว “บันทึกข้อความ”', m.titleWeight) +
       memoNumField('memoTitleLine', 'ระยะบรรทัดของหัวเรื่อง', m.titleLine, 1, 'พอยท์ • มาตรฐาน 35 (ค่าแน่นอน)') +
