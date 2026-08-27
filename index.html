@@ -1000,6 +1000,11 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
    ซึ่งห่างกว่า Single และกินที่จนเอกสารเกินหนึ่งหน้าเมื่อเนื้อความเป็น 16pt
    ข้อ 3.2.2/3.2.3 ให้เพิ่มค่าก่อนหน้า 6 พอยท์ เฉพาะคำขึ้นต้นกับต้นแต่ละภาค */
 .memo-sheet .doc-line{margin:0}
+/* ตารางแลกคาบเดิมห่างจากบรรทัดบน 10px ซึ่งน้อยกว่าระยะบรรทัดของเนื้อความ
+   ขอบตารางจึงไปชนหางอักษรของบรรทัดสุดท้าย เว้นเป็นพอยท์ให้เท่ากับหนึ่งบรรทัดพอดี */
+.memo-sheet .memo-table{margin:12pt 0 10pt}
+.memo-fields .memo-check{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.memo-fields .pick input[type=checkbox]{width:auto;min-width:0;transform:scale(1.15)}
 .memo-sheet .doc-before{margin-top:6pt}
 .memo-table{border-collapse:collapse;width:100%;margin:10px 0;font-size:11.5px;text-align:center}
 /* กฎรวม th,td ของทั้งแอปตั้ง text-align:left ไว้ ซึ่งชนะการสืบทอด center จาก .memo-table
@@ -4582,6 +4587,10 @@ const nowrap = text => '<span class="nw">' + esc(text) + '</span>';
 function tick(checked, label) {
   return '<span class="doc-tick"><span class="doc-box' + (checked ? ' on' : '') + '"></span>' + esc(label) + '</span>';
 }
+/* บางโรงเรียนต้องการแค่ชื่อโรงเรียนในบรรทัดส่วนราชการ ไม่เอาอำเภอ/จังหวัด
+   เพราะบรรทัดยาวจนต้องย่อตัวอักษร ถ้าไม่เคยตั้งถือว่าใส่ ตามพฤติกรรมเดิมของระบบ */
+const memoShowLocation = () => DB.settings.memoShowLocation !== false;
+const memoOfficeName = () => memoShowLocation() ? schoolFullName() : (DB.settings.schoolName || 'โรงเรียน');
 const schoolFullName = () => (DB.settings.schoolName || 'โรงเรียน') + (DB.settings.schoolLocation ? ' ' + DB.settings.schoolLocation : '');
 
 /** แบบใบลาป่วย ลากิจส่วนตัว และลาคลอดบุตร — ตามแบบฟอร์มของโรงเรียน */
@@ -4764,7 +4773,7 @@ function exchangeMemoHtml(requests, leave) {
 
   return '<div class="doc-sheet form-sheet memo-sheet' + (list.length > 8 ? ' memo-dense' : '') + '" style="' + memoStyleVars() + '">' +
     '<div class="memo-head"><img src="' + GARUDA_EMBLEM + '" alt="ตราครุฑ"><h2>บันทึกข้อความ</h2></div>' +
-    '<div class="doc-line doc-flow"><b class="nw">ส่วนราชการ</b>' + nowrap('กลุ่มสาระการเรียนรู้') + flow(teacherArea(requester), 1) + nowrap(schoolFullName()) + '</div>' +
+    '<div class="doc-line doc-flow"><b class="nw">ส่วนราชการ</b>' + nowrap('กลุ่มสาระการเรียนรู้') + flow(teacherArea(requester), 1) + nowrap(memoOfficeName()) + '</div>' +
     '<div class="doc-line doc-flow"><b class="nw">ที่</b>' + nowrap('วก') + flow('', 1) +
       '<span class="nw" style="flex:0 0 22px"></span><b class="nw">วันที่</b>' +
       flow(created.day ? created.day + ' ' + created.month + ' ' + created.year : '', 1.6) + '</div>' +
@@ -9837,6 +9846,12 @@ function memoNumField(id, label, value, step, hint) {
     '<input type="number" id="' + id + '" value="' + value + '" step="' + step + '" min="0.1">' +
     '<div class="hint">' + hint + '</div></div>';
 }
+function memoCheckField(id, label, checked, choice, hint) {
+  return '<div class="pick"><label>' + label + '</label>' +
+    '<label class="memo-check"><input type="checkbox" id="' + id + '"' + (checked ? ' checked' : '') + '>' +
+      '<span>' + choice + '</span></label>' +
+    '<div class="hint">' + hint + '</div></div>';
+}
 function memoWeightField(id, label, value) {
   return '<div class="pick"><label>' + label + '</label><select id="' + id + '">' +
     MEMO_WEIGHTS.map(w => '<option value="' + w[0] + '"' + (Number(value) === w[0] ? ' selected' : '') + '>' +
@@ -9867,6 +9882,8 @@ function memoStyleCardHtml() {
       memoNumField('memoOpinion', 'ขนาดตัวอักษรในกล่องความเห็น', m.opinion, 0.5, 'พอยท์') +
       memoNumField('memoMarginLeft', 'ขอบซ้าย', m.marginLeft, 0.1, 'เซนติเมตร • มาตรฐาน 3') +
       memoNumField('memoMarginRight', 'ขอบขวา', m.marginRight, 0.1, 'เซนติเมตร • มาตรฐาน 2') +
+      memoCheckField('memoShowLocation', 'อำเภอ/จังหวัด ในบรรทัดส่วนราชการ', memoShowLocation(),
+        'ใส่ต่อท้ายชื่อโรงเรียน', 'ถ้าเอาออก บรรทัดจะสั้นลงจนไม่ต้องย่อตัวอักษร') +
     '</div>' +
     '<div class="row" style="margin-top:12px"><button class="sm" id="memoStyleReset">คืนค่ามาตรฐาน ว 2011</button>' +
     '<div class="spacer"></div><button class="primary" id="memoStyleSave">บันทึกรูปแบบบันทึกข้อความ</button></div></div>';
@@ -9913,10 +9930,12 @@ function adminSectionDocuments(box) {
       table: num('memoTable', d.table), opinion: num('memoOpinion', d.opinion),
       emblem: num('memoEmblem', d.emblem), marginLeft: num('memoMarginLeft', d.marginLeft), marginRight: num('memoMarginRight', d.marginRight)
     };
+    s.memoShowLocation = $('#memoShowLocation', box).checked;
     save(true); renderAdmin(); toast('บันทึกรูปแบบบันทึกข้อความแล้ว • กดพิมพ์ใบแลกคาบเพื่อดูผล', 'ok');
   });
   $('#memoStyleReset', box).addEventListener('click', () => {
-    delete s.memoStyle; save(true); renderAdmin(); toast('คืนค่ามาตรฐาน ว 2011 แล้ว', 'ok');
+    delete s.memoStyle; delete s.memoShowLocation;
+    save(true); renderAdmin(); toast('คืนค่ามาตรฐาน ว 2011 แล้ว', 'ok');
   });
   $('#setLogo', box).addEventListener('change', async e => {
     const file = e.target.files[0]; if (!file) return;
