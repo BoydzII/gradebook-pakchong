@@ -997,6 +997,11 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
    ส่วนคำว่า "เรียน" และเนื้อความเป็นตัวปกติ 16pt ตามแบบท้ายระเบียบ */
 /* ทุกขนาดผูกกับตัวแปร CSS ที่ exchangeMemoHtml ใส่มากับตัวเอกสาร ครูจึงปรับเองได้
    ที่หน้าตั้งค่า ค่าที่เขียนไว้ท้าย var() คือค่ามาตรฐานตาม ว 2011 ใช้เมื่อยังไม่เคยตั้ง */
+/* ใบลาและบันทึกขออนุญาตไปราชการ ใช้ชุดตัวแปรของตัวเอง ปรับได้ที่หน้าตั้งค่าเช่นกัน */
+.leave-sheet{padding:var(--lv-mt,1.5cm) var(--lv-mr,2cm) var(--lv-mb,1.5cm) var(--lv-ml,2.5cm);font-size:var(--lv-body,16pt);line-height:var(--lv-line,1.35)}
+.leave-sheet h2{font-size:var(--lv-title,18pt);font-weight:var(--lv-title-weight,700)}
+.leave-sheet .stat-table{font-size:var(--lv-table,11pt)}
+.leave-sheet .form-bottom{font-size:var(--lv-bottom,12pt)}
 .memo-sheet{padding:1.5cm var(--memo-mr,2cm) 2cm var(--memo-ml,3cm);font-size:var(--memo-body,16pt);font-weight:var(--memo-body-weight,400);line-height:var(--memo-line,1.35)}
 .memo-sheet .doc-line b{font-size:var(--memo-label,20pt);font-weight:var(--memo-label-weight,700)}
 .memo-sheet .doc-line b.thin{font-size:var(--memo-lead,16pt);font-weight:var(--memo-lead-weight,400)}
@@ -1135,6 +1140,16 @@ body.pro-mode #btnProMode{opacity:.45}
   body.print-doc .memo-head img{height:var(--memo-emblem,1.5cm);width:auto}
   /* ข้อ 1.1 ขอบซ้าย 3 ซม. ขอบขวา 2 ซม. — แยกหน้ากระดาษของบันทึกข้อความออกมา
      เพื่อไม่ให้ไปเปลี่ยนระยะขอบของใบลาและเอกสารอื่นที่ใช้ @page docSheet ร่วมกัน */
+  /* ใบลาแยกหน้ากระดาษของตัวเอง จะได้ตั้งขอบไม่ชนกับบันทึกข้อความและเอกสารอื่น */
+  /* @page ใช้ตัวแปร CSS ไม่ได้ จึงตั้งขอบกระดาษไว้ที่ 1 ซม. เป็นพื้น
+     แล้วบวกส่วนที่เกินด้วย padding ของแผ่น ครูจึงตั้งขอบบน/ล่างเองได้ แต่ต่ำสุดคือ 1 ซม. */
+  body.print-doc .leave-sheet{page:leaveSheet;font-size:var(--lv-body,16pt);line-height:var(--lv-line,1.35);
+    padding:max(0cm,calc(var(--lv-mt,1.5cm) - 1cm)) var(--lv-mr,2cm) max(0cm,calc(var(--lv-mb,1.5cm) - 1cm)) var(--lv-ml,2.5cm)}
+  body.print-doc .leave-sheet h2{font-size:var(--lv-title,18pt);font-weight:var(--lv-title-weight,700);margin-bottom:6px}
+  body.print-doc .leave-sheet .stat-table{font-size:var(--lv-table,11pt)}
+  body.print-doc .leave-sheet .stat-table th,body.print-doc .leave-sheet .stat-table td{padding:1px 3px}
+  body.print-doc .leave-sheet .form-bottom{font-size:var(--lv-bottom,12pt);line-height:1.5}
+  body.print-doc .leave-sheet .dotted-line{min-height:1.2em}
   body.print-doc .memo-sheet{page:memoSheet;padding:0 var(--memo-mr,2cm) 0 var(--memo-ml,3cm);font-size:var(--memo-body,16pt);line-height:var(--memo-line,1.35)}
   /* ข้อ 3.4 หนังสือแบบอื่นให้อนุโลมตามนัยข้างต้น ตารางแลกคาบกับกล่องความเห็น
      จึงย่อได้ เพื่อให้ทั้งฉบับยังลง A4 หน้าเดียวเมื่อเนื้อความเป็น 16pt */
@@ -1147,6 +1162,7 @@ body.pro-mode #btnProMode{opacity:.45}
   body.print-doc .memo-dense .memo-table{font-size:calc(var(--memo-table,11pt) * .82)}
   /* ขอบซ้าย/ขวาไปอยู่ที่ padding ของตัวเอกสารแทน เพราะ @page อ่านตัวแปร CSS ไม่ได้ */
   @page memoSheet{size:A4 portrait;margin:1.5cm 0 2cm 0}
+  @page leaveSheet{size:A4 portrait;margin:1cm 0}
   body.print-doc .dotted-line{min-height:1.4em}
   @page docSheet{size:A4 portrait;margin:15mm}
   .stickytop,.topbar,.tabs,.noprint{display:none !important}
@@ -4721,7 +4737,7 @@ function leaveDocumentHtml(leave) {
   const headName = (DB.teachers.find(t => t.id === head.by) || {}).name || headNameOfArea(teacherArea(teacher)) || s.headLearningName || '';
   const decided = approval.at ? thaiDateParts(String(approval.at).slice(0, 10)) : { day: '', month: '', year: '' };
 
-  return '<div class="doc-sheet form-sheet">' +
+  return '<div class="doc-sheet form-sheet leave-sheet" style="' + leaveStyleVars() + '">' +
     '<h2 style="margin-bottom:10px">แบบใบลาป่วย ลากิจส่วนตัว และลาคลอดบุตร</h2>' +
     '<div style="text-align:right">' + esc(schoolFullName()) + '</div>' +
     '<div style="text-align:right;margin-bottom:6px">วันที่ ' + fill(created.day, 40) + ' เดือน ' + fill(created.month, 110) + ' พ.ศ. ' + fill(created.year, 60) + '</div>' +
@@ -4787,6 +4803,30 @@ const MEMO_STYLE_DEFAULT = {
   table: 11, opinion: 12,
   emblem: 1.5, marginLeft: 3, marginRight: 2
 };
+/* ใบลาเป็นหนังสือคนละแบบกับบันทึกข้อความ หัวเรื่องจึงเล็กกว่าและไม่มีตราครุฑ
+   แยกชุดค่าออกจาก memoStyle เพราะปรับคนละทาง เอกสารคนละหน้าตากัน */
+const LEAVE_STYLE_DEFAULT = {
+  title: 18, titleWeight: 700,
+  body: 16, line: 1.35,
+  table: 11, bottom: 12,
+  marginLeft: 2.5, marginRight: 2, marginTop: 1.5, marginBottom: 1.5
+};
+function leaveStyle() {
+  const raw = DB.settings.leaveStyle || {}, out = {};
+  Object.keys(LEAVE_STYLE_DEFAULT).forEach(k => {
+    const v = Number(raw[k]);
+    out[k] = isFinite(v) && v > 0 ? v : LEAVE_STYLE_DEFAULT[k];
+  });
+  return out;
+}
+function leaveStyleVars() {
+  const m = leaveStyle();
+  return '--lv-title:' + m.title + 'pt;--lv-title-weight:' + m.titleWeight +
+    ';--lv-body:' + m.body + 'pt;--lv-line:' + m.line +
+    ';--lv-table:' + m.table + 'pt;--lv-bottom:' + m.bottom + 'pt' +
+    ';--lv-ml:' + m.marginLeft + 'cm;--lv-mr:' + m.marginRight + 'cm' +
+    ';--lv-mt:' + m.marginTop + 'cm;--lv-mb:' + m.marginBottom + 'cm';
+}
 const MEMO_WEIGHTS = [[400, 'ปกติ'], [500, 'กึ่งหนา'], [600, 'หนาปานกลาง'], [700, 'หนา'], [800, 'หนาพิเศษ']];
 
 /** ค่ารูปแบบที่ใช้จริง — บังคับเป็นตัวเลขบวกทุกตัว ค่าที่เพี้ยนมาจากการซิงก์จะตกกลับไปใช้ค่ามาตรฐาน */
@@ -10041,6 +10081,28 @@ function memoStyleCardHtml() {
     '<div class="spacer"></div><button class="primary" id="memoStyleSave">บันทึกรูปแบบบันทึกข้อความ</button></div></div>';
 }
 
+/** การ์ดตั้งค่ารูปแบบการพิมพ์ใบลาและบันทึกขออนุญาตไปราชการ */
+function leaveStyleCardHtml() {
+  const m = leaveStyle();
+  return '<div class="card" style="grid-column:1/-1"><h3>รูปแบบการพิมพ์ใบลา / บันทึกไปราชการ</h3>' +
+    '<div class="notice">ใบลาเป็นหนังสือคนละแบบกับบันทึกข้อความ จึงตั้งค่าแยกกัน ' +
+      'ฟอนต์ใช้ TH SarabunPSK เหมือนกันทั้งสองแบบ • ใบลามีเนื้อหาแน่นกว่า ตัวอักษรยิ่งใหญ่ยิ่งมีโอกาสขึ้นหน้าที่สอง</div>' +
+    '<div class="memo-fields">' +
+      memoNumField('lvTitle', 'ขนาดหัวเรื่อง', m.title, 1, 'พอยท์ • ค่าเริ่มต้น 18') +
+      memoWeightField('lvTitleWeight', 'ความหนาหัวเรื่อง', m.titleWeight) +
+      memoNumField('lvBody', 'ขนาดเนื้อความ', m.body, 1, 'พอยท์ • ค่าเริ่มต้น 16') +
+      memoNumField('lvLine', 'ระยะบรรทัด', m.line, 0.05, 'เท่าของขนาดตัวอักษร') +
+      memoNumField('lvTable', 'ขนาดตัวอักษรในตารางสถิติการลา', m.table, 0.5, 'พอยท์') +
+      memoNumField('lvBottom', 'ขนาดตัวอักษรช่วงลงนามท้ายใบลา', m.bottom, 0.5, 'พอยท์') +
+      memoNumField('lvMarginLeft', 'ขอบซ้าย', m.marginLeft, 0.1, 'เซนติเมตร') +
+      memoNumField('lvMarginRight', 'ขอบขวา', m.marginRight, 0.1, 'เซนติเมตร') +
+      memoNumField('lvMarginTop', 'ขอบบน', m.marginTop, 0.1, 'เซนติเมตร • ต่ำสุด 1') +
+      memoNumField('lvMarginBottom', 'ขอบล่าง', m.marginBottom, 0.1, 'เซนติเมตร • ต่ำสุด 1') +
+    '</div>' +
+    '<div class="row" style="margin-top:12px"><button class="sm" id="leaveStyleReset">คืนค่าเริ่มต้น</button>' +
+    '<div class="spacer"></div><button class="primary" id="leaveStyleSave">บันทึกรูปแบบใบลา</button></div></div>';
+}
+
 function adminSectionDocuments(box) {
   const s = DB.settings;
   box.innerHTML = '<div class="grid2"><div class="card"><h3>ข้อมูลสถานศึกษาและตราโรงเรียน</h3><div class="pick"><label>ชื่อสถานศึกษา</label><input id="setSchool" value="' + esc(s.schoolName || '') + '" style="width:100%"></div>' +
@@ -10059,7 +10121,7 @@ function adminSectionDocuments(box) {
       '<div class="pick"><label>ชื่อผู้อำนวยการ</label><input id="setDirector" value="' + esc(s.directorName || '') + '"></div>' +
       '<div class="pick"><label>ตำแหน่งผู้อำนวยการ</label><input id="setDirectorPosition" value="' + esc(s.directorPosition || '') + '"></div></div>' +
       '<div class="notice" style="margin-top:10px">แบบพิมพ์จะเว้นเส้นสำหรับลายเซ็น และนำชื่อ/ตำแหน่งเหล่านี้ไปวางตามโครงเอกสาร PDF ที่แนบ</div></div>' +
-    memoStyleCardHtml() +
+    memoStyleCardHtml() + leaveStyleCardHtml() +
     '<div class="card"><div class="row"><div class="hint tip">ข้อมูลชุดนี้ใช้กับแบบพิมพ์ ปพ.5 ของครูทุกคนในโรงเรียน</div><div class="spacer"></div><button class="primary" id="settingsSave">บันทึกข้อมูลโรงเรียน</button></div></div>';
 
   $('#settingsSave', box).addEventListener('click', () => {
@@ -10088,6 +10150,21 @@ function adminSectionDocuments(box) {
     const dot = parseFloat($('#memoDotOffset', box).value);
     s.memoDotOffset = isFinite(dot) ? dot : 1.5;
     save(true); renderAdmin(); toast('บันทึกรูปแบบบันทึกข้อความแล้ว • กดพิมพ์ใบแลกคาบเพื่อดูผล', 'ok');
+  });
+  $('#leaveStyleSave', box).addEventListener('click', () => {
+    const d = LEAVE_STYLE_DEFAULT;
+    const num = (id, fallback) => { const v = parseFloat($('#' + id, box).value); return isFinite(v) && v > 0 ? v : fallback; };
+    s.leaveStyle = {
+      title: num('lvTitle', d.title), titleWeight: Number($('#lvTitleWeight', box).value) || 700,
+      body: num('lvBody', d.body), line: num('lvLine', d.line),
+      table: num('lvTable', d.table), bottom: num('lvBottom', d.bottom),
+      marginLeft: num('lvMarginLeft', d.marginLeft), marginRight: num('lvMarginRight', d.marginRight),
+      marginTop: num('lvMarginTop', d.marginTop), marginBottom: num('lvMarginBottom', d.marginBottom)
+    };
+    save(true); renderAdmin(); toast('บันทึกรูปแบบใบลาแล้ว • กดพิมพ์ใบลาเพื่อดูผล', 'ok');
+  });
+  $('#leaveStyleReset', box).addEventListener('click', () => {
+    delete s.leaveStyle; save(true); renderAdmin(); toast('คืนค่าเริ่มต้นของใบลาแล้ว', 'ok');
   });
   $('#memoStyleReset', box).addEventListener('click', () => {
     delete s.memoStyle; delete s.memoShowLocation; delete s.memoDots; delete s.memoDotOffset;
