@@ -28,6 +28,14 @@
 @font-face{font-family:'Sarabun';font-style:normal;font-weight:700;font-display:swap;src:url('./vendor/fonts/sarabun-thai-700.woff2') format('woff2');unicode-range:U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC}
 @font-face{font-family:'Sarabun';font-style:normal;font-weight:800;font-display:swap;src:url('./vendor/fonts/sarabun-latin-800.woff2') format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
 @font-face{font-family:'Sarabun';font-style:normal;font-weight:800;font-display:swap;src:url('./vendor/fonts/sarabun-thai-800.woff2') format('woff2');unicode-range:U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC}
+/* ฟอนต์สารบรรณของราชการ ใช้เฉพาะกระดาษเอกสารที่สั่งพิมพ์ ตามหนังสือสำนักนายกรัฐมนตรี
+   ที่ นร ๐๑๐๖/ว ๒๐๑๑ ลงวันที่ ๑๓ พฤศจิกายน ๒๕๕๓ ที่กำหนดให้ใช้ TH Sarabun PSK
+   เก็บเป็น .ttf ต้นฉบับจาก SIPA (ยังไม่ได้แปลงเป็น woff2 เพราะเครื่องยังไม่มีตัวแปลง)
+   สัญญาอนุญาตอยู่ที่ vendor/fonts/TH-SarabunPSK-LICENSE.txt
+   ไม่ได้ตั้งเป็นฟอนต์ของทั้งแอป เพราะหน้าจอใช้งานอ่านง่ายกว่าด้วย Sarabun
+   และเบราว์เซอร์จะโหลดไฟล์นี้ต่อเมื่อมีกระดาษเอกสารอยู่บนหน้าจอเท่านั้น */
+@font-face{font-family:'TH SarabunPSK';font-style:normal;font-weight:400;font-display:swap;src:url('./vendor/fonts/th-sarabun-psk-400.ttf') format('truetype')}
+@font-face{font-family:'TH SarabunPSK';font-style:normal;font-weight:700;font-display:swap;src:url('./vendor/fonts/th-sarabun-psk-700.ttf') format('truetype')}
 /* ============================================================
    ธีมและตัวแปรสี
    ============================================================ */
@@ -927,7 +935,7 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
 .bar>i{display:block;height:100%;background:var(--brand)}
 
 /* เอกสารราชการ: ใบลา / บันทึกขอแลกคาบ */
-.doc-sheet{background:#fff;color:#000;padding:18mm 16mm;max-width:210mm;margin:0 auto;font-size:15px;line-height:1.9;font-family:'Sarabun',sans-serif}
+.doc-sheet{background:#fff;color:#000;padding:18mm 16mm;max-width:210mm;margin:0 auto;font-size:15px;line-height:1.9;font-family:'TH SarabunPSK','Sarabun',sans-serif}
 .doc-sheet .doc-logo{display:block;width:70px;margin:0 auto 6px}
 .doc-sheet h2{text-align:center;font-size:19px;margin:0 0 4px}
 .doc-sheet .doc-head{text-align:center;margin-bottom:14px}
@@ -4775,7 +4783,11 @@ function fitDocPreview(root) {
   const box = $('#docPreviewBox', root), fit = $('#docPreviewFit', root), page = $('#docPreviewPage', root);
   if (!box || !fit || !page) return;
   page.style.transform = 'none'; fit.style.height = 'auto';
-  const scale = Math.min(1, box.clientWidth / (page.offsetWidth || 1));
+  /* ถ้าเรียกก่อนเบราว์เซอร์จัดหน้าเสร็จ ความกว้างกรอบจะยังเป็น 0 ถ้าเผลอย่อด้วยค่านี้
+     ทั้งแผ่นจะหดหายไปเลย จึงข้ามไปก่อน แล้วรอ ResizeObserver เรียกซ้ำตอนมีความกว้างจริง */
+  const width = box.clientWidth || box.getBoundingClientRect().width;
+  const scale = Math.min(1, width / (page.offsetWidth || 1));
+  if (!(scale > 0.05)) return;   // แคบผิดปกติ = แท็บยังไม่ถูกจัดหน้า ไม่ใช่จอเล็กจริง
   page.style.transform = 'scale(' + scale + ')';
   fit.style.height = Math.ceil(page.offsetHeight * scale) + 'px';
   const label = $('#docPreviewScale', root);
@@ -4793,6 +4805,7 @@ function openDocumentPreview(title, html, rebuild) {
     buttons: [{ label: 'ปิด' }, { label: 'พิมพ์เอกสาร', cls: 'primary', act(close) { close(); printDocument(current); } }],
     onMount(root) {
       fitDocPreview(root);
+      requestAnimationFrame(() => fitDocPreview(root));   // เผื่อรอบแรกยังจัดหน้าไม่เสร็จ
       /* หน้าต่างเปลี่ยนความกว้างเมื่อไหร่ก็ย่อใหม่ แต่ดูเฉพาะความกว้าง
          เพราะเราไปตั้งความสูงเองในฟังก์ชัน ถ้าดูความสูงด้วยจะวนไม่จบ */
       const previewBox = $('#docPreviewBox', root);

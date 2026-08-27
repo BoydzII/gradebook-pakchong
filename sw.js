@@ -5,7 +5,7 @@
    วิธีอัปเดตแอปหลังแก้โค้ด: เปลี่ยนเลขเวอร์ชันที่ CACHE_VERSION แล้วอัปโหลดใหม่
    ผู้ใช้จะเห็นแถบแจ้ง "มีเวอร์ชันใหม่" ให้กดอัปเดต */
 
-const CACHE_VERSION = 'v90';
+const CACHE_VERSION = 'v91';
 const CACHE_NAME = 'gradebook-' + CACHE_VERSION;
 
 /* ไฟล์แกนของแอป โหลดไว้ล่วงหน้าให้เปิดออฟไลน์ได้ */
@@ -32,7 +32,9 @@ const APP_SHELL = [
   './vendor/fonts/sarabun-thai-500.woff2',
   './vendor/fonts/sarabun-thai-600.woff2',
   './vendor/fonts/sarabun-thai-700.woff2',
-  './vendor/fonts/sarabun-thai-800.woff2'
+  './vendor/fonts/sarabun-thai-800.woff2',
+  './vendor/fonts/th-sarabun-psk-400.ttf',
+  './vendor/fonts/th-sarabun-psk-700.ttf'
 ];
 
 self.addEventListener('install', event => {
