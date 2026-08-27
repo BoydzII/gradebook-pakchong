@@ -490,6 +490,13 @@ tr.pr-done{opacity:.62}
 .cover-note b{color:var(--ink)}
 .cover-note.locked{background:var(--warn-bg);border-color:color-mix(in srgb,var(--warn) 32%,transparent);color:var(--warn)}
 .cover-note.locked b{color:var(--warn)}
+/* ปุ่มเลือกเส้นทางงานของศูนย์แลกคาบ ทำให้ใหญ่และอธิบายใต้ชื่อ เพราะเลือกผิดแล้ว
+   เอกสารที่ได้จะผิดชุดกันทั้งใบ ไม่ใช่แค่ผิดรายละเอียด */
+.mode-pick-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+.mode-pick{flex:1 1 240px;text-align:left;padding:12px 14px;font-weight:700;line-height:1.35}
+.mode-pick small{display:block;font-weight:400;opacity:.75;margin-top:3px}
+.mode-pick.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.mode-pick.on small{opacity:.9}
 .cover-group{border:1px solid var(--line);border-radius:12px;padding:11px 12px;margin-bottom:10px;background:var(--panel2)}
 .cover-group-head{display:flex;align-items:center;gap:10px;margin-bottom:9px}
 .cover-rank{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;flex:none;
@@ -3786,11 +3793,16 @@ function openSpecialSession(date, slotId) {
     ที่ไหนเอาไปวางต้องเรียก bindLeaveHistory ด้วย ปุ่มถึงจะทำงาน */
 function leaveHistoryCard(limit, compact) {
   const me = curTeacher(); if (!me) return '';
-  const leaves = (DB.timetable.leaveRequests || []).filter(l => l.teacherId === me.id && l.periodId === DB.ui.periodId)
+  const all = (DB.timetable.leaveRequests || []).filter(l => l.teacherId === me.id && l.periodId === DB.ui.periodId)
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  /* ใบลาที่ผู้บริหารตัดสินแล้วและเลยวันลามาเกินหนึ่งสัปดาห์ ถือว่าจบงาน ไม่ต้องค้างในรายการ */
+  const settled = all.filter(l => leaveSettled(l) && olderThanKeep(l.toDate || l.fromDate));
+  const leaves = showOldWork() ? all : all.filter(l => settled.indexOf(l) < 0);
   const shown = leaves.slice(0, limit || 20), more = leaves.length - shown.length;
   return '<div class="card"><div class="row"><h3 style="margin:0">ประวัติการลาและเอกสาร</h3><div class="spacer"></div>' +
     (leaves.length ? '<span class="badge">' + leaves.length + ' รายการ</span>' : '') +
+    (settled.length ? '<button class="sm" data-toggle-old="1">' +
+      (showOldWork() ? 'ซ่อนงานที่จบแล้ว' : 'ดูย้อนหลัง ' + settled.length + ' รายการ') + '</button>' : '') +
     (compact ? '<button class="sm" data-go-tab="exchange">ไปที่ศูนย์แลกคาบ</button>' : '') + '</div>' +
     (shown.length ? '<div class="alert-list" style="margin-top:10px">' + shown.map(l => {
       const approval = (l.approval || {}).status || 'draft', head = (l.headApproval || {}).status || 'none';
@@ -3803,22 +3815,37 @@ function leaveHistoryCard(limit, compact) {
         (canDeleteRequest(l.teacherId).ok ? '<button class="sm danger" data-leave-delete="' + l.id + '">ลบรายการ</button>' : '') + '</div>';
     }).join('') + '</div>' +
       (more > 0 ? '<div class="hint" style="margin-top:8px">แสดง ' + shown.length + ' รายการล่าสุด จากทั้งหมด ' + leaves.length + ' รายการ • ดูครบที่ศูนย์แลกคาบ</div>' : '')
-      : '<div class="empty" style="margin-top:10px">ยังไม่มีประวัติการลา</div>') + '</div>';
+      : '<div class="empty" style="margin-top:10px">' +
+          (settled.length ? 'งานลาที่ค้างอยู่ไม่มีแล้ว • มีของเก่าที่จบไปแล้ว ' + settled.length + ' รายการ' : 'ยังไม่มีประวัติการลา') +
+        '</div>') + '</div>';
 }
 function bindLeaveHistory(root) {
   $$('[data-leave-doc]', root).forEach(b => b.addEventListener('click', () => openLeaveDocument(b.dataset.leaveDoc)));
   $$('[data-leave-memo]', root).forEach(b => b.addEventListener('click', () => openLeaveExchangeMemo(b.dataset.leaveMemo)));
   $$('[data-leave-submit]', root).forEach(b => b.addEventListener('click', () => submitLeaveForApproval(b.dataset.leaveSubmit)));
   $$('[data-leave-delete]', root).forEach(b => b.addEventListener('click', () => deleteLeaveRequest(b.dataset.leaveDelete)));
+  /* ปุ่มดูย้อนหลังมีทั้งในการ์ดประวัติการลาและการ์ดคำขอแลกคาบ ซึ่งโผล่ทั้งหน้าแรกและศูนย์แลกคาบ
+     จึงผูกที่เดียวแล้ววาดใหม่เฉพาะหน้าที่กำลังเปิดอยู่ */
+  $$('[data-toggle-old]', root).forEach(b => b.addEventListener('click', () => {
+    DB.ui.showOldWork = !showOldWork(); save();
+    if (root.id === 'pane-exchange') renderExchangeCenter(); else renderDashboard();
+  }));
 }
 
 /* ศูนย์แลกคาบ/การลา รุ่นจัดลำดับอัจฉริยะ */
+/* เหตุผลของ "ใบลา" เท่านั้น การแลกคาบปกติไม่ใช่การลา จึงแยกไว้ที่ SWAP_REASON
+   ไม่ปนอยู่ในรายการนี้ ครูจะได้ไม่เผลอเลือกแลกคาบปกติในใบลา */
 const EXCHANGE_REASONS = [
   { value: 'personal', label: 'ลากิจส่วนตัว' }, { value: 'sick', label: 'ลาป่วย' },
+  { value: 'sickAppt', label: 'ลาป่วย (พบแพทย์ตามนัด)' },
   { value: 'maternity', label: 'ลาคลอดบุตร' },
   { value: 'official', label: 'ไปราชการ' }, { value: 'other', label: 'อื่นๆ' }
 ];
+const SWAP_REASON = { value: 'swap', label: 'แลกคาบปกติ (ไม่ใช่การลา)' };
+/* พบแพทย์ตามนัดคือลาป่วยชนิดหนึ่ง เอกสารจึงต้องติ๊กช่องลาป่วยเหมือนกัน */
+const isSickReason = r => r === 'sick' || r === 'sickAppt';
 function exchangeReasonLabel(req) {
+  if (req.reason === SWAP_REASON.value) return SWAP_REASON.label;
   const found = EXCHANGE_REASONS.find(x => x.value === req.reason);
   return found ? found.label + (req.reason === 'other' && req.reasonOther ? ' — ' + req.reasonOther : '') : (req.reasonOther || 'ไม่ระบุเหตุผล');
 }
@@ -3851,8 +3878,32 @@ function entryPeriodKind(entry) {
 /* ---- ใครรับผิดชอบหาครูดูแลคาบ -------------------------------------------
    ลากิจและไปราชการเป็นธุระของครูเอง จึงต้องแลกคาบเอง ระบบเตือนให้ไปจัดการ
    ลาป่วยและลาคลอดเลือกได้ ว่าจะแลกเองหรือให้หัวหน้ากลุ่มสาระจัดครูแทนให้ */
-const SELF_COVER_REASONS = ['personal', 'official'];
+/* พบแพทย์ตามนัดรู้ล่วงหน้า ครูจึงนัดแลกคาบเองได้เหมือนลากิจ ต่างจากลาป่วยกะทันหัน */
+const SELF_COVER_REASONS = ['personal', 'official', 'sickAppt', 'swap'];
 const mustCoverSelf = reason => SELF_COVER_REASONS.indexOf(reason) >= 0;
+/* ศูนย์แลกคาบเริ่มจากเลือกก่อนว่าจะ "แลกคาบปกติ" หรือ "ลา/ไปราชการ"
+   แลกคาบปกติไม่ต้องมีใบลา ส่วนการลาทุกชนิดต้องบันทึกใบลาก่อนจึงจะส่งคำขอแลกคาบได้
+   เดิมส่งคำขอพร้อมเลือกเหตุผลได้เลยโดยไม่มีใบลา เอกสารจึงขาดใบลาที่ต้องแนบคู่กัน */
+const exchangeMode = () => DB.ui.exchangeMode === 'leave' ? 'leave' : 'swap';
+/** ใบลาของครูคนนี้ที่คลุมวันที่กำหนด ใช้เป็นตัวปลดล็อกการแลกคาบในโหมดลา */
+function activeLeaveFor(teacherId, date) {
+  return (DB.timetable.leaveRequests || [])
+    .filter(l => l.teacherId === teacherId && l.periodId === DB.ui.periodId &&
+      l.fromDate <= date && date <= (l.toDate || l.fromDate))
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0] || null;
+}
+/* งานที่ปิดจบแล้วและเลยมาเกินหนึ่งสัปดาห์ ไม่ต้องค้างอยู่ในรายการให้รก
+   ครูจะได้เห็นเฉพาะงานที่ยังต้องตามต่อ กดดูย้อนหลังได้ถ้าจำเป็น */
+const HISTORY_KEEP_DAYS = 7;
+function olderThanKeep(iso) {
+  if (!iso) return false;
+  const d = parseISODate(String(iso).slice(0, 10)); if (!d) return false;
+  const edge = new Date(); edge.setDate(edge.getDate() - HISTORY_KEEP_DAYS);
+  return d < edge;
+}
+const showOldWork = () => !!DB.ui.showOldWork;
+const leaveSettled = l => ['approved', 'rejected'].indexOf((l.approval || {}).status) >= 0;
+const swapSettled = r => ['accepted', 'rejected', 'dropped'].indexOf(r.status) >= 0;
 const leaveCoverMode = leave => mustCoverSelf((leave || {}).reason) ? 'self' : ((leave || {}).coverageMode === 'head' ? 'head' : 'self');
 const coverModeLabel = mode => mode === 'head' ? 'หัวหน้ากลุ่มสาระจัดให้' : 'แลกคาบเอง';
 
@@ -4278,7 +4329,7 @@ function rebuildExchangeExceptions() {
 }
 
 function respondExchangeRequest(id, accept) {
-  if (blockAdminApproval()) return;
+  if (blockClosedTerm() || blockAdminApproval()) return;
   const req = (DB.timetable.exchangeRequests || []).find(r => r.id === id); if (!req || req.status !== 'pending') return;
   const source = DB.timetable.entries.find(e => e.id === req.requesterEntryId), target = DB.timetable.entries.find(e => e.id === req.targetEntryId), sourceDate = req.sourceDate || req.date, targetDate = req.targetDate || req.date;
   if (accept && !source) return toast('คาบต้นทางถูกแก้ไขหรือลบไปแล้ว', 'bad');
@@ -4338,6 +4389,7 @@ function askDeleteReason(title, warnHTML, needReason, onConfirm) {
 }
 
 function deleteExchangeRequest(id) {
+  if (blockClosedTerm()) return;
   const req = (DB.timetable.exchangeRequests || []).find(r => r.id === id); if (!req) return;
   const perm = canDeleteRequest(req.requesterTeacherId);
   if (!perm.ok) return toast('ลบได้เฉพาะคำขอของตัวเอง หรือโดยผู้ดูแลระบบ', 'bad');
@@ -4363,6 +4415,7 @@ function deleteExchangeRequest(id) {
 }
 
 function deleteLeaveRequest(id) {
+  if (blockClosedTerm()) return;
   const leave = (DB.timetable.leaveRequests || []).find(l => l.id === id); if (!leave) return;
   const perm = canDeleteRequest(leave.teacherId);
   if (!perm.ok) return toast('ลบได้เฉพาะใบลาของตัวเอง หรือโดยผู้ดูแลระบบ', 'bad');
@@ -4397,9 +4450,14 @@ function openMergedExchangeDocument(ids) {
 
 function exchangeRequestCard(limit) {
   const me = curTeacher(); if (!me) return '';
-  const mine = (DB.timetable.exchangeRequests || []).filter(r => r.requesterTeacherId === me.id || r.targetTeacherId === me.id)
+  /* เดิมไม่ได้กรองภาคเรียน คำขอของทุกปีทุกเทอมจึงมากองรวมกัน ยิ่งใช้นานยิ่งยาว */
+  const everything = (DB.timetable.exchangeRequests || [])
+    .filter(r => (r.requesterTeacherId === me.id || r.targetTeacherId === me.id) && r.periodId === DB.ui.periodId)
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-  if (!mine.length) return '';
+  /* คำขอที่ปิดจบแล้วและเลยวันคาบมาเกินหนึ่งสัปดาห์ ไม่ต้องค้างให้ครูต้องกวาดตาผ่าน */
+  const oldDone = everything.filter(r => swapSettled(r) && olderThanKeep(r.sourceDate || r.date));
+  const mine = showOldWork() ? everything : everything.filter(r => oldDone.indexOf(r) < 0);
+  if (!mine.length && !oldDone.length) return '';
   // ตอบรับแล้วให้ออกจากรายการที่ต้องจัดการ เหลือไว้เป็นบรรทัดสรุปอย่างเดียว
   const active = mine.filter(r => r.status !== 'accepted'), done = mine.filter(r => r.status === 'accepted');
   const entryLabel = (id, date) => { const e = DB.timetable.entries.find(x => x.id === id); return e ? sourceEntryText(e, date) : 'คาบถูกลบ'; };
@@ -4412,7 +4470,9 @@ function exchangeRequestCard(limit) {
   return '<div class="card"><div class="row"><h3 style="margin:0">คำขอแลกคาบและสอนแทน</h3><div class="spacer"></div>' +
     '<button class="sm" id="swapPickAll" title="ติ๊กหรือล้างการเลือกทั้งหมดในครั้งเดียว">เลือกทั้งหมด</button>' +
     '<button class="sm" id="swapMergeDoc" title="ติ๊กเลือกหลายคำขอ แล้วพิมพ์รวมเป็นเอกสารชุดเดียว">พิมพ์เอกสารรวมที่เลือก <span id="swapPickCount"></span></button>' +
-    '<span class="badge">' + active.filter(r => r.status === 'pending' && r.targetTeacherId === me.id).length + ' รอตอบรับ</span></div>' +
+    '<span class="badge">' + active.filter(r => r.status === 'pending' && r.targetTeacherId === me.id).length + ' รอตอบรับ</span>' +
+    (oldDone.length ? '<button class="sm" data-toggle-old="1">' +
+      (showOldWork() ? 'ซ่อนงานที่จบแล้ว' : 'ดูย้อนหลัง ' + oldDone.length + ' รายการ') + '</button>' : '') + '</div>' +
     doneHtml +
     (active.length ? '<div class="alert-list" style="margin-top:10px">' + active.map(r => {
       const incoming = r.targetTeacherId === me.id, other = DB.teachers.find(t => t.id === (incoming ? r.requesterTeacherId : r.targetTeacherId)),
@@ -4442,7 +4502,7 @@ function bindAcceptedDocButton(root) {
 }
 
 function submitLeaveRequest(root) {
-  if (blockAdminApproval()) return;
+  if (blockClosedTerm() || blockAdminApproval()) return;
   const me = curTeacher(); if (!me) return toast('กรุณาเลือกโปรไฟล์ครู', 'bad');
   const from = $('#leaveFrom', root).value, to = $('#leaveTo', root).value || from, reason = $('#leaveReason', root).value, other = $('#leaveOther', root).value.trim(), note = $('#leaveNote', root).value.trim();
   if (!from || !to || to < from) return toast('กรุณากำหนดช่วงวันที่ลาให้ถูกต้อง', 'bad'); if (reason === 'other' && !other) return toast('กรุณาระบุเหตุผลอื่นๆ', 'bad');
@@ -4653,7 +4713,7 @@ function leaveDocumentHtml(leave) {
     '<div class="doc-line">ตั้งแต่วันที่ ' + fill(from.day, 36) + ' เดือน ' + fill(from.month, 100) + ' พ.ศ. ' + fill(from.year, 56) +
       ' ถึงวันที่ ' + fill(to.day, 36) + ' เดือน ' + fill(to.month, 100) + ' พ.ศ. ' + fill(to.year, 56) +
       ' มีกำหนด ' + fill(days, 40) + ' วัน</div>' +
-    '<div class="doc-line">ข้าพเจ้าได้ลา ' + tick(last && last.reason === 'sick', 'ลาป่วย') + tick(last && last.reason === 'personal', 'ลากิจส่วนตัว') +
+    '<div class="doc-line">ข้าพเจ้าได้ลา ' + tick(last && isSickReason(last.reason), 'ลาป่วย') + tick(last && last.reason === 'personal', 'ลากิจส่วนตัว') +
       tick(last && last.reason === 'maternity', 'ลาคลอดบุตร') + ' ครั้งสุดท้าย</div>' +
     '<div class="doc-line">ตั้งแต่วันที่ ' + fill(lastFrom ? lastFrom.day : '', 36) + ' เดือน ' + fill(lastFrom ? lastFrom.month : '', 100) + ' พ.ศ. ' + fill(lastFrom ? lastFrom.year : '', 56) +
       ' ถึงวันที่ ' + fill(lastTo ? lastTo.day : '', 36) + ' เดือน ' + fill(lastTo ? lastTo.month : '', 100) + ' พ.ศ. ' + fill(lastTo ? lastTo.year : '', 56) +
@@ -4985,13 +5045,34 @@ function renderExchangeCenter() {
   const pane = $('#pane-exchange'), me = curTeacher(); if (!curPeriod() || !me) { pane.innerHTML = '<div class="card"><div class="empty">กรุณาเลือกปี/ภาคเรียนและโปรไฟล์ครูก่อน</div></div>'; return; }
   const date = DB.ui.exchangeDate || todayISO(), day = (parseISODate(date) || new Date()).getDay(), own = effectiveDayEntries(date).map(x => x.entry).filter(e => !isHomeroomEntry(e)), source = own.find(e => e.id === DB.ui.exchangeSourceEntryId) || own[0] || null; if (source) DB.ui.exchangeSourceEntryId = source.id;
   const candidates = source ? findCoverageCandidates(source, date) : [];
+  const mode = exchangeMode(), activeLeave = mode === 'leave' ? activeLeaveFor(me.id, date) : null;
+  const canSend = mode === 'swap' || !!activeLeave;
   const reasonOptions = EXCHANGE_REASONS.map(x => '<option value="' + x.value + '">' + x.label + '</option>').join('');
   pane.innerHTML = '<div class="card dash-hero"><div class="row"><div><div class="hero-sub">SMART PERIOD EXCHANGE</div><h1>ศูนย์แลกคาบและการลา</h1><div class="hero-sub">ครูห้องเดียวกันก่อนเสมอ — เลขคาบตรงกันคือสลับคาบ ไม่ตรงกันคือแลกคาบ • หากไม่พบจึงหาครูในกลุ่มสาระที่ว่างมาสอนแทน</div></div><div class="spacer"></div><span class="role-chip">ครูผู้ใช้งาน ' + esc(me.name || me.email) + '</span></div></div>' +
-    '<div class="exchange-layout"><div><div class="card"><h3>1. เลือกคาบที่ต้องการจัดการ</h3><div class="pick"><label>วันที่</label><input type="date" id="exchangeDate" value="' + date + '"></div><div class="pick" style="margin-top:10px"><label>คาบของฉัน</label><select id="exchangeSource" style="width:100%">' + (own.length ? own.map(e => '<option value="' + e.id + '"' + (source && source.id === e.id ? ' selected' : '') + '>' + esc(sourceEntryText(e, date)) + '</option>').join('') : '<option value="">— ไม่มีคาบสอนในวันนี้ —</option>') + '</select></div><div class="grid2" style="margin-top:10px"><div class="pick"><label>เหตุผล</label><select id="exchangeReason">' + reasonOptions + '</select></div><div class="pick"><label>กรณีอื่นๆ โปรดระบุ</label><input id="exchangeOther" placeholder="ระบุเมื่อเลือก อื่นๆ"></div></div><div class="pick" style="margin-top:10px"><label>รายละเอียดเพิ่มเติม</label><input id="exchangeNote" style="width:100%" placeholder="เช่น มีนัดหมายช่วงเช้า"></div>' +
+    termLockNotice() +
+    /* เลือกก่อนว่าจะทำอะไร เพราะสองเส้นทางนี้ใช้เอกสารคนละชุด
+       แลกคาบปกติใช้แค่บันทึกข้อความแลกคาบ ส่วนการลาต้องมีใบลาคู่ไปด้วยเสมอ */
+    '<div class="card"><h3>เริ่มจากเลือกก่อนว่าจะทำอะไร</h3><div class="mode-pick-row">' +
+      '<button class="mode-pick' + (mode === 'swap' ? ' on' : '') + '" data-ex-mode="swap">แลกคาบปกติ' +
+        '<small>สลับคาบกับเพื่อนครู ไม่ได้ลา — ไม่ต้องทำใบลา</small></button>' +
+      '<button class="mode-pick' + (mode === 'leave' ? ' on' : '') + '" data-ex-mode="leave">ลา / ไปราชการ' +
+        '<small>ทุกประเภทต้องบันทึกใบลาก่อน แล้วจึงแลกคาบ</small></button>' +
+    '</div></div>' +
+    '<div class="exchange-layout"><div><div class="card"><h3>1. เลือกคาบที่ต้องการจัดการ</h3><div class="pick"><label>วันที่</label><input type="date" id="exchangeDate" value="' + date + '"></div><div class="pick" style="margin-top:10px"><label>คาบของฉัน</label><select id="exchangeSource" style="width:100%">' + (own.length ? own.map(e => '<option value="' + e.id + '"' + (source && source.id === e.id ? ' selected' : '') + '>' + esc(sourceEntryText(e, date)) + '</option>').join('') : '<option value="">— ไม่มีคาบสอนในวันนี้ —</option>') + '</select></div>' +
+      /* เหตุผลไม่ต้องเลือกตรงนี้แล้ว โหมดแลกคาบปกติใช้เหตุผลเดียวคือแลกคาบ
+         ส่วนโหมดลาดึงเหตุผลจากใบลาที่บันทึกไว้ จะได้ไม่มีทางกรอกไม่ตรงกันสองที่ */
+      '<div class="cover-note' + (mode === 'leave' && !activeLeave ? ' locked' : '') + '" style="margin-top:10px">' +
+        (mode === 'swap'
+          ? '<b>แลกคาบปกติ</b> ไม่ต้องทำใบลา ระบบจะบันทึกเหตุผลว่า “' + esc(SWAP_REASON.label) + '”'
+          : activeLeave
+            ? '<b>ใช้ใบลาที่บันทึกไว้</b> ' + esc(exchangeReasonLabel(activeLeave)) + ' • ' + esc(thaiDate(activeLeave.fromDate)) +
+              (activeLeave.toDate && activeLeave.toDate !== activeLeave.fromDate ? ' ถึง ' + esc(thaiDate(activeLeave.toDate)) : '')
+            : '<b>ยังไม่มีใบลาที่คลุมวันที่นี้</b> บันทึกใบลาด้านล่างก่อน แล้วจึงส่งคำขอแลกคาบได้') + '</div>' +
+      '<div class="pick" style="margin-top:10px"><label>รายละเอียดเพิ่มเติม</label><input id="exchangeNote" style="width:100%" value="' + esc(DB.ui.exchangeNote || '') + '" placeholder="เช่น มีนัดหมายช่วงเช้า"></div>' +
       (source ? '<div class="hint" style="margin-top:10px">คาบของฉันวันนี้</div>' + slotStripHtml(me.id, date, entryBlock(source).map(e => String(e.slotId)), null, 'pick', 'give') + slotLegendHtml() : '') + '</div>' +
-      '<div class="card leave-card"><h3>แจ้งการลา / ขออนุญาตไปราชการ</h3>' +
+      (mode === 'leave' ? '<div class="card leave-card"><h3>แจ้งการลา / ขออนุญาตไปราชการ</h3>' +
       '<div class="hint" style="margin-bottom:8px">เลือกช่วงวันที่แล้วกดบันทึก ระบบจะหาครูดูแลให้ทุกคาบในช่วงนั้นโดยอัตโนมัติ (ยกเว้นคาบเข้าแถว/โฮมรูม)<br>เลือก “ไปราชการ” ระบบจะไม่นับเป็นวันลา และพิมพ์เป็นบันทึกขออนุญาตไปราชการแทนใบลา</div>' +
-      '<div class="grid2"><div class="pick"><label>ตั้งแต่วันที่</label><input type="date" id="leaveFrom" value="' + date + '"></div><div class="pick"><label>ถึงวันที่</label><input type="date" id="leaveTo" value="' + date + '"></div><div class="pick"><label>ประเภทการลา</label><select id="leaveReason">' + reasonOptions + '</select></div><div class="pick"><label>กรณีอื่นๆ โปรดระบุ</label><input id="leaveOther"></div></div><div class="pick" style="margin-top:10px"><label>ใครหาครูดูแลคาบให้</label><select id="leaveCoverMode" style="width:100%"><option value="self">แลกคาบ/หาครูสอนแทนเอง</option><option value="head">ให้หัวหน้ากลุ่มสาระจัดครูให้</option></select></div><div class="cover-note" id="leaveCoverHint"></div><div class="pick" style="margin-top:10px"><label>รายละเอียด</label><input id="leaveNote" style="width:100%"></div><button class="primary" id="submitLeave" style="margin-top:12px;width:100%">บันทึกการลาและส่งหาครูดูแลทุกคาบ</button><div class="hint" style="margin-top:8px">ระบบจะตรวจทุกคาบของคุณในช่วงวันที่ลา แล้วส่งคำขอตามลำดับความเหมาะสมอัตโนมัติ</div></div>' +
+      '<div class="grid2"><div class="pick"><label>ตั้งแต่วันที่</label><input type="date" id="leaveFrom" value="' + date + '"></div><div class="pick"><label>ถึงวันที่</label><input type="date" id="leaveTo" value="' + date + '"></div><div class="pick"><label>ประเภทการลา</label><select id="leaveReason">' + reasonOptions + '</select></div><div class="pick"><label>กรณีอื่นๆ โปรดระบุ</label><input id="leaveOther"></div></div><div class="pick" style="margin-top:10px"><label>ใครหาครูดูแลคาบให้</label><select id="leaveCoverMode" style="width:100%"><option value="self">แลกคาบ/หาครูสอนแทนเอง</option><option value="head">ให้หัวหน้ากลุ่มสาระจัดครูให้</option></select></div><div class="cover-note" id="leaveCoverHint"></div><div class="pick" style="margin-top:10px"><label>รายละเอียด</label><input id="leaveNote" style="width:100%"></div><button class="primary" id="submitLeave" style="margin-top:12px;width:100%">บันทึกการลาและส่งหาครูดูแลทุกคาบ</button><div class="hint" style="margin-top:8px">ระบบจะตรวจทุกคาบของคุณในช่วงวันที่ลา แล้วส่งคำขอตามลำดับความเหมาะสมอัตโนมัติ</div></div>' : '') +
       /* ประวัติการลาอยู่ต่อจากฟอร์มแจ้งลาในคอลัมน์เดียวกัน เพราะเป็นงานชุดเดียวกัน
          เดิมแยกไปคนละคอลัมน์ ต้องเลื่อนจอไปมาระหว่างกรอกใบลากับพิมพ์เอกสาร */
       leaveHistoryCard(20) + '</div>' +
@@ -5013,8 +5094,16 @@ function renderExchangeCenter() {
         (c.mode === 'exchange' && c.targetEntry && c.targetDate !== date ?
           '<div class="hint" style="margin-top:8px">คาบของฉันที่ต้องไปสอนแทน • ' + esc(thaiDate(c.targetDate)) + ' <span class="hint">(กดกล่องที่มีเส้นประเพื่อเปลี่ยนคาบ)</span></div>' +
           slotStripHtml(me.id, c.targetDate, (c.targetBlock || [c.targetEntry]).map(e => String(e.slotId)), slotPicksFor(g, c.targetDate), tone, 'take') : '') +
-        '</div><button class="sm primary" data-send-candidate="' + candidates.indexOf(c) + '">' + (c.mode === 'exchange' ? SWAP_KINDS[swapKindOf(c)].send : 'ขอให้มาสอนแทน') + '</button></div>'; }).join('') : '<div class="empty">ยังไม่พบครูห้องเดียวกันที่แลกหรือสลับคาบได้ และไม่พบครูในกลุ่มสาระเดียวกันที่ว่างตรงคาบนี้<br>ระบบจะเก็บเป็นรายการรอผู้ดูแลจัดครูแทน — ถ้าตกลงกับครูท่านอื่นไว้แล้ว บันทึกเป็นคาบสอนแทนเองในแท็บ “เช็กชื่อ” ของวันนั้นได้เลย</div>' : '<div class="empty">วันที่เลือกไม่มีคาบสอนของคุณ</div>') + '</div></div>' +
+        '</div><button class="sm primary" data-send-candidate="' + candidates.indexOf(c) + '"' +
+          (canSend ? '' : ' disabled title="บันทึกใบลาก่อนจึงจะส่งคำขอได้"') + '>' + (c.mode === 'exchange' ? SWAP_KINDS[swapKindOf(c)].send : 'ขอให้มาสอนแทน') + '</button></div>'; }).join('') : '<div class="empty">ยังไม่พบครูห้องเดียวกันที่แลกหรือสลับคาบได้ และไม่พบครูในกลุ่มสาระเดียวกันที่ว่างตรงคาบนี้<br>ระบบจะเก็บเป็นรายการรอผู้ดูแลจัดครูแทน — ถ้าตกลงกับครูท่านอื่นไว้แล้ว บันทึกเป็นคาบสอนแทนเองในแท็บ “เช็กชื่อ” ของวันนั้นได้เลย</div>' : '<div class="empty">วันที่เลือกไม่มีคาบสอนของคุณ</div>') + '</div></div>' +
       '</div></div>' + exchangeRequestCard(30);
+  $$('[data-ex-mode]', pane).forEach(btn => btn.addEventListener('click', () => {
+    DB.ui.exchangeMode = btn.dataset.exMode; save(); renderExchangeCenter();
+  }));
+  /* เดิมช่องนี้ถูกล้างทุกครั้งที่หน้าวาดใหม่ (เปลี่ยนวัน เลือกครู กดกล่องคาบ)
+     ครูพิมพ์ไว้แล้วหายทุกรอบ จึงเก็บค่าไว้แล้วใส่กลับตอนวาดใหม่ */
+  const noteInput = $('#exchangeNote', pane);
+  if (noteInput) noteInput.addEventListener('input', () => { DB.ui.exchangeNote = noteInput.value; });
   $('#exchangeDate').addEventListener('change', e => { DB.ui.exchangeDate = e.target.value || todayISO(); DB.ui.exchangeSourceEntryId = ''; save(); renderExchangeCenter(); });
   $('#exchangeSource').addEventListener('change', e => { DB.ui.exchangeSourceEntryId = e.target.value; save(); renderExchangeCenter(); });
   $$('[data-pick-group]', pane).forEach(btn => btn.addEventListener('click', () => {
@@ -5030,7 +5119,15 @@ function renderExchangeCenter() {
     DB.ui.exchangeChoice[anyChip.dataset.pickGroup] = num(box.dataset.pickIndex);
     save(); renderExchangeCenter();
   }));
-  $$('[data-send-candidate]', pane).forEach(btn => btn.addEventListener('click', () => { if (blockAdminApproval()) return; const reason = $('#exchangeReason').value, other = $('#exchangeOther').value.trim(); if (reason === 'other' && !other) return toast('กรุณาระบุเหตุผลอื่นๆ', 'bad'); const newReq = createCoverageRequest(source, date, candidates[num(btn.dataset.sendCandidate)], reason, other, $('#exchangeNote').value.trim(), ''); save(true); pushRequestDoc('swap', newReq); renderExchangeCenter(); renderTop(); toast('ส่งคำขอเรียบร้อย', 'ok'); }));
+  $$('[data-send-candidate]', pane).forEach(btn => btn.addEventListener('click', () => {
+    if (blockClosedTerm() || blockAdminApproval()) return;
+    /* โหมดลาต้องมีใบลาก่อน เหตุผลและเลขใบลาดึงจากใบลานั้น ไม่ให้กรอกซ้ำ */
+    if (mode === 'leave' && !activeLeave) return toast('บันทึกใบลาที่คลุมวันที่นี้ก่อน แล้วจึงส่งคำขอแลกคาบ', 'bad');
+    const reason = mode === 'leave' ? activeLeave.reason : SWAP_REASON.value;
+    const other = mode === 'leave' ? (activeLeave.reasonOther || '') : '';
+    const leaveId = mode === 'leave' ? activeLeave.id : '';
+    const newReq = createCoverageRequest(source, date, candidates[num(btn.dataset.sendCandidate)], reason, other, $('#exchangeNote').value.trim(), leaveId);
+    save(true); pushRequestDoc('swap', newReq); renderExchangeCenter(); renderTop(); toast('ส่งคำขอเรียบร้อย', 'ok'); }));
   // ลากิจ/ไปราชการ ล็อกไว้ที่ "แลกคาบเอง" ประเภทอื่นเลือกได้
   const leaveReasonSel = $('#leaveReason', pane), coverSel = $('#leaveCoverMode', pane), coverHint = $('#leaveCoverHint', pane);
   const syncCoverMode = () => {
@@ -5049,7 +5146,9 @@ function renderExchangeCenter() {
   if (leaveReasonSel) leaveReasonSel.addEventListener('change', syncCoverMode);
   if (coverSel) coverSel.addEventListener('change', syncCoverMode);
   syncCoverMode();
-  $('#submitLeave').addEventListener('click', () => submitLeaveRequest(pane));
+  /* การ์ดใบลามีเฉพาะโหมดลา โหมดแลกคาบปกติจึงไม่มีปุ่มนี้ให้ผูก */
+  const submitLeaveBtn = $('#submitLeave', pane);
+  if (submitLeaveBtn) submitLeaveBtn.addEventListener('click', () => submitLeaveRequest(pane));
   $$('[data-swap-accept]', pane).forEach(btn => btn.addEventListener('click', () => respondExchangeRequest(btn.dataset.swapAccept, true)));
   $$('[data-swap-reject]', pane).forEach(btn => btn.addEventListener('click', () => respondExchangeRequest(btn.dataset.swapReject, false)));
   bindLeaveHistory(pane);
