@@ -950,14 +950,14 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
 /* แบบฟอร์มราชการตามต้นฉบับโรงเรียน */
 .form-sheet{font-size:14.5px;line-height:2.05}
 .form-sheet h2{font-size:20px}
-.doc-fill{display:inline-block;position:relative;padding:0 4px .12em;text-align:center;line-height:1.4}
+.doc-fill{display:inline-block;position:relative;padding:0 4px;text-align:center;line-height:1.4}
 /* ช่องเติมที่ยังว่างจะไม่มีบรรทัดข้อความอยู่ข้างใน เบราว์เซอร์จึงถือเอาขอบล่างของกล่อง
    เป็นเส้นฐาน ส่วนช่องที่มีตัวหนังสือใช้เส้นฐานของตัวหนังสือ พอบรรทัดจัดชิดเส้นฐาน
    กล่องสองแบบนี้จึงจบไม่เท่ากัน เส้นประของช่องที่มีตัวหนังสือเลยเด้งต่ำลงราว 12px
    วางกล่องเปล่าขนาดศูนย์ไว้ข้างใน ทุกช่องจึงมีบรรทัดข้อความและจบที่เส้นฐานเท่ากันหมด
    ใช้กล่องเปล่าไม่ใช่อักขระช่องว่างความกว้างศูนย์ เพราะ TH SarabunPSK ไม่มีรูปอักษรตัวนั้น
-   เวลาพิมพ์อาจกลายเป็นสี่เหลี่ยมโผล่มาในเอกสาร ส่วน padding ล่างเว้นไว้ให้เส้นประ
-   ไม่ไปทับหางสระอุ/สระอู ของชื่อที่กรอกลงช่อง */
+   เวลาพิมพ์อาจกลายเป็นสี่เหลี่ยมโผล่มาในเอกสาร ส่วนระยะที่เส้นประอยู่ต่ำกว่าเส้นฐาน
+   คุมด้วยตัวแปร --memo-dot ไม่ใช่ padding เพื่อให้ตั้งค่าติดลบได้และไม่ไปดันความสูงบรรทัด */
 .doc-fill::before{content:"";display:inline-block;width:0;height:0;vertical-align:baseline}
 /* เม็ดจุดของ border dotted ใน Chrome เล็กสุดได้แค่ 1px ต่อให้สั่ง 0.5px ก็ได้เท่าเดิม
    จึงวาดเส้นเต็มแล้วย่อด้วย transform ให้จุดเล็กลงจริง วิธีนี้ยังเป็นเส้นเวกเตอร์
@@ -1008,6 +1008,13 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
    ซึ่งห่างกว่า Single และกินที่จนเอกสารเกินหนึ่งหน้าเมื่อเนื้อความเป็น 16pt
    ข้อ 3.2.2/3.2.3 ให้เพิ่มค่าก่อนหน้า 6 พอยท์ เฉพาะคำขึ้นต้นกับต้นแต่ละภาค */
 .memo-sheet .doc-line{margin:0}
+/* ระยะที่เส้นประอยู่ต่ำกว่าเส้นฐานตัวอักษร ตั้งเองได้ในหน้าตั้งค่า ยิ่งน้อยยิ่งชิดตัวหนังสือ
+   ค่าติดลบคือดันเส้นขึ้นไปเหนือเส้นฐาน ถ้าตั้งชิดเกินไปหางสระอุ/สระอูจะแตะเส้น */
+.memo-sheet .doc-fill::after{bottom:calc(var(--memo-dot,1.5pt) * -1)}
+/* โหมดเส้นประ: ทุกช่อง / เฉพาะช่องที่ยังว่าง (ช่องที่พิมพ์ข้อมูลแล้วไม่ต้องมีเส้น) / ไม่มีเลย
+   :empty จับเฉพาะช่องที่ไม่มีข้อความจริง ๆ กล่องเปล่าที่ใส่ไว้จัดเส้นฐานไม่นับเป็นเนื้อหา */
+.memo-sheet.memo-dots-empty .doc-fill:not(:empty)::after{content:none}
+.memo-sheet.memo-dots-none .doc-fill::after{content:none}
 /* ตารางแลกคาบเดิมห่างจากบรรทัดบน 10px ซึ่งน้อยกว่าระยะบรรทัดของเนื้อความ
    ขอบตารางจึงไปชนหางอักษรของบรรทัดสุดท้าย เว้นเป็นพอยท์ให้เท่ากับหนึ่งบรรทัดพอดี */
 .memo-sheet .memo-table{margin:12pt 0 10pt}
@@ -4598,6 +4605,12 @@ function tick(checked, label) {
 /* บางโรงเรียนต้องการแค่ชื่อโรงเรียนในบรรทัดส่วนราชการ ไม่เอาอำเภอ/จังหวัด
    เพราะบรรทัดยาวจนต้องย่อตัวอักษร ถ้าไม่เคยตั้งถือว่าใส่ ตามพฤติกรรมเดิมของระบบ */
 const memoShowLocation = () => DB.settings.memoShowLocation !== false;
+/* โหมดเส้นประในช่องเติม: all = ทุกช่อง, empty = เฉพาะช่องที่ยังว่าง, none = ไม่มีเลย */
+const MEMO_DOT_MODES = [['all', 'ทุกช่อง'], ['empty', 'เฉพาะช่องที่ยังว่าง'], ['none', 'ไม่แสดงเส้นประ']];
+const memoDots = () => MEMO_DOT_MODES.some(x => x[0] === DB.settings.memoDots) ? DB.settings.memoDots : 'all';
+/* ระยะเส้นประต่ำกว่าเส้นฐาน หน่วยพอยท์ ยอมให้เป็น 0 และติดลบได้ จึงเก็บแยกจาก memoStyle
+   ซึ่งบังคับให้ทุกค่าเป็นจำนวนบวก */
+const memoDotOffset = () => { const v = Number(DB.settings.memoDotOffset); return isFinite(v) ? v : 1.5; };
 const memoOfficeName = () => memoShowLocation() ? schoolFullName() : (DB.settings.schoolName || 'โรงเรียน');
 const schoolFullName = () => (DB.settings.schoolName || 'โรงเรียน') + (DB.settings.schoolLocation ? ' ' + DB.settings.schoolLocation : '');
 
@@ -4716,7 +4729,8 @@ function memoStyleVars() {
     ';--memo-lead:' + m.lead + 'pt;--memo-lead-weight:' + m.leadWeight +
     ';--memo-body:' + m.body + 'pt;--memo-body-weight:' + m.bodyWeight + ';--memo-line:' + m.line +
     ';--memo-table:' + m.table + 'pt;--memo-opinion:' + m.opinion + 'pt' +
-    ';--memo-emblem:' + m.emblem + 'cm;--memo-ml:' + m.marginLeft + 'cm;--memo-mr:' + m.marginRight + 'cm';
+    ';--memo-emblem:' + m.emblem + 'cm;--memo-ml:' + m.marginLeft + 'cm;--memo-mr:' + m.marginRight + 'cm' +
+    ';--memo-dot:' + memoDotOffset() + 'pt';
 }
 
 /* ตราครุฑสำหรับหัวบันทึกข้อความ — หนังสือราชการใช้ตราครุฑ ไม่ใช่ตราโรงเรียน
@@ -4779,7 +4793,8 @@ function exchangeMemoHtml(requests, leave) {
   const blanks = Array.from({ length: Math.max(0, 5 - list.length) }, () =>
     '<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('');
 
-  return '<div class="doc-sheet form-sheet memo-sheet' + (list.length > 8 ? ' memo-dense' : '') + '" style="' + memoStyleVars() + '">' +
+  return '<div class="doc-sheet form-sheet memo-sheet' + (list.length > 8 ? ' memo-dense' : '') +
+      (memoDots() === 'all' ? '' : ' memo-dots-' + memoDots()) + '" style="' + memoStyleVars() + '">' +
     '<div class="memo-head"><img src="' + GARUDA_EMBLEM + '" alt="ตราครุฑ"><h2>บันทึกข้อความ</h2></div>' +
     '<div class="doc-line doc-flow"><b class="nw">ส่วนราชการ</b>' + nowrap('กลุ่มสาระการเรียนรู้') + flow(teacherArea(requester), 1) + nowrap(memoOfficeName()) + '</div>' +
     '<div class="doc-line doc-flow"><b class="nw">ที่</b>' + nowrap('วก') + flow('', 1) +
@@ -9849,10 +9864,15 @@ function adminSectionCalendar(box) {
 /* ---- ④ เอกสารและอัตลักษณ์ ------------------------------------------------
    ย้ายมาจากหน้า “ตั้งค่า” ทั้งชุด เพราะเป็นข้อมูลของโรงเรียน ไม่ใช่ของครูรายคน */
 /** ช่องกรอกตัวเลขของรูปแบบบันทึกข้อความ พร้อมบอกค่ามาตรฐานกำกับไว้ใต้ช่อง */
-function memoNumField(id, label, value, step, hint) {
+function memoNumField(id, label, value, step, hint, min) {
   return '<div class="pick"><label>' + label + '</label>' +
-    '<input type="number" id="' + id + '" value="' + value + '" step="' + step + '" min="0.1">' +
+    '<input type="number" id="' + id + '" value="' + value + '" step="' + step + '" min="' + (min == null ? 0.1 : min) + '">' +
     '<div class="hint">' + hint + '</div></div>';
+}
+function memoSelectField(id, label, value, options, hint) {
+  return '<div class="pick"><label>' + label + '</label><select id="' + id + '">' +
+    options.map(x => '<option value="' + x[0] + '"' + (x[0] === value ? ' selected' : '') + '>' + x[1] + '</option>').join('') +
+    '</select><div class="hint">' + hint + '</div></div>';
 }
 function memoCheckField(id, label, checked, choice, hint) {
   return '<div class="pick"><label>' + label + '</label>' +
@@ -9892,6 +9912,10 @@ function memoStyleCardHtml() {
       memoNumField('memoMarginRight', 'ขอบขวา', m.marginRight, 0.1, 'เซนติเมตร • มาตรฐาน 2') +
       memoCheckField('memoShowLocation', 'อำเภอ/จังหวัด ในบรรทัดส่วนราชการ', memoShowLocation(),
         'ใส่ต่อท้ายชื่อโรงเรียน', 'ถ้าเอาออก บรรทัดจะสั้นลงจนไม่ต้องย่อตัวอักษร') +
+      memoSelectField('memoDots', 'เส้นประในช่องเติม', memoDots(), MEMO_DOT_MODES,
+        'เลือก “เฉพาะช่องที่ยังว่าง” เมื่ออยากได้เอกสารที่กรอกครบแล้วดูสะอาด') +
+      memoNumField('memoDotOffset', 'ระยะเส้นประต่ำกว่าตัวอักษร', memoDotOffset(), 0.5,
+        'พอยท์ • ยิ่งน้อยยิ่งชิดตัวหนังสือ ติดลบได้ • ชิดเกินไปหางสระอุจะแตะเส้น', -20) +
     '</div>' +
     '<div class="row" style="margin-top:12px"><button class="sm" id="memoStyleReset">คืนค่ามาตรฐาน ว 2011</button>' +
     '<div class="spacer"></div><button class="primary" id="memoStyleSave">บันทึกรูปแบบบันทึกข้อความ</button></div></div>';
@@ -9939,10 +9963,14 @@ function adminSectionDocuments(box) {
       emblem: num('memoEmblem', d.emblem), marginLeft: num('memoMarginLeft', d.marginLeft), marginRight: num('memoMarginRight', d.marginRight)
     };
     s.memoShowLocation = $('#memoShowLocation', box).checked;
+    s.memoDots = $('#memoDots', box).value;
+    /* ระยะเส้นประเป็น 0 หรือติดลบได้ จึงเช็กแค่ว่าเป็นตัวเลข ไม่ใช่ว่าต้องมากกว่าศูนย์ */
+    const dot = parseFloat($('#memoDotOffset', box).value);
+    s.memoDotOffset = isFinite(dot) ? dot : 1.5;
     save(true); renderAdmin(); toast('บันทึกรูปแบบบันทึกข้อความแล้ว • กดพิมพ์ใบแลกคาบเพื่อดูผล', 'ok');
   });
   $('#memoStyleReset', box).addEventListener('click', () => {
-    delete s.memoStyle; delete s.memoShowLocation;
+    delete s.memoStyle; delete s.memoShowLocation; delete s.memoDots; delete s.memoDotOffset;
     save(true); renderAdmin(); toast('คืนค่ามาตรฐาน ว 2011 แล้ว', 'ok');
   });
   $('#setLogo', box).addEventListener('change', async e => {
