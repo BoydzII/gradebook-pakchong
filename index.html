@@ -950,7 +950,15 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
 /* แบบฟอร์มราชการตามต้นฉบับโรงเรียน */
 .form-sheet{font-size:14.5px;line-height:2.05}
 .form-sheet h2{font-size:20px}
-.doc-fill{display:inline-block;position:relative;padding:0 4px;text-align:center;line-height:1.4}
+.doc-fill{display:inline-block;position:relative;padding:0 4px .12em;text-align:center;line-height:1.4}
+/* ช่องเติมที่ยังว่างจะไม่มีบรรทัดข้อความอยู่ข้างใน เบราว์เซอร์จึงถือเอาขอบล่างของกล่อง
+   เป็นเส้นฐาน ส่วนช่องที่มีตัวหนังสือใช้เส้นฐานของตัวหนังสือ พอบรรทัดจัดชิดเส้นฐาน
+   กล่องสองแบบนี้จึงจบไม่เท่ากัน เส้นประของช่องที่มีตัวหนังสือเลยเด้งต่ำลงราว 12px
+   วางกล่องเปล่าขนาดศูนย์ไว้ข้างใน ทุกช่องจึงมีบรรทัดข้อความและจบที่เส้นฐานเท่ากันหมด
+   ใช้กล่องเปล่าไม่ใช่อักขระช่องว่างความกว้างศูนย์ เพราะ TH SarabunPSK ไม่มีรูปอักษรตัวนั้น
+   เวลาพิมพ์อาจกลายเป็นสี่เหลี่ยมโผล่มาในเอกสาร ส่วน padding ล่างเว้นไว้ให้เส้นประ
+   ไม่ไปทับหางสระอุ/สระอู ของชื่อที่กรอกลงช่อง */
+.doc-fill::before{content:"";display:inline-block;width:0;height:0;vertical-align:baseline}
 /* เม็ดจุดของ border dotted ใน Chrome เล็กสุดได้แค่ 1px ต่อให้สั่ง 0.5px ก็ได้เท่าเดิม
    จึงวาดเส้นเต็มแล้วย่อด้วย transform ให้จุดเล็กลงจริง วิธีนี้ยังเป็นเส้นเวกเตอร์
    จึงพิมพ์ติดเสมอ ต่างจากการวาดจุดด้วย background ที่หายไปถ้าไม่ติ๊กพิมพ์พื้นหลัง */
