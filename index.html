@@ -656,7 +656,7 @@ body.gateway-open .sync-fab,body:has(#studentPortal:not([hidden])) .sync-fab{dis
   .topbar .icon-btn{order:3;padding:6px 8px;min-width:36px}
   /* บนมือถือเหลือเฉพาะกระดิ่งแจ้งเตือน ที่เหลือย้ายไปอยู่ในแผ่นเมนู "เพิ่มเติม"
      แถบบนจึงเหลือบรรทัดเดียว เนื้อหาของหน้าขึ้นมาอยู่ใกล้บนสุด */
-  #btnFullscreen,#btnSearch,#btnTheme,#btnStaffLogout{display:none}
+  #btnFullscreen,#btnSearch,#btnTheme,#btnProMode,#btnStaffLogout{display:none}
   .sync-chip{order:4}
   .pickers{order:9;width:100%;display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:1px}
   .pickers .pick{display:flex;min-width:0}
@@ -1095,6 +1095,12 @@ body.print-scores.print-preview .score-sheet{max-width:820px;margin:18px auto 96
   justify-content:center;padding:11px 14px;background:var(--panel);border-top:1px solid var(--line);
   box-shadow:0 -6px 24px rgba(0,0,0,.16)}
 .preview-bar .hint{margin-right:6px}
+/* โหมดมืออาชีพ: ซ่อนคำอธิบายวิธีใช้ ให้เหลือเฉพาะข้อมูลกับปุ่ม
+   ซ่อนเฉพาะข้อความที่ติดป้าย tip ไว้ (ข้อความอธิบายล้วน ๆ) กับกล่องคำแนะนำที่ไม่ใช่การแจ้งสถานะ
+   กล่องที่บอกสถานะอย่าง notice bad/warn/ok ไม่ถูกซ่อน เพราะเป็นข้อมูลที่ต้องเห็น */
+body.pro-mode .tip,
+body.pro-mode .notice:not(.bad):not(.warn):not(.ok){display:none!important}
+body.pro-mode #btnProMode{opacity:.45}
 @media print{
   /* หัวตารางซ้ำทุกหน้า แถวไม่ขาดกลางหน้า และไม่ต้องมีกระดาษจำลอง */
   body.print-scores .score-sheet{padding:0;margin:0;max-width:none;box-shadow:none}
@@ -1208,6 +1214,7 @@ body.print-scores.print-preview .score-sheet{max-width:820px;margin:18px auto 96
   <button class="sm icon-btn alert-bell" id="btnAlerts" hidden title="งานที่รอคุณดำเนินการ">🔔<span id="alertCount"></span></button>
   <button class="sm icon-btn" id="btnSearch" title="ค้นหานักเรียนทุกห้อง (Ctrl+K)"><span class="ico">⌕</span><span class="lbl">ค้นหานักเรียน</span></button>
   <button class="sm icon-btn" id="btnTheme" title="สลับโหมดสี">◐</button>
+  <button class="sm icon-btn" id="btnProMode" title="ซ่อน/แสดงคำอธิบายในหน้าจอ">ⓘ</button>
   <button class="sm icon-btn" id="btnFullscreen" title="ขยายเต็มหน้าจอ" aria-label="ขยายเต็มหน้าจอ">⤢</button>
   <button class="sm icon-btn logout-btn" id="btnStaffLogout" title="ออกจากระบบ" aria-label="ออกจากระบบ">⏻</button>
   <button class="sync-chip" id="syncChip" hidden title="สถานะการส่งขึ้นส่วนกลาง"></button>
@@ -2492,6 +2499,7 @@ function openTabSheet() {
     })() +
     '<div class="tabsheet-tools"><button class="sm" data-sheet-act="search">⌕ ค้นหานักเรียน</button>' +
     '<button class="sm" data-sheet-act="theme">◐ สลับโหมดสี</button>' +
+    '<button class="sm" data-sheet-act="promode">ⓘ ' + (proModeOn() ? 'แสดงคำอธิบาย' : 'ซ่อนคำอธิบาย (โหมดมืออาชีพ)') + '</button>' +
     '<button class="sm" data-sheet-act="pullschool">⤓ ดึงฐานข้อมูลจากส่วนกลาง</button>' +
     '<button class="sm danger" data-sheet-act="logout">⏻ ออกจากระบบ</button></div>' +
     '<div class="tabsheet-foot"><span class="hint" data-app-version></span><div class="spacer"></div>' +
@@ -2506,6 +2514,7 @@ function openTabSheet() {
     const act = b.dataset.sheetAct; closeTabSheet();
     if (act === 'search') return openStudentSearch();
     if (act === 'theme') { const t = $('#btnTheme'); if (t) t.click(); return; }
+    if (act === 'promode') { toggleProMode(); return; }
     if (act === 'pullschool') { setTab('dashboard'); setTimeout(() => { const b = $('#btnPullSchool'); if (b) { b.scrollIntoView({ block: 'center' }); b.click(); } }, 250); return; }
     if (act === 'logout') { const t = $('#btnStaffLogout'); if (t) t.click(); }
   }));
@@ -2659,6 +2668,18 @@ function gateMsg(needSubject) {
     '<span class="hint">ยังไม่มีรายการ? กดปุ่ม “จัดการ” ข้างช่องเลือกเพื่อเพิ่มใหม่</span></div>';
 }
 
+/* ครูที่ใช้จนคล่องแล้วบอกว่าคำอธิบายเต็มจอจนหาปุ่มไม่เจอ จึงเปิดให้ปิดได้
+   เก็บค่าไว้กับเครื่อง ไม่ใช่ค่ากลางของโรงเรียน เพราะคนละคนถนัดคนละแบบ */
+const proModeOn = () => !!DB.ui.proMode;
+function applyProMode() {
+  document.body.classList.toggle('pro-mode', proModeOn());
+  const btn = $('#btnProMode');
+  if (btn) btn.title = proModeOn() ? 'แสดงคำอธิบายกลับมา' : 'ซ่อนคำอธิบาย (โหมดมืออาชีพ)';
+}
+function toggleProMode() {
+  DB.ui.proMode = !proModeOn(); save(true); applyProMode();
+  toast(proModeOn() ? 'โหมดมืออาชีพ • ซ่อนคำอธิบายแล้ว' : 'แสดงคำอธิบายกลับมาแล้ว', 'ok');
+}
 function applyTheme(theme) {
   const value = theme === 'dark' ? 'dark' : 'light';
   // ปิดเอฟเฟกต์ค่อย ๆ เปลี่ยนสีระหว่างสลับธีมชั่วขณะ
@@ -2867,7 +2888,7 @@ function renderDashboard() {
       (todayEntries.length ? todayEntries.map(x => { const e = x.entry, slot = DB.timetable.slots.find(s => s.id === x.slotId), subject = subjectOf(e), c = classOf(e); const current = slot && nowMin >= timeToMinutes(slot.start) && nowMin <= timeToMinutes(slot.end); const checked = !!DB.timetable.attendance[attendanceKey(e.id, today)]; return '<div class="today-card' + (current ? ' current' : '') + '"><div class="today-time"><b>' + esc(slot ? slot.label : '') + '</b>' + esc(slot ? slot.start + '-' + slot.end : '') + '</div><div><b>' + esc((subject.code ? subject.code + ' ' : '') + subject.name) + '</b><div class="hint">' + esc(c.name) + (e.room ? ' • ' + esc(e.room) : '') + '</div></div><div class="spacer"></div>' + (checked ? '<span class="badge ok">เช็กแล้ว</span>' : '<button class="sm primary" data-dash-att="' + e.id + '">เช็กชื่อ</button>') + '</div>'; }).join('') : '<div class="empty">วันนี้ไม่มีคาบสอนในตาราง</div>') + '</div></div>' +
       '<div class="card"><h3>ทางลัดงานประจำ</h3><div class="quick-grid"><button class="quick-action" data-go-tab="scores">✎<b>กรอกคะแนน</b><span>คะแนนเก็บ สอบ และซ่อม</span></button><button class="quick-action" data-go-tab="attendance">◷<b>เช็กเวลาเรียน</b><span>คาบประจำ แลกคาบ สอนแทน และชดเชย</span></button><button class="quick-action" data-go-tab="groups">◉<b>คะแนนกลุ่ม</b><span>จัดกลุ่ม ให้คะแนน และผู้นำเสนอ</span></button><button class="quick-action" data-go-tab="summary">▤<b>สรุป ปพ.5</b><span>เกรด เวลาเรียน และส่งออก</span></button></div></div></div>' +
       '<div><div class="card"><h3>ผู้ช่วยแนะนำงาน</h3><div class="insight-list">' + insights.map(i => '<button class="insight-item" data-go-tab="' + i.tab + '" style="text-align:left;width:100%"><span class="insight-dot" style="--insight:' + i.color + '"></span><span>' + esc(i.text) + '</span><span class="spacer"></span><span>›</span></button>').join('') + '</div></div>' +
-      '<div class="card"><div class="row"><h3 style="margin:0">ความพร้อมของระบบ</h3><div class="spacer"></div><b>' + setupPct + '%</b></div><div class="setup-progress"><i style="width:' + setupPct + '%"></i></div><div class="hint">สถานศึกษา • ห้อง • วิชา • รายชื่อ • ตารางสอน • ปฏิทิน • หัวข้อคะแนน • ฐานข้อมูลกลาง</div><button class="sm" data-go-tab="settings" style="margin-top:9px">ตรวจสอบการตั้งค่า</button></div></div></div>' + exchangeRequestCard() + leaveHistoryCard(5, true) + '<div class="card" id="pendingBox"></div>' + (schoolDataMissing() ? '' : schoolDataCard());
+      '<div class="card"><div class="row"><h3 style="margin:0">ความพร้อมของระบบ</h3><div class="spacer"></div><b>' + setupPct + '%</b></div><div class="setup-progress"><i style="width:' + setupPct + '%"></i></div><div class="hint tip">สถานศึกษา • ห้อง • วิชา • รายชื่อ • ตารางสอน • ปฏิทิน • หัวข้อคะแนน • ฐานข้อมูลกลาง</div><button class="sm" data-go-tab="settings" style="margin-top:9px">ตรวจสอบการตั้งค่า</button></div></div></div>' + exchangeRequestCard() + leaveHistoryCard(5, true) + '<div class="card" id="pendingBox"></div>' + (schoolDataMissing() ? '' : schoolDataCard());
 
   bindApprovalCard(pane);
   bindPullSchoolButton(pane);
@@ -3000,7 +3021,7 @@ function editCourseInfo() {
       '<div class="row" style="margin-top:10px"><div class="pick"><label>จำนวนหน่วยกิต</label><input id="ciCredits" type="text" inputmode="decimal" value="' + esc(b.meta.credits || '') + '" style="width:110px"></div>' +
       '<div class="pick"><label>เวลาเรียน (คาบ/สัปดาห์)</label><input id="ciWeekly" type="text" inputmode="decimal" value="' + esc(b.meta.hoursPerWeek || '') + '" style="width:130px"></div>' +
       '<div class="pick"><label>เวลาเรียนรวม (ชั่วโมง)</label><input id="ciHours" type="text" inputmode="decimal" value="' + esc(b.meta.totalHours || '') + '" style="width:120px"></div></div>' +
-      '<div class="hint" style="margin-top:10px">เปลี่ยนปี/ภาคจากแถบบน คะแนนจะถูกเก็บแยกเป็นคนละสมุดโดยอัตโนมัติ</div>',
+      '<div class="hint tip" style="margin-top:10px">เปลี่ยนปี/ภาคจากแถบบน คะแนนจะถูกเก็บแยกเป็นคนละสมุดโดยอัตโนมัติ</div>',
     buttons: [{ label: 'ยกเลิก' }, { label: 'บันทึก', cls: 'primary', act: (close, root) => {
       DB.settings.schoolName = $('#ciSchool', root).value.trim();
       b.meta.teacherName = $('#ciTeacher', root).value.trim();
@@ -3078,7 +3099,7 @@ function manageSubjects() {
       '<div class="pick"><label>ระดับชั้นของวิชา</label><select id="nsLevel">' + gradeLevelOptions('', 'ทุกระดับชั้น') + '</select></div>' +
       '<button class="primary" id="nsAdd">เพิ่มวิชา</button>' +
     '</div>' +
-    '<div class="hint" style="margin-bottom:10px">เมื่อกำหนดระดับชั้น ระบบจะแสดงวิชานี้เฉพาะห้องในระดับเดียวกัน หากเลือก “ทุกระดับชั้น” จะใช้ได้กับทุกห้อง</div>' +
+    '<div class="hint tip" style="margin-bottom:10px">เมื่อกำหนดระดับชั้น ระบบจะแสดงวิชานี้เฉพาะห้องในระดับเดียวกัน หากเลือก “ทุกระดับชั้น” จะใช้ได้กับทุกห้อง</div>' +
     (DB.subjects.length ? '<div class="tablewrap"><table><thead><tr><th style="width:150px">รหัสวิชา</th><th>ชื่อวิชา</th><th style="width:145px">ระดับชั้น</th><th></th></tr></thead><tbody>' +
       DB.subjects.map(s =>
         '<tr data-id="' + s.id + '"><td><input type="text" class="scode" value="' + esc(s.code || '') + '" style="width:100%"></td>' +
@@ -3375,7 +3396,7 @@ function editScheduleEntry(day, slotId, entry) {
       '<div class="pick"><label>รายวิชาที่ใช้กับระดับชั้นนี้</label><select id="seSubject" style="width:100%">' + subjectOptions(cls ? cls.id : '', subject ? subject.id : (curSubject() || {}).id) + '</select></div>' +
       '<div class="pick"><label>ห้องเรียน/สถานที่</label><input id="seRoom" value="' + esc(entry ? entry.room || '' : '') + '" placeholder="เช่น ห้อง 324 หรือ Lab 2" style="width:100%"></div></div>' +
       ((!DB.subjects.length || !DB.classes.length) ? '<div class="notice bad" style="margin-top:10px">กรุณาเพิ่ม' + (!DB.subjects.length ? 'รายวิชา' : '') + (!DB.subjects.length && !DB.classes.length ? ' และ ' : '') + (!DB.classes.length ? 'ชั้น/ห้อง' : '') + 'จากปุ่ม “จัดการ” บนแถบด้านบนก่อน</div>' :
-      '<div class="hint" style="margin-top:10px">เลือกระดับชั้น/ห้องก่อน ระบบจะกรองเฉพาะวิชาที่กำหนดไว้สำหรับระดับชั้นนั้น</div>'),
+      '<div class="hint tip" style="margin-top:10px">เลือกระดับชั้น/ห้องก่อน ระบบจะกรองเฉพาะวิชาที่กำหนดไว้สำหรับระดับชั้นนั้น</div>'),
     buttons: (entry ? [{ label: 'ลบคาบนี้', cls: 'danger', async act(close) {
       const records = Object.keys(DB.timetable.attendance).filter(k => DB.timetable.attendance[k].entryId === entry.id);
       if (!await confirmBox('ลบคาบจากตารางสอน', 'ลบคาบนี้' + (records.length ? ' พร้อมข้อมูลเช็กชื่อ <b>' + records.length + ' ครั้ง</b>' : '') + '?', 'ลบคาบ')) return;
@@ -3529,7 +3550,7 @@ function openAttendance(entry, date, singleMode, slotOverride) {
           '</span>/<span class="hist-num">' + att.counts.leave + '</span>/<span class="hist-num">' + att.counts.activity + '</span></td>' +
           '<td class="c-pct">' + attendanceOutcomeBadge(att.pct) + '</td></tr>';
       }).join('') + '</tbody></table></div>' : '<div class="empty">ห้องนี้ยังไม่มีรายชื่อ กรุณาดึงรายชื่อจากแท็บฐานนักเรียนก่อน</div>') +
-      '<div class="hint" style="margin-top:8px">ติ๊กช่องสถานะของนักเรียนได้เลย • หรือแตะที่ชื่อเพื่อวนสถานะ มา → ขาด → ลา → สาย → กิจกรรม</div>' +
+      '<div class="hint tip" style="margin-top:8px">ติ๊กช่องสถานะของนักเรียนได้เลย • หรือแตะที่ชื่อเพื่อวนสถานะ มา → ขาด → ลา → สาย → กิจกรรม</div>' +
       (old ? '<div class="hint" style="margin-top:8px">เช็กครั้งล่าสุด ' + esc(new Date(old.checkedAt).toLocaleString('th-TH')) + '</div>' : ''),
     buttons: [{ label: 'ยกเลิก' }, { label: 'บันทึกการเช็กชื่อ', cls: 'primary', act(close, root) {
       if (!students.length) return toast('ยังไม่มีรายชื่อนักเรียน', 'bad');
@@ -3707,7 +3728,7 @@ function renderSchedule() {
   const classText = e => { const c = DB.classes.find(x => x.id === e.classId); return c ? c.name : 'ไม่พบห้อง'; };
   const scheduleReadOnly = (DB.ui.staffMode || 'teacher') !== 'admin';
   pane.innerHTML = (scheduleReadOnly ? '<div class="notice" style="margin-bottom:12px">ตารางสอนของทั้งโรงเรียนดูแลโดย<b>ผู้ดูแลระบบ</b> การแก้ไขที่หน้านี้จะมีผลเฉพาะเครื่องนี้ และจะถูกเขียนทับเมื่อส่วนกลางอัปเดต<br><span class="hint">ถ้าตารางไม่ตรง แจ้งผู้ดูแลระบบให้แก้แล้วส่งขึ้นส่วนกลางอีกครั้ง</span></div>' : '') +
-    '<div class="card noprint"><div class="row"><div><h3 style="margin:0">ตั้งค่าตารางสอน <span class="sub">ปี ' + esc(curPeriod().academicYear) + ' • ภาค ' + esc(curPeriod().semester) + '</span></h3><div class="hint">คลิกช่องว่างเพื่อเพิ่มคาบ • คลิกวิชาที่มีอยู่เพื่อแก้ไข</div></div>' +
+    '<div class="card noprint"><div class="row"><div><h3 style="margin:0">ตั้งค่าตารางสอน <span class="sub">ปี ' + esc(curPeriod().academicYear) + ' • ภาค ' + esc(curPeriod().semester) + '</span></h3><div class="hint tip">คลิกช่องว่างเพื่อเพิ่มคาบ • คลิกวิชาที่มีอยู่เพื่อแก้ไข</div></div>' +
     '<div class="spacer"></div>' + (scheduleReadOnly ? '' :
       '<button id="ttMultiTemplate">แม่แบบ Excel หลายครู</button><button id="ttMultiImport">นำเข้าตารางสอนหลายครู</button>' +
       '<button id="ttPrint">พิมพ์ตาราง 1 หน้า</button><button class="primary" id="ttSettings">ตั้งค่าเวลา/ปฏิทิน</button>') + '</div>' +
@@ -3734,7 +3755,7 @@ function renderSchedule() {
         const s = subjectText(e);
         return '<td><div class="tt-cell filled" data-config-entry="' + e.id + '" data-day="' + day.value + '" title="คลิกเพื่อแก้ไข"><button class="tt-edit" data-edit-entry="' + e.id + '" title="แก้ไขตาราง">แก้</button>' +
           '<div class="tt-code">' + esc(s.code || '—') + '</div><div class="tt-name">' + esc(s.name) + '</div><div class="tt-room">' + esc(classText(e)) + (e.room ? ' • ' + esc(e.room) : '') + '</div></div></td>';
-      }).join('') + '</tr>').join('') + '</tbody></table></div><div class="hint" style="margin-top:8px">ตารางนี้ใช้สำหรับตั้งค่าคาบประจำเท่านั้น การเช็กชื่อ แลกคาบ สอนแทน และสอนชดเชยอยู่ในแท็บ “เช็กชื่อ”</div></div>' +
+      }).join('') + '</tr>').join('') + '</tbody></table></div><div class="hint tip" style="margin-top:8px">ตารางนี้ใช้สำหรับตั้งค่าคาบประจำเท่านั้น การเช็กชื่อ แลกคาบ สอนแทน และสอนชดเชยอยู่ในแท็บ “เช็กชื่อ”</div></div>' +
       '<div class="card"><h3>จำนวนคาบตามปฏิทิน</h3>' + (entries.length ? '<div class="tablewrap"><table><thead><tr><th>วิชา/ห้อง</th><th>คาบทั้งภาค</th><th>เช็กแล้ว</th></tr></thead><tbody>' + entries.map(e => {
         const s = subjectText(e), checked = Object.values(DB.timetable.attendance).filter(r => r.entryId === e.id).length;
         return '<tr><td><b>' + esc((s.code ? s.code + ' ' : '') + s.name) + '</b><br><span class="hint">' + esc(classText(e)) + ' • วัน' + esc((SCHOOL_DAYS.find(d => d.value === num(e.day)) || {}).label || '') + ' ' + esc((DB.timetable.slots.find(t => t.id === String(e.slotId)) || {}).label || '') + '</span></td><td>' + scheduledDates(e).length + '</td><td>' + checked + '</td></tr>';
@@ -4379,7 +4400,7 @@ function askDeleteReason(title, warnHTML, needReason, onConfirm) {
     bodyHTML: (warnHTML || '') +
       '<div class="pick" style="margin-top:10px"><label>เหตุผลในการลบ' + (needReason ? ' (จำเป็น)' : ' (ไม่บังคับ)') + '</label>' +
       '<input id="deleteReason" style="width:100%" placeholder="เช่น ส่งผิดคาบ / ครูยกเลิกการลา"></div>' +
-      '<div class="hint" style="margin-top:8px">ระบบจะบันทึกชื่อผู้ลบ วันเวลา และเหตุผลไว้เป็นหลักฐานในประวัติการลบ</div>',
+      '<div class="hint tip" style="margin-top:8px">ระบบจะบันทึกชื่อผู้ลบ วันเวลา และเหตุผลไว้เป็นหลักฐานในประวัติการลบ</div>',
     buttons: [{ label: 'ยกเลิก' }, { label: 'ยืนยันการลบ', cls: 'danger', act(close, root) {
       const reason = $('#deleteReason', root).value.trim();
       if (needReason && !reason) return toast('ผู้ดูแลระบบต้องระบุเหตุผลก่อนลบ', 'bad');
@@ -4804,7 +4825,7 @@ const memoDetailOn = () => !!DB.ui.memoDetail;
 const memoDetailToggleHtml = () =>
   '<label class="doc-opt"><input type="checkbox" id="memoDetailToggle"' + (memoDetailOn() ? ' checked' : '') + '>' +
   'ใส่รายละเอียดเพิ่มในตาราง — ชื่อวิชาเต็ม • วิธีจัดคาบ • หมายเหตุคาบคู่</label>' +
-  '<div class="hint" style="margin-bottom:8px">ปิดไว้จะได้เอกสารกระชับ ลงกระดาษแผ่นเดียวง่ายกว่า • ช่อง “คาบที่” ยังบอกช่วงคาบคู่ เช่น คาบ 3-4 อยู่แล้ว</div>';
+  '<div class="hint tip" style="margin-bottom:8px">ปิดไว้จะได้เอกสารกระชับ ลงกระดาษแผ่นเดียวง่ายกว่า • ช่อง “คาบที่” ยังบอกช่วงคาบคู่ เช่น คาบ 3-4 อยู่แล้ว</div>';
 
 /** บันทึกข้อความขอสับเปลี่ยน/แลกคาบสอน — ตามแบบฟอร์มของโรงเรียน
     รับได้ทั้งคำขอเดียวและหลายคำขอ (เช่น ทุกคาบของใบลาหนึ่งใบ) */
@@ -5048,7 +5069,7 @@ function renderExchangeCenter() {
   const mode = exchangeMode(), activeLeave = mode === 'leave' ? activeLeaveFor(me.id, date) : null;
   const canSend = mode === 'swap' || !!activeLeave;
   const reasonOptions = EXCHANGE_REASONS.map(x => '<option value="' + x.value + '">' + x.label + '</option>').join('');
-  pane.innerHTML = '<div class="card dash-hero"><div class="row"><div><div class="hero-sub">SMART PERIOD EXCHANGE</div><h1>ศูนย์แลกคาบและการลา</h1><div class="hero-sub">ครูห้องเดียวกันก่อนเสมอ — เลขคาบตรงกันคือสลับคาบ ไม่ตรงกันคือแลกคาบ • หากไม่พบจึงหาครูในกลุ่มสาระที่ว่างมาสอนแทน</div></div><div class="spacer"></div><span class="role-chip">ครูผู้ใช้งาน ' + esc(me.name || me.email) + '</span></div></div>' +
+  pane.innerHTML = '<div class="card dash-hero"><div class="row"><div><div class="hero-sub">SMART PERIOD EXCHANGE</div><h1>ศูนย์แลกคาบและการลา</h1><div class="hero-sub tip">ครูห้องเดียวกันก่อนเสมอ — เลขคาบตรงกันคือสลับคาบ ไม่ตรงกันคือแลกคาบ • หากไม่พบจึงหาครูในกลุ่มสาระที่ว่างมาสอนแทน</div></div><div class="spacer"></div><span class="role-chip">ครูผู้ใช้งาน ' + esc(me.name || me.email) + '</span></div></div>' +
     termLockNotice() +
     /* เลือกก่อนว่าจะทำอะไร เพราะสองเส้นทางนี้ใช้เอกสารคนละชุด
        แลกคาบปกติใช้แค่บันทึกข้อความแลกคาบ ส่วนการลาต้องมีใบลาคู่ไปด้วยเสมอ */
@@ -5071,13 +5092,13 @@ function renderExchangeCenter() {
       '<div class="pick" style="margin-top:10px"><label>รายละเอียดเพิ่มเติม</label><input id="exchangeNote" style="width:100%" value="' + esc(DB.ui.exchangeNote || '') + '" placeholder="เช่น มีนัดหมายช่วงเช้า"></div>' +
       (source ? '<div class="hint" style="margin-top:10px">คาบของฉันวันนี้</div>' + slotStripHtml(me.id, date, entryBlock(source).map(e => String(e.slotId)), null, 'pick', 'give') + slotLegendHtml() : '') + '</div>' +
       (mode === 'leave' ? '<div class="card leave-card"><h3>แจ้งการลา / ขออนุญาตไปราชการ</h3>' +
-      '<div class="hint" style="margin-bottom:8px">เลือกช่วงวันที่แล้วกดบันทึก ระบบจะหาครูดูแลให้ทุกคาบในช่วงนั้นโดยอัตโนมัติ (ยกเว้นคาบเข้าแถว/โฮมรูม)<br>เลือก “ไปราชการ” ระบบจะไม่นับเป็นวันลา และพิมพ์เป็นบันทึกขออนุญาตไปราชการแทนใบลา</div>' +
-      '<div class="grid2"><div class="pick"><label>ตั้งแต่วันที่</label><input type="date" id="leaveFrom" value="' + date + '"></div><div class="pick"><label>ถึงวันที่</label><input type="date" id="leaveTo" value="' + date + '"></div><div class="pick"><label>ประเภทการลา</label><select id="leaveReason">' + reasonOptions + '</select></div><div class="pick"><label>กรณีอื่นๆ โปรดระบุ</label><input id="leaveOther"></div></div><div class="pick" style="margin-top:10px"><label>ใครหาครูดูแลคาบให้</label><select id="leaveCoverMode" style="width:100%"><option value="self">แลกคาบ/หาครูสอนแทนเอง</option><option value="head">ให้หัวหน้ากลุ่มสาระจัดครูให้</option></select></div><div class="cover-note" id="leaveCoverHint"></div><div class="pick" style="margin-top:10px"><label>รายละเอียด</label><input id="leaveNote" style="width:100%"></div><button class="primary" id="submitLeave" style="margin-top:12px;width:100%">บันทึกการลาและส่งหาครูดูแลทุกคาบ</button><div class="hint" style="margin-top:8px">ระบบจะตรวจทุกคาบของคุณในช่วงวันที่ลา แล้วส่งคำขอตามลำดับความเหมาะสมอัตโนมัติ</div></div>' : '') +
+      '<div class="hint tip" style="margin-bottom:8px">เลือกช่วงวันที่แล้วกดบันทึก ระบบจะหาครูดูแลให้ทุกคาบในช่วงนั้นโดยอัตโนมัติ (ยกเว้นคาบเข้าแถว/โฮมรูม)<br>เลือก “ไปราชการ” ระบบจะไม่นับเป็นวันลา และพิมพ์เป็นบันทึกขออนุญาตไปราชการแทนใบลา</div>' +
+      '<div class="grid2"><div class="pick"><label>ตั้งแต่วันที่</label><input type="date" id="leaveFrom" value="' + date + '"></div><div class="pick"><label>ถึงวันที่</label><input type="date" id="leaveTo" value="' + date + '"></div><div class="pick"><label>ประเภทการลา</label><select id="leaveReason">' + reasonOptions + '</select></div><div class="pick"><label>กรณีอื่นๆ โปรดระบุ</label><input id="leaveOther"></div></div><div class="pick" style="margin-top:10px"><label>ใครหาครูดูแลคาบให้</label><select id="leaveCoverMode" style="width:100%"><option value="self">แลกคาบ/หาครูสอนแทนเอง</option><option value="head">ให้หัวหน้ากลุ่มสาระจัดครูให้</option></select></div><div class="cover-note" id="leaveCoverHint"></div><div class="pick" style="margin-top:10px"><label>รายละเอียด</label><input id="leaveNote" style="width:100%"></div><button class="primary" id="submitLeave" style="margin-top:12px;width:100%">บันทึกการลาและส่งหาครูดูแลทุกคาบ</button><div class="hint tip" style="margin-top:8px">ระบบจะตรวจทุกคาบของคุณในช่วงวันที่ลา แล้วส่งคำขอตามลำดับความเหมาะสมอัตโนมัติ</div></div>' : '') +
       /* ประวัติการลาอยู่ต่อจากฟอร์มแจ้งลาในคอลัมน์เดียวกัน เพราะเป็นงานชุดเดียวกัน
          เดิมแยกไปคนละคอลัมน์ ต้องเลื่อนจอไปมาระหว่างกรอกใบลากับพิมพ์เอกสาร */
       leaveHistoryCard(20) + '</div>' +
     '<div>' + exchangeSummaryHtml(date) +
-    '<div class="card"><div class="row"><div><h3 style="margin:0">2. ครูที่ระบบแนะนำ</h3><div class="hint">เรียงจากเงื่อนไขที่เหมาะสมที่สุด • ดูแถบคาบเพื่อเทียบภาระงานก่อนส่งคำขอ<br>แลกคาบและสลับคาบเสนอเฉพาะครูที่สอนห้องเดียวกัน • สอนแทนเสนอเฉพาะครูในกลุ่มสาระเดียวกัน<br>ถ้าตกลงกันเองนอกเงื่อนไขนี้ ให้บันทึกเป็นคาบสอนแทนในแท็บ “เช็กชื่อ” ของวันนั้น</div></div><div class="spacer"></div><span class="badge group">' + candidateGroups(candidates).length + ' ครู</span></div>' + slotLegendHtml() +
+    '<div class="card"><div class="row"><div><h3 style="margin:0">2. ครูที่ระบบแนะนำ</h3><div class="hint tip">เรียงจากเงื่อนไขที่เหมาะสมที่สุด • ดูแถบคาบเพื่อเทียบภาระงานก่อนส่งคำขอ<br>แลกคาบและสลับคาบเสนอเฉพาะครูที่สอนห้องเดียวกัน • สอนแทนเสนอเฉพาะครูในกลุ่มสาระเดียวกัน<br>ถ้าตกลงกันเองนอกเงื่อนไขนี้ ให้บันทึกเป็นคาบสอนแทนในแท็บ “เช็กชื่อ” ของวันนั้น</div></div><div class="spacer"></div><span class="badge group">' + candidateGroups(candidates).length + ' ครู</span></div>' + slotLegendHtml() +
       '<div class="hint" style="margin-top:6px">คลิกเลือกคาบที่จะแลกได้เอง ถ้าตกลงกับครูไว้แล้ว</div>' +
       '<div class="candidate-list" style="margin-top:12px">' + (source ? candidates.length ? candidateGroups(candidates).map((g, gi) => {
         const c = g.options[g.pick] || g.options[0];
@@ -5285,7 +5306,7 @@ function renderAttendancePage() {
   const subjectText = e => DB.subjects.find(s => s.id === e.subjectId) || { code: '', name: 'ไม่พบวิชา' };
   const classText = e => (DB.classes.find(c => c.id === e.classId) || { name: 'ไม่พบห้อง' }).name;
   const holiday = holidayOf(date), showAnyway = DB.ui.holidayCheckDate === date;
-  pane.innerHTML = '<div class="card"><div class="row"><div><h3 style="margin:0">เช็กชื่อประจำวัน <span class="sub">' + thaiDate(date) + '</span></h3><div class="hint">คาบประจำกดเช็กได้ทันที • คำขอแลกคาบและการลาอยู่ในเมนูเฉพาะ</div></div><div class="spacer"></div>' +
+  pane.innerHTML = '<div class="card"><div class="row"><div><h3 style="margin:0">เช็กชื่อประจำวัน <span class="sub">' + thaiDate(date) + '</span></h3><div class="hint tip">คาบประจำกดเช็กได้ทันที • คำขอแลกคาบและการลาอยู่ในเมนูเฉพาะ</div></div><div class="spacer"></div>' +
     '<div class="pick"><label>วันที่</label><input type="date" id="checkDate" value="' + date + '"></div><button id="checkToday">วันนี้</button></div>' +
     (!dayInfo ? '<div class="notice" style="margin-top:10px">วันที่เลือกเป็นวันหยุดสุดสัปดาห์ แต่ยังสามารถเพิ่มการแลกคาบ สอนแทน หรือสอนชดเชยได้</div>' : '') +
     (shift ? '<div class="notice ok" style="margin-top:10px"><b>↷ ' + esc(shift.name || 'สลับวันเรียนตามประกาศของโรงเรียน') + '</b><br>' + esc(dayShiftText(shift)) + ' — ระบบเปลี่ยนคาบที่ต้องเช็กชื่อและการนับเวลาเรียนให้แล้ว</div>' : '') +
@@ -5462,7 +5483,7 @@ function renderStudents() {
         '<div class="spacer"></div>' +
         '<button class="danger" id="btnClearSt">ล้างรายชื่อทั้งชั้น</button>' +
       '</div>' +
-      '<div class="hint" style="margin-top:6px">ไฟล์ที่นำเข้าควรมีคอลัมน์ <b>เลขที่</b>, <b>เลขประจำตัว</b> และ <b>ชื่อ-นามสกุล</b> — โปรแกรมจะหาคอลัมน์ให้อัตโนมัติ และให้ตรวจสอบก่อนยืนยัน</div>' +
+      '<div class="hint tip" style="margin-top:6px">ไฟล์ที่นำเข้าควรมีคอลัมน์ <b>เลขที่</b>, <b>เลขประจำตัว</b> และ <b>ชื่อ-นามสกุล</b> — โปรแกรมจะหาคอลัมน์ให้อัตโนมัติ และให้ตรวจสอบก่อนยืนยัน</div>' +
       (warns.length ? '<div class="notice" style="margin-top:10px">พบข้อมูลซ้ำ: ' + esc(warns.join(', ')) + '</div>' : '') +
       (sts.length >= MAX_STUDENTS ? '<div class="notice" style="margin-top:10px">ชั้นนี้เต็มแล้ว (' + MAX_STUDENTS + ' คน) เพิ่มอีกไม่ได้</div>' : '') +
     '</div>' +
@@ -5630,7 +5651,7 @@ function masterImportWizard(sheets) {
       '<div class="pick"><label>ชั้น/ห้อง</label><select id="miRoom">' + opts(det.map.room) + '</select></div>' +
       '<div class="pick"><label>เพศ</label><select id="miGender">' + opts(det.map.gender) + '</select></div>' +
       '<div class="pick"><label>สถานะ</label><select id="miStatus">' + opts(det.map.status) + '</select></div></div>' +
-      '<div class="hint" style="margin-top:6px">ถ้ามีคอลัมน์สถานะ ระบบจะไม่ดึงคนที่ลาออก ย้าย หรือพักการเรียน เข้าห้องเรียน</div>' +
+      '<div class="hint tip" style="margin-top:6px">ถ้ามีคอลัมน์สถานะ ระบบจะไม่ดึงคนที่ลาออก ย้าย หรือพักการเรียน เข้าห้องเรียน</div>' +
       '<div class="pick" style="margin-top:10px"><label>ห้องเริ่มต้น เมื่อไฟล์ไม่มีคอลัมน์ห้อง</label><select id="miFallback"><option value="">— ยังไม่จัดห้อง —</option>' + DB.classes.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('') + '</select></div>' +
       '<label style="display:block;margin:10px 0"><input type="checkbox" id="miPull" checked> ดึงรายชื่อเข้าห้องที่ระบุให้ทันที</label>' +
       '<div class="tablewrap" style="max-height:220px"><table><thead><tr>' + Array.from({ length: width }, (_, i) => '<th>' + idxToColRef(i) + '<br><span class="hint">' + esc(String(head[i] == null ? '' : head[i]).slice(0, 16)) + '</span></th>').join('') + '</tr></thead><tbody>' +
@@ -5741,7 +5762,7 @@ function importWizard(sheets) {
           '<div class="pick"><label>เลขประจำตัว</label><select id="iwSid">' + colOpts(det.map.sid) + '</select></div>' +
           '<div class="pick"><label>ชื่อ-นามสกุล</label><select id="iwName">' + colOpts(det.map.name) + '</select></div>' +
         '</div>' +
-        '<div class="hint" style="margin-bottom:10px">ตัวอย่าง 6 แถวแรกหลังหัวตาราง — ตรวจว่าคอลัมน์ตรงกันก่อนกดนำเข้า</div>' +
+        '<div class="hint tip" style="margin-bottom:10px">ตัวอย่าง 6 แถวแรกหลังหัวตาราง — ตรวจว่าคอลัมน์ตรงกันก่อนกดนำเข้า</div>' +
         '<div class="tablewrap" style="max-height:230px"><table><thead><tr>' +
           Array.from({ length: width }, (_, i) => '<th>' + idxToColRef(i) + '<br><span class="hint">' +
             esc(String(headRow[i] == null ? '' : headRow[i]).slice(0, 18)) + '</span></th>').join('') +
@@ -5878,7 +5899,7 @@ function openItemKsaConfig(item) {
         '<td><input class="ksa-rawmax" type="number" min="0.01" step="0.01" value="' + esc(old.rawMax == null ? 10 : old.rawMax) + '" style="width:110px"></td>' +
         '<td><input class="ksa-givenmax" type="number" min="0" step="0.01" value="' + esc(old.max == null ? 5 : old.max) + '" style="width:110px"></td>' +
         '<td class="hint">ถ้าได้ดิบ 8/10 และให้เต็ม 5 → ได้ 4 คะแนน</td></tr>'; }).join('') + '</tbody></table></div>' +
-      '<div class="hint" style="margin-top:10px">หากไม่เลือกทุกส่วน หัวข้อนี้จะกลับไปใช้ช่องคะแนนรวมแบบเดิม</div>',
+      '<div class="hint tip" style="margin-top:10px">หากไม่เลือกทุกส่วน หัวข้อนี้จะกลับไปใช้ช่องคะแนนรวมแบบเดิม</div>',
     buttons: [{ label: 'ยกเลิก' }, { label: 'บันทึก K/S/A', cls: 'primary', act(close, root) {
       const components = [];
       $$('[data-ksa-row]', root).forEach(row => {
@@ -6033,7 +6054,7 @@ function openItemReuse() {
   const targets = classesSharingSubject(), sources = itemTemplateSources();
   openModal({ title: 'นำหัวข้อคะแนนไปใช้ซ้ำ', wide: true,
     bodyHTML: '<div class="card"><h3 style="margin:0 0 8px">คัดลอกของห้องนี้ไปห้องอื่น</h3>' +
-      '<div class="hint">คัดลอกหัวข้อคะแนน สัดส่วนคะแนน คะแนนสอบ และเกณฑ์ตัดเกรด ไปยังห้องอื่นที่เรียนวิชาเดียวกัน • คะแนนของนักเรียนไม่ถูกคัดลอก</div>' +
+      '<div class="hint tip">คัดลอกหัวข้อคะแนน สัดส่วนคะแนน คะแนนสอบ และเกณฑ์ตัดเกรด ไปยังห้องอื่นที่เรียนวิชาเดียวกัน • คะแนนของนักเรียนไม่ถูกคัดลอก</div>' +
       (targets.length ? '<div class="tablewrap" style="margin-top:10px;max-height:220px"><table><tbody>' +
         targets.map(c => '<tr><td style="width:34px"><input type="checkbox" class="copy-class" value="' + c.id + '"></td><td>' + esc(c.name) + '</td><td>' +
           ((DB.books[bookKeyOf(c.id, DB.ui.subjectId, DB.ui.periodId)] || {}).items || []).length + ' หัวข้อเดิม</td></tr>').join('') +
@@ -6041,7 +6062,7 @@ function openItemReuse() {
         '<button class="sm primary" id="doCopy">คัดลอกไปห้องที่เลือก</button></div>'
         : '<div class="empty" style="margin-top:10px">ไม่พบห้องอื่นที่เรียนวิชานี้ในตารางสอน</div>') + '</div>' +
       '<div class="card"><h3 style="margin:0 0 8px">ใช้รูปแบบที่มีอยู่แล้วเป็นต้นแบบ</h3>' +
-      '<div class="hint">ดึงหัวข้อคะแนนจากห้องอื่นหรือของครูท่านอื่นที่สอนวิชาเดียวกันมาใช้กับห้องนี้ • ของเดิมในห้องนี้จะถูกแทนที่</div>' +
+      '<div class="hint tip">ดึงหัวข้อคะแนนจากห้องอื่นหรือของครูท่านอื่นที่สอนวิชาเดียวกันมาใช้กับห้องนี้ • ของเดิมในห้องนี้จะถูกแทนที่</div>' +
       (sources.length ? '<div class="pick" style="margin-top:10px"><label>เลือกต้นแบบ</label><select id="tplSource" style="width:100%">' +
         sources.map(x => '<option value="' + esc(x.key) + '">' + esc(x.label) + '</option>').join('') + '</select></div>' +
         '<div class="row" style="margin-top:10px"><button class="sm primary" id="useTpl">ใช้รูปแบบนี้</button></div>'
@@ -6460,7 +6481,7 @@ function renderItems() {
         '<div class="pick"><label>คะแนนเต็มปลายภาค</label><input type="text" id="exFin" value="' + esc(b.exams.finalMax) + '" style="width:80px;text-align:center"></div>' +
         '<label><input type="checkbox" id="exRetake"' + (b.exams.retakeEnabled ? ' checked' : '') + '> เปิดสอบซ่อมกลางภาค เฉพาะผู้ได้ต่ำกว่าเกณฑ์ผ่าน</label>' +
       '</div>' +
-      '<div class="hint" style="margin-top:8px">ถ้ายังไม่กรอกคะแนนซ่อมจะใช้คะแนนกลางภาคเดิม เมื่อกรอกแล้วจะใช้คะแนนซ่อมแทน • ปลายภาคไม่มีสอบซ่อม</div>' +
+      '<div class="hint tip" style="margin-top:8px">ถ้ายังไม่กรอกคะแนนซ่อมจะใช้คะแนนกลางภาคเดิม เมื่อกรอกแล้วจะใช้คะแนนซ่อมแทน • ปลายภาคไม่มีสอบซ่อม</div>' +
     '</div>' +
 
     '<div class="card">' +
@@ -6977,7 +6998,7 @@ function openCopyGroups(b) {
       '<div class="pick"><label>ชื่อชุดกลุ่มใหม่</label>' +
         '<input type="text" id="cgName" style="width:100%"></div>' +
       '<div class="notice" id="cgPreview" style="margin-top:12px"></div>' +
-      '<div class="hint" style="margin-top:8px">คัดลอกเฉพาะชื่อกลุ่มและสมาชิกของห้องนี้ คะแนนกลุ่มเดิมจะไม่ถูกคัดลอกมาด้วย</div>',
+      '<div class="hint tip" style="margin-top:8px">คัดลอกเฉพาะชื่อกลุ่มและสมาชิกของห้องนี้ คะแนนกลุ่มเดิมจะไม่ถูกคัดลอกมาด้วย</div>',
     onMount: root => {
       const select = $('#cgSource', root), name = $('#cgName', root), preview = $('#cgPreview', root);
       const update = () => {
@@ -7352,7 +7373,7 @@ function renderAssessments() {
   if (!sts.length) { pane.innerHTML = '<div class="card"><div class="empty">ยังไม่มีรายชื่อนักเรียน</div></div>'; return; }
   pane.innerHTML = '<div class="card noprint"><div class="row"><h3 style="margin:0">ประเมินคุณภาพผู้เรียน <span class="sub">' +
     esc(curSubject().name) + ' • ' + esc(curClass().name) + '</span></h3><div class="spacer"></div><button id="btnPrintAssess">พิมพ์</button></div>' +
-    '<div class="hint" style="margin-top:6px">ระดับ 3 = ดีเยี่ยม • 2 = ดี • 1 = ผ่าน • 0 = ไม่ผ่าน • “–” = ยังไม่ประเมิน</div>' + termLockNotice() + '</div>' +
+    '<div class="hint tip" style="margin-top:6px">ระดับ 3 = ดีเยี่ยม • 2 = ดี • 1 = ผ่าน • 0 = ไม่ผ่าน • “–” = ยังไม่ประเมิน</div>' + termLockNotice() + '</div>' +
     assessmentSectionHtml(b, sts, 'traits') + assessmentSectionHtml(b, sts, 'reading');
   lockPaneFields(pane, '.assess-cell');
 
@@ -7441,7 +7462,7 @@ function studentPortalCard() {
   const withCode = students.filter(x => (DB.studentAccounts[x.sid] || {}).claimCode).length;
   const online = firebaseReady() && fbSignedIn();
   return '<div class="card"><div class="row"><div><h3 style="margin:0">ให้นักเรียนดูผลจากมือถือตัวเอง</h3>' +
-    '<div class="hint">นักเรียนเปิดเว็บเดียวกันนี้ เลือก “นักเรียน” แล้วกรอกเลขประจำตัวกับรหัสรับสิทธิ์ครั้งแรกครั้งเดียว</div></div></div>' +
+    '<div class="hint tip">นักเรียนเปิดเว็บเดียวกันนี้ เลือก “นักเรียน” แล้วกรอกเลขประจำตัวกับรหัสรับสิทธิ์ครั้งแรกครั้งเดียว</div></div></div>' +
     (online ? '' : '<div class="notice bad" style="margin-top:10px">ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อนจึงจะเผยแพร่ได้</div>') +
     '<div class="row" style="margin-top:12px;flex-wrap:wrap">' +
       '<button class="sm primary" data-portal-act="publish"' + (online ? '' : ' disabled') + '>เผยแพร่ผลวิชานี้ • ' + esc(sub.name) + '</button>' +
@@ -7474,7 +7495,7 @@ function claimCodeSheetHtml(cls) {
 /** กล่องเครื่องมือท้ายหน้า สรุป/ส่งออก — ข้อมูลหน้าปก ปพ.5 และการสำรอง/กู้คืน */
 function summaryToolsCard() {
   return '<div class="card"><div class="row"><div><h3 style="margin:0">ข้อมูลรายวิชาและการสำรองข้อมูล</h3>' +
-    '<div class="hint">ข้อมูลสำหรับหน้าปก ปพ.5 และการสำรอง/กู้คืนข้อมูลทั้งหมดของเครื่องนี้</div></div></div>' +
+    '<div class="hint tip">ข้อมูลสำหรับหน้าปก ปพ.5 และการสำรอง/กู้คืนข้อมูลทั้งหมดของเครื่องนี้</div></div></div>' +
     '<div class="row" style="margin-top:12px;flex-wrap:wrap">' +
       '<button class="sm" data-sum-act="courseinfo">ข้อมูล ปพ.5</button>' +
       '<button class="sm primary" data-sum-act="backup">สำรองข้อมูล</button>' +
@@ -7494,7 +7515,7 @@ function bookSyncCard() {
   const ready = firebaseReady() && fbSignedIn(), email = myEmailForSync();
   const last = DB.cloud.lastBookSync ? new Date(DB.cloud.lastBookSync).toLocaleString('th-TH') : 'ยังไม่เคยซิงก์';
   return '<div class="card"><div class="row"><div><h3 style="margin:0">ซิงก์สมุดคะแนนของฉันขึ้นส่วนกลาง</h3>' +
-    '<div class="hint">คะแนน การเช็กชื่อ และผลคุณลักษณะของคุณจะตามไปทุกเครื่องที่เข้าสู่ระบบด้วยบัญชีเดียวกัน • ครูท่านอื่นเปิดดูไม่ได้</div></div>' +
+    '<div class="hint tip">คะแนน การเช็กชื่อ และผลคุณลักษณะของคุณจะตามไปทุกเครื่องที่เข้าสู่ระบบด้วยบัญชีเดียวกัน • ครูท่านอื่นเปิดดูไม่ได้</div></div>' +
     '<div class="spacer"></div><span class="badge ' + (bookSyncOn() ? 'ok' : '') + '">' + (bookSyncOn() ? 'เปิดใช้งาน' : 'ปิดอยู่') + '</span></div>' +
     (!ready ? '<div class="notice bad" style="margin-top:12px">ต้องเข้าสู่ระบบด้วยบัญชี Google ของโรงเรียนก่อน จึงจะซิงก์ได้</div>' :
       !email ? '<div class="notice bad" style="margin-top:12px">โปรไฟล์ครูของคุณยังไม่มีอีเมล ให้ผู้ดูแลระบบเพิ่มอีเมลก่อน</div>' :
@@ -8213,7 +8234,7 @@ function renderLeaveApprovals() {
       (l.requestIds && l.requestIds.length ? '<button class="sm" data-exec-memo="' + l.id + '">บันทึกแลกคาบ</button>' : '') +
       (approval === 'submitted' && canApprove() ? '<button class="sm danger" data-exec-reject="' + l.id + '">ไม่อนุมัติ</button><button class="sm primary" data-exec-approve="' + l.id + '">อนุมัติ</button>' : '') + '</div>';
   };
-  pane.innerHTML = '<div class="card dash-hero"><div class="row"><div><div class="hero-sub">LEAVE &amp; COVERAGE</div><h1>การลาและการอนุมัติ</h1><div class="hero-sub">สรุปการลารายครู ประเภทการลา และภาระการสอนแทนทั้งสถานศึกษา</div></div><div class="spacer"></div><span class="role-chip">ผู้บริหาร</span></div></div>' +
+  pane.innerHTML = '<div class="card dash-hero"><div class="row"><div><div class="hero-sub">LEAVE &amp; COVERAGE</div><h1>การลาและการอนุมัติ</h1><div class="hero-sub tip">สรุปการลารายครู ประเภทการลา และภาระการสอนแทนทั้งสถานศึกษา</div></div><div class="spacer"></div><span class="role-chip">ผู้บริหาร</span></div></div>' +
     '<div class="dash-metrics"><div class="metric-card" style="--metric:var(--warn)"><div class="metric-value">' + waiting.length + '</div><div class="metric-label">ใบลารออนุมัติ</div></div>' +
     '<div class="metric-card" style="--metric:var(--brand)"><div class="metric-value">' + totalTimes + '</div><div class="metric-label">การลาทั้งหมด (ครั้ง)</div></div>' +
     '<div class="metric-card" style="--metric:var(--bad)"><div class="metric-value">' + totalDays + '</div><div class="metric-label">วันลารวม</div></div>' +
@@ -8851,7 +8872,7 @@ async function openPendingSyncDialog() {
     '<div class="exec-sum"><span>คะแนนซิงก์ล่าสุด <b>' + esc(lastBook) + '</b></span>' +
     '<span>คงค้างซิงก์ล่าสุด <b>' + esc(last) + '</b></span>' +
     (others.length ? '<span>มีของครูอื่นในเครื่อง <b>' + others.length + '</b> รายการ จาก <b>' + ownerCount + '</b> คน</span>' : '') + '</div>' +
-    '<div class="hint">รายการคงค้างที่ส่งขึ้นจะมองเห็นได้โดยครูและผู้บริหารทุกคน • รายการที่คุณลบในเครื่องนี้จะถูกลบบนส่วนกลางด้วย</div>',
+    '<div class="hint tip">รายการคงค้างที่ส่งขึ้นจะมองเห็นได้โดยครูและผู้บริหารทุกคน • รายการที่คุณลบในเครื่องนี้จะถูกลบบนส่วนกลางด้วย</div>',
     'ซิงก์เลย');
   if (!ok) return;
   const el = syncFabEl();
@@ -9415,7 +9436,7 @@ function openHolidayApiHelp(err) {
       '<ol><li>เปิด <a href="https://console.cloud.google.com/apis/library/calendar-json.googleapis.com?project=' + esc(project) + '" target="_blank" rel="noopener">หน้าเปิดใช้ Google Calendar API</a> ด้วยบัญชีเจ้าของโปรเจกต์ แล้วกด <b>เปิดใช้ (Enable)</b></li>' +
       '<li>เปิด <a href="https://console.cloud.google.com/apis/credentials?project=' + esc(project) + '" target="_blank" rel="noopener">หน้าข้อมูลรับรอง (Credentials)</a> → เลือกคีย์ที่เว็บนี้ใช้ → หัวข้อ <b>ข้อจำกัดของ API</b> → เพิ่ม <b>Google Calendar API</b> เข้าไปในรายการที่อนุญาต แล้วบันทึก</li>' +
       '<li>รอสักครู่ให้ Google อัปเดต แล้วกลับมากด <b>ดึงวันหยุดราชการจาก Google</b> อีกครั้ง</li></ol>' +
-      '<div class="hint">ปฏิทินนี้เป็นข้อมูลสาธารณะของ Google ไม่ต้องเข้าสู่ระบบและไม่มีข้อมูลของโรงเรียนถูกส่งออกไป</div>',
+      '<div class="hint tip">ปฏิทินนี้เป็นข้อมูลสาธารณะของ Google ไม่ต้องเข้าสู่ระบบและไม่มีข้อมูลของโรงเรียนถูกส่งออกไป</div>',
     buttons: [{ label: 'ปิด' }] });
 }
 
@@ -9440,7 +9461,7 @@ function renderAdminHolidays() {
   const box = $('#adminHolidayBox'); if (!box) return;
   const term = currentTerm(true), period = curPeriod();
   box.innerHTML = '<div class="row"><div><h3 style="margin:0">ปฏิทินวันหยุด • ' + esc(period ? 'ปี ' + period.academicYear + ' ภาค ' + period.semester : 'ยังไม่เลือกปี/ภาค') + '</h3>' +
-      '<div class="hint">วันที่กำหนดไว้ที่นี่ ครูจะไม่ต้องเช็กชื่อ และระบบไม่นำไปคิดเป็นคาบเรียนของนักเรียน</div></div><div class="spacer"></div>' +
+      '<div class="hint tip">วันที่กำหนดไว้ที่นี่ ครูจะไม่ต้องเช็กชื่อ และระบบไม่นำไปคิดเป็นคาบเรียนของนักเรียน</div></div><div class="spacer"></div>' +
       '<span class="badge">' + sortedHolidays(term).length + ' วัน</span></div>' +
     '<div class="grid2" style="margin-top:12px"><div class="pick"><label>ตั้งแต่วันที่</label><input type="date" id="holidayFrom"></div>' +
       '<div class="pick"><label>ถึงวันที่ (เว้นว่างถ้าหยุดวันเดียว)</label><input type="date" id="holidayTo"></div>' +
@@ -9812,7 +9833,7 @@ function renderAdmin() {
    ตารางครู + ครูที่ปรึกษารายห้อง + หัวหน้ากลุ่มสาระ อยู่หน้าเดียวกัน
    เดิมตารางครูที่ปรึกษาซ้ำอยู่ทั้งหน้านี้และหน้าตั้งค่า แก้ที่หนึ่งอีกที่ไม่รู้ */
 function adminSectionPeople(box) {
-  box.innerHTML = '<div class="card"><div class="row"><div><h3 style="margin:0">ข้อมูลครูและสิทธิ์ใช้งาน</h3><div class="hint">หนึ่งห้องกำหนดครูที่ปรึกษาได้สูงสุด 2 คน • กลุ่มสาระใช้จัดสิทธิ์หัวหน้ากลุ่มสาระและการหาครูสอนแทน</div></div><div class="spacer"></div><button id="adminTeacherTemplate">ดาวน์โหลดแม่แบบ</button><button id="adminTeacherImport">นำเข้า Excel</button><button class="primary" id="adminTeacherAdd">+ เพิ่มครู</button></div>' +
+  box.innerHTML = '<div class="card"><div class="row"><div><h3 style="margin:0">ข้อมูลครูและสิทธิ์ใช้งาน</h3><div class="hint tip">หนึ่งห้องกำหนดครูที่ปรึกษาได้สูงสุด 2 คน • กลุ่มสาระใช้จัดสิทธิ์หัวหน้ากลุ่มสาระและการหาครูสอนแทน</div></div><div class="spacer"></div><button id="adminTeacherTemplate">ดาวน์โหลดแม่แบบ</button><button id="adminTeacherImport">นำเข้า Excel</button><button class="primary" id="adminTeacherAdd">+ เพิ่มครู</button></div>' +
       '<div class="row" style="margin-top:12px"><div class="pick" style="flex:1;min-width:240px"><label>ค้นหา ชื่อครู / อีเมล / เบอร์โทร / กลุ่มสาระ</label><input id="adminSearch" value="' + esc(DB.ui.adminSearch || '') + '" placeholder="พิมพ์บางส่วนของชื่อ เช่น สมชาย" style="width:100%"></div>' +
       '<div class="pick"><label>เรียงลำดับตาม</label><div class="sort-group">' + ADMIN_SORTS.map(x => '<button class="sm' + (adminSortKey() === x.key ? ' active' : '') + '" data-admin-sort="' + x.key + '">' + esc(x.label) + (adminSortKey() === x.key ? (DB.ui.adminSortDir === 'desc' ? ' ▼' : ' ▲') : '') + '</button>').join('') + '</div></div>' +
       '<div class="spacer"></div><button class="sm" id="adminSearchClear">ล้างตัวกรอง</button></div>' +
@@ -9825,7 +9846,7 @@ function adminSectionPeople(box) {
         DB.classes.map(c => { const names = DB.teachers.filter(t => t.homeroomClassId === c.id).map(t => t.name || t.email).filter(Boolean);
           return '<tr><td><b>' + esc(c.name) + '</b></td><td>' + (names.length ? names.map(n => '<span class="level-tag">' + esc(n) + '</span>').join(' ') : '<span class="hint">ยังไม่มีครูที่ปรึกษา</span>') + ' <span class="hint">(' + names.length + '/2)</span></td></tr>'; }).join('') +
         '</tbody></table></div>' : '<div class="empty" style="margin-top:12px">ยังไม่มีชั้นเรียน — เพิ่มได้ที่กลุ่ม “โครงสร้างโรงเรียน”</div>') + '</div>' +
-    '<div class="card"><h3>กลุ่มสาระและหัวหน้ากลุ่มสาระฯ</h3><div class="hint">ช่อง “หัวหน้ากลุ่มสาระการเรียนรู้” ในแบบพิมพ์ ปพ.5 ดึงชื่อจากตารางนี้</div>' +
+    '<div class="card"><h3>กลุ่มสาระและหัวหน้ากลุ่มสาระฯ</h3><div class="hint tip">ช่อง “หัวหน้ากลุ่มสาระการเรียนรู้” ในแบบพิมพ์ ปพ.5 ดึงชื่อจากตารางนี้</div>' +
       '<div class="tablewrap listbox folded" style="margin-top:12px"><table><thead><tr><th>กลุ่มสาระ/กลุ่มงาน</th><th class="num">ครู</th><th>หัวหน้ากลุ่มสาระฯ</th></tr></thead><tbody>' +
       LEARNING_AREAS.map(area => { const members = DB.teachers.filter(t => teacherArea(t) === area), heads = members.filter(t => teacherHasRole(t, 'head')).map(t => t.name || t.email);
         return '<tr><td><b>' + esc(area) + '</b></td><td class="num">' + members.length + '</td><td>' + (heads.length ? heads.map(n => '<span class="level-tag">' + esc(n) + '</span>').join(' ') : '<span class="hint">ยังไม่กำหนด</span>') + '</td></tr>'; }).join('') +
@@ -9872,13 +9893,13 @@ function adminSectionSchool(box) {
   const masterCount = (DB.studentMaster || []).filter(x => x.active !== false).length;
   const inClassCount = DB.classes.reduce((n, c) => n + (c.students || []).length, 0);
   const tile = (id, icon, title, value, hint, btn) => '<button class="quick-action" data-structure="' + id + '"><span style="font-size:17px">' + icon + '</span><b>' + esc(title) + ' • ' + value + '</b><span>' + esc(hint) + '</span><span style="color:var(--brand);font-weight:700;font-size:11.5px">' + esc(btn) + ' ›</span></button>';
-  box.innerHTML = '<div class="card"><div class="row"><div><h3 style="margin:0">โครงสร้างหลักของโรงเรียน</h3><div class="hint">ทุกหน้าจอในระบบอ้างอิงสามอย่างนี้ — แก้ที่นี่แล้วมีผลทั้งระบบ</div></div></div>' +
+  box.innerHTML = '<div class="card"><div class="row"><div><h3 style="margin:0">โครงสร้างหลักของโรงเรียน</h3><div class="hint tip">ทุกหน้าจอในระบบอ้างอิงสามอย่างนี้ — แก้ที่นี่แล้วมีผลทั้งระบบ</div></div></div>' +
       '<div class="quick-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:12px">' +
       tile('periods', '◷', 'ปี/ภาคเรียน', DB.periods.length, period ? 'กำลังใช้ ปี ' + period.academicYear + ' ภาค ' + period.semester : 'ยังไม่ได้เลือกปี/ภาคเรียน', 'จัดการปี/ภาคเรียน') +
       tile('classes', '▣', 'ชั้นเรียน', DB.classes.length, 'นักเรียนในห้องรวม ' + inClassCount + ' คน', 'จัดการชั้น/ห้อง') +
       tile('subjects', '☰', 'รายวิชา', DB.subjects.length, 'รหัสวิชาและระดับชั้นที่เปิดสอน', 'จัดการรายวิชา') +
       '</div></div>' +
-    '<div class="grid2"><div class="card"><div class="row"><div><h3 style="margin:0">ฐานข้อมูลนักเรียนกลาง</h3><div class="hint">รายชื่อกลางที่ทุกห้องดึงไปใช้ • ใช้เลขประจำตัวเป็นตัวจับคู่</div></div><div class="spacer"></div><span class="badge">' + masterCount + ' คน</span></div>' +
+    '<div class="grid2"><div class="card"><div class="row"><div><h3 style="margin:0">ฐานข้อมูลนักเรียนกลาง</h3><div class="hint tip">รายชื่อกลางที่ทุกห้องดึงไปใช้ • ใช้เลขประจำตัวเป็นตัวจับคู่</div></div><div class="spacer"></div><span class="badge">' + masterCount + ' คน</span></div>' +
       '<div class="row" style="margin-top:12px"><button class="primary" id="adminGoMaster">เปิดฐานข้อมูลนักเรียน</button><button id="adminGoClassList">รายชื่อรายห้อง</button><button id="adminGoAccounts">จัดการรหัสผ่านนักเรียน</button></div>' +
       (masterCount && inClassCount && masterCount !== inClassCount ? '<div class="notice" style="margin-top:10px">ยอดในฐานข้อมูลกลาง (' + masterCount + ') ไม่เท่ากับยอดรวมในห้อง (' + inClassCount + ') — ตรวจที่หน้าฐานข้อมูลนักเรียน</div>' : '') + '</div>' +
     '<div class="card"><h3>จำนวนนักเรียนรายห้อง</h3>' +
@@ -9902,7 +9923,7 @@ function adminSectionCalendar(box) {
   if (!period) { box.innerHTML = '<div class="card"><div class="empty">กรุณาเลือกปี/ภาคเรียนที่แถบด้านบนก่อน<br><span class="hint">ปฏิทินและตารางสอนแยกกันตามปี/ภาคเรียน</span></div></div>'; return; }
   const term = currentTerm(true), entries = (DB.timetable.entries || []).filter(e => e.periodId === period.id);
   const noSchedule = DB.teachers.filter(t => teacherHasRole(t, 'teacher') && !entries.some(e => e.teacherId === t.id));
-  box.innerHTML = '<div class="card"><div class="row"><div><h3 style="margin:0">ปฏิทินภาคเรียน <span class="sub">ปี ' + esc(period.academicYear) + ' • ภาค ' + esc(period.semester) + '</span></h3><div class="hint">ระบบใช้ช่วงวันนี้คำนวณจำนวนคาบทั้งภาค คาบค้างเช็กชื่อ และร้อยละเวลาเรียนใน ปพ.5</div></div><div class="spacer"></div><button id="adminSlotTimes">ตั้งเวลาคาบเรียน</button></div>' +
+  box.innerHTML = '<div class="card"><div class="row"><div><h3 style="margin:0">ปฏิทินภาคเรียน <span class="sub">ปี ' + esc(period.academicYear) + ' • ภาค ' + esc(period.semester) + '</span></h3><div class="hint tip">ระบบใช้ช่วงวันนี้คำนวณจำนวนคาบทั้งภาค คาบค้างเช็กชื่อ และร้อยละเวลาเรียนใน ปพ.5</div></div><div class="spacer"></div><button id="adminSlotTimes">ตั้งเวลาคาบเรียน</button></div>' +
       '<div class="grid2" style="margin-top:12px"><div class="pick"><label>วันเปิดภาคเรียน</label><input type="date" id="adminTermOpen" value="' + esc(term.openDate || '') + '"></div>' +
       '<div class="pick"><label>วันปิดภาคเรียน</label><input type="date" id="adminTermClose" value="' + esc(term.closeDate || '') + '"></div>' +
       '<div class="pick"><label>เวลาเรียนขั้นต่ำที่ผ่านเกณฑ์ (%)</label><input type="number" min="0" max="100" id="adminTermMin" value="' + esc(term.minAttendance == null ? 80 : term.minAttendance) + '"></div>' +
@@ -9911,7 +9932,7 @@ function adminSectionCalendar(box) {
       termLockAdminHtml(period) + '</div>' +
     '<div class="card" id="adminHolidayBox"></div>' +
     '<div class="card" id="adminDayShiftBox"></div>' +
-    '<div class="card"><div class="row"><div><h3 style="margin:0">ตารางสอนทั้งโรงเรียน</h3><div class="hint">หนึ่งแถวต่อหนึ่งคาบ • ตรวจครูสอนซ้อน ห้องซ้อน และข้อมูลอ้างอิงก่อนบันทึกจริง</div></div><div class="spacer"></div><button id="adminTimetableTemplate">ดาวน์โหลดแม่แบบ</button><button class="primary" id="adminTimetableImport">นำเข้า Excel หลายครู</button><button id="adminGoSchedule">เปิดตารางสอน</button></div>' +
+    '<div class="card"><div class="row"><div><h3 style="margin:0">ตารางสอนทั้งโรงเรียน</h3><div class="hint tip">หนึ่งแถวต่อหนึ่งคาบ • ตรวจครูสอนซ้อน ห้องซ้อน และข้อมูลอ้างอิงก่อนบันทึกจริง</div></div><div class="spacer"></div><button id="adminTimetableTemplate">ดาวน์โหลดแม่แบบ</button><button class="primary" id="adminTimetableImport">นำเข้า Excel หลายครู</button><button id="adminGoSchedule">เปิดตารางสอน</button></div>' +
       '<div class="row" style="margin-top:12px"><div><b>คาบ HomeRoom เข้าแถวเช้า</b>' +
       '<div class="hint">สร้างคาบเข้าแถวเช้า จันทร์–ศุกร์ ให้ครูที่ปรึกษาทุกห้อง สถานที่ “' + esc(HOMEROOM_PLACE) + '” ' +
       'ครูที่ปรึกษาเช็กชื่อตอนเช้าครั้งเดียว คาบต่อ ๆ ไปของห้องนั้นจะรับช่วงสถานะไปเอง • คาบนี้ไม่นับเป็นคาบสอน</div></div>' +
@@ -10026,7 +10047,7 @@ function adminSectionDocuments(box) {
       '<div class="pick" style="margin-top:8px"><label>อำเภอ/จังหวัด</label><input id="setLocation" value="' + esc(s.schoolLocation || '') + '" placeholder="อำเภอ... จังหวัด..." style="width:100%"></div>' +
       '<div class="pick" style="margin-top:8px"><label>สำนักงานเขตพื้นที่การศึกษา</label><input id="setOffice" value="' + esc(s.educationOffice || '') + '" style="width:100%"></div>' +
       '<div class="row" style="margin-top:12px"><div style="width:90px;text-align:center">' + (s.logoData ? '<img class="school-logo" src="' + s.logoData + '" alt="ตราโรงเรียน">' : '<div class="empty" style="padding:12px 4px">ยังไม่มีตรา</div>') + '</div>' +
-      '<div><input type="file" id="setLogo" accept="image/png,image/jpeg,image/webp"><div class="hint">ระบบย่อรูปไม่เกิน 600 พิกเซล และตัดพื้นหลังสีขาวรอบตราออกให้โปร่งใสอัตโนมัติ</div>' +
+      '<div><input type="file" id="setLogo" accept="image/png,image/jpeg,image/webp"><div class="hint tip">ระบบย่อรูปไม่เกิน 600 พิกเซล และตัดพื้นหลังสีขาวรอบตราออกให้โปร่งใสอัตโนมัติ</div>' +
       '<button class="sm" id="clearLogoBg"' + (s.logoData ? '' : ' disabled') + '>ตัดพื้นขาวออก</button> <button class="sm danger" id="removeLogo"' + (s.logoData ? '' : ' disabled') + '>เอาตราออก</button></div></div></div>' +
     '<div class="card"><h3>หัวเอกสารและข้อมูลเพิ่มเติม</h3><div class="pick"><label>ชื่อแบบเอกสาร</label><input id="setPrintTitle" value="' + esc(s.printTitle || '') + '" style="width:100%"></div>' +
       '<div class="pick" style="margin-top:8px"><label>ข้อมูลเพิ่มเติมใต้หัวเอกสาร</label><textarea id="setExtra" rows="5" style="width:100%">' + esc(s.printExtraInfo || '') + '</textarea></div>' +
@@ -10039,7 +10060,7 @@ function adminSectionDocuments(box) {
       '<div class="pick"><label>ตำแหน่งผู้อำนวยการ</label><input id="setDirectorPosition" value="' + esc(s.directorPosition || '') + '"></div></div>' +
       '<div class="notice" style="margin-top:10px">แบบพิมพ์จะเว้นเส้นสำหรับลายเซ็น และนำชื่อ/ตำแหน่งเหล่านี้ไปวางตามโครงเอกสาร PDF ที่แนบ</div></div>' +
     memoStyleCardHtml() +
-    '<div class="card"><div class="row"><div class="hint">ข้อมูลชุดนี้ใช้กับแบบพิมพ์ ปพ.5 ของครูทุกคนในโรงเรียน</div><div class="spacer"></div><button class="primary" id="settingsSave">บันทึกข้อมูลโรงเรียน</button></div></div>';
+    '<div class="card"><div class="row"><div class="hint tip">ข้อมูลชุดนี้ใช้กับแบบพิมพ์ ปพ.5 ของครูทุกคนในโรงเรียน</div><div class="spacer"></div><button class="primary" id="settingsSave">บันทึกข้อมูลโรงเรียน</button></div></div>';
 
   $('#settingsSave', box).addEventListener('click', () => {
     s.schoolName = $('#setSchool', box).value.trim(); s.schoolLocation = $('#setLocation', box).value.trim(); s.educationOffice = $('#setOffice', box).value.trim();
@@ -10199,7 +10220,7 @@ function renderSettings() {
   const pane = $('#pane-settings'), teacher = curTeacher();
   const teacherOpts = '<option value="">— เลือกโปรไฟล์ครู —</option>' + DB.teachers.map(t => '<option value="' + t.id + '"' + (teacher && t.id === teacher.id ? ' selected' : '') + '>' + esc(t.name || t.email || 'ยังไม่ระบุชื่อ') + '</option>').join('');
   const homeroomOpts = '<option value="">— ไม่ได้เป็นครูที่ปรึกษา —</option>' + sortedClassList(DB.classes).map(c => { const count = DB.teachers.filter(t => t.id !== (teacher || {}).id && t.homeroomClassId === c.id).length; return '<option value="' + c.id + '"' + (teacher && teacher.homeroomClassId === c.id ? ' selected' : '') + (count >= 2 ? ' disabled' : '') + '>' + esc(c.name) + ' (' + (count + (teacher && teacher.homeroomClassId === c.id ? 1 : 0)) + '/2)</option>'; }).join('');
-  pane.innerHTML = '<div class="card"><div class="row"><div><h3 style="margin:0">โปรไฟล์ครูและห้อง HomeRoom</h3><div class="hint">ห้องหนึ่งมีครูที่ปรึกษาได้ 1–2 คน ระบบใช้โปรไฟล์ระบุผู้บันทึกเวลาเรียน</div></div><div class="spacer"></div><button id="teacherTemplate">แม่แบบ Excel</button><button id="importTeacherProfile">นำเข้าครู</button><button id="addTeacherProfile">+ เพิ่มโปรไฟล์ครู</button><button class="danger" id="deleteTeacherProfile"' + (teacher ? '' : ' disabled') + '>ลบโปรไฟล์</button></div>' +
+  pane.innerHTML = '<div class="card"><div class="row"><div><h3 style="margin:0">โปรไฟล์ครูและห้อง HomeRoom</h3><div class="hint tip">ห้องหนึ่งมีครูที่ปรึกษาได้ 1–2 คน ระบบใช้โปรไฟล์ระบุผู้บันทึกเวลาเรียน</div></div><div class="spacer"></div><button id="teacherTemplate">แม่แบบ Excel</button><button id="importTeacherProfile">นำเข้าครู</button><button id="addTeacherProfile">+ เพิ่มโปรไฟล์ครู</button><button class="danger" id="deleteTeacherProfile"' + (teacher ? '' : ' disabled') + '>ลบโปรไฟล์</button></div>' +
       '<div class="grid2" style="margin-top:12px"><div class="pick"><label>ผู้ใช้งานปัจจุบัน</label><select id="setTeacherProfile">' + teacherOpts + '</select></div>' +
       '<div class="pick"><label>ชื่อครู</label><input id="setTeacherName" value="' + esc(teacher ? teacher.name || '' : '') + '"' + (teacher ? '' : ' disabled') + '></div>' +
       '<div class="pick"><label>อีเมลครู</label><input id="setTeacherEmail" type="email" value="' + esc(teacher ? teacher.email || '' : '') + '"' + (teacher ? '' : ' disabled') + '></div>' +
@@ -10207,7 +10228,7 @@ function renderSettings() {
       '<div class="pick"><label>กลุ่มสาระ/กลุ่มงาน</label><select id="setTeacherArea"' + (teacher ? '' : ' disabled') + '>' + learningAreaOptions(teacher ? teacher.learningArea : '') + '</select></div>' +
       '<div class="pick"><label>ห้องที่ปรึกษา / HomeRoom ของฉัน</label><select id="setTeacherHomeroom"' + (teacher ? '' : ' disabled') + '>' + homeroomOpts + '</select></div></div>' +
       '<div class="row" style="margin-top:12px"><button id="settingsCourse"' + (ready() ? '' : ' disabled') + '>ข้อมูลรายวิชา ปพ.5</button><div class="spacer"></div><button class="primary" id="settingsSaveProfile">บันทึกโปรไฟล์</button></div></div>' +
-    '<div class="card"><div class="row"><div><h3 style="margin:0">ข้อมูลของโรงเรียน</h3><div class="hint">ชื่อและตราโรงเรียน หัวเอกสาร ปพ.5 และรายชื่อผู้ลงนาม ย้ายไปอยู่ที่คอนโซลผู้ดูแลระบบแล้ว เพื่อให้ทั้งโรงเรียนใช้ชุดเดียวกัน</div></div><div class="spacer"></div><button id="settingsGoDocs">ไปที่เอกสารและอัตลักษณ์</button></div></div>';
+    '<div class="card"><div class="row"><div><h3 style="margin:0">ข้อมูลของโรงเรียน</h3><div class="hint tip">ชื่อและตราโรงเรียน หัวเอกสาร ปพ.5 และรายชื่อผู้ลงนาม ย้ายไปอยู่ที่คอนโซลผู้ดูแลระบบแล้ว เพื่อให้ทั้งโรงเรียนใช้ชุดเดียวกัน</div></div><div class="spacer"></div><button id="settingsGoDocs">ไปที่เอกสารและอัตลักษณ์</button></div></div>';
 
   $('#settingsSaveProfile').addEventListener('click', () => {
     const activeTeacher = curTeacher();
@@ -10355,7 +10376,7 @@ function renderActivities() {
   const impact = activityImpact({ date: draft.date, slotIds: draft.slotIds, students: draft.students });
 
   pane.innerHTML = '<div class="card dash-hero"><div class="row"><div><div class="hero-sub">STUDENT ACTIVITY</div><h1>ขออนุญาตนำนักเรียนทำกิจกรรม</h1>' +
-      '<div class="hero-sub">พิมพ์เลขประจำตัวเพื่อเลือกนักเรียน • ระบบจะขึ้นสถานะ “กิจกรรม” ให้ครูที่สอนคาบนั้นอัตโนมัติ</div></div>' +
+      '<div class="hero-sub tip">พิมพ์เลขประจำตัวเพื่อเลือกนักเรียน • ระบบจะขึ้นสถานะ “กิจกรรม” ให้ครูที่สอนคาบนั้นอัตโนมัติ</div></div>' +
       '<div class="spacer"></div><span class="role-chip">' + esc((me || {}).name || 'ครู') + '</span></div></div>' +
     '<div class="exchange-layout"><div><div class="card"><h3>1. รายละเอียดกิจกรรม</h3>' +
       '<div class="pick"><label>ชื่อกิจกรรม</label><input id="actName" value="' + esc(draft.name) + '" placeholder="เช่น แข่งขันตอบปัญหาวิทยาศาสตร์" style="width:100%"></div>' +
@@ -10367,7 +10388,7 @@ function renderActivities() {
       '<div class="card"><h3>2. เลือกนักเรียนด้วยเลขประจำตัว</h3>' +
       '<div class="row"><input id="actSid" placeholder="พิมพ์เลขประจำตัว แล้วกด Enter (วางหลายคนพร้อมกันได้)" style="flex:1;min-width:220px">' +
       '<button class="primary" id="actAdd">เพิ่ม</button></div>' +
-      '<div class="hint" style="margin-top:6px">วางเลขประจำตัวหลายคนคั่นด้วยเว้นวรรค จุลภาค หรือขึ้นบรรทัดใหม่ได้</div>' +
+      '<div class="hint tip" style="margin-top:6px">วางเลขประจำตัวหลายคนคั่นด้วยเว้นวรรค จุลภาค หรือขึ้นบรรทัดใหม่ได้</div>' +
       '<div id="actStudents" style="margin-top:12px">' + (draft.students.length
         ? '<div class="tablewrap" style="max-height:300px"><table><thead><tr><th>เลขประจำตัว</th><th>ชื่อ-นามสกุล</th><th>ชั้น</th><th></th></tr></thead><tbody>' +
           draft.students.map(st => '<tr><td>' + esc(st.sid) + '</td><td><b>' + esc(st.name) + '</b></td><td>' + esc(st.className || '—') + '</td>' +
@@ -10379,7 +10400,7 @@ function renderActivities() {
       (impact.length ? '<div class="tablewrap"><table><thead><tr><th>คาบ</th><th>วิชา</th><th>ครู</th><th>นักเรียน</th></tr></thead><tbody>' +
         impact.map(r => '<tr><td>' + esc(r.slot) + '</td><td>' + esc(r.subject) + '<br><span class="hint">' + esc(r.className) + '</span></td><td>' + esc(r.teacher) + '</td><td>' + r.count + ' คน</td></tr>').join('') +
         '</tbody></table></div>' : '<div class="empty">เลือกวันที่ คาบ และนักเรียนก่อน</div>') +
-      '<div class="hint" style="margin-top:8px">ครูเจ้าของคาบจะเห็นนักเรียนเหล่านี้ขึ้นสถานะ “กิจกรรม” ให้อัตโนมัติเมื่อเปิดเช็กชื่อ</div></div>' +
+      '<div class="hint tip" style="margin-top:8px">ครูเจ้าของคาบจะเห็นนักเรียนเหล่านี้ขึ้นสถานะ “กิจกรรม” ให้อัตโนมัติเมื่อเปิดเช็กชื่อ</div></div>' +
       '<div class="card"><h3>กิจกรรมที่บันทึกไว้</h3>' + (list.length ? '<div class="alert-list">' + list.slice(0, 20).map(a => {
         const owner = DB.teachers.find(t => t.id === a.teacherId);
         return '<div class="alert-item"><div><b>' + esc(a.name) + '</b><div class="hint">' + esc(thaiDate(a.date)) + ' • ' +
@@ -10617,7 +10638,7 @@ function renderAuditCard() {
   const box = $('#adminAuditBox'); if (!box) return;
   const list = (DB.auditLog || []).slice().reverse();
   box.innerHTML = '<div class="row"><div><h3 style="margin:0">ประวัติการลบคำขอ</h3>' +
-      '<div class="hint">บันทึกทุกครั้งที่มีการลบคำขอแลกคาบ สอนแทน หรือใบลา • เก็บไว้ล่าสุด 500 รายการ</div></div>' +
+      '<div class="hint tip">บันทึกทุกครั้งที่มีการลบคำขอแลกคาบ สอนแทน หรือใบลา • เก็บไว้ล่าสุด 500 รายการ</div></div>' +
       '<div class="spacer"></div><span class="badge">' + list.length + ' รายการ</span>' +
       (list.length ? '<button class="sm" id="auditExport">ส่งออกเป็นไฟล์ CSV</button>' : '') + '</div>' +
     (list.length ? '<div class="tablewrap" style="margin-top:12px;max-height:340px"><table><thead><tr><th>วันเวลา</th><th>ผู้ลบ</th><th>รายการ</th><th>รายละเอียดและเหตุผล</th></tr></thead><tbody>' +
@@ -10859,7 +10880,7 @@ function renderMaintainCard() {
   if (mismatch) {
     // ห้ามล้างตอนรหัสยังไม่ตรง เพราะใบลาจริงจะดูเหมือนไม่มีเจ้าของแล้วโดนลบทิ้ง
     box.innerHTML = '<div class="row"><div><h3 style="margin:0">รหัสครูไม่ตรงกับข้อมูลในเครื่องนี้</h3>' +
-      '<div class="hint">ข้อมูลบางส่วนอ้างถึงรหัสครูที่ไม่มีในเครื่องนี้ ตารางสอนจึงไม่ขึ้นให้ครูเห็น และใบลาขึ้นว่าไม่พบครู</div></div>' +
+      '<div class="hint tip">ข้อมูลบางส่วนอ้างถึงรหัสครูที่ไม่มีในเครื่องนี้ ตารางสอนจึงไม่ขึ้นให้ครูเห็น และใบลาขึ้นว่าไม่พบครู</div></div>' +
       '<div class="spacer"></div><button class="primary" id="adminFixTeacherIds">ซ่อมรหัสครู</button></div>' +
       '<div class="exec-sum" style="margin-top:12px"><span>ตารางสอน <b>' + mm.entries + '</b> คาบ</span>' +
       '<span>ใบลา <b>' + mm.leaves + '</b> ใบ</span><span>คำขอแลกคาบ <b>' + mm.swaps + '</b> รายการ</span></div>' +
@@ -10876,7 +10897,7 @@ function renderMaintainCard() {
     return;
   }
   box.innerHTML = '<div class="row"><div><h3 style="margin:0">ดูแลความสะอาดของข้อมูล</h3>' +
-    '<div class="hint">ใบลาและคำขอสอนแทนที่อ้างถึงครูซึ่งไม่มีในระบบแล้ว มักเป็นข้อมูลทดสอบที่ค้างอยู่ ระบบซ่อนไว้ไม่ให้กวนสถิติ แต่ยังอยู่ในเครื่อง</div></div>' +
+    '<div class="hint tip">ใบลาและคำขอสอนแทนที่อ้างถึงครูซึ่งไม่มีในระบบแล้ว มักเป็นข้อมูลทดสอบที่ค้างอยู่ ระบบซ่อนไว้ไม่ให้กวนสถิติ แต่ยังอยู่ในเครื่อง</div></div>' +
     '<div class="spacer"></div><span class="badge ' + (total ? 'warn' : 'ok') + '">' + total + ' รายการ</span>' +
     (total ? '<button class="danger" id="adminPurgeOrphan">ล้างข้อมูลที่ไม่มีเจ้าของ</button>' : '') + '</div>' +
     (total ? '<div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>ประเภท</th><th>รหัสครูที่อ้างถึง</th><th>ช่วงวันที่</th><th class="numcell">คาบ</th></tr></thead><tbody>' +
@@ -12491,6 +12512,7 @@ if (pendingTeacherIdFix) { const r = normalizeTeacherIds(); applyStoredTeacherId
    คำนวณคืนจากคำขอที่ตอบรับแล้วตั้งแต่เปิดแอป ก่อนที่ครูจะเห็นตารางผิด */
 if (rebuildExchangeExceptions()) save(true);
 applyTheme(DB.settings.theme || 'light');
+applyProMode();
 renderStorageWarn();
 enableRightDragScroll();
 
@@ -12512,6 +12534,7 @@ $('#btnAlerts').addEventListener('click', () => { setTab('dashboard'); setTimeou
 $('#btnStaffLogout').addEventListener('click', staffLogout);
 $('#btnSearch').addEventListener('click', openStudentSearch);
 $('#btnTheme').addEventListener('click', toggleTheme);
+$('#btnProMode').addEventListener('click', toggleProMode);
 $('#btnFullscreen').addEventListener('click', toggleFullscreen);
 document.addEventListener('fullscreenchange', updateFullscreenButton);
 $$('#tabs button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
@@ -12557,7 +12580,7 @@ function showIOSInstallHelp() {
       '<li>กดปุ่ม <b>แชร์</b> (รูปสี่เหลี่ยมมีลูกศรขึ้น) ที่แถบล่างหรือมุมขวาบนของ Safari</li>' +
       '<li>เลื่อนหาแล้วกด <b>เพิ่มไปยังหน้าจอโฮม</b> (Add to Home Screen)</li>' +
       '<li>กด <b>เพิ่ม</b> มุมขวาบน จะได้ไอคอน “KruSpace” บนหน้าจอ</li></ol>' +
-      '<div class="hint" style="margin-top:12px">ต้องเปิดด้วย Safari เท่านั้น ถ้าเปิดจาก Chrome บน iOS จะไม่มีเมนูนี้</div>' });
+      '<div class="hint tip" style="margin-top:12px">ต้องเปิดด้วย Safari เท่านั้น ถ้าเปิดจาก Chrome บน iOS จะไม่มีเมนูนี้</div>' });
 }
 
 async function installApp() {
