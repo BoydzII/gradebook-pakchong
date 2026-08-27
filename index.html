@@ -965,16 +965,24 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
 .stat-table td.lt{text-align:left}
 .memo-head{--emblem:62px;display:flex;align-items:center;gap:14px;margin-bottom:10px}
 .memo-head img{flex:0 0 var(--emblem);width:var(--emblem);height:auto}
-.memo-head h2{flex:1;text-align:center;margin:0;font-size:29pt;line-height:35pt;font-weight:700}
+.memo-head h2{flex:1;text-align:center;margin:0;font-size:var(--memo-title,29pt);line-height:var(--memo-title-line,35pt);font-weight:var(--memo-title-weight,700)}
 .memo-head::after{content:'';flex:0 0 var(--emblem)}
 /* บันทึกข้อความยึดตามหนังสือสำนักนายกรัฐมนตรี ที่ นร 0106/ว 2011 ลว. 13 พ.ย. 2553
    (คำอธิบายการพิมพ์หนังสือราชการภาษาไทยด้วยโปรแกรมการพิมพ์ในเครื่องคอมพิวเตอร์)
    ข้อ 3.2.1.1 คำว่า "บันทึกข้อความ" ตัวหนา 29pt ระยะบรรทัดคงที่ 35pt
    ข้อ 3.2.1.2 คำว่า ส่วนราชการ/ที่/วันที่/เรื่อง ตัวหนา 20pt
    ส่วนคำว่า "เรียน" และเนื้อความเป็นตัวปกติ 16pt ตามแบบท้ายระเบียบ */
-.memo-sheet{font-size:16pt;line-height:1.25}
-.memo-sheet .doc-line b{font-size:20pt}
-.memo-sheet .doc-line b.thin{font-size:16pt;font-weight:400}
+/* ทุกขนาดผูกกับตัวแปร CSS ที่ exchangeMemoHtml ใส่มากับตัวเอกสาร ครูจึงปรับเองได้
+   ที่หน้าตั้งค่า ค่าที่เขียนไว้ท้าย var() คือค่ามาตรฐานตาม ว 2011 ใช้เมื่อยังไม่เคยตั้ง */
+.memo-sheet{padding:1.5cm var(--memo-mr,2cm) 2cm var(--memo-ml,3cm);font-size:var(--memo-body,16pt);font-weight:var(--memo-body-weight,400);line-height:var(--memo-line,1.2)}
+.memo-sheet .doc-line b{font-size:var(--memo-label,20pt);font-weight:var(--memo-label-weight,700)}
+.memo-sheet .doc-line b.thin{font-size:var(--memo-lead,16pt);font-weight:var(--memo-lead-weight,400)}
+/* ครุฑกำหนดเป็นความสูง ส่วนความกว้างคิดจากสัดส่วนภาพ 251x275 จุด */
+.memo-sheet .memo-head{--emblem:calc(var(--memo-emblem,1.5cm) * .913)}
+.memo-sheet .memo-head img{height:var(--memo-emblem,1.5cm);width:auto}
+.memo-sheet .memo-table{font-size:var(--memo-table,11pt)}
+.memo-sheet .memo-table .memo-sub{font-size:calc(var(--memo-table,11pt) * .77)}
+.memo-sheet .memo-opinion{font-size:var(--memo-opinion,12pt)}
 /* พอเนื้อความเป็น 16pt ตามมาตรฐาน บรรทัดของแบบฟอร์มบางบรรทัดยาวเกินหน้ากระดาษ
    min-width:min-content กันไม่ให้ช่องเติมหดจนตัวหนังสือล้นไปทับคำข้างเคียง
    แล้วปล่อยให้ตกบรรทัดแทน ซึ่งอ่านง่ายกว่าตัวหนังสือซ้อนกัน */
@@ -1071,24 +1079,25 @@ body.print-scores.print-preview .score-sheet{max-width:820px;margin:18px auto 96
   body.print-doc .memo-dense .memo-table th,body.print-doc .memo-dense .memo-table td{padding:1px 2px;height:16px}
   body.print-doc .memo-dense.form-sheet{line-height:1.45}
   body.print-doc .memo-opinion{font-size:11px}
-  body.print-doc .memo-head h2{font-size:29pt;line-height:35pt}
-  body.print-doc .memo-head{--emblem:1.37cm;margin-bottom:2px}
+  body.print-doc .memo-head h2{font-size:var(--memo-title,29pt);line-height:var(--memo-title-line,35pt)}
+  body.print-doc .memo-head{--emblem:calc(var(--memo-emblem,1.5cm) * .913);margin-bottom:2px}
   /* ข้อ 2.1 ตราครุฑบนกระดาษบันทึกข้อความสูง 1.5 ซม. ข้อ 2.2 ห่างขอบบน 1.5 ซม.
      (ระยะห่างมาจาก margin-top ของ @page memoSheet เพราะครุฑเป็นสิ่งแรกในหน้า) */
-  body.print-doc .memo-head img{height:1.5cm;width:auto}
+  body.print-doc .memo-head img{height:var(--memo-emblem,1.5cm);width:auto}
   /* ข้อ 1.1 ขอบซ้าย 3 ซม. ขอบขวา 2 ซม. — แยกหน้ากระดาษของบันทึกข้อความออกมา
      เพื่อไม่ให้ไปเปลี่ยนระยะขอบของใบลาและเอกสารอื่นที่ใช้ @page docSheet ร่วมกัน */
-  body.print-doc .memo-sheet{page:memoSheet;font-size:16pt;line-height:1.2}
+  body.print-doc .memo-sheet{page:memoSheet;padding:0 var(--memo-mr,2cm) 0 var(--memo-ml,3cm);font-size:var(--memo-body,16pt);line-height:var(--memo-line,1.2)}
   /* ข้อ 3.4 หนังสือแบบอื่นให้อนุโลมตามนัยข้างต้น ตารางแลกคาบกับกล่องความเห็น
      จึงย่อได้ เพื่อให้ทั้งฉบับยังลง A4 หน้าเดียวเมื่อเนื้อความเป็น 16pt */
-  body.print-doc .memo-sheet .memo-table{font-size:11pt}
+  body.print-doc .memo-sheet .memo-table{font-size:var(--memo-table,11pt)}
   body.print-doc .memo-sheet .memo-table th,body.print-doc .memo-sheet .memo-table td{height:18px;padding:1px 3px}
-  body.print-doc .memo-sheet .memo-table .memo-sub{font-size:8.5pt}
-  body.print-doc .memo-sheet .memo-opinion{font-size:12pt}
+  body.print-doc .memo-sheet .memo-table .memo-sub{font-size:calc(var(--memo-table,11pt) * .77)}
+  body.print-doc .memo-sheet .memo-opinion{font-size:var(--memo-opinion,12pt)}
   body.print-doc .memo-sheet .memo-opinion td{padding:5px 7px}
   body.print-doc .memo-sheet .dotted-line{min-height:1.2em}
-  body.print-doc .memo-dense .memo-table{font-size:9pt}
-  @page memoSheet{size:A4 portrait;margin:1.5cm 2cm 2cm 3cm}
+  body.print-doc .memo-dense .memo-table{font-size:calc(var(--memo-table,11pt) * .82)}
+  /* ขอบซ้าย/ขวาไปอยู่ที่ padding ของตัวเอกสารแทน เพราะ @page อ่านตัวแปร CSS ไม่ได้ */
+  @page memoSheet{size:A4 portrait;margin:1.5cm 0 2cm 0}
   body.print-doc .dotted-line{min-height:1.4em}
   @page docSheet{size:A4 portrait;margin:15mm}
   .stickytop,.topbar,.tabs,.noprint{display:none !important}
@@ -4604,6 +4613,41 @@ function leaveDocumentHtml(leave) {
     '</div></div>';
 }
 
+/* รูปแบบตัวอักษรของบันทึกข้อความ ค่าเริ่มต้นตามหนังสือสำนักนายกรัฐมนตรี
+   ที่ นร 0106/ว 2011 ลว. 13 พ.ย. 2553 ข้อ 1.1, 1.2, 2.1 และ 3.2.1
+   ท้ายหนังสือมีหมายเหตุให้ส่วนราชการปรับได้ตามความเหมาะสม จึงเปิดให้ตั้งค่าเอง
+   หน่วย: ขนาดตัวอักษรเป็นพอยท์ ระยะขอบและตราครุฑเป็นเซนติเมตร */
+const MEMO_STYLE_DEFAULT = {
+  title: 29, titleWeight: 700, titleLine: 35,
+  label: 20, labelWeight: 700,
+  lead: 16, leadWeight: 400,
+  body: 16, bodyWeight: 400, line: 1.2,
+  table: 11, opinion: 12,
+  emblem: 1.5, marginLeft: 3, marginRight: 2
+};
+const MEMO_WEIGHTS = [[400, 'ปกติ'], [500, 'กึ่งหนา'], [600, 'หนาปานกลาง'], [700, 'หนา'], [800, 'หนาพิเศษ']];
+
+/** ค่ารูปแบบที่ใช้จริง — บังคับเป็นตัวเลขบวกทุกตัว ค่าที่เพี้ยนมาจากการซิงก์จะตกกลับไปใช้ค่ามาตรฐาน */
+function memoStyle() {
+  const raw = DB.settings.memoStyle || {}, out = {};
+  Object.keys(MEMO_STYLE_DEFAULT).forEach(k => {
+    const v = Number(raw[k]);
+    out[k] = isFinite(v) && v > 0 ? v : MEMO_STYLE_DEFAULT[k];
+  });
+  return out;
+}
+
+/** ส่งค่ารูปแบบเข้าเอกสารเป็นตัวแปร CSS เพื่อให้กฎใน stylesheet ใช้ค่าเดียวกันทั้งบนจอและตอนพิมพ์ */
+function memoStyleVars() {
+  const m = memoStyle();
+  return '--memo-title:' + m.title + 'pt;--memo-title-line:' + m.titleLine + 'pt;--memo-title-weight:' + m.titleWeight +
+    ';--memo-label:' + m.label + 'pt;--memo-label-weight:' + m.labelWeight +
+    ';--memo-lead:' + m.lead + 'pt;--memo-lead-weight:' + m.leadWeight +
+    ';--memo-body:' + m.body + 'pt;--memo-body-weight:' + m.bodyWeight + ';--memo-line:' + m.line +
+    ';--memo-table:' + m.table + 'pt;--memo-opinion:' + m.opinion + 'pt' +
+    ';--memo-emblem:' + m.emblem + 'cm;--memo-ml:' + m.marginLeft + 'cm;--memo-mr:' + m.marginRight + 'cm';
+}
+
 /* ตราครุฑสำหรับหัวบันทึกข้อความ — หนังสือราชการใช้ตราครุฑ ไม่ใช่ตราโรงเรียน
    ฝังเป็นรูปในไฟล์ไปเลย เพราะเอกสารต้องพิมพ์ได้แม้ไม่มีอินเทอร์เน็ต
    และโรงเรียนไม่ต้องไปอัปโหลดตราครุฑเพิ่มเองในหน้าตั้งค่า */
@@ -4664,7 +4708,7 @@ function exchangeMemoHtml(requests, leave) {
   const blanks = Array.from({ length: Math.max(0, 5 - list.length) }, () =>
     '<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('');
 
-  return '<div class="doc-sheet form-sheet memo-sheet' + (list.length > 8 ? ' memo-dense' : '') + '">' +
+  return '<div class="doc-sheet form-sheet memo-sheet' + (list.length > 8 ? ' memo-dense' : '') + '" style="' + memoStyleVars() + '">' +
     '<div class="memo-head"><img src="' + GARUDA_EMBLEM + '" alt="ตราครุฑ"><h2>บันทึกข้อความ</h2></div>' +
     '<div class="doc-line doc-flow"><b class="nw">ส่วนราชการ</b>' + nowrap('กลุ่มสาระการเรียนรู้') + flow(teacherArea(requester), 1) + nowrap(schoolFullName()) + '</div>' +
     '<div class="doc-line doc-flow"><b class="nw">ที่</b>' + nowrap('วก') + flow('', 1) +
@@ -9696,6 +9740,48 @@ function adminSectionCalendar(box) {
 
 /* ---- ④ เอกสารและอัตลักษณ์ ------------------------------------------------
    ย้ายมาจากหน้า “ตั้งค่า” ทั้งชุด เพราะเป็นข้อมูลของโรงเรียน ไม่ใช่ของครูรายคน */
+/** ช่องกรอกตัวเลขของรูปแบบบันทึกข้อความ พร้อมบอกค่ามาตรฐานกำกับไว้ใต้ช่อง */
+function memoNumField(id, label, value, step, hint) {
+  return '<div class="pick"><label>' + label + '</label>' +
+    '<input type="number" id="' + id + '" value="' + value + '" step="' + step + '" min="0.1">' +
+    '<div class="hint">' + hint + '</div></div>';
+}
+function memoWeightField(id, label, value) {
+  return '<div class="pick"><label>' + label + '</label><select id="' + id + '">' +
+    MEMO_WEIGHTS.map(w => '<option value="' + w[0] + '"' + (Number(value) === w[0] ? ' selected' : '') + '>' +
+      w[1] + ' (' + w[0] + ')</option>').join('') + '</select></div>';
+}
+
+/** การ์ดตั้งค่ารูปแบบการพิมพ์บันทึกข้อความแลกคาบ */
+function memoStyleCardHtml() {
+  const m = memoStyle();
+  return '<div class="card" style="grid-column:1/-1"><h3>รูปแบบการพิมพ์บันทึกข้อความแลกคาบ</h3>' +
+    '<div class="notice">ค่าเริ่มต้นเป็นไปตามหนังสือสำนักนายกรัฐมนตรี ที่ นร 0106/ว 2011 ' +
+      'ลงวันที่ 13 พฤศจิกายน 2553 (คำอธิบายการพิมพ์หนังสือราชการภาษาไทยด้วยโปรแกรมการพิมพ์ในเครื่องคอมพิวเตอร์) ' +
+      'ท้ายหนังสือมีหมายเหตุให้ส่วนราชการปรับให้ต่างจากนี้ได้ตามความเหมาะสม จึงปรับได้ที่นี่ ' +
+      'ยิ่งตัวอักษรใหญ่ เอกสารยิ่งกินที่ ถ้าคำขอเกินราว 6 คาบอาจขึ้นหน้าที่สอง</div>' +
+    /* การ์ดนี้มีช่องเยอะ จึงจัดเป็นคอลัมน์อัตโนมัติเฉพาะที่นี่ ไม่ไปแตะ .grid2 ที่การ์ดอื่นใช้ร่วมกัน */
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin-top:10px">' +
+      memoNumField('memoTitle', 'ขนาดหัว “บันทึกข้อความ”', m.title, 1, 'พอยท์ • มาตรฐาน 29') +
+      memoWeightField('memoTitleWeight', 'ความหนาหัว “บันทึกข้อความ”', m.titleWeight) +
+      memoNumField('memoTitleLine', 'ระยะบรรทัดของหัวเรื่อง', m.titleLine, 1, 'พอยท์ • มาตรฐาน 35 (ค่าแน่นอน)') +
+      memoNumField('memoEmblem', 'ความสูงตราครุฑ', m.emblem, 0.1, 'เซนติเมตร • มาตรฐาน 1.5') +
+      memoNumField('memoLabel', 'ขนาดคำนำหน้า (ส่วนราชการ/ที่/วันที่/เรื่อง)', m.label, 1, 'พอยท์ • มาตรฐาน 20') +
+      memoWeightField('memoLabelWeight', 'ความหนาคำนำหน้า', m.labelWeight) +
+      memoNumField('memoLead', 'ขนาดคำว่า “เรียน”', m.lead, 1, 'พอยท์ • มาตรฐาน 16') +
+      memoWeightField('memoLeadWeight', 'ความหนาคำว่า “เรียน”', m.leadWeight) +
+      memoNumField('memoBody', 'ขนาดเนื้อความ', m.body, 1, 'พอยท์ • มาตรฐาน 16') +
+      memoWeightField('memoBodyWeight', 'ความหนาเนื้อความ', m.bodyWeight) +
+      memoNumField('memoLine', 'ระยะบรรทัดเนื้อความ', m.line, 0.05, 'เท่าของขนาดตัวอักษร • 1.2 ใกล้เคียง Single') +
+      memoNumField('memoTable', 'ขนาดตัวอักษรในตารางแลกคาบ', m.table, 0.5, 'พอยท์ • คำขอเกิน 8 คาบจะย่อลงอีกอัตโนมัติ') +
+      memoNumField('memoOpinion', 'ขนาดตัวอักษรในกล่องความเห็น', m.opinion, 0.5, 'พอยท์') +
+      memoNumField('memoMarginLeft', 'ขอบซ้าย', m.marginLeft, 0.1, 'เซนติเมตร • มาตรฐาน 3') +
+      memoNumField('memoMarginRight', 'ขอบขวา', m.marginRight, 0.1, 'เซนติเมตร • มาตรฐาน 2') +
+    '</div>' +
+    '<div class="row" style="margin-top:12px"><button class="sm" id="memoStyleReset">คืนค่ามาตรฐาน ว 2011</button>' +
+    '<div class="spacer"></div><button class="primary" id="memoStyleSave">บันทึกรูปแบบบันทึกข้อความ</button></div></div>';
+}
+
 function adminSectionDocuments(box) {
   const s = DB.settings;
   box.innerHTML = '<div class="grid2"><div class="card"><h3>ข้อมูลสถานศึกษาและตราโรงเรียน</h3><div class="pick"><label>ชื่อสถานศึกษา</label><input id="setSchool" value="' + esc(s.schoolName || '') + '" style="width:100%"></div>' +
@@ -9714,6 +9800,7 @@ function adminSectionDocuments(box) {
       '<div class="pick"><label>ชื่อผู้อำนวยการ</label><input id="setDirector" value="' + esc(s.directorName || '') + '"></div>' +
       '<div class="pick"><label>ตำแหน่งผู้อำนวยการ</label><input id="setDirectorPosition" value="' + esc(s.directorPosition || '') + '"></div></div>' +
       '<div class="notice" style="margin-top:10px">แบบพิมพ์จะเว้นเส้นสำหรับลายเซ็น และนำชื่อ/ตำแหน่งเหล่านี้ไปวางตามโครงเอกสาร PDF ที่แนบ</div></div>' +
+    memoStyleCardHtml() +
     '<div class="card"><div class="row"><div class="hint">ข้อมูลชุดนี้ใช้กับแบบพิมพ์ ปพ.5 ของครูทุกคนในโรงเรียน</div><div class="spacer"></div><button class="primary" id="settingsSave">บันทึกข้อมูลโรงเรียน</button></div></div>';
 
   $('#settingsSave', box).addEventListener('click', () => {
@@ -9723,6 +9810,23 @@ function adminSectionDocuments(box) {
     s.headAssessmentName = $('#setHeadAssessment', box).value.trim(); s.deputyName = $('#setDeputy', box).value.trim();
     s.directorName = $('#setDirector', box).value.trim(); s.directorPosition = $('#setDirectorPosition', box).value.trim();
     save(true); renderTop(); renderAdmin(); toast('บันทึกข้อมูลโรงเรียนแล้ว', 'ok');
+  });
+  $('#memoStyleSave', box).addEventListener('click', () => {
+    const d = MEMO_STYLE_DEFAULT;
+    const num = (id, fallback) => { const v = parseFloat($('#' + id, box).value); return isFinite(v) && v > 0 ? v : fallback; };
+    const weight = id => Number($('#' + id, box).value) || 400;
+    s.memoStyle = {
+      title: num('memoTitle', d.title), titleWeight: weight('memoTitleWeight'), titleLine: num('memoTitleLine', d.titleLine),
+      label: num('memoLabel', d.label), labelWeight: weight('memoLabelWeight'),
+      lead: num('memoLead', d.lead), leadWeight: weight('memoLeadWeight'),
+      body: num('memoBody', d.body), bodyWeight: weight('memoBodyWeight'), line: num('memoLine', d.line),
+      table: num('memoTable', d.table), opinion: num('memoOpinion', d.opinion),
+      emblem: num('memoEmblem', d.emblem), marginLeft: num('memoMarginLeft', d.marginLeft), marginRight: num('memoMarginRight', d.marginRight)
+    };
+    save(true); renderAdmin(); toast('บันทึกรูปแบบบันทึกข้อความแล้ว • กดพิมพ์ใบแลกคาบเพื่อดูผล', 'ok');
+  });
+  $('#memoStyleReset', box).addEventListener('click', () => {
+    delete s.memoStyle; save(true); renderAdmin(); toast('คืนค่ามาตรฐาน ว 2011 แล้ว', 'ok');
   });
   $('#setLogo', box).addEventListener('change', async e => {
     const file = e.target.files[0]; if (!file) return;
