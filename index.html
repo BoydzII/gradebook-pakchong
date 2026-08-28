@@ -497,6 +497,12 @@ tr.pr-done{opacity:.62}
 .mode-pick small{display:block;font-weight:400;opacity:.75;margin-top:3px}
 .mode-pick.on{background:var(--brand);color:#fff;border-color:var(--brand)}
 .mode-pick.on small{opacity:.9}
+/* แถบกรองชนิดการจัดคาบ วางเหนือรายการครูที่ระบบแนะนำ */
+.kind-filter{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.kind-filter button{flex:0 1 auto}
+.kind-num{display:inline-block;min-width:18px;padding:0 5px;border-radius:999px;
+  background:color-mix(in srgb,var(--ink) 12%,transparent);font-size:11px;font-weight:800;margin-left:3px}
+.kind-filter button.primary .kind-num{background:rgba(255,255,255,.28)}
 .cover-group{border:1px solid var(--line);border-radius:12px;padding:11px 12px;margin-bottom:10px;background:var(--panel2)}
 .cover-group-head{display:flex;align-items:center;gap:10px;margin-bottom:9px}
 .cover-rank{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;flex:none;
@@ -4089,6 +4095,11 @@ const SWAP_KINDS = {
   trade: { label: 'แลกคาบ',  tone: 'trade', base: 500, tag: '⇆ แลกคาบ — เขาว่างคาบเรา เราไปสอนคืนคาบเขา', send: 'ส่งคำขอแลกคาบ' }
 };
 const swapKindOf = req => ((req || {}).swapKind === 'trade' ? 'trade' : 'swap');
+/* ระบบเสนอครูสามแบบปนกันในรายการเดียว ครูที่รู้อยู่แล้วว่าต้องการแบบไหน
+   จึงต้องไล่อ่านทั้งรายการเพื่อหาแบบที่ต้องการ ให้กรองได้จะเร็วกว่า */
+const candidateKind = c => c && c.mode === 'exchange' ? swapKindOf(c) : 'sub';
+const EXCHANGE_KINDS = [['all', 'ทั้งหมด'], ['swap', 'สลับคาบ'], ['trade', 'แลกคาบ'], ['sub', 'สอนแทน']];
+const exchangeKind = () => EXCHANGE_KINDS.some(k => k[0] === DB.ui.exchangeKind) ? DB.ui.exchangeKind : 'all';
 /** ป้ายวิธีจัดคาบของคำขอหนึ่งรายการ ใช้ให้ตรงกันทุกหน้าจอและในเอกสาร */
 const coverageKindLabel = req => (((req || {}).type || 'exchange') !== 'exchange' ? 'สอนแทน' : SWAP_KINDS[swapKindOf(req)].label);
 /** จำนวนคาบจริงของคำขอ — คาบคู่นับเป็น 2 คาบ ไม่ใช่ 1 รายการ */
@@ -5107,6 +5118,10 @@ function renderExchangeCenter() {
   const date = DB.ui.exchangeDate || todayISO(), day = (parseISODate(date) || new Date()).getDay(), own = effectiveDayEntries(date).map(x => x.entry).filter(e => !isHomeroomEntry(e)), source = own.find(e => e.id === DB.ui.exchangeSourceEntryId) || own[0] || null; if (source) DB.ui.exchangeSourceEntryId = source.id;
   const candidates = source ? findCoverageCandidates(source, date) : [];
   const mode = exchangeMode(), activeLeave = mode === 'leave' ? activeLeaveFor(me.id, date) : null;
+  const kind = exchangeKind();
+  const kindCount = k => k === 'all' ? candidates.length : candidates.filter(c => candidateKind(c) === k).length;
+  const shownCandidates = kind === 'all' ? candidates : candidates.filter(c => candidateKind(c) === kind);
+  const groups = candidateGroups(shownCandidates);
   const canSend = mode === 'swap' || !!activeLeave;
   const reasonOptions = EXCHANGE_REASONS.map(x => '<option value="' + x.value + '">' + x.label + '</option>').join('');
   pane.innerHTML = '<div class="card dash-hero"><div class="row"><div><div class="hero-sub">SMART PERIOD EXCHANGE</div><h1>ศูนย์แลกคาบและการลา</h1><div class="hero-sub tip">ครูห้องเดียวกันก่อนเสมอ — เลขคาบตรงกันคือสลับคาบ ไม่ตรงกันคือแลกคาบ • หากไม่พบจึงหาครูในกลุ่มสาระที่ว่างมาสอนแทน</div></div><div class="spacer"></div><span class="role-chip">ครูผู้ใช้งาน ' + esc(me.name || me.email) + '</span></div></div>' +
@@ -5138,9 +5153,15 @@ function renderExchangeCenter() {
          เดิมแยกไปคนละคอลัมน์ ต้องเลื่อนจอไปมาระหว่างกรอกใบลากับพิมพ์เอกสาร */
       leaveHistoryCard(20) + '</div>' +
     '<div>' + exchangeSummaryHtml(date) +
-    '<div class="card"><div class="row"><div><h3 style="margin:0">2. ครูที่ระบบแนะนำ</h3><div class="hint tip">เรียงจากเงื่อนไขที่เหมาะสมที่สุด • ดูแถบคาบเพื่อเทียบภาระงานก่อนส่งคำขอ<br>แลกคาบและสลับคาบเสนอเฉพาะครูที่สอนห้องเดียวกัน • สอนแทนเสนอเฉพาะครูในกลุ่มสาระเดียวกัน<br>ถ้าตกลงกันเองนอกเงื่อนไขนี้ ให้บันทึกเป็นคาบสอนแทนในแท็บ “เช็กชื่อ” ของวันนั้น</div></div><div class="spacer"></div><span class="badge group">' + candidateGroups(candidates).length + ' ครู</span></div>' + slotLegendHtml() +
+    '<div class="card"><div class="row"><div><h3 style="margin:0">2. ครูที่ระบบแนะนำ</h3><div class="hint tip">เรียงจากเงื่อนไขที่เหมาะสมที่สุด • ดูแถบคาบเพื่อเทียบภาระงานก่อนส่งคำขอ<br>แลกคาบและสลับคาบเสนอเฉพาะครูที่สอนห้องเดียวกัน • สอนแทนเสนอเฉพาะครูในกลุ่มสาระเดียวกัน<br>ถ้าตกลงกันเองนอกเงื่อนไขนี้ ให้บันทึกเป็นคาบสอนแทนในแท็บ “เช็กชื่อ” ของวันนั้น</div></div><div class="spacer"></div><span class="badge group">' + groups.length + ' ครู</span></div>' +
+      /* เลือกได้ว่าจะดูเฉพาะแบบไหน ตัวเลขบนปุ่มคือจำนวนครูที่ระบบหาได้ในแบบนั้น */
+      '<div class="kind-filter">' + EXCHANGE_KINDS.map(k =>
+        '<button class="sm' + (kind === k[0] ? ' primary' : '') + '" data-ex-kind="' + k[0] + '"' +
+          (kindCount(k[0]) ? '' : ' disabled') + '>' + k[1] +
+          ' <span class="kind-num">' + kindCount(k[0]) + '</span></button>').join('') + '</div>' +
+      slotLegendHtml() +
       '<div class="hint" style="margin-top:6px">คลิกเลือกคาบที่จะแลกได้เอง ถ้าตกลงกับครูไว้แล้ว</div>' +
-      '<div class="candidate-list" style="margin-top:12px">' + (source ? candidates.length ? candidateGroups(candidates).map((g, gi) => {
+      '<div class="candidate-list" style="margin-top:12px">' + (source ? shownCandidates.length ? groups.map((g, gi) => {
         const c = g.options[g.pick] || g.options[0];
         const targetText = c.targetEntry ? sourceEntryText(c.targetEntry, c.targetDate) : 'ว่างตรง ' + sourceEntryText(source, date);
         const tone = toneOfCandidate(c), kindTag = c.mode === 'exchange' ? SWAP_KINDS[swapKindOf(c)].tag : '↷ สอนแทน — ไม่ต้องสอนคืน';
@@ -5156,8 +5177,13 @@ function renderExchangeCenter() {
           '<div class="hint" style="margin-top:8px">คาบของฉันที่ต้องไปสอนแทน • ' + esc(thaiDate(c.targetDate)) + ' <span class="hint">(กดกล่องที่มีเส้นประเพื่อเปลี่ยนคาบ)</span></div>' +
           slotStripHtml(me.id, c.targetDate, (c.targetBlock || [c.targetEntry]).map(e => String(e.slotId)), slotPicksFor(g, c.targetDate), tone, 'take') : '') +
         '</div><button class="sm primary" data-send-candidate="' + candidates.indexOf(c) + '"' +
-          (canSend ? '' : ' disabled title="บันทึกใบลาก่อนจึงจะส่งคำขอได้"') + '>' + (c.mode === 'exchange' ? SWAP_KINDS[swapKindOf(c)].send : 'ขอให้มาสอนแทน') + '</button></div>'; }).join('') : '<div class="empty">ยังไม่พบครูห้องเดียวกันที่แลกหรือสลับคาบได้ และไม่พบครูในกลุ่มสาระเดียวกันที่ว่างตรงคาบนี้<br>ระบบจะเก็บเป็นรายการรอผู้ดูแลจัดครูแทน — ถ้าตกลงกับครูท่านอื่นไว้แล้ว บันทึกเป็นคาบสอนแทนเองในแท็บ “เช็กชื่อ” ของวันนั้นได้เลย</div>' : '<div class="empty">วันที่เลือกไม่มีคาบสอนของคุณ</div>') + '</div></div>' +
+          (canSend ? '' : ' disabled title="บันทึกใบลาก่อนจึงจะส่งคำขอได้"') + '>' + (c.mode === 'exchange' ? SWAP_KINDS[swapKindOf(c)].send : 'ขอให้มาสอนแทน') + '</button></div>'; }).join('') : kind !== 'all' && candidates.length
+          ? '<div class="empty">ไม่มีครูที่จัดแบบ “' + esc((EXCHANGE_KINDS.find(k => k[0] === kind) || [])[1] || '') + '” ได้ในคาบนี้<br>กด “ทั้งหมด” เพื่อดูแบบอื่นที่ระบบหาได้</div>'
+          : '<div class="empty">ยังไม่พบครูห้องเดียวกันที่แลกหรือสลับคาบได้ และไม่พบครูในกลุ่มสาระเดียวกันที่ว่างตรงคาบนี้<br>ระบบจะเก็บเป็นรายการรอผู้ดูแลจัดครูแทน — ถ้าตกลงกับครูท่านอื่นไว้แล้ว บันทึกเป็นคาบสอนแทนเองในแท็บ “เช็กชื่อ” ของวันนั้นได้เลย</div>' : '<div class="empty">วันที่เลือกไม่มีคาบสอนของคุณ</div>') + '</div></div>' +
       '</div></div>' + exchangeRequestCard(30);
+  $$('[data-ex-kind]', pane).forEach(btn => btn.addEventListener('click', () => {
+    DB.ui.exchangeKind = btn.dataset.exKind; save(); renderExchangeCenter();
+  }));
   $$('[data-ex-mode]', pane).forEach(btn => btn.addEventListener('click', () => {
     DB.ui.exchangeMode = btn.dataset.exMode; save(); renderExchangeCenter();
   }));
