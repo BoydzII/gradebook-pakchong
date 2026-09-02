@@ -12354,21 +12354,43 @@ function renderStudentPortal() {
   const sid = studentSession.sid, fromCloud = studentSession.source === 'cloud';
   const matches = fromCloud ? [] : studentMatches(sid);
   if (!fromCloud && !matches.length) { closeStudentPortal(); return toast('ไม่พบข้อมูลนักเรียนแล้ว', 'bad'); }
-  const periodId = DB.periods.some(p => p.id === studentSession.periodId) ? studentSession.periodId : (DB.ui.periodId || (DB.periods[0] || {}).id);
+  /* เครื่องทุกเครื่องสร้างปี/ภาคเปล่าให้เองตอนเปิดแอปครั้งแรก รวมถึงมือถือของนักเรียน
+     ของเดิมเอา periodId ของเครื่องนักเรียนไปกรองผลที่ครูเผยแพร่มา ซึ่งเป็นคนละรหัสกันเสมอ
+     ผลจึงถูกกรองทิ้งหมดทุกวิชา นักเรียนเห็นหน้าว่างทั้งที่ครูเผยแพร่แล้ว
+     บัตรจากส่วนกลางจึงต้องอ้างอิงปี/ภาคที่มากับผลที่เผยแพร่เท่านั้น ไม่ยุ่งกับข้อมูลในเครื่อง */
+  const cloudContexts = studentSession.contexts || [];
+  const cloudPeriods = [];
+  cloudContexts.forEach(x => {
+    const id = x.periodId || '';
+    if (!cloudPeriods.some(p => p.id === id)) cloudPeriods.push({ id: id, label: x.periodLabel || '' });
+  });
+  const periodId = fromCloud
+    ? (cloudPeriods.some(p => p.id === studentSession.periodId) ? studentSession.periodId : (cloudPeriods[0] || {}).id)
+    : (DB.periods.some(p => p.id === studentSession.periodId) ? studentSession.periodId : (DB.ui.periodId || (DB.periods[0] || {}).id));
   studentSession.periodId = periodId;
-  /* บัตรจากส่วนกลางมาในรูปแบบเดียวกับที่คำนวณในเครื่องอยู่แล้ว ส่วนที่เหลือจึงใช้ร่วมกันได้ */
   const period = DB.periods.find(p => p.id === periodId);
+  /* บัตรจากส่วนกลางไม่มีตารางปี/ภาคอยู่ในเครื่อง จึงใช้ชื่อที่ครูส่งมากับผลแทน */
+  const periodBadge = fromCloud
+    ? ((cloudPeriods.find(p => p.id === periodId) || {}).label || '')
+    : (period ? 'ปี ' + period.academicYear + ' ภาค ' + period.semester : '');
   const contexts = fromCloud
-    ? (studentSession.contexts || []).filter(x => !x.periodId || x.periodId === periodId || !period)
+    ? (cloudPeriods.length > 1 ? cloudContexts.filter(x => (x.periodId || '') === periodId) : cloudContexts)
     : studentSubjectContexts(sid, periodId);
   const profile = fromCloud
     ? { name: (studentSession.card || {}).name || 'นักเรียน', sid: sid }
     : matches[0].st;
   const portal = $('#studentPortal'); portal.hidden = false; document.body.style.overflow = 'hidden';
   portal.innerHTML = '<div class="portal-top"><div class="brand"><span class="dot"></span><span>พอร์ทัลนักเรียน<small>คะแนนและเวลาเรียนส่วนบุคคล</small></span></div><div class="spacer"></div>' +
-    '<div class="pick"><label style="color:#aebbd0">ปี/ภาคเรียน</label><select id="portalPeriod">' + DB.periods.map(p => '<option value="' + p.id + '"' + (p.id === periodId ? ' selected' : '') + '>ปี ' + esc(p.academicYear) + ' • ภาค ' + esc(p.semester) + '</option>').join('') + '</select></div>' +
+    /* มีให้เลือกเมื่อมีผลมากกว่าหนึ่งภาคเรียนเท่านั้น ภาคเดียวไม่ต้องมีช่องให้สับสน */
+    (fromCloud
+      ? (cloudPeriods.length > 1
+          ? '<div class="pick"><label style="color:#aebbd0">ภาคเรียน</label><select id="portalPeriod">' +
+            cloudPeriods.map((p, i) => '<option value="' + esc(p.id) + '"' + (p.id === periodId ? ' selected' : '') + '>' +
+              esc(p.label || ('ชุดผลการเรียนที่ ' + (i + 1))) + '</option>').join('') + '</select></div>'
+          : '')
+      : '<div class="pick"><label style="color:#aebbd0">ปี/ภาคเรียน</label><select id="portalPeriod">' + DB.periods.map(p => '<option value="' + p.id + '"' + (p.id === periodId ? ' selected' : '') + '>ปี ' + esc(p.academicYear) + ' • ภาค ' + esc(p.semester) + '</option>').join('') + '</select></div>') +
     '<button id="portalPassword">เปลี่ยนรหัสผ่าน</button><button id="portalLogout">ออกจากระบบ</button></div>' +
-    '<div class="portal-main"><div class="card portal-hero"><div class="row"><div><h2 style="margin:0 0 5px">' + esc(profile.name) + '</h2><div class="hint">เลขประจำตัว ' + esc(sid) + ' • ' + esc(fromCloud ? ((studentSession.card || {}).className || '') : matches.map(x => x.cls.name).join(', ')) + '</div></div><div class="spacer"></div><span class="badge">' + (period ? 'ปี ' + esc(period.academicYear) + ' ภาค ' + esc(period.semester) : '') + '</span></div></div>' +
+    '<div class="portal-main"><div class="card portal-hero"><div class="row"><div><h2 style="margin:0 0 5px">' + esc(profile.name) + '</h2><div class="hint">เลขประจำตัว ' + esc(sid) + ' • ' + esc(fromCloud ? ((studentSession.card || {}).className || '') : matches.map(x => x.cls.name).join(', ')) + '</div></div><div class="spacer"></div><span class="badge">' + esc(periodBadge) + '</span></div></div>' +
     '<div class="row" style="margin:18px 0 10px"><h3 style="margin:0">รายวิชาและผลการเรียน</h3><div class="spacer"></div><span class="hint">เวลาเรียน ≥80% = ผ • 60–79.99% = มส • ต่ำกว่า 60% = เรียนซ้ำ</span></div>' +
     (contexts.length ? '<div class="portal-subjects">' + contexts.map(x => {
       const r = x.score, a = x.attendance, teacher = x.book.meta.teacherName || 'ยังไม่ระบุครูผู้สอน';
@@ -12424,6 +12446,11 @@ function makeClaimCode(len) {
 }
 const normalizeClaimCode = v => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const studentCardRef = sid => fbDb.collection('studentCards').doc(String(sid));
+/* ชื่อปี/ภาคที่อ่านออก ส่งไปกับผลที่เผยแพร่ เพราะเครื่องนักเรียนไม่มีตารางปี/ภาคของโรงเรียน */
+function periodLabelOf(periodId) {
+  const p = DB.periods.find(x => x.id === periodId);
+  return p ? 'ปี ' + (p.academicYear || '') + ' • ภาค ' + (p.semester || '') : '';
+}
 /** รหัสรับสิทธิ์ที่เก็บไว้ในเครื่องครู ใช้พิมพ์แจกซ้ำได้โดยไม่ต้องออกรหัสใหม่ */
 function claimCodeOf(sid, create) {
   DB.studentAccounts = DB.studentAccounts || {};
@@ -12437,7 +12464,7 @@ function claimCodeOf(sid, create) {
 function studentSubjectPayload(book, cls, subject, st, periodId, key) {
   const r = calcRow(book, st), a = attendanceStudentResult(cls.id, subject.id, st, periodId);
   return {
-    bookKey: key, periodId: periodId,
+    bookKey: key, periodId: periodId, periodLabel: periodLabelOf(periodId),
     subject: { code: subject.code || '', name: subject.name || '' },
     cls: { name: cls.name || '' },
     book: { meta: { teacherName: book.meta.teacherName || '' } },
