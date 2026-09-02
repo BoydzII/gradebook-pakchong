@@ -12401,7 +12401,11 @@ function renderStudentPortal() {
     '<div class="portal-main"><div class="card portal-hero"><div class="row"><div><h2 style="margin:0 0 5px">' + esc(profile.name) + '</h2><div class="hint">เลขประจำตัว ' + esc(sid) + ' • ' + esc(fromCloud ? ((studentSession.card || {}).className || '') : matches.map(x => x.cls.name).join(', ')) + '</div></div><div class="spacer"></div><span class="badge">' + esc(periodBadge) + '</span></div></div>' +
     '<div class="row" style="margin:18px 0 10px"><h3 style="margin:0">รายวิชาและผลการเรียน</h3><div class="spacer"></div><span class="hint">เวลาเรียน ≥80% = ผ • 60–79.99% = มส • ต่ำกว่า 60% = เรียนซ้ำ</span></div>' +
     (contexts.length ? '<div class="portal-subjects">' + contexts.map(x => {
-      const r = x.score, a = x.attendance, teacher = x.book.meta.teacherName || 'ยังไม่ระบุครูผู้สอน';
+      /* ชื่อครูมาได้สองทาง ช่องครูผู้สอนในสมุดคะแนน กับชื่อคนที่กดเผยแพร่
+         ผลที่เผยแพร่ไปก่อนหน้านี้ยังไม่มีชื่อในช่องแรก จึงต้องใช้ชื่อผู้เผยแพร่แทน
+         นักเรียนจะได้เห็นชื่อครูทันทีโดยครูไม่ต้องกดเผยแพร่ใหม่ */
+      const r = x.score, a = x.attendance,
+        teacher = x.book.meta.teacherName || x.publishedBy || 'ยังไม่ระบุครูผู้สอน';
       return '<div class="card portal-subject"><div class="row"><div><span class="level-tag">' + esc(x.subject.code || 'รายวิชา') + '</span><h3 style="margin:7px 0 2px">' + esc(x.subject.name) + '</h3><div class="hint">' + esc(x.cls.name) + ' • ครูผู้สอน ' + esc(teacher) + '</div></div><div class="spacer"></div><div style="text-align:right"><div style="font-size:28px;font-weight:900;color:var(--brand)">' + fmt(r.total) + '</div><div class="hint">เกรด ' + esc(r.complete ? r.grade : 'ระหว่างเรียน') + '</div></div></div>' +
         '<div class="portal-metrics"><div class="portal-metric"><b>' + (a.counts.present + a.counts.late) + '</b>มา/สาย</div><div class="portal-metric"><b>' + a.counts.absent + '</b>ขาด</div><div class="portal-metric"><b>' + a.counts.leave + '</b>ลา</div><div class="portal-metric"><b>' + a.counts.activity + '</b>กิจกรรม</div></div>' +
         '<div class="row" style="margin-top:12px"><span>เวลาเรียน ' + a.checked + ' คาบ</span><div class="spacer"></div>' + attendanceOutcomeBadge(a.pct) + '</div>' +
@@ -12454,6 +12458,18 @@ function makeClaimCode(len) {
 }
 const normalizeClaimCode = v => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const studentCardRef = sid => fbDb.collection('studentCards').doc(String(sid));
+/* ครูส่วนใหญ่ไม่ได้กรอกช่อง "ครูผู้สอน" ในสมุดคะแนน เพราะแบบพิมพ์ ปพ.5 ดึงจากโปรไฟล์ให้อยู่แล้ว
+   แต่ตอนเผยแพร่กลับส่งเฉพาะช่องนั้นไป นักเรียนจึงเห็น "ยังไม่ระบุครูผู้สอน" ทุกวิชา
+   จึงไล่หาจากตารางสอนของวิชานั้นต่อ แล้วค่อยลงท้ายด้วยโปรไฟล์ของคนที่กดเผยแพร่ */
+function publishTeacherName(book, cls, subject, periodId) {
+  const typed = book && book.meta ? String(book.meta.teacherName || '').trim() : '';
+  if (typed) return typed;
+  const entry = (DB.timetable.entries || []).find(e =>
+    e.classId === cls.id && e.subjectId === subject.id && e.periodId === periodId && e.teacherId);
+  const owner = entry ? DB.teachers.find(t => t.id === entry.teacherId) : null;
+  const me = curTeacher() || {};
+  return (owner && (owner.name || owner.email)) || me.name || me.email || '';
+}
 /* ชื่อปี/ภาคที่อ่านออก ส่งไปกับผลที่เผยแพร่ เพราะเครื่องนักเรียนไม่มีตารางปี/ภาคของโรงเรียน */
 function periodLabelOf(periodId) {
   const p = DB.periods.find(x => x.id === periodId);
@@ -12475,7 +12491,7 @@ function studentSubjectPayload(book, cls, subject, st, periodId, key) {
     bookKey: key, periodId: periodId, periodLabel: periodLabelOf(periodId),
     subject: { code: subject.code || '', name: subject.name || '' },
     cls: { name: cls.name || '' },
-    book: { meta: { teacherName: book.meta.teacherName || '' } },
+    book: { meta: { teacherName: publishTeacherName(book, cls, subject, periodId) } },
     score: { wBefore: r.wBefore, wM: r.wM, wAfter: r.wAfter, wF: r.wF, total: r.total, grade: String(r.grade) },
     attendance: { counts: a.counts, checked: a.checked, pct: a.pct },
     publishedAt: new Date().toISOString(),
