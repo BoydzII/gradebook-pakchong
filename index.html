@@ -360,7 +360,13 @@ td.num,th.num{text-align:center}
 .wheel-name{font-weight:800;font-size:clamp(14px,2.1vw,19px);color:var(--ink);line-height:1.35}
 @media(prefers-reduced-motion:reduce){.wheel-rotor,.wheel-icon{animation:none}}
 @media(max-width:540px){.role-wheel{width:min(90vmin,420px)}.gateway-brand .brand-logo{height:min(16vmin,78px)}}
-.portal-top{position:sticky;top:0;z-index:3;display:flex;gap:12px;align-items:center;padding:14px clamp(16px,3vw,42px);background:var(--top);color:#eef4ff;border-bottom:1px solid rgba(255,255,255,.12);box-shadow:var(--shadow)}
+/* เดิมตั้งพื้นหลังเป็น var(--top) ซึ่งไม่มีตัวแปรนี้อยู่จริงในธีมไหนเลย พื้นหลังจึงโปร่งใส
+   เหลือตัวหนังสือสีขาว #eef4ff อยู่บนพื้นหน้าเว็บสีอ่อน อ่านไม่ออกทั้งแถบ
+   รวมถึงปุ่มสองปุ่มมุมขวาที่ไม่ได้กำหนดสีตัวอักษรเอง จึงรับสีขาวมาจากแถบนี้ด้วย
+   เปลี่ยนมาใช้สีตามธีมเหมือนแถบบนของแอปหลัก อ่านออกทั้งโหมดสว่างและมืด */
+.portal-top{position:sticky;top:0;z-index:3;display:flex;gap:12px;align-items:center;padding:14px clamp(16px,3vw,42px);background:var(--panel);color:var(--ink);border-bottom:1px solid var(--line);box-shadow:var(--shadow)}
+.portal-top .brand small{color:var(--muted)}
+.portal-top .pick label{color:var(--muted)}
 .portal-main{width:min(1180px,calc(100% - 28px));margin:20px auto 48px}
 .portal-hero{background:linear-gradient(135deg,#1769bd,#4d5ee8);color:white;border:0;padding:22px}
 .portal-hero .hint{color:rgba(255,255,255,.82)}
@@ -401,7 +407,9 @@ td.num,th.num{text-align:center}
 .dash-hero:after{content:'';position:absolute;width:260px;height:260px;border-radius:50%;right:-80px;top:-130px;background:rgba(255,255,255,.12)}
 .dash-hero h1{font-size:25px;line-height:1.25;margin:0 0 5px;letter-spacing:-.4px}
 .dash-hero .hero-sub{color:rgba(255,255,255,.82);font-size:13.5px}
-.dash-hero .badge{background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.24)}
+/* การ์ดหัวสีเข้มทั้งสองที่ ป้ายต้องเป็นสีขาวโปร่ง ไม่ใช่ป้ายพื้นอ่อนของธีม
+   ไม่งั้นได้ตัวอักษรขาวบนป้ายสีขาว มองไม่เห็นตัวเลย */
+.dash-hero .badge,.portal-hero .badge{background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.24)}
 .dash-hero button{background:#fff;color:#174f9c;border-color:#fff;font-weight:700;box-shadow:0 5px 16px rgba(0,0,0,.12)}
 .dash-metrics{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px;margin-bottom:14px}
 .metric-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:15px;box-shadow:var(--shadow);position:relative;overflow:hidden}
@@ -12384,11 +12392,11 @@ function renderStudentPortal() {
     /* มีให้เลือกเมื่อมีผลมากกว่าหนึ่งภาคเรียนเท่านั้น ภาคเดียวไม่ต้องมีช่องให้สับสน */
     (fromCloud
       ? (cloudPeriods.length > 1
-          ? '<div class="pick"><label style="color:#aebbd0">ภาคเรียน</label><select id="portalPeriod">' +
+          ? '<div class="pick"><label>ภาคเรียน</label><select id="portalPeriod">' +
             cloudPeriods.map((p, i) => '<option value="' + esc(p.id) + '"' + (p.id === periodId ? ' selected' : '') + '>' +
               esc(p.label || ('ชุดผลการเรียนที่ ' + (i + 1))) + '</option>').join('') + '</select></div>'
           : '')
-      : '<div class="pick"><label style="color:#aebbd0">ปี/ภาคเรียน</label><select id="portalPeriod">' + DB.periods.map(p => '<option value="' + p.id + '"' + (p.id === periodId ? ' selected' : '') + '>ปี ' + esc(p.academicYear) + ' • ภาค ' + esc(p.semester) + '</option>').join('') + '</select></div>') +
+      : '<div class="pick"><label>ปี/ภาคเรียน</label><select id="portalPeriod">' + DB.periods.map(p => '<option value="' + p.id + '"' + (p.id === periodId ? ' selected' : '') + '>ปี ' + esc(p.academicYear) + ' • ภาค ' + esc(p.semester) + '</option>').join('') + '</select></div>') +
     '<button id="portalPassword">เปลี่ยนรหัสผ่าน</button><button id="portalLogout">ออกจากระบบ</button></div>' +
     '<div class="portal-main"><div class="card portal-hero"><div class="row"><div><h2 style="margin:0 0 5px">' + esc(profile.name) + '</h2><div class="hint">เลขประจำตัว ' + esc(sid) + ' • ' + esc(fromCloud ? ((studentSession.card || {}).className || '') : matches.map(x => x.cls.name).join(', ')) + '</div></div><div class="spacer"></div><span class="badge">' + esc(periodBadge) + '</span></div></div>' +
     '<div class="row" style="margin:18px 0 10px"><h3 style="margin:0">รายวิชาและผลการเรียน</h3><div class="spacer"></div><span class="hint">เวลาเรียน ≥80% = ผ • 60–79.99% = มส • ต่ำกว่า 60% = เรียนซ้ำ</span></div>' +
