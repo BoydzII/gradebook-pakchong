@@ -9616,7 +9616,15 @@ function renderAdminDayShifts() {
   box.innerHTML = '<div class="row"><div><h3 style="margin:0">สลับวันเรียน / สลับคาบ</h3>' +
       '<div class="hint">ใช้เมื่อโรงเรียนยกตารางของอีกวันมาเรียน เช่น เอาคาบวันศุกร์มาเรียนวันพุธ (สัปดาห์นั้นจะมีคาบวันศุกร์ 2 รอบ) ' +
       'หรือเปลี่ยนคาบชุมนุมเป็นคาบ 1 ของวันศุกร์ — ระบบจะเปลี่ยนคาบที่ครูต้องเช็กชื่อและการนับเวลาเรียนให้ทั้งโรงเรียน</div></div>' +
-      '<div class="spacer"></div><span class="badge">' + list.length + ' วัน</span><button class="primary" id="dayShiftAdd">+ เพิ่มการสลับวัน</button></div>' +
+      '<div class="spacer"></div><span class="badge">' + list.length + ' วัน</span>' +
+      '<button class="sm" id="dayShiftPush">บันทึกขึ้นส่วนกลาง</button>' +
+      '<button class="primary" id="dayShiftAdd">+ เพิ่มการสลับวัน</button></div>' +
+    /* แก้แล้วยังไม่ได้ส่ง = ครูคนอื่นยังไม่เห็น และมีโอกาสถูกของเดิมทับตอนดึงข้อมูลใหม่
+       จึงบอกให้เห็นตรงนี้เลย พร้อมปุ่มส่งอยู่ข้าง ๆ ไม่ต้องไปตามหาที่หน้าอื่น */
+    (timetableUnsent()
+      ? '<div class="notice warn" style="margin-top:10px"><b>ยังไม่ได้บันทึกขึ้นส่วนกลาง</b> ' +
+        'ครูคนอื่นจะยังเห็นตารางแบบเดิม กด <b>บันทึกขึ้นส่วนกลาง</b> เพื่อยืนยันการเปลี่ยนแปลง</div>'
+      : '') +
     (list.length ? '<div class="tablewrap listbox folded" style="margin-top:12px"><table><thead><tr><th>วันที่</th><th>รูปแบบ</th><th>ชื่อ/เหตุผล</th><th class="num">คาบที่ถูกยกมา</th><th></th></tr></thead><tbody>' +
       list.map(x => { const im = dayShiftImpact(x), holiday = holidayOf(x.date);
         return '<tr><td><b>' + esc(thaiDate(x.date)) + '</b><br><span class="hint">วัน' + esc(dayOf(x.date)) + ' • ' + esc(x.date) + '</span>' +
@@ -9632,6 +9640,26 @@ function renderAdminDayShifts() {
       'และถ้าวันต้นทางที่ยกคาบมานั้นไม่มีการเรียนการสอนแล้ว อย่าลืมเพิ่มเป็นวันหยุดในการ์ดด้านบน</div>';
 
   $('#dayShiftAdd', box).addEventListener('click', () => openDayShiftEditor(null));
+  const pushBtn = $('#dayShiftPush', box);
+  if (pushBtn) pushBtn.addEventListener('click', async () => {
+    if (!firebaseReady() || !fbSignedIn()) return toast('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อนจึงจะส่งขึ้นส่วนกลางได้', 'bad');
+    const label = pushBtn.textContent;
+    pushBtn.disabled = true; pushBtn.textContent = 'กำลังส่ง…';
+    try {
+      const r = await pushToFirebase('timetable');
+      if (r.failed.length) throw new Error(r.failed[0].msg);
+      /* จำลายเซ็นไว้ ครั้งต่อไปจะได้รู้ว่าอะไรเปลี่ยนไปบ้าง และปลดล็อกให้ข้อมูลสดจากส่วนกลางไหลตามปกติ */
+      const sigs = DB.cloud.adminSigs = DB.cloud.adminSigs || {};
+      const set = adminDataSets().find(x => x.key === 'timetable');
+      if (set) sigs.timetable = set.sig;
+      DB.cloud.lastAdminPush = new Date().toISOString();
+      save(true); toast('บันทึกตารางสอนและปฏิทินขึ้นส่วนกลางแล้ว ครูทุกคนเห็นตรงกัน', 'ok');
+      renderAdmin();
+    } catch (e) {
+      pushBtn.disabled = false; pushBtn.textContent = label;
+      toast('ส่งไม่สำเร็จ • ' + ((e && e.message) || e), 'bad');
+    }
+  });
   $$('[data-edit-shift]', box).forEach(btn => btn.addEventListener('click', () =>
     openDayShiftEditor((term.dayShifts || []).find(x => x.id === btn.dataset.editShift) || null)));
   $$('[data-del-shift]', box).forEach(btn => btn.addEventListener('click', async () => {
@@ -11051,6 +11079,13 @@ function adminDataSets() {
       sig: quickSig(JSON.stringify({ e: tt.entries || [], x: tt.exceptions || [], t: tt.terms || {} })) }
   ];
 }
+/* ปฏิทินภาคเรียนกับตารางสอนที่ผู้ดูแลเพิ่งแก้ในเครื่อง ยังไม่ได้ส่งขึ้นส่วนกลาง
+   ใช้เทียบลายเซ็นชุดเดียวกับที่ปุ่มอัปเดตขึ้นส่วนกลางใช้ ผลจึงตรงกันเสมอ */
+function timetableUnsent() {
+  const set = adminDataSets().find(x => x.key === 'timetable');
+  const sigs = (DB.cloud || {}).adminSigs || {};
+  return !!set && sigs.timetable !== set.sig;
+}
 const adminUnsyncedSets = () => { const sigs = (DB.cloud || {}).adminSigs || {}; return adminDataSets().filter(x => sigs[x.key] !== x.sig); };
 
 /** ส่งเฉพาะชุดที่เปลี่ยนไปจากครั้งก่อน กดซ้ำได้ตลอด ไม่ต้องกลัวส่งซ้ำทั้งก้อน */
@@ -11456,11 +11491,15 @@ function startFirebaseSync() {
   });
 
   fbUnsub.push(fbDb.collection('timetable').onSnapshot(snap => apply(() => {
+    /* ปฏิทินภาคเรียน (วันหยุด สลับวัน วันเปิด-ปิด) แก้ได้จากเครื่องผู้ดูแลเท่านั้น
+       ถ้าเครื่องนี้เพิ่งแก้แล้วยังไม่ได้กดส่งขึ้นส่วนกลาง ห้ามให้ของเดิมจากส่วนกลางทับ
+       เพราะผู้ดูแลจะเห็นว่าที่แก้ไว้หายไปเอง เหมือนระบบไม่ยอมบันทึกให้ */
+    const keepLocalTerms = timetableUnsent();
     snap.docs.forEach(d => {
       const t = fbDecodeNested(d.data() || {});
       DB.timetable.entries = (DB.timetable.entries || []).filter(e => e.periodId !== d.id).concat(t.entries || []);
       DB.timetable.exceptions = (DB.timetable.exceptions || []).filter(e => e.periodId !== d.id).concat(t.exceptions || []);
-      if (t.term) DB.timetable.terms[d.id] = t.term;
+      if (t.term && !keepLocalTerms) DB.timetable.terms[d.id] = t.term;
     });
     applyStoredTeacherIdMap();   // ตารางที่เครื่องอื่นส่งขึ้นอาจยังใช้รหัสครูเก่า
     rebuildExchangeExceptions();  // ตารางที่เพิ่งลงมาล้างคาบสอนแทนทิ้ง ต้องคำนวณคืนทันที
