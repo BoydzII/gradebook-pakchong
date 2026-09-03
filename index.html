@@ -375,6 +375,22 @@ td.num,th.num{text-align:center}
 .portal-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:12px}
 .portal-metric{padding:9px 7px;text-align:center;border-radius:9px;background:var(--panel2);border:1px solid var(--line)}
 .portal-metric b{display:block;font-size:19px;color:var(--brand)}
+/* กล่องคะแนนรายหัวข้อ — เล็กพอให้ 12 กล่องอยู่ในสองแถวบนมือถือ แต่ยังกดโดนด้วยนิ้ว
+   ใช้สีพื้นอ่อนกับตัวอักษรเข้มของธีม จะได้อ่านออกทั้งโหมดสว่างและมืด */
+.sbox-head{margin:14px 0 6px;font-weight:800}
+.sbox-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px}
+.sbox{display:flex;flex-direction:column;align-items:center;gap:1px;padding:7px 2px;border-radius:9px;
+  border:1px solid var(--line);background:var(--panel2);cursor:pointer;line-height:1.15}
+.sbox b{font-size:15px;font-weight:800}
+.sbox span{font-size:10.5px;color:var(--muted)}
+.sbox.ok{background:var(--ok-bg);border-color:color-mix(in srgb,var(--ok) 40%,transparent)}
+.sbox.ok b{color:var(--ok)}
+.sbox.low{background:var(--warn-bg);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+.sbox.low b{color:var(--warn)}
+.sbox.none{background:var(--bad-bg);border-color:color-mix(in srgb,var(--bad) 35%,transparent)}
+.sbox.none b{color:var(--bad)}
+.sbox.on{outline:2px solid var(--brand);outline-offset:1px}
+.sbox-note{margin-top:7px;font-size:12px;color:var(--muted);min-height:1.5em}
 .portal-login-note{padding:10px 12px;border-radius:9px;background:var(--panel2);border:1px solid var(--line);font-size:12px;color:var(--muted)}
 .ksa-summary{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
 .ksa-chip{display:inline-flex;padding:2px 6px;border-radius:6px;background:var(--brandSoft);color:var(--brand);font-size:10px;font-weight:900}
@@ -12369,6 +12385,40 @@ function studentMatches(sid) {
   return out;
 }
 
+/* กล่องคะแนนรายหัวข้อสำหรับหน้าจอนักเรียน — หนึ่งกล่องต่อหนึ่งหัวข้อที่ครูตั้งไว้
+   ต่อท้ายด้วย M กลางภาค และ F ปลายภาค ตามลำดับที่ครูกรอกในสมุดคะแนน
+   นักเรียนเห็นแค่ตัวเลขกับสี ส่วนชื่อหัวข้อกดดูได้ เพราะชื่อยาวเกินกว่าจะใส่ในกล่อง
+   สี: มีคะแนนและถึงเกณฑ์ = เขียว • มีคะแนนแต่ไม่ถึงเกณฑ์ = เหลือง • ยังไม่มีคะแนน = แดง
+   เกณฑ์ใช้ passPercent ของสมุดเล่มนั้น ไม่ได้ตรึงไว้ที่ 60 เพราะครูตั้งเองได้ */
+function studentScoreBoxes(book, sid) {
+  const b = normalizeBook(book || defaultBook());
+  const passPct = num(b.passPercent) || 60;
+  const retakes = (b.itemRetakes || {})[sid] || {};
+  const boxes = [];
+  const push = (label, name, value, max) => {
+    const hasScore = has(value) && max > 0;
+    const pct = hasScore ? num(value) * 100 / num(max) : null;
+    boxes.push({ label: label, name: name, max: num(max),
+      value: hasScore ? num(value) : null,
+      state: !hasScore ? 'none' : (pct < passPct ? 'low' : 'ok') });
+  };
+  b.items.forEach((it, i) => {
+    const done = itemScoreComplete(b, sid, it);
+    const original = itemScoreValue(b, sid, it);
+    /* ถ้าซ่อมแล้วให้โชว์คะแนนซ่อม เพราะเป็นคะแนนที่ใช้จริงในการตัดสิน */
+    const value = done && has(retakes[it.id]) ? retakes[it.id] : original;
+    push(String(i + 1), it.name || ('หัวข้อ ' + (i + 1)), done ? value : '', it.max);
+  });
+  const ex = (b.exam || {})[sid] || {};
+  const midMax = num(b.exams.midMax), finMax = num(b.exams.finalMax);
+  if (midMax > 0) {
+    const used = b.exams.retakeEnabled && has(ex.retake) ? ex.retake : ex.mid;
+    push('M', 'กลางภาค', used, midMax);
+  }
+  if (finMax > 0) push('F', 'ปลายภาค', ex.final, finMax);
+  return boxes;
+}
+
 function studentSubjectContexts(sid, periodId) {
   const contexts = [];
   studentMatches(sid).forEach(hit => {
@@ -12448,9 +12498,34 @@ function renderStudentPortal() {
       return '<div class="card portal-subject"><div class="row"><div><span class="level-tag">' + esc(x.subject.code || 'รายวิชา') + '</span><h3 style="margin:7px 0 2px">' + esc(x.subject.name) + '</h3><div class="hint">' + esc(x.cls.name) + ' • ครูผู้สอน ' + esc(teacher) + '</div></div><div class="spacer"></div><div style="text-align:right"><div style="font-size:28px;font-weight:900;color:var(--brand)">' + fmt(r.total) + '</div><div class="hint">เกรด ' + esc(r.complete ? r.grade : 'ระหว่างเรียน') + '</div></div></div>' +
         '<div class="portal-metrics"><div class="portal-metric"><b>' + (a.counts.present + a.counts.late) + '</b>มา/สาย</div><div class="portal-metric"><b>' + a.counts.absent + '</b>ขาด</div><div class="portal-metric"><b>' + a.counts.leave + '</b>ลา</div><div class="portal-metric"><b>' + a.counts.activity + '</b>กิจกรรม</div></div>' +
         '<div class="row" style="margin-top:12px"><span>เวลาเรียน ' + a.checked + ' คาบ</span><div class="spacer"></div>' + attendanceOutcomeBadge(a.pct) + '</div>' +
+        /* บัตรจากส่วนกลางมีกล่องคะแนนติดมาแล้ว ส่วนเครื่องครูคำนวณสดจากสมุดคะแนนได้เลย
+           ผลที่ครูเผยแพร่ไว้ก่อนหน้านี้ยังไม่มีข้อมูลนี้ ส่วนนี้จึงหายไปเงียบ ๆ ไม่พัง */
+        (function () {
+          const boxes = Array.isArray(x.parts) ? x.parts : (x.st ? studentScoreBoxes(x.book, x.st.sid) : []);
+          if (!boxes.length) return '';
+          return '<div class="sbox-head">คะแนนรายหัวข้อ <span class="hint">แตะที่กล่องเพื่อดูว่าเป็นเรื่องอะไร</span></div>' +
+            '<div class="sbox-grid">' + boxes.map((p, i) =>
+              '<button type="button" class="sbox ' + p.state + '" data-sbox="' + i + '"' +
+                ' title="' + esc(p.name + ' • ' + (p.value == null ? 'ยังไม่มีคะแนน' : fmt(p.value) + '/' + fmt(p.max))) + '">' +
+                '<b>' + (p.value == null ? '–' : esc(fmt(p.value))) + '</b>' +
+                '<span>' + esc(p.label) + '</span></button>').join('') + '</div>' +
+            '<div class="sbox-note" data-sbox-note>' + esc(boxes.length) + ' หัวข้อ • เขียว = ผ่านเกณฑ์ • เหลือง = ยังไม่ถึงเกณฑ์ • แดง = ยังไม่มีคะแนน</div>';
+        })() +
         '<div class="tablewrap" style="margin-top:10px"><table><thead><tr><th>ก่อนกลาง</th><th>กลางภาค</th><th>หลังกลาง</th><th>ปลายภาค</th><th>รวม</th></tr></thead><tbody><tr><td>' + fmt(r.wBefore) + '</td><td>' + fmt(r.wM) + '</td><td>' + fmt(r.wAfter) + '</td><td>' + fmt(r.wF) + '</td><td><b>' + fmt(r.total) + '</b></td></tr></tbody></table></div></div>';
     }).join('') + '</div>' : '<div class="card"><div class="empty">ยังไม่พบสมุดคะแนนหรือตารางเรียนที่เชื่อมกับนักเรียนในภาคเรียนนี้</div></div>') +
     '<div class="portal-login-note" style="margin-top:16px">ข้อมูลแต่ละวิชาแยกตามห้อง วิชา ปี/ภาค และครูผู้สอน จึงรองรับนักเรียนหนึ่งคนเรียนหลายวิชาและมีครูหลายคนได้ภายในฐานข้อมูลกลางเดียวกัน</div></div>';
+  /* มือถือไม่มี hover ข้อความใน title จึงไม่โผล่ ต้องแตะแล้วเขียนลงบรรทัดใต้กล่องแทน
+     ใช้ event เดียวที่ตัวพอร์ทัล ไม่ต้องผูกทีละกล่องซึ่งมีเป็นร้อยกล่องเมื่อเรียนหลายวิชา */
+  portal.addEventListener('click', e => {
+    const btn = e.target.closest('.sbox'); if (!btn) return;
+    const card = btn.closest('.portal-subject'), note = $('[data-sbox-note]', card);
+    $$('.sbox.on', card).forEach(b => { if (b !== btn) b.classList.remove('on'); });
+    btn.classList.toggle('on');
+    if (!note) return;
+    if (!btn.classList.contains('on')) { note.textContent = note.dataset.base || note.textContent; return; }
+    if (!note.dataset.base) note.dataset.base = note.textContent;
+    note.textContent = btn.title;
+  });
   const periodSel = $('#portalPeriod');
   if (periodSel) periodSel.addEventListener('change', e => { studentSession.periodId = e.target.value; renderStudentPortal(); });
   $('#portalPassword').addEventListener('click', openStudentChangePassword);
@@ -12531,6 +12606,7 @@ function studentSubjectPayload(book, cls, subject, st, periodId, key) {
     subject: { code: subject.code || '', name: subject.name || '' },
     cls: { name: cls.name || '' },
     book: { meta: { teacherName: publishTeacherName(book, cls, subject, periodId) } },
+    parts: studentScoreBoxes(book, st.sid),
     score: { wBefore: r.wBefore, wM: r.wM, wAfter: r.wAfter, wF: r.wF, total: r.total, grade: String(r.grade) },
     attendance: { counts: a.counts, checked: a.checked, pct: a.pct },
     publishedAt: new Date().toISOString(),
@@ -12639,16 +12715,24 @@ function openStudentLogin() {
      2) เครื่องครูที่ล็อกอินไว้แล้ว — อ่านจากข้อมูลในเครื่องได้เลยเหมือนเดิม
      ระบบเลือกให้เองตามสภาพเครื่อง ครูกับนักเรียนไม่ต้องรู้ว่าต่างกันอย่างไร */
   const onStaffDevice = DB.classes.some(c => (c.students || []).length);
+  /* ผู้ดูแลระบบต้องเปิดดูหน้าจอนักเรียนได้เพื่อตรวจว่าคะแนนที่ครูเผยแพร่ออกมาถูกต้องไหม
+     ถ้าต้องรู้รหัสผ่านของเด็กก่อนก็ตรวจไม่ได้จริง จึงข้ามรหัสผ่านให้เฉพาะบทบาทผู้ดูแล
+     และเฉพาะบนเครื่องที่มีข้อมูลโรงเรียนอยู่แล้ว เครื่องนักเรียนทั่วไปไม่เข้าเงื่อนไขนี้ */
+  const asAdmin = onStaffDevice && (DB.ui.staffMode === 'admin');
   const remembered = String((DB.ui || {}).studentSid || '');
   openModal({ title: 'นักเรียนเข้าสู่ระบบ', bodyHTML:
     '<div class="portal-login-note" style="margin-bottom:12px">' +
       (onStaffDevice
-        ? 'เครื่องนี้มีข้อมูลของโรงเรียนอยู่แล้ว กรอกเลขประจำตัวกับรหัสผ่านได้เลย'
+        ? (asAdmin
+            ? '<b>บทบาทผู้ดูแลระบบ</b> เปิดดูหน้าจอของนักเรียนได้โดยไม่ต้องใช้รหัสผ่าน ' +
+              'ใช้สำหรับตรวจสอบว่าคะแนนที่ครูเผยแพร่แสดงผลถูกต้อง'
+            : 'เครื่องนี้มีข้อมูลของโรงเรียนอยู่แล้ว กรอกเลขประจำตัวกับรหัสผ่านได้เลย')
         : 'ครั้งแรกให้กรอก <b>รหัสรับสิทธิ์</b> ที่ครูที่ปรึกษาแจกให้ ครั้งต่อไปเครื่องนี้จะจำไว้ ไม่ต้องกรอกอีก') +
     '</div>' +
     '<div class="pick"><label>เลขประจำตัวนักเรียน</label><input id="studentLoginUser" autocomplete="username" style="width:100%" placeholder="กรอกเลขประจำตัว" value="' + esc(remembered) + '"></div>' +
     (onStaffDevice
-      ? '<div class="pick" style="margin-top:10px"><label>รหัสผ่าน</label><input type="password" id="studentLoginPassword" autocomplete="current-password" style="width:100%" placeholder="รหัสเริ่มต้น 1234"></div>'
+      ? (asAdmin ? ''
+          : '<div class="pick" style="margin-top:10px"><label>รหัสผ่าน</label><input type="password" id="studentLoginPassword" autocomplete="current-password" style="width:100%" placeholder="รหัสเริ่มต้น 1234"></div>')
       : '<div class="pick" style="margin-top:10px"><label>รหัสรับสิทธิ์ (เว้นว่างได้ถ้าเคยเข้าเครื่องนี้แล้ว)</label>' +
         '<input id="studentClaimCode" autocomplete="one-time-code" style="width:100%;text-transform:uppercase;letter-spacing:.14em" placeholder="เช่น K7M2PQXT"></div>') +
     '<div class="hint" id="studentLoginHint" style="margin-top:10px"></div>',
@@ -12658,11 +12742,13 @@ function openStudentLogin() {
       if (!sid) return toast('กรุณากรอกเลขประจำตัวนักเรียน', 'bad');
 
       if (onStaffDevice) {
-        const pass = $('#studentLoginPassword', root).value;
-        if (!pass) return toast('กรุณากรอกรหัสผ่าน', 'bad');
         if (!studentMatches(sid).length) return toast('ไม่พบเลขประจำตัวนี้ในข้อมูลของเครื่องนี้', 'bad');
-        const account = DB.studentAccounts[sid], valid = account && account.passwordHash ? await passwordDigest(pass) === account.passwordHash : pass === '1234';
+        const pass = asAdmin ? '' : $('#studentLoginPassword', root).value;
+        if (!asAdmin && !pass) return toast('กรุณากรอกรหัสผ่าน', 'bad');
+        const account = DB.studentAccounts[sid];
+        const valid = asAdmin || (account && account.passwordHash ? await passwordDigest(pass) === account.passwordHash : pass === '1234');
         if (!valid) return toast('เลขประจำตัวหรือรหัสผ่านไม่ถูกต้อง', 'bad');
+        if (asAdmin) toast('เปิดดูหน้าจอของนักเรียนในฐานะผู้ดูแลระบบ', 'ok');
         studentSession = { sid: sid, periodId: DB.ui.periodId, source: 'local' };
         close(); hideRoleGateway(); renderStudentPortal();
         return;
