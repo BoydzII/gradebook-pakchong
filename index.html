@@ -174,6 +174,13 @@ td.num,th.num{text-align:center}
 .grid tbody td.c-no{left:0;text-align:center;color:var(--muted);min-width:42px}
 .grid tbody td.c-name{left:42px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px}
 .grid tbody tr:hover td.c-no,.grid tbody tr:hover td.c-name{background:var(--panel2)}
+/* เส้นนำสายตาของแถวที่กำลังกรอกอยู่ ตารางกว้างหลายสิบคอลัมน์ ถ้าไม่มีเส้น ครูจะ
+   กรอกข้ามแถวโดยไม่รู้ตัวตอนเลื่อนขึ้นลง ใช้เส้นบาง ๆ บนล่างกับสีจาง ๆ แทนการถมสี
+   ทั้งแถว เพราะแถวนี้มีทั้งช่องคะแนนตกที่เป็นพื้นแดงและช่องคำนวณ ถ้าถมเข้มจะกลบกัน */
+.grid tbody tr.row-here > td{box-shadow:inset 0 1px 0 var(--brand),inset 0 -1px 0 var(--brand);
+  background:color-mix(in srgb,var(--brand) 7%,transparent)}
+.grid tbody tr.row-here > td.c-no,.grid tbody tr.row-here > td.c-name{
+  background:color-mix(in srgb,var(--brand) 7%,var(--panel));color:var(--ink);font-weight:600}
 .grid th .hmax{display:block;font-weight:400;font-size:11.5px;color:var(--muted)}
 .grid th.grpcol{color:var(--group)}
 .grid input.cell{
@@ -7786,11 +7793,21 @@ function renderScores() {
     toast('วางคะแนนแล้ว ' + filled + ' ช่อง' + (skipped.length ? ' • ข้าม ' + skipped.join(' และ ') : ''),
       skipped.length ? 'warn' : 'ok');
   });
+  /* ทำเครื่องหมายว่ากำลังกรอกของนักเรียนคนไหนอยู่ ให้กวาดตาตามแนวนอนได้ทั้งแถว */
+  const markRow = cell => {
+    $$('tr.row-here', grid).forEach(tr => tr.classList.remove('row-here'));
+    const tr = cell && cell.closest('tr');
+    if (tr) tr.classList.add('row-here');
+  };
   grid.addEventListener('focusin', e => {
     if (!e.target.classList.contains('cell')) return;
     e.target.select();
+    markRow(e.target);
     if (ScoreVoice.on) ScoreVoice.mark(e.target);      // ครูแตะเลือกช่องเองระหว่างใช้เสียง แผงต้องตามไปช่องนั้น
   });
+  /* ออกจากตารางไปเลยค่อยลบเส้นทิ้ง ถ้าแค่ย้ายไปช่องอื่นในแถวเดิมหรือแถวใหม่
+     ตัว focusin ที่ตามมาจะย้ายเส้นให้เอง */
+  grid.addEventListener('focusout', e => { if (!grid.contains(e.relatedTarget)) markRow(null); });
 }
 
 /* ============================================================================
