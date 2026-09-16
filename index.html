@@ -447,7 +447,12 @@ body.voice-on .tablewrap.tall{padding-bottom:190px}
 .ksa-summary{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
 .ksa-chip{display:inline-flex;padding:2px 6px;border-radius:6px;background:var(--brandSoft);color:var(--brand);font-size:10px;font-weight:900}
 .grid thead tr:first-child th{top:0}
-.grid thead tr:nth-child(2) th{top:52px;z-index:9}
+/* หัวตารางชั้นที่สองต้องตรึงไว้ที่ความสูงจริงของชั้นแรก ของเดิมเขียนตายตัวไว้ 52px
+   แต่ชั้นแรกสูงไม่เท่ากันในแต่ละสมุด เพราะชื่อหัวข้อยาวไม่เท่ากันจนตัดบรรทัดต่างกัน
+   และเครื่องที่ตั้งขนาดตัวอักษรเล็กสุดไว้ก็ดันให้สูงขึ้นอีก พอไม่ตรง เวลาเลื่อนลง
+   หัวตารางจะเหลื่อมกัน ช่องเลขที่กับชื่อ (ซึ่งกินสองแถว) จบไม่ตรงกับช่องคะแนน
+   ค่าจริงวัดตอนวาดตารางแล้วส่งมาทาง --head1 */
+.grid thead tr:nth-child(2) th{top:var(--head1,52px);z-index:9}
 .grid thead th.score-group-head{height:52px;max-height:52px;padding:5px 8px;text-align:center;vertical-align:middle;white-space:normal}
 .grid thead th.item-group-head{min-width:84px;padding:7px 8px;background:color-mix(in srgb,var(--brand) 8%,var(--panel2));color:var(--ink);white-space:normal}
 .grid thead th.item-group-head.before{box-shadow:inset 0 3px 0 var(--brand)}
@@ -7817,6 +7822,24 @@ function renderScores() {
       skipped.length ? 'warn' : 'ok');
   });
   /* ทำเครื่องหมายว่ากำลังกรอกของนักเรียนคนไหนอยู่ ให้กวาดตาตามแนวนอนได้ทั้งแถว */
+  /* วัดความสูงจริงของหัวตารางแถวแรก แล้วบอก CSS ว่าจะตรึงแถวที่สองไว้ตรงไหน
+     ต้องวัดซ้ำหลังฟอนต์โหลดเสร็จด้วย เพราะก่อนฟอนต์มาถึงความสูงยังไม่ใช่ของจริง */
+  const syncHeadOffset = () => {
+    const row1 = grid.querySelector('thead tr:first-child');
+    if (row1) grid.style.setProperty('--head1', row1.getBoundingClientRect().height + 'px');
+  };
+  syncHeadOffset();
+  afterFontsReady(syncHeadOffset);
+  /* ผูกกับการย่อขยายจอครั้งเดียวต่อการโหลดหนึ่งครั้ง ไม่ใช่ทุกครั้งที่วาดตาราง
+     ไม่งั้นตัวจัดการจะซ้อนกันเพิ่มขึ้นเรื่อย ๆ ตลอดคาบที่ครูใช้งาน */
+  if (!window.__headOffsetBound) {
+    window.__headOffsetBound = 1;
+    window.addEventListener('resize', () => {
+      const g = document.querySelector('#scGrid');
+      const r1 = g && g.querySelector('thead tr:first-child');
+      if (r1) g.style.setProperty('--head1', r1.getBoundingClientRect().height + 'px');
+    });
+  }
   const markRow = cell => {
     $$('tr.row-here', grid).forEach(tr => tr.classList.remove('row-here'));
     const tr = cell && cell.closest('tr');
