@@ -6811,7 +6811,7 @@ const VOICE_SPEEDS = [[350, 'ไว'], [220, 'ไวมาก'], [0, 'รอจ�
 
 const ScoreVoice = {
   rec: null, on: false, dir: 'down', readName: false, busy: false, restart: null, pos: null,
-  settleTimer: null, seg: null, painted: null, labels: null,
+  settleTimer: null, seg: null, painted: null, labels: null, hushTimer: null,
 
   grid() { return document.querySelector('#scGrid'); },
 
@@ -6887,16 +6887,42 @@ const ScoreVoice = {
     const tr = cell.closest('tr');
     if (!tr) return;
     const no = (tr.querySelector('.c-no') || {}).textContent || '';
-    const name = (tr.querySelector('.c-name') || {}).textContent || '';
-    this.busy = true;
+    /* ตัดคำนำหน้าออก เหลือพอให้รู้ว่าใคร ยิ่งอ่านสั้น ครูยิ่งรอน้อย และยิ่งมีโอกาสน้อย
+       ที่เสียงของแอปจะไปทับจังหวะที่ครูเริ่มพูดคะแนนคนถัดไป */
+    const name = ((tr.querySelector('.c-name') || {}).textContent || '')
+      .replace(/^(เด็กชาย|เด็กหญิง|นางสาว|นาย|นาง)\s*/, '');
+    const words = 'เลขที่ ' + no + ' ' + name;
+    /* ปิดหูไว้ล่วงหน้าตามความยาวข้อความ เผื่อเครื่องไม่แจ้งว่าพูดจบ (เจอบ่อยบนแอนดรอยด์)
+       ถ้าแจ้งจบจริงค่อยเปิดหูให้เร็วขึ้น จะได้ไม่ต้องรอเปล่า */
+    this.hush(Math.min(4000, Math.max(900, words.length * 90)));
     try {
-      const u = new SpeechSynthesisUtterance('เลขที่ ' + no + ' ' + name);
+      const u = new SpeechSynthesisUtterance(words);
       u.lang = 'th-TH'; u.rate = 1.35;
-      u.onend = u.onerror = () => setTimeout(() => { this.busy = false; }, 200);
+      u.onend = u.onerror = () => this.hush(250);
       speechSynthesis.cancel();
       speechSynthesis.speak(u);
-      setTimeout(() => { this.busy = false; }, 6000);      // กันค้างถ้าเครื่องไม่มีเสียงไทย
-    } catch (e) { this.busy = false; }
+    } catch (e) { this.hush(0); }
+  },
+
+  /** ปิดหูตัวเองไว้อีกกี่มิลลิวินาที — 0 คือเปิดหูทันที */
+  hush(ms) {
+    clearTimeout(this.hushTimer);
+    if (!(ms > 0)) { this.busy = false; return; }
+    this.busy = true;
+    this.hushTimer = setTimeout(() => { this.busy = false; }, ms);
+  },
+
+  /* ระหว่างที่แอปกำลังอ่านชื่อ ไมค์ยังเปิดอยู่และได้ยินเสียงที่แอปพูดเอง ถ้าปล่อยให้
+     เข้าตัวอ่านตัวเลข จะกลายเป็นวงจรป้อนกลับ: แอปอ่าน "เลขที่ 6" ไมค์ได้ยิน "6"
+     ระบบกรอก 6 แล้วเลื่อนไปคนถัดไป แล้วอ่าน "เลขที่ 7" ต่อ วนไปจนกรอกเองทั้งห้อง
+     จึงต้องทิ้งข้อความช่วงนั้น และต้องจำว่าทิ้งถึงตรงไหนด้วย ไม่งั้นข้อความก้อนเดิม
+     จะย้อนกลับมาในรอบถัดไปแล้วถูกกรอกทีหลังอยู่ดี */
+  skip(text, idx, isFinal) {
+    this.settle(null);
+    if (isFinal) { this.seg = null; return; }
+    let seg = this.seg;
+    if (!seg || seg.idx !== idx) seg = this.seg = { idx: idx, consumed: '', numText: '', cell: null, value: null };
+    seg.consumed = String(text || '');
   },
 
   /* ชื่อหัวคอลัมน์ต้องไล่หัวตารางสองชั้นกว่าจะได้มา ซึ่งแพงเกินจะทำซ้ำทุกครั้งที่
@@ -6948,7 +6974,7 @@ const ScoreVoice = {
       '<div class="vhud-cell" data-vcell></div>' +
       '<div class="vhud-heard" data-vheard></div>' +
       '<div class="vhud-tip">พูดตัวเลขได้เลย เช่น “เจ็ด” “เจ็ดจุดห้า” “สิบห้า” • ' +
-        '“ข้าม” เว้นช่องนี้ • “ลบ” ล้างช่อง • “ย้อน” กลับช่องก่อนหน้า • “เต็ม” ให้คะแนนเต็ม • “หยุด” ปิดไมค์</div>';
+        '“ข้าม” เว้นช่องนี้ • “ผิด” ย้อนกลับแล้วล้างให้ • “ลบ” ล้างช่องนี้ • “เต็ม” ให้คะแนนเต็ม • “หยุด” ปิดไมค์</div>';
     document.body.appendChild(el);
     el.querySelector('[data-vspeed]').addEventListener('click', () => {
       const i = VOICE_SPEEDS.findIndex(sp => sp[0] === this.settleMs());
@@ -7047,6 +7073,14 @@ const ScoreVoice = {
       else parts.push({ w: m[0], at: m.index });
     }
     if (!parts.length) return;
+    /* เสียงรบกวนหรือเสียงที่หลุดเข้าไมค์ มักถอดออกมาเป็นตัวเลขหลายตัวรวดเดียว
+       ครูกรอกทีละคนจึงแทบไม่มีทางได้ยินเกินสามตัวในก้อนเดียว ถ้าเกินให้ทิ้งทั้งก้อน
+       แล้วขอให้พูดใหม่ ดีกว่าเผลอกรอกคะแนนผิดให้นักเรียนหลายคนรวดเดียวโดยไม่รู้ตัว */
+    if (parts.length > 3) {
+      this.seg = null; this.settle(null);
+      this.paint('ได้ยินตัวเลขรวดเดียว ' + parts.length + ' ตัว — ไม่เติมเพราะน่าจะเป็นเสียงรบกวน พูดใหม่ทีละคน', 'bad');
+      return;
+    }
 
     /* ตัวที่ไม่ใช่ตัวสุดท้ายแปลว่ามีเสียงตามมาแล้ว = พูดจบแน่นอน เติมได้เลยไม่ต้องรอ */
     for (let i = 0; i < parts.length - 1; i++) this.take(seg, parts[i].w, isFinal);
@@ -7066,6 +7100,15 @@ const ScoreVoice = {
     const flat = head.replace(/[\s.]/g, '');
     const said = w => flat.indexOf(w) >= 0;
     if (said('หยุด') || said('ปิดไมค์') || said('เลิก')) { this.stop(); return true; }
+    /* กรอกผิดแล้วต้องแก้ได้ในคำเดียว ไม่ใช่ "ย้อน" แล้วตามด้วย "ลบ" สองจังหวะ */
+    if (said('ผิด') || said('แก้')) {
+      if (this.step(-1)) {
+        const back = this.cell();
+        if (back) this.write(back, '');
+        this.paint('ย้อนกลับแล้วล้างช่องนั้นให้', 'ok');
+      }
+      return true;
+    }
     const cur = this.cell();
     if (said('ย้อน') || said('ถอย')) { this.paint('ย้อนกลับ', 'ok'); this.step(-1); return true; }
     if (!cur) return false;
@@ -7171,13 +7214,19 @@ const ScoreVoice = {
       let interim = '', interimIdx = -1;
       for (let i = ev.resultIndex; i < ev.results.length; i++) {
         const res = ev.results[i];
-        if (res.isFinal) this.ingest(res[0].transcript, i, true);
-        else { interim += res[0].transcript; interimIdx = i; }
+        if (res.isFinal) {
+          if (this.busy) this.skip(res[0].transcript, i, true);
+          else this.ingest(res[0].transcript, i, true);
+        } else { interim += res[0].transcript; interimIdx = i; }
       }
-      if (interim.trim() && !this.busy) {
-        this.paint('กำลังฟัง… ' + interim.trim(), '');
-        this.ingest(interim, interimIdx, false);
+      if (!interim.trim()) return;
+      if (this.busy) {
+        this.skip(interim, interimIdx, false);
+        this.paint('กำลังอ่านชื่อ… รอให้อ่านจบก่อนค่อยพูด', 'warn');
+        return;
       }
+      this.paint('กำลังฟัง… ' + interim.trim(), '');
+      this.ingest(interim, interimIdx, false);
     };
     rec.onerror = ev => {
       if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
@@ -7213,6 +7262,7 @@ const ScoreVoice = {
     this.on = false;
     clearTimeout(this.restart);
     clearTimeout(this.settleTimer);
+    clearTimeout(this.hushTimer);
     this.seg = null; this.painted = null; this.labels = null;
     if (this.rec) { try { this.rec.stop(); } catch (e) {} this.rec = null; }
     if (window.speechSynthesis) { try { speechSynthesis.cancel(); } catch (e) {} }
