@@ -401,7 +401,14 @@ td.num,th.num{text-align:center}
 .sbox.none{background:var(--bad-bg);border-color:color-mix(in srgb,var(--bad) 35%,transparent)}
 .sbox.none b{color:var(--bad)}
 .sbox.on{outline:2px solid var(--brand);outline-offset:1px}
-.sbox-note{margin-top:7px;font-size:12px;color:var(--muted);min-height:1.5em}
+/* บรรทัดใต้กล่องคะแนนคือที่เดียวที่นักเรียนรู้ว่ากล่องนั้นคือเรื่องอะไร
+   ของเดิมเป็นตัวเล็กสีจางเท่าคำอธิบาย นักเรียนอ่านไม่ถนัด ชื่อหัวข้อจึงต้องเด่นกว่า
+   ส่วนที่เหลือของบรรทัด (คำอธิบายสี) ยังเป็นตัวจางเหมือนเดิม */
+.sbox-note{margin-top:7px;font-size:13px;color:var(--muted);min-height:1.5em;line-height:1.5}
+.sbox-name{display:block;font-size:16px;font-weight:800;color:var(--ink);line-height:1.35}
+.sbox-score{font-size:13px;color:var(--muted)}
+.sbox-work{margin-top:2px;font-size:13px;font-weight:600;color:var(--brand)}
+.portal-updated{font-size:12px;color:var(--muted);margin-top:8px}
 .calc-open{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
 /* --- โหมดกรอกคะแนนด้วยเสียง -----------------------------------------------
    แผงนี้ลอยอยู่เหนือทุกอย่างเพราะครูต้องชำเลืองอ่านขณะก้มดูสมุด ไม่ใช่ขณะจ้องจอ
@@ -430,6 +437,8 @@ input.cell.voice-here{outline:3px solid var(--brand);outline-offset:-1px;backgro
 /* กันแผงเสียงบังแถวท้าย ๆ ของตาราง ซึ่งเป็นแถวที่ครูกำลังจะกรอกพอดี */
 body.voice-on .tablewrap.tall{padding-bottom:190px}
 .portal-login-note{padding:10px 12px;border-radius:9px;background:var(--panel2);border:1px solid var(--line);font-size:12px;color:var(--muted)}
+.login-help{font-size:13px;color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px 12px}
+.login-help summary{cursor:pointer;font-weight:700;color:var(--brand)}
 .ksa-summary{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
 .ksa-chip{display:inline-flex;padding:2px 6px;border-radius:6px;background:var(--brandSoft);color:var(--brand);font-size:10px;font-weight:900}
 .grid thead tr:first-child th{top:0}
@@ -2147,6 +2156,8 @@ function normalizeBook(b) {
   }
   b.weights.collect = num(b.weights.before) + num(b.weights.after);
   (b.items || []).forEach(it => {
+    it.work = String(it.work == null ? '' : it.work).trim().slice(0, 60);
+    if (!it.work) delete it.work;
     it.components = Array.isArray(it.components) ? it.components : [];
     if (it.scoreSection !== 'after') it.scoreSection = 'before';
     if (!(num(it.rawMax) > 0) || it.components.length) delete it.rawMax;
@@ -6673,15 +6684,21 @@ function renderItems() {
           'ให้ใส่ 25 ที่ช่องนี้และ 5 ที่ช่องคะแนนที่ให้ ระบบจะหารให้เอง ไม่ต้องแก้คะแนนที่กรอกไว้ • เว้นว่าง = กรอกตามคะแนนที่ให้ • ' +
           'หัวข้อที่เป็น “สอบวัดผลรายหน่วย” ตั้ง<b>คะแนนดิบเต็มของช่องซ่อม</b>แยกได้ ถ้าข้อสอบซ่อมตรวจคนละเต็มกัน</span>' +
       '</div>' +
+      /* รายการตัวอย่างไว้กดเลือก แต่ยังพิมพ์เองได้ เพราะแต่ละวิชาเรียกภาระงานไม่เหมือนกัน */
+      '<datalist id="workKinds">' +
+        ['ใบงาน', 'แบบฝึกหัด', 'สอบเก็บคะแนน', 'สอบย่อย', 'การทดลอง', 'รายงานการทดลอง', 'นำเสนอกลุ่ม',
+         'ชิ้นงาน', 'โครงงาน', 'รายงาน', 'สมุดจดบันทึก', 'การมีส่วนร่วมในชั้นเรียน'].map(w => '<option value="' + w + '">').join('') +
+      '</datalist>' +
       (b.items.length ?
         '<div class="tablewrap"><table id="itTable"><thead><tr>' +
-          '<th style="width:52px"></th><th>ชื่อหัวข้อ</th><th class="num" style="width:110px">คะแนนดิบเต็ม</th><th class="num" style="width:110px">คะแนนดิบเต็ม<br>ช่องซ่อม</th><th class="num" style="width:100px">คะแนนที่ให้รวม</th>' +
+          '<th style="width:52px"></th><th>ชื่อหัวข้อ</th><th style="width:150px">ภาระงาน<br><span class="hint">นักเรียนเห็น</span></th><th class="num" style="width:110px">คะแนนดิบเต็ม</th><th class="num" style="width:110px">คะแนนดิบเต็ม<br>ช่องซ่อม</th><th class="num" style="width:100px">คะแนนที่ให้รวม</th>' +
           '<th style="width:170px">คะแนนย่อย K/S/A</th><th style="width:145px">รวมคะแนนในส่วน</th><th style="width:130px">ประเภท</th><th style="width:190px">ชุดกลุ่มที่ใช้</th><th style="width:120px"></th>' +
         '</tr></thead><tbody>' +
         b.items.map((it, i) =>
           '<tr data-id="' + it.id + '">' +
           '<td class="num hint">' + (i + 1) + '</td>' +
           '<td><input type="text" class="i-name" value="' + esc(it.name) + '" style="width:100%"></td>' +
+          '<td><input type="text" class="i-work" list="workKinds" value="' + esc(it.work || '') + '" placeholder="เช่น ใบงาน" style="width:100%" title="นักเรียนจะเห็นข้อความนี้ตอนแตะดูกล่องคะแนน"></td>' +
           '<td class="num"><input type="text" class="i-rawmax" value="' + esc(it.rawMax == null ? '' : it.rawMax) + '" placeholder="' + esc(it.max) + '" style="width:80px;text-align:center"' +
             (itemComponents(it).length ? ' disabled title="K/S/A ตั้งคะแนนดิบของแต่ละส่วนย่อยเอง"' : ' title="คะแนนเต็มของตัวเลขที่ครูกรอก เว้นว่างไว้ = กรอกตามคะแนนที่ให้"') + '></td>' +
           '<td class="num">' + (it.kind === 'unit'
@@ -6783,6 +6800,7 @@ function renderItems() {
     const it = b.items.find(x => x.id === el.closest('tr').dataset.id);
     if (!it) return;
     if (el.classList.contains('i-name')) it.name = el.value.trim() || it.name;
+    else if (el.classList.contains('i-work')) { const v = el.value.trim().slice(0, 60); if (v) it.work = v; else delete it.work; }
     else if (el.classList.contains('i-max')) it.max = Math.max(0, num(el.value));
     else if (el.classList.contains('i-rawmax')) { const v = num(el.value); if (v > 0) it.rawMax = v; else delete it.rawMax; }
     else if (el.classList.contains('i-retakemax')) { const v = num(el.value); if (v > 0) it.retakeMax = v; else delete it.retakeMax; }
@@ -13166,10 +13184,13 @@ function openStudentAccountManager() {
   const students = uniqueStudentAccountsList();
   openModal({ title: 'จัดการบัญชีพอร์ทัลนักเรียน', wide: true,
     bodyHTML: '<div class="notice">ชื่อผู้ใช้คือ <b>เลขประจำตัวนักเรียน</b> • รหัสเริ่มต้นคือ <b>1234</b> • นักเรียนเปลี่ยนรหัสเองได้ และครูรีเซ็ตกลับเป็น 1234 ได้</div>' +
-      '<div class="tablewrap tall" style="margin-top:12px"><table><thead><tr><th>เลขประจำตัว / Username</th><th>ชื่อ-นามสกุล</th><th>ห้อง</th><th>สถานะรหัส</th><th></th></tr></thead><tbody>' +
+      '<div class="tablewrap tall" style="margin-top:12px"><table><thead><tr><th>เลขประจำตัว / Username</th><th>ชื่อ-นามสกุล</th><th>ห้อง</th><th>สถานะรหัส</th><th>รหัสรับสิทธิ์</th><th></th></tr></thead><tbody>' +
       (students.length ? students.map(st => '<tr data-account-sid="' + esc(st.sid) + '"><td><b>' + esc(st.sid) + '</b></td><td>' + esc(st.name) + '</td><td>' + esc(st.className) + '</td><td class="account-state">' +
         (DB.studentAccounts[st.sid] && DB.studentAccounts[st.sid].passwordHash ? '<span class="badge ok">เปลี่ยนแล้ว</span>' : '<span class="badge">รหัสเริ่มต้น 1234</span>') +
-        '</td><td><button class="sm" data-reset-account="' + esc(st.sid) + '">รีเซ็ตรหัส</button></td></tr>').join('') : '<tr><td colspan="5"><div class="empty">ยังไม่มีนักเรียนที่มีเลขประจำตัว</div></td></tr>') +
+        '</td><td class="account-code"><code>' + esc((DB.studentAccounts[st.sid] || {}).claimCode || '—') + '</code></td>' +
+        '<td><button class="sm" data-reset-account="' + esc(st.sid) + '">รีเซ็ตรหัสผ่าน</button> ' +
+        '<button class="sm" data-newcode-account="' + esc(st.sid) + '" title="ปลดการผูกเครื่องเดิมและออกรหัสรับสิทธิ์ใหม่ ใช้เมื่อนักเรียนเปลี่ยนมือถือหรือเข้าไม่ได้">ออกรหัสรับสิทธิ์ใหม่</button>' +
+        '</td></tr>').join('') : '<tr><td colspan="6"><div class="empty">ยังไม่มีนักเรียนที่มีเลขประจำตัว</div></td></tr>') +
       '</tbody></table></div>', buttons: [{ label: 'ปิด', cls: 'primary' }],
     onMount(root) {
       $$('[data-reset-account]', root).forEach(btn => btn.addEventListener('click', async () => {
@@ -13178,6 +13199,25 @@ function openStudentAccountManager() {
         delete DB.studentAccounts[sid]; save(true);
         const row = btn.closest('tr'); $('.account-state', row).innerHTML = '<span class="badge">รหัสเริ่มต้น 1234</span>';
         toast('รีเซ็ตรหัสของ ' + sid + ' แล้ว', 'ok');
+      }));
+      /* นักเรียนที่เข้าไม่ได้เพราะเปลี่ยนมือถือ ล้างเครื่อง หรือเผลอกรอกรหัสของคนอื่น
+         ต้องแก้ได้ทีละคนโดยไม่กระทบเพื่อนทั้งห้อง ปุ่มนี้ปลดการผูกเครื่องเดิมแล้วออกรหัสใหม่
+         ครูอ่านรหัสใหม่ให้เด็กได้ทันทีจากในตาราง ไม่ต้องพิมพ์ใบแจกใหม่ทั้งห้อง */
+      $$('[data-newcode-account]', root).forEach(btn => btn.addEventListener('click', async () => {
+        const sid = btn.dataset.newcodeAccount;
+        if (!await confirmBox('ออกรหัสรับสิทธิ์ใหม่',
+          'ออกรหัสใหม่ให้ <b>' + esc(sid) + '</b> และปลดการผูกเครื่องเดิม<br>' +
+          '<span class="hint">เครื่องที่เคยเข้าไว้จะต้องกรอกรหัสใหม่อีกครั้ง ส่วนคะแนนและรหัสผ่านไม่ถูกแตะ</span>', 'ออกรหัสใหม่')) return;
+        btn.disabled = true;
+        try {
+          const code = await resetStudentCard(sid);
+          const cell = $('.account-code', btn.closest('tr'));
+          if (cell) cell.innerHTML = '<code>' + esc(code) + '</code>';
+          toast('รหัสใหม่ของ ' + sid + ' คือ ' + code, 'ok');
+        } catch (e) {
+          toast(String(e && e.message || e), 'bad');
+        }
+        btn.disabled = false;
       }));
     }
   });
@@ -13202,10 +13242,10 @@ function studentScoreBoxes(book, sid) {
   const passPct = num(b.passPercent) || 60;
   const retakes = (b.itemRetakes || {})[sid] || {};
   const boxes = [];
-  const push = (label, name, value, max) => {
+  const push = (label, name, value, max, work) => {
     const hasScore = has(value) && max > 0;
     const pct = hasScore ? num(value) * 100 / num(max) : null;
-    boxes.push({ label: label, name: name, max: num(max),
+    boxes.push({ label: label, name: name, max: num(max), work: work || '',
       value: hasScore ? num(value) : null,
       state: !hasScore ? 'none' : (pct < passPct ? 'low' : 'ok') });
   };
@@ -13214,16 +13254,27 @@ function studentScoreBoxes(book, sid) {
     const original = itemScoreValue(b, sid, it);
     /* ถ้าซ่อมแล้วให้โชว์คะแนนซ่อม เพราะเป็นคะแนนที่ใช้จริงในการตัดสิน */
     const value = done && has(retakes[it.id]) ? retakes[it.id] : original;
-    push(String(i + 1), it.name || ('หัวข้อ ' + (i + 1)), done ? value : '', itemEntryMax(it));
+    push(String(i + 1), it.name || ('หัวข้อ ' + (i + 1)), done ? value : '', itemEntryMax(it), it.work || '');
   });
   const ex = (b.exam || {})[sid] || {};
   const midMax = num(b.exams.midMax), finMax = num(b.exams.finalMax);
   if (midMax > 0) {
     const used = b.exams.retakeEnabled && has(ex.retake) ? ex.retake : ex.mid;
-    push('M', 'กลางภาค', used, midMax);
+    push('M', 'กลางภาค', used, midMax, 'สอบกลางภาค');
   }
-  if (finMax > 0) push('F', 'ปลายภาค', ex.final, finMax);
+  if (finMax > 0) push('F', 'ปลายภาค', ex.final, finMax, 'สอบปลายภาค');
   return boxes;
+}
+
+/* นักเรียนต้องรู้ว่าคะแนนที่เห็นเป็นของเมื่อไร ไม่งั้นจะไม่รู้ว่าครูอัปเดตแล้วหรือยัง
+   บัตรจากส่วนกลางมีเวลาที่ครูกดเผยแพร่ติดมาด้วย ส่วนบนเครื่องครูเป็นการคำนวณสด */
+function portalUpdatedText(x) {
+  if (!x.publishedAt) return 'คำนวณสดจากเครื่องครู ไม่ใช่ผลที่เผยแพร่';
+  const d = new Date(x.publishedAt);
+  if (isNaN(d)) return '';
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  const ago = days <= 0 ? 'วันนี้' : days === 1 ? 'เมื่อวาน' : days + ' วันก่อน';
+  return 'ครูอัปเดตคะแนนล่าสุด ' + d.toLocaleString('th-TH', { dateStyle: 'long', timeStyle: 'short' }) + ' (' + ago + ')';
 }
 
 function studentSubjectContexts(sid, periodId) {
@@ -13305,6 +13356,7 @@ function renderStudentPortal() {
       return '<div class="card portal-subject"><div class="row"><div><span class="level-tag">' + esc(x.subject.code || 'รายวิชา') + '</span><h3 style="margin:7px 0 2px">' + esc(x.subject.name) + '</h3><div class="hint">' + esc(x.cls.name) + ' • ครูผู้สอน ' + esc(teacher) + '</div></div><div class="spacer"></div><div style="text-align:right"><div style="font-size:28px;font-weight:900;color:var(--brand)">' + fmt(r.total) + '</div><div class="hint">เกรด ' + esc(r.complete ? r.grade : 'ระหว่างเรียน') + '</div></div></div>' +
         '<div class="portal-metrics"><div class="portal-metric"><b>' + (a.counts.present + a.counts.late) + '</b>มา/สาย</div><div class="portal-metric"><b>' + a.counts.absent + '</b>ขาด</div><div class="portal-metric"><b>' + a.counts.leave + '</b>ลา</div><div class="portal-metric"><b>' + a.counts.activity + '</b>กิจกรรม</div></div>' +
         '<div class="row" style="margin-top:12px"><span>เวลาเรียน ' + a.checked + ' คาบ</span><div class="spacer"></div>' + attendanceOutcomeBadge(a.pct) + '</div>' +
+        '<div class="portal-updated">' + esc(portalUpdatedText(x)) + '</div>' +
         /* บัตรจากส่วนกลางมีกล่องคะแนนติดมาแล้ว ส่วนเครื่องครูคำนวณสดจากสมุดคะแนนได้เลย
            ผลที่ครูเผยแพร่ไว้ก่อนหน้านี้ยังไม่มีข้อมูลนี้ ส่วนนี้จึงหายไปเงียบ ๆ ไม่พัง */
         (function () {
@@ -13313,6 +13365,8 @@ function renderStudentPortal() {
           return '<div class="sbox-head">คะแนนรายหัวข้อ <span class="hint">แตะที่กล่องเพื่อดูว่าเป็นเรื่องอะไร</span></div>' +
             '<div class="sbox-grid">' + boxes.map((p, i) =>
               '<button type="button" class="sbox ' + p.state + '" data-sbox="' + i + '"' +
+                ' data-name="' + esc(p.name) + '" data-work="' + esc(p.work || '') + '"' +
+                ' data-score="' + esc(p.value == null ? 'ยังไม่มีคะแนน' : 'ได้ ' + fmt(p.value) + ' จาก ' + fmt(p.max)) + '"' +
                 ' title="' + esc(p.name + ' • ' + (p.value == null ? 'ยังไม่มีคะแนน' : fmt(p.value) + '/' + fmt(p.max))) + '">' +
                 '<b>' + (p.value == null ? '–' : esc(fmt(p.value))) + '</b>' +
                 '<span>' + esc(p.label) + '</span></button>').join('') + '</div>' +
@@ -13323,16 +13377,24 @@ function renderStudentPortal() {
     '<div class="portal-login-note" style="margin-top:16px">ข้อมูลแต่ละวิชาแยกตามห้อง วิชา ปี/ภาค และครูผู้สอน จึงรองรับนักเรียนหนึ่งคนเรียนหลายวิชาและมีครูหลายคนได้ภายในฐานข้อมูลกลางเดียวกัน</div></div>';
   /* มือถือไม่มี hover ข้อความใน title จึงไม่โผล่ ต้องแตะแล้วเขียนลงบรรทัดใต้กล่องแทน
      ใช้ event เดียวที่ตัวพอร์ทัล ไม่ต้องผูกทีละกล่องซึ่งมีเป็นร้อยกล่องเมื่อเรียนหลายวิชา */
+  /* ผูกครั้งเดียวต่อหนึ่งหน้า ตัวพอร์ทัลไม่ได้ถูกสร้างใหม่ตอนวาดซ้ำ มีแต่ของข้างในที่เปลี่ยน
+     ถ้าผูกทุกครั้งที่วาด ตัวจัดการจะซ้อนกันเพิ่มขึ้นเรื่อย ๆ แตะหนึ่งครั้งจะถูกสลับหลายรอบ
+     พอเป็นจำนวนคู่ก็กลับมาที่เดิม กลายเป็นแตะแล้วไม่มีอะไรเกิดขึ้น (เจอหลังนักเรียนสลับภาคเรียน) */
+  if (!portal.dataset.boxBound) {
+  portal.dataset.boxBound = '1';
   portal.addEventListener('click', e => {
     const btn = e.target.closest('.sbox'); if (!btn) return;
     const card = btn.closest('.portal-subject'), note = $('[data-sbox-note]', card);
     $$('.sbox.on', card).forEach(b => { if (b !== btn) b.classList.remove('on'); });
     btn.classList.toggle('on');
     if (!note) return;
-    if (!btn.classList.contains('on')) { note.textContent = note.dataset.base || note.textContent; return; }
-    if (!note.dataset.base) note.dataset.base = note.textContent;
-    note.textContent = btn.title;
+    if (!btn.classList.contains('on')) { note.innerHTML = note.dataset.base || note.innerHTML; return; }
+    if (!note.dataset.base) note.dataset.base = note.innerHTML;
+    note.innerHTML = '<b class="sbox-name">' + esc(btn.dataset.name || '') + '</b>' +
+      '<span class="sbox-score">' + esc(btn.dataset.score || '') + '</span>' +
+      (btn.dataset.work ? '<div class="sbox-work">ภาระงาน: ' + esc(btn.dataset.work) + '</div>' : '');
   });
+  }
   const periodSel = $('#portalPeriod');
   if (periodSel) periodSel.addEventListener('change', e => { studentSession.periodId = e.target.value; renderStudentPortal(); });
   $('#portalPassword').addEventListener('click', openStudentChangePassword);
@@ -13542,7 +13604,18 @@ function openStudentLogin() {
           : '<div class="pick" style="margin-top:10px"><label>รหัสผ่าน</label><input type="password" id="studentLoginPassword" autocomplete="current-password" style="width:100%" placeholder="รหัสเริ่มต้น 1234"></div>')
       : '<div class="pick" style="margin-top:10px"><label>รหัสรับสิทธิ์ (เว้นว่างได้ถ้าเคยเข้าเครื่องนี้แล้ว)</label>' +
         '<input id="studentClaimCode" autocomplete="one-time-code" style="width:100%;text-transform:uppercase;letter-spacing:.14em" placeholder="เช่น K7M2PQXT"></div>') +
-    '<div class="hint" id="studentLoginHint" style="margin-top:10px"></div>',
+    '<div class="hint" id="studentLoginHint" style="margin-top:10px"></div>' +
+    /* เด็กที่เข้าไม่ได้มักไม่รู้ว่าปัญหาคืออะไรและต้องไปหาใคร เขียนทางแก้ไว้ตรงนี้เลย
+       จะได้ไม่ต้องเดาเองหรือรอถามครูในคาบถัดไป เก็บพับไว้เพื่อไม่ให้หน้าจอรก */
+    '<details class="login-help" style="margin-top:12px"><summary>เข้าไม่ได้ ทำอย่างไร</summary>' +
+      '<ol style="margin:8px 0 0 18px;padding:0;line-height:1.75">' +
+        '<li><b>เลขประจำตัวต้องตรงกับที่โรงเรียนใช้</b> พิมพ์เฉพาะตัวเลข ไม่ต้องเว้นวรรค</li>' +
+        '<li><b>ยังไม่เคยเข้าเครื่องนี้</b> ต้องกรอกรหัสรับสิทธิ์ 8 ตัวที่ครูที่ปรึกษาแจก กรอกครั้งเดียวพอ ครั้งต่อไปไม่ต้องกรอกอีก</li>' +
+        '<li><b>ขึ้นว่ารหัสไม่ถูกต้อง หรือบัตรถูกผูกกับเครื่องอื่น</b> แปลว่าเคยเข้าจากมือถือเครื่องอื่นไว้ ให้บอกครูขอ “ออกรหัสรับสิทธิ์ใหม่” ครูกดให้ได้ทันทีเป็นรายคน</li>' +
+        '<li><b>จำรหัสผ่านไม่ได้</b> รหัสเริ่มต้นคือ 1234 ถ้าเปลี่ยนไปแล้วและจำไม่ได้ ให้บอกครูขอรีเซ็ตรหัสผ่านกลับเป็น 1234</li>' +
+        '<li><b>เปลี่ยนมือถือใหม่ หรือล้างข้อมูลเบราว์เซอร์</b> ต้องขอรหัสรับสิทธิ์ใหม่จากครูเช่นกัน</li>' +
+        '<li><b>เน็ตไม่ติด</b> หน้านี้ต้องใช้อินเทอร์เน็ตตอนเข้าครั้งแรก ลองสลับ Wi-Fi กับเน็ตมือถือดู</li>' +
+      '</ol></details>',
     buttons: [{ label: 'ยกเลิก' }, { label: 'เข้าสู่ระบบ', cls: 'primary', async act(close, root) {
       const sid = $('#studentLoginUser', root).value.trim();
       const hint = $('#studentLoginHint', root);
