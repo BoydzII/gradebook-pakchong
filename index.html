@@ -403,6 +403,7 @@ td.num,th.num{text-align:center}
 .vhud-row button.on{background:color-mix(in srgb,var(--brand) 14%,transparent);color:var(--brand);border-color:var(--brand)}
 .vhud-row button[data-vstop]{background:var(--bad-bg);color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,transparent)}
 .vdot{width:10px;height:10px;border-radius:50%;background:var(--bad);animation:vpulse 1.1s infinite}
+.vdot.off{background:var(--muted);animation:none}
 @keyframes vpulse{0%,100%{opacity:1}50%{opacity:.2}}
 .vhud-cell{margin-top:7px;font-size:16px;line-height:1.45}
 .vhud-col{color:var(--muted);font-size:13px}
@@ -7002,6 +7003,7 @@ const ScoreVoice = {
     set('[data-vdir]', this.dir === 'down' ? 'ลงคนถัดไป ↓' : 'ไปช่องขวา →');
     set('[data-vread]', 'อ่านชื่อ: ' + (this.readName ? 'เปิด' : 'ปิด'));
     el.querySelector('[data-vread]').classList.toggle('on', this.readName);
+    el.querySelector('.vdot').classList.toggle('off', !this.listening);   // เทา = ไมค์ยังไม่ติด
     /* วาดบล็อกบอกช่องใหม่เฉพาะตอนเปลี่ยนช่องจริง ไม่ใช่ทุกครั้งที่ได้ยินเสียง
        เพราะระหว่างครูพูดหนึ่งคำ แผงถูกสั่งวาดหลายรอบ ถ้าเขียน innerHTML ทุกรอบจะหน่วง */
     const cur = this.cell();
@@ -7067,10 +7069,17 @@ const ScoreVoice = {
     let seg = this.seg;
     if (!seg) seg = this.seg = { consumed: '', numText: '', cell: null, value: null };
 
+    /* การส่งข้อความเดิมกลับมาซ้ำ เกิดติด ๆ กับก้อนก่อนหน้าเสมอ ถ้าเงียบไปพักหนึ่งแล้ว
+       ต้องถือว่าเป็นเสียงชุดใหม่ ไม่งั้นครูที่พูด "สาม" ตามหลังก้อนเก่าที่ขึ้นต้นด้วย 3
+       (เช่น "3 4 5") จะโดนทิ้งเงียบ ๆ ทุกครั้ง — กรอกเลขไม่ได้ทั้งที่สั่งคำสั่งยังได้
+       ถ้าเป็นของซ้ำที่มาช้ากว่านั้นจริง ยังมีตัวตัดเลขซ้ำใน 2.5 วินาทีรับไว้อีกชั้น */
+    const now = Date.now();
+    const quiet = now - (seg.at || 0) > 1200;
+    seg.at = now;
     let rest, fresh = false;
     if (!seg.consumed) { rest = t; fresh = true; }
     else if (t.startsWith(seg.consumed)) rest = t.slice(seg.consumed.length);
-    else if (seg.consumed.startsWith(t)) return;      // ข้อความเดิมถูกส่งกลับมาสั้นกว่าเดิม
+    else if (seg.consumed.startsWith(t) && !quiet) return;   // ข้อความเดิมถูกส่งกลับมาซ้ำ
     else { rest = t; fresh = true; seg.consumed = ''; seg.cell = null; seg.value = null; }
 
     const lead = rest.length - rest.replace(/^\s+/, '').length;
@@ -7233,6 +7242,18 @@ const ScoreVoice = {
 
   toggle() { if (this.on) this.stop(); else this.start(); },
 
+  /* Chrome ปิดการฟังเองเป็นระยะแม้ตั้ง continuous ไว้ และบางครั้งสั่งเริ่มใหม่ทันทีไม่ได้
+     เพราะรอบเก่ายังปิดไม่สนิท ของเดิมลองครั้งเดียวแล้วกลืนข้อผิดพลาดทิ้ง ถ้าพลาดครั้งนั้น
+     ไมค์จะตายไปเลยทั้งที่แผงยังขึ้นว่ากำลังฟังอยู่ จึงต้องลองใหม่โดยถอยห่างขึ้นเรื่อย ๆ */
+  relisten(delay) {
+    clearTimeout(this.restart);
+    this.restart = setTimeout(() => {
+      if (!this.on || !this.rec) return;
+      try { this.rec.start(); this.alive = Date.now(); }
+      catch (e) { this.relisten(Math.min(2000, Math.max(120, (delay || 60) * 2))); }
+    }, delay);
+  },
+
   start() {
     if (this.on) return;
     const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -7246,6 +7267,7 @@ const ScoreVoice = {
     rec.interimResults = true;      // คำที่ได้ยินระหว่างทาง ใช้ทั้งโชว์บนแผงและเติมก่อนจบประโยค
     rec.maxAlternatives = 1;
     rec.onresult = ev => {
+      this.alive = Date.now();
       let interim = '';
       for (let i = ev.resultIndex; i < ev.results.length; i++) {
         const res = ev.results[i];
@@ -7274,17 +7296,30 @@ const ScoreVoice = {
     /* Chrome ปิดการฟังเองทุกไม่กี่สิบวินาทีแม้จะตั้ง continuous ไว้ ถ้าไม่สั่งเริ่มใหม่
        ครูจะพูดต่อไปเรื่อย ๆ โดยไม่มีอะไรเกิดขึ้นเลย หน่วงสั้นที่สุดเท่าที่ไม่ทำให้
        start ซ้อน start เพราะทุกมิลลิวินาทีในช่วงนี้คือเสียงที่หายไป */
+    rec.onstart = () => { this.listening = true; this.alive = Date.now(); this.paint(); };
     rec.onend = () => {
+      this.listening = false;
       if (!this.on) return;
       this.seg = null;                 // ประโยคเก่าจบไปพร้อมรอบการฟัง เริ่มนับข้อความใหม่
-      clearTimeout(this.restart);
-      this.restart = setTimeout(() => { try { rec.start(); } catch (e) {} }, 60);
+      this.relisten(60);
     };
 
     this.rec = rec;
     this.on = true;
     this.seg = null; this.painted = null; this.labels = null; this.recent = [];
-    try { rec.start(); } catch (e) {}
+    this.alive = Date.now(); this.listening = false;
+    this.relisten(0);
+    /* บางครั้งรอบการฟังตายไปเงียบ ๆ โดยไม่แจ้งว่าจบ (เจอตอนเน็ตสะดุด) ครูจะพูดใส่ไมค์
+       ที่ไม่ทำงานอยู่เป็นนาทีโดยไม่รู้ตัว ถ้าไม่ได้ยินอะไรและไม่มีการเริ่มรอบใหม่เลย
+       นานผิดปกติ ให้ตัดแล้วต่อใหม่ให้เอง */
+    clearInterval(this.watch);
+    this.watch = setInterval(() => {
+      if (!this.on || Date.now() - (this.alive || 0) < 15000) return;
+      this.alive = Date.now();
+      try { this.rec.abort(); } catch (e) {}
+      this.relisten(200);
+      this.paint('ไมค์เงียบผิดปกติ — ต่อใหม่ให้แล้ว พูดต่อได้เลย', 'warn');
+    }, 5000);
     document.body.classList.add('voice-on');
     this.hud();
     this.lockKeyboard(true);
@@ -7295,6 +7330,8 @@ const ScoreVoice = {
 
   stop() {
     this.on = false;
+    this.listening = false;
+    clearInterval(this.watch);
     clearTimeout(this.restart);
     clearTimeout(this.settleTimer);
     clearTimeout(this.hushTimer);
