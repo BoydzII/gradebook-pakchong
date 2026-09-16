@@ -2143,6 +2143,7 @@ function normalizeBook(b) {
     it.components = Array.isArray(it.components) ? it.components : [];
     if (it.scoreSection !== 'after') it.scoreSection = 'before';
     if (!(num(it.rawMax) > 0) || it.components.length) delete it.rawMax;
+    if (!(num(it.retakeMax) > 0) || it.kind !== 'unit') delete it.retakeMax;
   });
   b.assessments.traits = b.assessments.traits || {};
   b.assessments.reading = b.assessments.reading || {};
@@ -2175,6 +2176,13 @@ function itemEntryMax(item) {
   if (itemComponents(item).length) return num(item.max);
   const raw = num(item && item.rawMax);
   return raw > 0 ? raw : num(item && item.max);
+}
+/* ช่องซ่อมมักตรวจคนละเต็มกับช่องปกติ เช่นหัวข้อที่ใช้ K/S/A คิดเป็น 5 คะแนน แต่ข้อสอบซ่อม
+   ตรวจเต็ม 12 ครูจึงกรอก 12 ลงช่องที่ระบบคิดว่าเต็ม 5 แล้วคะแนนรวมทะลุ
+   ตั้งค่านี้แยกได้ ถ้าไม่ตั้งก็ถือว่าเต็มเท่ากับช่องปกติเหมือนเดิม */
+function itemRetakeMax(item) {
+  const raw = num(item && item.retakeMax);
+  return raw > 0 ? raw : itemEntryMax(item);
 }
 function itemScoreComplete(book, sid, item) {
   const components = itemComponents(item);
@@ -2221,18 +2229,19 @@ function sectionBreakdownHtml(b, st, section) {
     const failed = it.kind === 'unit' && done && entry > 0 && num(original) * 100 / entry < num(b.passPercent);
     const usedRetake = failed && has(retakes[it.id]);
     const v = usedRetake ? retakes[it.id] : original;
-    const conv = done && entry > 0 ? num(v) * given / entry : 0;
+    const denom = usedRetake ? itemRetakeMax(it) : entry;
+    const conv = done && denom > 0 ? num(v) * given / denom : 0;
     if (done) raw += conv;
     max += given;
     const cs = itemComponents(it);
     const parts = cs.length
       ? cs.map(c => c.key + ' ' + (has((comp[it.id] || {})[c.key]) ? fmt((comp[it.id] || {})[c.key]) : '—') + '/' + fmt(c.rawMax)).join(' • ')
       : (done ? fmt(original) + '/' + fmt(entry) : '—');
-    const bust = done && num(v) > entry;
+    const bust = done && num(v) > denom;
     if (bust) over = true;
     rows.push('<tr><td>' + esc(it.name || 'ไม่มีชื่อ') + '</td>' +
       '<td class="num">' + esc(parts) + '</td>' +
-      '<td class="num">' + (usedRetake ? fmt(retakes[it.id]) + '/' + fmt(entry) + ' <span class="badge bad">ใช้ซ่อม</span>' : '—') + '</td>' +
+      '<td class="num">' + (usedRetake ? fmt(retakes[it.id]) + '/' + fmt(itemRetakeMax(it)) + ' <span class="badge bad">ใช้ซ่อม</span>' : '—') + '</td>' +
       '<td class="num' + (bust ? ' score-fail' : '') + '">' + (done ? fmt(conv, 2) : '—') + '</td>' +
       '<td class="num">' + fmt(given) + '</td></tr>');
   });
@@ -2260,10 +2269,10 @@ function overMaxNotice(book, sts) {
       /* ช่องซ่อมถูกนำไปใช้แทนคะแนนเดิมเมื่อคนนั้นตก จึงทำให้ผลรวมทะลุได้เหมือนกัน
          และมองไม่เห็นจากคะแนนหลัก เพราะ K/S/A แปลงมาให้อยู่ในกรอบเสมอ */
       const rt = ((book.itemRetakes || {})[st.sid] || {})[it.id];
-      if (has(rt) && num(rt) > entry) nr++;
+      if (has(rt) && num(rt) > itemRetakeMax(it)) nr++;
     });
     if (n) bad.push(esc(it.name || 'หัวข้อไม่มีชื่อ') + ' — เกิน ' + n + ' คน (ช่องนี้เต็ม ' + fmt(entry) + ')');
-    if (nr) bad.push('ซ่อม ' + esc(it.name || 'หัวข้อไม่มีชื่อ') + ' — เกิน ' + nr + ' คน (ช่องนี้เต็ม ' + fmt(entry) + ')');
+    if (nr) bad.push('ซ่อม ' + esc(it.name || 'หัวข้อไม่มีชื่อ') + ' — เกิน ' + nr + ' คน (ช่องนี้เต็ม ' + fmt(itemRetakeMax(it)) + ')');
   });
   if (!bad.length) return '';
   return '<div class="notice bad" style="margin-top:8px"><b>มีคะแนนที่กรอกเกินคะแนนเต็มของช่อง</b> ' +
@@ -2288,11 +2297,14 @@ function calcRow(book, st) {
     const entryMax = itemEntryMax(it);
     const failed = it.kind === 'unit' && g && entryMax > 0 && num(original) * 100 / entryMax < passPct;
     unitFailed[it.id] = failed;
-    const v = failed && has(itemRetakes[it.id]) ? itemRetakes[it.id] : original;
+    const useRetake = failed && has(itemRetakes[it.id]);
+    const v = useRetake ? itemRetakes[it.id] : original;
     const stat = sectionStats[itemScoreSection(it)];
     /* แปลงเป็นคะแนนที่หัวข้อนี้ให้จริงก่อนบวก ไม่งั้นงานที่เก็บ 25 แต่คิดเป็น 5
-       จะถูกบวกเข้าไปทั้ง 25 ทำให้คะแนนรวมของส่วนทะลุคะแนนเต็มของส่วนนั้น */
-    if (g) { stat.raw += entryMax > 0 ? num(v) * num(it.max) / entryMax : 0; stat.filled++; }
+       จะถูกบวกเข้าไปทั้ง 25 ทำให้คะแนนรวมของส่วนทะลุคะแนนเต็มของส่วนนั้น
+       ช่องซ่อมหารด้วยเต็มของตัวเอง เพราะมักตรวจคนละเต็มกับช่องปกติ */
+    const denom = useRetake ? itemRetakeMax(it) : entryMax;
+    if (g) { stat.raw += denom > 0 ? num(v) * num(it.max) / denom : 0; stat.filled++; }
     if (!partial || g) stat.max += num(it.max);
   }
   const rawBefore = sectionStats.before.raw, maxBefore = sectionStats.before.max, filledBefore = sectionStats.before.filled;
@@ -6651,11 +6663,12 @@ function renderItems() {
         '<button id="btnPullItems" title="ดึงรูปแบบที่เคยส่งไว้ หรือของครูที่สอนวิชาเดียวกัน มาใช้กับเครื่องนี้">⤓ ดึงรูปแบบจากส่วนกลาง</button>' +
         '<span class="hint">เลือก “สอบวัดผลรายหน่วย” เพื่อเปิดช่องซ่อมอัตโนมัติเฉพาะผู้ที่ได้ต่ำกว่าเกณฑ์รายส่วน</span>' +
         '<span class="hint tip"><b>คะแนนดิบเต็ม</b> คือเต็มของตัวเลขที่ครูกรอกจริง เช่นตรวจใบงานเต็ม 25 แล้วคิดเป็น 5 คะแนน ' +
-          'ให้ใส่ 25 ที่ช่องนี้และ 5 ที่ช่องคะแนนที่ให้ ระบบจะหารให้เอง ไม่ต้องแก้คะแนนที่กรอกไว้ • เว้นว่าง = กรอกตามคะแนนที่ให้</span>' +
+          'ให้ใส่ 25 ที่ช่องนี้และ 5 ที่ช่องคะแนนที่ให้ ระบบจะหารให้เอง ไม่ต้องแก้คะแนนที่กรอกไว้ • เว้นว่าง = กรอกตามคะแนนที่ให้ • ' +
+          'หัวข้อที่เป็น “สอบวัดผลรายหน่วย” ตั้ง<b>คะแนนดิบเต็มของช่องซ่อม</b>แยกได้ ถ้าข้อสอบซ่อมตรวจคนละเต็มกัน</span>' +
       '</div>' +
       (b.items.length ?
         '<div class="tablewrap"><table id="itTable"><thead><tr>' +
-          '<th style="width:52px"></th><th>ชื่อหัวข้อ</th><th class="num" style="width:110px">คะแนนดิบเต็ม</th><th class="num" style="width:100px">คะแนนที่ให้รวม</th>' +
+          '<th style="width:52px"></th><th>ชื่อหัวข้อ</th><th class="num" style="width:110px">คะแนนดิบเต็ม</th><th class="num" style="width:110px">คะแนนดิบเต็ม<br>ช่องซ่อม</th><th class="num" style="width:100px">คะแนนที่ให้รวม</th>' +
           '<th style="width:170px">คะแนนย่อย K/S/A</th><th style="width:145px">รวมคะแนนในส่วน</th><th style="width:130px">ประเภท</th><th style="width:190px">ชุดกลุ่มที่ใช้</th><th style="width:120px"></th>' +
         '</tr></thead><tbody>' +
         b.items.map((it, i) =>
@@ -6664,6 +6677,9 @@ function renderItems() {
           '<td><input type="text" class="i-name" value="' + esc(it.name) + '" style="width:100%"></td>' +
           '<td class="num"><input type="text" class="i-rawmax" value="' + esc(it.rawMax == null ? '' : it.rawMax) + '" placeholder="' + esc(it.max) + '" style="width:80px;text-align:center"' +
             (itemComponents(it).length ? ' disabled title="K/S/A ตั้งคะแนนดิบของแต่ละส่วนย่อยเอง"' : ' title="คะแนนเต็มของตัวเลขที่ครูกรอก เว้นว่างไว้ = กรอกตามคะแนนที่ให้"') + '></td>' +
+          '<td class="num">' + (it.kind === 'unit'
+            ? '<input type="text" class="i-retakemax" value="' + esc(it.retakeMax == null ? '' : it.retakeMax) + '" placeholder="' + esc(fmt(itemEntryMax(it))) + '" style="width:80px;text-align:center" title="คะแนนเต็มของข้อสอบซ่อม ถ้าตรวจคนละเต็มกับช่องปกติ เว้นว่าง = เต็มเท่ากัน">'
+            : '<span class="hint">—</span>') + '</td>' +
           '<td class="num"><input type="text" class="i-max" value="' + esc(it.max) + '" style="width:80px;text-align:center"' + (itemComponents(it).length ? ' disabled title="คำนวณจากคะแนนที่ให้ของ K/S/A"' : '') + '></td>' +
           '<td><div class="ksa-summary">' + (itemComponents(it).length ? itemComponents(it).map(c => '<span class="ksa-chip">' + c.key + ' ดิบ ' + fmt(c.rawMax) + ' → ให้ ' + fmt(c.max) + '</span>').join('') : '<span class="hint">คะแนนรวมช่องเดียว</span>') +
             '<button class="sm" data-ksa="' + it.id + '"' + (it.kind === 'group' ? ' disabled title="คะแนนกลุ่มใช้คะแนนรวม"' : '') + '>ตั้งค่า</button></div></td>' +
@@ -6762,6 +6778,7 @@ function renderItems() {
     if (el.classList.contains('i-name')) it.name = el.value.trim() || it.name;
     else if (el.classList.contains('i-max')) it.max = Math.max(0, num(el.value));
     else if (el.classList.contains('i-rawmax')) { const v = num(el.value); if (v > 0) it.rawMax = v; else delete it.rawMax; }
+    else if (el.classList.contains('i-retakemax')) { const v = num(el.value); if (v > 0) it.retakeMax = v; else delete it.retakeMax; }
     else if (el.classList.contains('i-section')) it.scoreSection = el.value === 'after' ? 'after' : 'before';
     else if (el.classList.contains('i-kind')) {
       it.kind = el.value;
@@ -7488,7 +7505,7 @@ function renderScores() {
     }
     headGroups.push({ label: it.name, span: cols.length - start, item: it, section: section, part: section, grp: it.kind === 'group', gname: gname });
     if (it.kind === 'unit') {
-      cols.push({ key: 'rt:' + it.id, type: 'retake', itemId: it.id, item: it, label: 'คะแนนซ่อม', max: itemEntryMax(it), unit: true, retake: true, part: section, threshold: true });
+      cols.push({ key: 'rt:' + it.id, type: 'retake', itemId: it.id, item: it, label: 'คะแนนซ่อม', max: itemRetakeMax(it), unit: true, retake: true, part: section, threshold: true });
       headGroups.push({ label: 'ซ่อม ' + it.name, span: 1, retake: true, part: section });
     }
   };
@@ -7690,7 +7707,7 @@ function renderScores() {
         retakeInp.disabled = !r.unitFailed[it.id];
         if (!r.unitFailed[it.id] && retakeInp.value) retakeInp.value = '';
         retakeInp.title = r.unitFailed[it.id] ? 'คะแนนซ่อมนี้จะใช้แทนคะแนนสอบรายหน่วยเดิม' : 'กรอกซ่อมได้เมื่อคะแนนสอบรายหน่วยต่ำกว่าเกณฑ์เท่านั้น';
-        retakeInp.classList.toggle('fail', has(itemRetakes[it.id]) && num(itemRetakes[it.id]) * 100 / itemEntryMax(it) < num(b.passPercent));
+        retakeInp.classList.toggle('fail', has(itemRetakes[it.id]) && num(itemRetakes[it.id]) * 100 / itemRetakeMax(it) < num(b.passPercent));
       }
     });
     const midInp = tr.querySelector('input[data-key="ex:mid"]');
@@ -8769,7 +8786,7 @@ function exportWorkbook(groupsOnly) {
       const it = col.item;
       const sectionLabel = itemScoreSection(it) === 'after' ? 'หลังกลางภาค' : 'ก่อนกลางภาค';
       const label = (col.component ? it.name + ' ' + col.component.key + ' (ดิบ)' : col.ksaTotal ? it.name + ' (คะแนนที่ให้)' : (col.retake ? 'ซ่อม ' : '') + it.name + (it.kind === 'group' ? ' (กลุ่ม)' : '') + (it.kind === 'unit' ? ' (สอบรายหน่วย)' : '')) + ' [' + sectionLabel + ']';
-      head1.push(H(label)); head2.push(G(col.component ? num(col.component.rawMax) : itemEntryMax(it)));
+      head1.push(H(label)); head2.push(G(col.component ? num(col.component.rawMax) : col.retake ? itemRetakeMax(it) : itemEntryMax(it)));
     });
     const useMid = num(b.exams.midMax) > 0, useFin = num(b.exams.finalMax) > 0;
     if (useMid) { head1.push(H('สอบกลางภาค')); head2.push(G(num(b.exams.midMax))); }
