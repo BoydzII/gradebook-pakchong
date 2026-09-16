@@ -444,6 +444,10 @@ body.voice-on .tablewrap.tall{padding-bottom:190px}
 .portal-login-note{padding:10px 12px;border-radius:9px;background:var(--panel2);border:1px solid var(--line);font-size:12px;color:var(--muted)}
 .login-help{font-size:13px;color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px 12px}
 .login-help summary{cursor:pointer;font-weight:700;color:var(--brand)}
+.sgs-steps{margin:10px 0 0 20px;padding:0;line-height:1.9}
+.sgs-steps li{margin-bottom:4px}
+.sgs-bookmarklet{display:inline-block;margin-left:6px;padding:4px 12px;border-radius:8px;border:2px dashed var(--brand);
+  color:var(--brand);font-weight:700;text-decoration:none;cursor:grab;background:var(--panel)}
 .ksa-summary{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
 .ksa-chip{display:inline-flex;padding:2px 6px;border-radius:6px;background:var(--brandSoft);color:var(--brand);font-size:10px;font-weight:900}
 .grid thead tr:first-child th{top:0}
@@ -2277,7 +2281,7 @@ function sectionBreakdownHtml(b, st, section) {
   return '<div class="tablewrap"><table><thead><tr><th>หัวข้อ</th><th class="num">คะแนนที่กรอก</th>' +
     '<th class="num">ช่องซ่อม</th><th class="num">คิดเป็นคะแนนที่ให้</th><th class="num">เต็มที่ให้</th>' +
     '</tr></thead><tbody>' + rows.join('') + '</tbody></table></div>' +
-    '<div class="notice" style="margin-top:10px">รวมที่ได้ <b>' + fmt(raw, 2) + '</b> จากเต็มที่ให้ <b>' + fmt(max) + '</b> → ' +
+    '<div class="notice warn" style="margin-top:10px">รวมที่ได้ <b>' + fmt(raw, 2) + '</b> จากเต็มที่ให้ <b>' + fmt(max) + '</b> → ' +
       (after ? 'หลังกลางภาค' : 'ก่อนกลางภาค') + ' = ' + fmt(raw, 2) + ' × ' + fmt(weight) + ' ÷ ' + fmt(max) +
       ' = <b>' + fmt(rnd(result)) + '</b> จากเต็ม ' + fmt(weight) + '</div>' +
     (over ? '<div class="notice bad" style="margin-top:8px"><b>มีช่องที่กรอกเกินคะแนนเต็มของช่อง</b> ' +
@@ -8444,6 +8448,484 @@ function claimCodeSheetHtml(cls) {
     }).join('') + '</div></div>';
 }
 
+/* ============================================================================
+   ส่งคะแนนเข้า SGS — ส่วนที่ทำงานบนหน้าเว็บของ SGS
+   ฟังก์ชันนี้ไม่ได้ทำงานใน KruSpace เลย มันถูกแปลงเป็นปุ่มบนแถบบุ๊กมาร์ก แล้วไปทำงาน
+   บนหน้า "บันทึกผลการเรียน ตลอดภาคเรียน" ของ SGS ที่ครูล็อกอินไว้เอง
+   จึงห้ามอ้างถึงอะไรของ KruSpace (DB, esc, num, toast …) ต้องพึ่งตัวเองทั้งหมด
+
+   กติกาที่ต้องรักษา เพราะเป็นทะเบียนผลการเรียนของจริง และหน้านั้นบันทึกทันทีที่ช่องเปลี่ยน
+   - ไม่ล็อกอิน ไม่ส่งอะไรออกนอกหน้า ไม่แตะรหัสผ่าน
+   - อ่านโครงตารางไม่ออกเมื่อไร ให้หยุดและบอก ห้ามเดา
+   - แสดงตารางเปรียบเทียบค่าเดิมกับค่าใหม่ก่อนเสมอ ครูต้องกดยืนยันเองจึงจะกรอก
+   - จับคู่ด้วยเลขประจำตัวเท่านั้น ไม่ใช้ลำดับแถว
+   - แตะเฉพาะสี่ช่องคะแนน (ก่อนกลาง กลางภาค หลังกลาง ปลายภาค) ไม่แตะ % ปกติ แก้ตัว เรียนซ้ำ
+   ========================================================================== */
+function sgsFillerMain() {
+  var BOX_ID = 'kruspace-sgs-filler';
+  var old = document.getElementById(BOX_ID);
+  if (old) old.remove();
+
+  var txt = function (s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); };
+  var esc = function (s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  };
+  var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+  var SECTIONS = [
+    { key: 'before', label: 'ก่อนกลางภาค', slots: ['1', '2', '3'] },
+    { key: 'mid', label: 'กลางภาค', slots: ['กลางภาค'] },
+    { key: 'after', label: 'หลังกลางภาค', slots: ['10', '11', '12'] },
+    { key: 'final', label: 'ปลายภาค', slots: ['ปลายภาค'] }
+  ];
+
+  /* ---- อ่านตารางกรอกคะแนนของ SGS -------------------------------------------
+     ตารางของ ASP.NET มักซ้อนตารางจัดหน้าไว้หลายชั้น จึงเลือกตารางที่ "แถวของตัวเอง"
+     มีหัวคอลัมน์เลขประจำตัว และขยาย rowspan/colspan ให้เป็นตารางช่องจริงก่อนอ่าน
+     หัวตารางจะอยู่ในแถวเดียวหรือแยกสองแถวก็อ่านได้เหมือนกัน */
+  function expand(rows) {
+    var grid = [];
+    rows.forEach(function (tr, r) {
+      grid[r] = grid[r] || [];
+      var c = 0;
+      Array.prototype.forEach.call(tr.cells, function (cell) {
+        while (grid[r][c]) c++;
+        var rs = Math.max(1, cell.rowSpan || 1), cs = Math.max(1, cell.colSpan || 1);
+        for (var i = 0; i < rs; i++) {
+          grid[r + i] = grid[r + i] || [];
+          for (var j = 0; j < cs; j++) grid[r + i][c + j] = cell;
+        }
+        c += cs;
+      });
+    });
+    return grid;
+  }
+
+  function readSgs() {
+    /* หัวคอลัมน์ต้องเป็นช่องที่มีแค่คำว่าเลขประจำตัว ไม่ใช่ช่องที่บังเอิญครอบตารางทั้งก้อนไว้
+       ตารางจัดหน้าชั้นนอกของ ASP.NET ก็มีคำนี้อยู่ข้างในผ่านตารางซ้อน ถ้าไม่เช็กความยาว
+       จะหยิบตารางผิดตัว */
+    var isHead = function (c, re) { var t = txt(c.textContent); return re.test(t) && t.length <= 24; };
+    var tables = Array.prototype.slice.call(document.querySelectorAll('table')).filter(function (t) {
+      return Array.prototype.some.call(t.rows, function (tr) {
+        return Array.prototype.some.call(tr.cells, function (c) { return isHead(c, /เลขประจำตัว/); });
+      });
+    });
+    tables.sort(function (a, b) { return b.rows.length - a.rows.length; });
+    var table = tables[0];
+    if (!table) return { error: 'ไม่พบตารางกรอกคะแนนในหน้านี้ — เปิดหน้า "บันทึกผลการเรียน ตลอดภาคเรียน" และเลือกรายวิชาก่อน' };
+
+    var rows = Array.prototype.slice.call(table.rows);
+    var grid = expand(rows);
+    var headRow = rows.findIndex(function (tr) {
+      return Array.prototype.some.call(tr.cells, function (c) { return isHead(c, /เลขประจำตัว/); });
+    });
+    var sidCol = -1, nameCol = -1;
+    (grid[headRow] || []).forEach(function (cell, c) {
+      if (sidCol < 0 && isHead(cell, /เลขประจำตัว/)) sidCol = c;
+      if (nameCol < 0 && isHead(cell, /ชื่อ/) && !/เลขประจำตัว/.test(cell.textContent)) nameCol = c;
+    });
+    if (sidCol < 0) return { error: 'หาคอลัมน์เลขประจำตัวไม่เจอ' };
+
+    var dataStart = -1;
+    for (var r = headRow + 1; r < rows.length; r++) {
+      var cell = (grid[r] || [])[sidCol];
+      if (cell && /^\d{3,}$/.test(txt(cell.textContent))) { dataStart = r; break; }
+    }
+    if (dataStart < 0) return { error: 'ไม่พบแถวนักเรียนในตาราง — เลือกรายวิชาและกลุ่มให้ครบก่อน' };
+
+    /* อ่านหัวคอลัมน์: รวมข้อความทุกแถวหัวตารางในคอลัมน์เดียวกัน เช่น "1" กับ "30"
+       กลายเป็น "1 30" แล้วแยกเป็นชื่อช่องกับคะแนนเต็ม */
+    var width = Math.max.apply(null, grid.slice(headRow, dataStart + 1).map(function (g) { return (g || []).length; }));
+    var cols = [];
+    for (var c = 0; c < width; c++) {
+      var seen = [], parts = [];
+      for (var hr = headRow; hr < dataStart; hr++) {
+        var hc = (grid[hr] || [])[c];
+        /* ต้องใช้ innerText ไม่ใช่ textContent เพราะหัวคอลัมน์ของ SGS เขียนชื่อช่องกับคะแนนเต็ม
+           คนละบรรทัดด้วย <br> ซึ่ง textContent จะเอามาต่อกันเป็น "130" แทนที่จะเป็น "1 30"
+           แล้วระบบจะหาช่องคะแนนไม่เจอเลย */
+        if (hc && seen.indexOf(hc) < 0) { seen.push(hc); parts.push(txt(hc.innerText != null ? hc.innerText : hc.textContent)); }
+      }
+      var head = txt(parts.join(' '));
+      var m = head.match(/^(.+?)\s+(\d+(?:\.\d+)?)$/);
+      cols.push({ index: c, head: head, label: m ? txt(m[1]) : head, max: m ? parseFloat(m[2]) : null });
+    }
+
+    var map = {}, problems = [];
+    SECTIONS.forEach(function (sec) {
+      var hits = cols.filter(function (col) { return sec.slots.indexOf(col.label) >= 0 && col.max != null; });
+      var used = hits.filter(function (col) { return col.max > 0; });
+      if (!hits.length) { problems.push('ไม่พบช่อง' + sec.label + 'ในหน้านี้'); return; }
+      if (used.length > 1) {
+        problems.push(sec.label + ' ใน SGS แบ่งไว้ ' + used.length + ' ช่อง (' + used.map(function (x) { return x.label; }).join(', ') +
+          ') แต่ KruSpace มีคะแนนรวมส่วนนี้ช่องเดียว จึงข้ามส่วนนี้');
+        return;
+      }
+      if (!used.length) { problems.push(sec.label + ' ใน SGS ตั้งคะแนนเต็มไว้ 0 จึงข้ามส่วนนี้'); return; }
+      map[sec.key] = used[0];
+    });
+
+    var students = [];
+    for (var dr = dataStart; dr < rows.length; dr++) {
+      var sc = (grid[dr] || [])[sidCol];
+      var sid = sc ? txt(sc.textContent) : '';
+      if (!/^\d{3,}$/.test(sid)) continue;
+      var st = { sid: sid, name: nameCol >= 0 && grid[dr][nameCol] ? txt(grid[dr][nameCol].textContent) : '', inputs: {} };
+      Object.keys(map).forEach(function (k) {
+        var holder = grid[dr][map[k].index];
+        st.inputs[k] = holder ? holder.querySelector('input[type=text], input:not([type])') : null;
+      });
+      students.push(st);
+    }
+    var subjectText = Array.prototype.slice.call(document.querySelectorAll('select')).map(function (s) {
+      return s.selectedIndex >= 0 ? txt(s.options[s.selectedIndex].text) : '';
+    }).join(' | ');
+    return { map: map, problems: problems, students: students, subjectText: subjectText };
+  }
+
+  /* ---- ตัวเลข ------------------------------------------------------------ */
+  function roundBy(v, mode) {
+    if (v == null || !isFinite(v)) return null;
+    if (mode === 'int') return Math.round(v + 1e-9);
+    if (mode === 'one') return Math.round(v * 10 + 1e-9) / 10;
+    return Math.round(v * 2 + 1e-9) / 2;
+  }
+  function readNum(inp) {
+    if (!inp) return null;
+    var s = String(inp.value || '').trim();
+    if (!s) return null;
+    var n = parseFloat(s);
+    return isFinite(n) ? n : null;
+  }
+
+  /* ---- หน้าต่าง ----------------------------------------------------------- */
+  var box = document.createElement('div');
+  box.id = BOX_ID;
+  box.setAttribute('style', 'all:initial;position:fixed;z-index:2147483000;top:12px;right:12px;bottom:12px;' +
+    'width:min(760px,calc(100vw - 24px));background:#fff;color:#16202e;border:2px solid #1f6feb;border-radius:14px;' +
+    'box-shadow:0 12px 40px rgba(0,0,0,.25);font:14px/1.5 Tahoma,Sarabun,sans-serif;display:flex;flex-direction:column;overflow:hidden');
+  document.body.appendChild(box);
+
+  var CSS = '<style>' +
+    '#' + BOX_ID + ' *{box-sizing:border-box;font-family:inherit}' +
+    '#' + BOX_ID + ' .h{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#1f6feb;color:#fff;font-weight:700}' +
+    '#' + BOX_ID + ' .b{padding:12px 14px;overflow:auto;flex:1}' +
+    '#' + BOX_ID + ' .f{padding:10px 14px;border-top:1px solid #dde3ec;display:flex;gap:8px;align-items:center;flex-wrap:wrap}' +
+    '#' + BOX_ID + ' button{font:inherit;padding:7px 14px;border-radius:8px;border:1px solid #c9d3e0;background:#f4f6fa;color:#16202e;cursor:pointer}' +
+    '#' + BOX_ID + ' button.p{background:#1f6feb;border-color:#1f6feb;color:#fff;font-weight:700}' +
+    '#' + BOX_ID + ' button:disabled{opacity:.45;cursor:not-allowed}' +
+    '#' + BOX_ID + ' textarea{width:100%;height:120px;font:12px monospace;border:1px solid #c9d3e0;border-radius:8px;padding:8px}' +
+    '#' + BOX_ID + ' .n{padding:8px 11px;border-radius:8px;margin:0 0 10px;background:#fff5e2;color:#7a4700}' +
+    '#' + BOX_ID + ' .n.bad{background:#fdecec;color:#a61b1b}' +
+    '#' + BOX_ID + ' .n.ok{background:#e6f6ee;color:#0b6b41}' +
+    '#' + BOX_ID + ' table{border-collapse:collapse;width:100%;font-size:13px}' +
+    '#' + BOX_ID + ' th,#' + BOX_ID + ' td{border:1px solid #e3e8ef;padding:4px 6px;text-align:center;white-space:nowrap}' +
+    '#' + BOX_ID + ' th{background:#f4f6fa;position:sticky;top:0}' +
+    '#' + BOX_ID + ' td.nm{text-align:left;max-width:170px;overflow:hidden;text-overflow:ellipsis}' +
+    '#' + BOX_ID + ' td.chg{background:#e6f6ee;font-weight:700}' +
+    '#' + BOX_ID + ' td.ovr{background:#fff0d6;font-weight:700}' +
+    '#' + BOX_ID + ' td.bad{background:#fdecec;color:#a61b1b;font-weight:700}' +
+    '#' + BOX_ID + ' .opt{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:0 0 10px}' +
+    '#' + BOX_ID + ' label{display:inline-flex;gap:5px;align-items:center;cursor:pointer}' +
+    '#' + BOX_ID + ' select{font:inherit;padding:3px 6px}' +
+    '#' + BOX_ID + ' .x{margin-left:auto;background:transparent;border:none;color:#fff;font-size:20px;padding:0 6px}' +
+    '</style>';
+
+  var state = { payload: null, sgs: null, mode: 'half', keep: false, scale: {}, subjectOk: false, busy: false };
+
+  function shell(body, foot) {
+    box.innerHTML = CSS + '<div class="h">📥 กรอกคะแนนจาก KruSpace ลง SGS<button class="x" data-close title="ปิด">×</button></div>' +
+      '<div class="b">' + body + '</div><div class="f">' + (foot || '') + '</div>';
+    box.querySelector('[data-close]').onclick = function () { if (!state.busy) box.remove(); };
+  }
+
+  function stepPaste(msg) {
+    shell(
+      (msg ? '<div class="n bad">' + esc(msg) + '</div>' : '') +
+      '<div class="n">หน้านี้ของ SGS <b>บันทึกทันทีที่ช่องเปลี่ยน</b> ระบบจะให้ตรวจตารางเปรียบเทียบก่อนทุกครั้ง ยังไม่มีอะไรถูกกรอกจนกว่าจะกดยืนยัน</div>' +
+      '<ol style="margin:0 0 10px 18px;padding:0">' +
+        '<li>เลือก<b>รายวิชา</b>และ<b>กลุ่ม</b>ของ SGS ให้ตรงกับที่คัดลอกมา</li>' +
+        '<li>ตั้งช่อง <b>/หน้า</b> ของ SGS ให้เห็นนักเรียนครบทุกคน (เช่น 50) ระบบกรอกได้เฉพาะแถวที่อยู่บนหน้าจอ</li>' +
+        '<li>ใน KruSpace กดปุ่ม "คัดลอกคะแนน" แล้วกลับมาวางในช่องนี้ (Ctrl+V)</li>' +
+      '</ol>' +
+      '<textarea data-paste placeholder="วางข้อความที่คัดลอกจาก KruSpace ที่นี่"></textarea>',
+      '<button class="p" data-next>ตรวจสอบ</button><span style="color:#67748a">ยังไม่กรอกอะไรลง SGS</span>');
+    var ta = box.querySelector('[data-paste]');
+    ta.focus();
+    box.querySelector('[data-next]').onclick = function () {
+      var raw = String(ta.value || '').trim();
+      var m = raw.match(/KRUSPACE-SGS:v1:([\s\S]+)$/);
+      if (!m) return stepPaste('ข้อความนี้ไม่ใช่คะแนนที่คัดลอกจาก KruSpace — กดปุ่ม "คัดลอกคะแนน" ใน KruSpace ใหม่อีกครั้ง');
+      try { state.payload = JSON.parse(m[1]); } catch (e) { return stepPaste('อ่านข้อมูลไม่ได้ อาจคัดลอกมาไม่ครบ — ลองคัดลอกใหม่'); }
+      state.sgs = readSgs();
+      if (state.sgs.error) return stepPaste(state.sgs.error);
+      stepPreview();
+    };
+  }
+
+  /* คำนวณสิ่งที่จะเกิดขึ้นทั้งหมดจากตัวเลือกปัจจุบัน ใช้ทั้งตอนแสดงตารางและตอนกรอกจริง
+     ให้สองอย่างนี้มาจากที่เดียวกัน จะได้ไม่มีทางกรอกต่างจากที่ครูเห็นในตาราง */
+  function plan() {
+    var p = state.payload, g = state.sgs, W = p.weights || {};
+    var bySid = {};
+    (p.students || []).forEach(function (s) { bySid[String(s.sid)] = s; });
+    var cols = {}, blocked = [];
+    SECTIONS.forEach(function (sec) {
+      var col = g.map[sec.key];
+      if (!col) return;
+      var w = Number(W[sec.key]) || 0;
+      var same = Math.abs(w - col.max) < 1e-6;
+      cols[sec.key] = { sgsMax: col.max, weight: w, same: same, usable: w > 0 && (same || !!state.scale[sec.key]) };
+      if (w > 0 && !same && !state.scale[sec.key]) blocked.push(sec.key);
+    });
+    var rows = [], changes = [], overwrite = 0, matched = 0;
+    g.students.forEach(function (st) {
+      var src = bySid[st.sid];
+      var row = { sid: st.sid, name: st.name, found: !!src, cells: {}, sgsTotal: 0, kTotal: src ? src.total : null };
+      if (src) matched++;
+      SECTIONS.forEach(function (sec) {
+        var inp = st.inputs[sec.key], oldV = readNum(inp), cell = { old: oldV, next: oldV, state: '' };
+        var cfg = cols[sec.key];
+        if (src && cfg && cfg.usable && inp && src[sec.key] != null) {
+          var v = cfg.same ? src[sec.key] : src[sec.key] * cfg.sgsMax / cfg.weight;
+          var nv = roundBy(v, state.mode);
+          if (nv > cfg.sgsMax + 1e-9) cell.state = 'bad';
+          else if (oldV != null && Math.abs(oldV - nv) < 1e-6) cell.state = 'same';
+          else if (oldV != null && state.keep) cell.state = 'kept';
+          else {
+            cell.next = nv;
+            cell.state = oldV == null ? 'chg' : 'ovr';
+            if (oldV != null) overwrite++;
+            changes.push({ sid: st.sid, key: sec.key, text: nv.toFixed(1), value: nv });
+          }
+        }
+        if (cell.next != null) row.sgsTotal += cell.next;
+        row.cells[sec.key] = cell;
+      });
+      rows.push(row);
+    });
+    var pageSids = {};
+    g.students.forEach(function (st) { pageSids[st.sid] = 1; });
+    var missing = (p.students || []).filter(function (s) { return !pageSids[String(s.sid)]; });
+    return { cols: cols, blocked: blocked, rows: rows, changes: changes, overwrite: overwrite, matched: matched, missing: missing };
+  }
+
+  function stepPreview() {
+    var p = state.payload, g = state.sgs, pl = plan();
+    var subjectFound = !p.subject || g.subjectText.indexOf(p.subject) >= 0;
+    var ratio = g.students.length ? pl.matched / g.students.length : 0;
+    var stop = ratio < 0.5;
+    var needSubject = !subjectFound && !state.subjectOk;
+
+    var notes = '';
+    notes += '<div class="n">ข้อมูลจาก KruSpace: <b>' + esc((p.subject ? p.subject + ' ' : '') + (p.subjectName || '')) + '</b> • ' + esc(p.cls || '') +
+      ' • ' + esc(p.period || '') + ' • ' + (p.students || []).length + ' คน</div>';
+    if (stop) notes += '<div class="n bad"><b>หยุดไว้ก่อน</b> นักเรียนบนหน้านี้ตรงกับข้อมูลที่คัดลอกมาเพียง ' + pl.matched + ' จาก ' + g.students.length +
+      ' คน น่าจะเลือกรายวิชาหรือกลุ่มใน SGS ไม่ตรงกับที่คัดลอกมา</div>';
+    if (!subjectFound) notes += '<div class="n bad">รายวิชาที่เลือกใน SGS ไม่มีรหัส <b>' + esc(p.subject) + '</b> ' +
+      '<label><input type="checkbox" data-subject-ok' + (state.subjectOk ? ' checked' : '') + '> ตรวจแล้ว เป็นวิชาเดียวกันจริง</label></div>';
+    g.problems.forEach(function (t) { notes += '<div class="n">' + esc(t) + '</div>'; });
+    Object.keys(pl.cols).forEach(function (k) {
+      var c = pl.cols[k], sec = SECTIONS.filter(function (s) { return s.key === k; })[0];
+      if (!c.same && c.weight > 0) notes += '<div class="n bad">' + sec.label + ': KruSpace เต็ม <b>' + c.weight + '</b> แต่ SGS เต็ม <b>' + c.sgsMax + '</b> ' +
+        '<label><input type="checkbox" data-scale="' + k + '"' + (state.scale[k] ? ' checked' : '') + '> แปลงสัดส่วนให้ (× ' + c.sgsMax + ' ÷ ' + c.weight + ')</label></div>';
+    });
+    if (pl.missing.length) notes += '<div class="n">ไม่พบบนหน้านี้ ' + pl.missing.length + ' คน (' +
+      esc(pl.missing.slice(0, 6).map(function (s) { return s.sid; }).join(', ')) + (pl.missing.length > 6 ? ' …' : '') +
+      ') — ถ้าอยู่หน้าถัดไป ให้ตั้ง /หน้า ของ SGS ให้มากขึ้นแล้วเปิดใหม่</div>';
+
+    var opts = '<div class="opt"><label>ปัดเศษ <select data-mode>' +
+      '<option value="half"' + (state.mode === 'half' ? ' selected' : '') + '>ทีละ 0.5</option>' +
+      '<option value="one"' + (state.mode === 'one' ? ' selected' : '') + '>ทศนิยม 1 ตำแหน่ง</option>' +
+      '<option value="int"' + (state.mode === 'int' ? ' selected' : '') + '>จำนวนเต็ม</option></select></label>' +
+      '<label><input type="checkbox" data-keep' + (state.keep ? ' checked' : '') + '> ไม่แตะช่องที่ SGS มีคะแนนอยู่แล้ว</label></div>';
+
+    var head = '<tr><th>เลขประจำตัว</th><th>ชื่อ</th>' + SECTIONS.map(function (s) {
+      var c = pl.cols[s.key];
+      return '<th>' + s.label + (c ? '<br><small>เต็ม ' + c.sgsMax + '</small>' : '<br><small>ข้าม</small>') + '</th>';
+    }).join('') + '<th>รวมใน SGS</th><th>รวม KruSpace</th></tr>';
+    var body = pl.rows.map(function (r) {
+      if (!r.found) return '<tr><td>' + esc(r.sid) + '</td><td class="nm">' + esc(r.name) + '</td><td colspan="6" style="color:#a61b1b">ไม่มีในข้อมูลที่คัดลอกมา — ไม่แตะแถวนี้</td></tr>';
+      var diff = r.kTotal != null && Math.abs(r.sgsTotal - r.kTotal) >= 0.5;
+      return '<tr><td>' + esc(r.sid) + '</td><td class="nm" title="' + esc(r.name) + '">' + esc(r.name) + '</td>' +
+        SECTIONS.map(function (s) {
+          var c = r.cells[s.key];
+          if (!c) return '<td>—</td>';
+          var show = c.old == null ? '' : c.old.toFixed(1);
+          if (c.state === 'chg') return '<td class="chg">' + c.next.toFixed(1) + '</td>';
+          if (c.state === 'ovr') return '<td class="ovr">' + show + ' → ' + c.next.toFixed(1) + '</td>';
+          if (c.state === 'bad') return '<td class="bad">เกินเต็ม</td>';
+          return '<td>' + (show || '—') + '</td>';
+        }).join('') +
+        '<td' + (diff ? ' class="ovr" title="ต่างจาก KruSpace เพราะปัดเศษทีละส่วน"' : '') + '>' + r.sgsTotal.toFixed(1) + '</td>' +
+        '<td>' + (r.kTotal == null ? '—' : r.kTotal) + '</td></tr>';
+    }).join('');
+
+    var canFill = !stop && !needSubject && pl.changes.length > 0;
+    shell(notes + opts +
+      '<div style="margin:0 0 8px;color:#67748a;font-size:12px">' +
+        '<span style="background:#e6f6ee;padding:1px 6px;border-radius:4px">เขียว</span> = ช่องว่างที่จะกรอกใหม่ • ' +
+        '<span style="background:#fff0d6;padding:1px 6px;border-radius:4px">ส้ม</span> = จะเขียนทับค่าเดิม • ช่องไม่มีสี = ไม่เปลี่ยน</div>' +
+      '<div style="overflow:auto;max-height:52vh"><table>' + head + body + '</table></div>',
+      '<button class="p" data-fill' + (canFill ? '' : ' disabled') + '>กรอกลง SGS ' + pl.changes.length + ' ช่อง</button>' +
+      (pl.overwrite ? '<span style="color:#7a4700">ในนั้นเขียนทับค่าเดิม ' + pl.overwrite + ' ช่อง</span>' : '') +
+      (pl.changes.length ? '' : '<span style="color:#67748a">ไม่มีช่องที่ต้องเปลี่ยน</span>') +
+      '<button data-back style="margin-left:auto">วางข้อมูลใหม่</button>');
+
+    var q = function (s) { return box.querySelector(s); };
+    q('[data-mode]').onchange = function (e) { state.mode = e.target.value; stepPreview(); };
+    q('[data-keep]').onchange = function (e) { state.keep = e.target.checked; stepPreview(); };
+    Array.prototype.forEach.call(box.querySelectorAll('[data-scale]'), function (el) {
+      el.onchange = function () { state.scale[el.dataset.scale] = el.checked; stepPreview(); };
+    });
+    if (q('[data-subject-ok]')) q('[data-subject-ok]').onchange = function (e) { state.subjectOk = e.target.checked; stepPreview(); };
+    q('[data-back]').onclick = function () { stepPaste(''); };
+    q('[data-fill]').onclick = function () { if (canFill) fill(pl.changes); };
+  }
+
+  /* ---- กรอกจริง -----------------------------------------------------------
+     ทีละช่อง หาช่องใหม่จากหน้าเว็บทุกครั้ง เพราะการบันทึกอัตโนมัติของ ASP.NET อาจวาดตาราง
+     ใหม่หลังกรอกแต่ละช่อง ถ้าจำช่องเก่าไว้จะเขียนลงช่องที่หลุดออกจากหน้าแล้วโดยไม่รู้ตัว
+     และรอให้การบันทึกของช่องก่อนหน้าจบก่อน จะได้ไม่ถูกผลตอบกลับเขียนทับค่าที่เพิ่งกรอก */
+  function waitIdle() {
+    return new Promise(function (resolve) {
+      var start = Date.now();
+      (function poll() {
+        var busy = false;
+        try {
+          var prm = window.Sys && Sys.WebForms && Sys.WebForms.PageRequestManager && Sys.WebForms.PageRequestManager.getInstance();
+          busy = !!(prm && prm.get_isInAsyncPostBack());
+        } catch (e) { busy = false; }
+        if (!busy || Date.now() - start > 10000) return resolve();
+        setTimeout(poll, 120);
+      })();
+    });
+  }
+  function liveInput(sid, key) {
+    var g = readSgs();
+    if (g.error) return null;
+    var st = g.students.filter(function (x) { return x.sid === sid; })[0];
+    return st ? st.inputs[key] : null;
+  }
+  function setValue(inp, text) {
+    inp.focus();
+    var desc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+    desc.set.call(inp, text);
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+    inp.dispatchEvent(new Event('change', { bubbles: true }));
+    inp.blur();
+  }
+
+  function fill(changes) {
+    state.busy = true;
+    shell('<div class="n">กำลังกรอก… อย่าปิดหรือเปลี่ยนหน้า SGS จนกว่าจะเสร็จ</div><div data-prog style="font-size:16px;font-weight:700">0 / ' + changes.length + '</div>', '');
+    var prog = box.querySelector('[data-prog]');
+    (async function () {
+      var lost = [];
+      for (var i = 0; i < changes.length; i++) {
+        var ch = changes[i];
+        await waitIdle();
+        var inp = liveInput(ch.sid, ch.key);
+        if (!inp) { lost.push(ch); continue; }
+        setValue(inp, ch.text);
+        prog.textContent = (i + 1) + ' / ' + changes.length;
+        await sleep(200);
+      }
+      await waitIdle();
+      await sleep(600);
+      var wrong = [];
+      changes.forEach(function (ch) {
+        if (lost.indexOf(ch) >= 0) return;
+        var inp = liveInput(ch.sid, ch.key), v = readNum(inp);
+        if (v == null || Math.abs(v - ch.value) > 1e-6) wrong.push(ch);
+      });
+      state.busy = false;
+      var ok = changes.length - lost.length - wrong.length;
+      shell(
+        '<div class="n ' + (lost.length || wrong.length ? 'bad' : 'ok') + '"><b>กรอกแล้ว ' + ok + ' จาก ' + changes.length + ' ช่อง</b>' +
+          (lost.length ? '<br>หาช่องไม่เจอ ' + lost.length + ' ช่อง (' + esc(lost.slice(0, 8).map(function (x) { return x.sid; }).join(', ')) + ')' : '') +
+          (wrong.length ? '<br>ค่าในช่องไม่ตรงกับที่กรอก ' + wrong.length + ' ช่อง (' + esc(wrong.slice(0, 8).map(function (x) { return x.sid; }).join(', ')) + ')' : '') +
+        '</div>' +
+        '<div class="n"><b>ขั้นสุดท้ายที่ต้องทำ:</b> กด <b>F5</b> รีเฟรชหน้า SGS แล้วดูว่าตัวเลขยังอยู่ครบ<br>' +
+          'ถ้าตัวเลขหายไปหลังรีเฟรช แปลว่า SGS ไม่รับการกรอกด้วยวิธีนี้ — ให้แจ้งผู้ดูแล KruSpace และกรอกเองไปก่อน</div>',
+        '<button class="p" data-close2>ปิด</button>');
+      box.querySelector('[data-close2]').onclick = function () { box.remove(); };
+    })();
+  }
+
+  stepPaste('');
+}
+
+/* ---- ข้อมูลที่คัดลอกไปให้ปุ่ม SGS --------------------------------------------
+   ส่งคะแนนรายส่วนแบบยังไม่ปัดเศษ ให้ปุ่มฝั่ง SGS เป็นคนปัดตามที่ครูเลือกตอนตรวจ
+   คิดแบบไม่ใช่โหมด "เฉพาะส่วนที่กรอกแล้ว" เสมอ เพราะที่ส่งเข้า SGS ต้องเป็นคะแนนจริง
+   ไม่ใช่ตัวเลขประมาณการระหว่างภาค ส่วนไหนที่นักเรียนยังไม่มีคะแนนส่งเป็นค่าว่าง
+   ปุ่มฝั่ง SGS จะไม่แตะช่องนั้น ไม่ใช่เขียนศูนย์ลงไป */
+function sgsPayloadText() {
+  const b = curBook(true), cls = curClass(), sub = curSubject(), W = b.weights;
+  const real = Object.assign({}, b, { partialMode: false });
+  const part = (raw, max, w) => max > 0 && w > 0 ? Math.round(raw * w / max * 10000) / 10000 : null;
+  const sts = curStudents().filter(st => String(st.sid || '').trim()).slice().sort((a, c) => a.no - c.no);
+  const payload = {
+    v: 1, app: 'KruSpace', at: new Date().toISOString(),
+    subject: sub.code || '', subjectName: sub.name || '', cls: cls.name || '', period: periodLabelOf(DB.ui.periodId),
+    weights: { before: num(W.before), mid: num(W.mid), after: num(W.after), final: num(W.final) },
+    students: sts.map(st => {
+      const r = calcRow(real, st), ex = b.exam[st.sid] || {};
+      return {
+        sid: String(st.sid).trim(), no: st.no, name: st.name || '',
+        before: r.filledBefore > 0 ? part(r.rawBefore, r.maxBefore, num(W.before)) : null,
+        mid: has(ex.mid) || has(ex.retake) ? part(r.midRaw, r.midMax, num(W.mid)) : null,
+        after: r.filledAfter > 0 ? part(r.rawAfter, r.maxAfter, num(W.after)) : null,
+        final: has(ex.final) ? part(r.finRaw, r.finMax, num(W.final)) : null,
+        total: r.total
+      };
+    })
+  };
+  return { text: 'KRUSPACE-SGS:v1:' + JSON.stringify(payload), count: payload.students.length };
+}
+
+/* ปุ่มบนแถบบุ๊กมาร์กคือโค้ดทั้งก้อนของ sgsFillerMain ห่อเป็นลิงก์ javascript:
+   ใส่ไว้ในตัวลิงก์เลย ไม่โหลดโค้ดจากที่อื่นตอนกด เพราะไม่ควรดึงสคริปต์จากภายนอก
+   เข้าไปรันในหน้าทะเบียนผลการเรียนของรัฐ */
+const sgsBookmarkletHref = () => 'javascript:' + encodeURIComponent('(' + sgsFillerMain.toString() + ')();void 0');
+
+function sgsExportCard() {
+  if (!ready()) return '';
+  const cls = curClass(), sub = curSubject();
+  const withSid = curStudents().filter(st => String(st.sid || '').trim()).length;
+  return '<div class="card"><h3 style="margin:0">ส่งคะแนนเข้า SGS</h3>' +
+    '<div class="hint tip" style="margin-top:6px">กรอกคะแนนรายส่วน (ก่อนกลาง กลางภาค หลังกลาง ปลายภาค) ลงหน้า ' +
+      '“บันทึกผลการเรียน ตลอดภาคเรียน” ของ SGS ให้เอง จับคู่นักเรียนด้วยเลขประจำตัว ' +
+      'ครูล็อกอิน SGS เอง รหัสผ่านไม่ผ่าน KruSpace</div>' +
+    '<ol class="sgs-steps">' +
+      '<li><b>ครั้งแรกครั้งเดียว</b> ลากปุ่มนี้ไปวางบนแถบบุ๊กมาร์กของ Chrome ' +
+        '<a class="sgs-bookmarklet" data-sgs-bookmarklet href="#">📥 กรอกคะแนนจาก KruSpace</a>' +
+        '<div class="hint">ถ้าไม่เห็นแถบบุ๊กมาร์ก กด Ctrl+Shift+B</div></li>' +
+      '<li>คัดลอกคะแนนของวิชานี้ <button class="sm primary" data-sgs-act="copy"' + (withSid ? '' : ' disabled') + '>' +
+        'คัดลอกคะแนน • ' + esc(sub.name) + ' • ' + esc(cls.name) + '</button>' +
+        (withSid ? '' : '<div class="hint">ห้องนี้ยังไม่มีเลขประจำตัวนักเรียน จึงจับคู่กับ SGS ไม่ได้</div>') + '</li>' +
+      '<li>เปิด SGS เลือก<b>รายวิชา</b>และ<b>กลุ่ม</b>ให้ตรง แล้วตั้งช่อง <b>/หน้า</b> ให้เห็นนักเรียนครบทุกคน</li>' +
+      '<li>กดปุ่มบนแถบบุ๊กมาร์ก → วาง (Ctrl+V) → <b>ตรวจตารางเปรียบเทียบ</b> → กด “กรอกลง SGS”</li>' +
+      '<li>กด <b>F5</b> รีเฟรชหน้า SGS เพื่อยืนยันว่าบันทึกจริง</li>' +
+    '</ol>' +
+    '<div class="notice warn" style="margin-top:10px">หน้านี้ของ SGS <b>บันทึกทันทีที่ช่องเปลี่ยน</b> ไม่มีปุ่มยกเลิก ' +
+      'ตรวจตารางเปรียบเทียบให้ดีก่อนกดกรอกทุกครั้ง ช่องสีส้มคือช่องที่จะเขียนทับค่าเดิมใน SGS</div></div>';
+}
+
+async function copyTextToClipboard(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch (e) {}
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;left:-9999px;top:0';
+  document.body.appendChild(ta); ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  ta.remove();
+  return ok;
+}
+
 /** กล่องเครื่องมือท้ายหน้า สรุป/ส่งออก — ข้อมูลหน้าปก ปพ.5 และการสำรอง/กู้คืน */
 function summaryToolsCard() {
   return '<div class="card"><div class="row"><div><h3 style="margin:0">ข้อมูลรายวิชาและการสำรองข้อมูล</h3>' +
@@ -8452,7 +8934,7 @@ function summaryToolsCard() {
       '<button class="sm" data-sum-act="courseinfo">ข้อมูล ปพ.5</button>' +
       '<button class="sm primary" data-sum-act="backup">สำรองข้อมูล</button>' +
       '<button class="sm" data-sum-act="restore">กู้คืนข้อมูล</button></div>' +
-    '<div class="hint" style="margin-top:9px">' + esc(backupAgeText()) + '</div></div>' + bookSyncCard() + studentPortalCard();
+    '<div class="hint" style="margin-top:9px">' + esc(backupAgeText()) + '</div></div>' + bookSyncCard() + studentPortalCard() + sgsExportCard();
 }
 /** ข้อความบอกว่าสำรองข้อมูลครั้งล่าสุดเมื่อไร */
 function backupAgeText() {
@@ -8480,6 +8962,28 @@ function bookSyncCard() {
 }
 
 function bindSummaryTools(pane) {
+  const sgsLink = $('[data-sgs-bookmarklet]', pane);
+  if (sgsLink) {
+    sgsLink.href = sgsBookmarkletHref();
+    /* ถ้ากดในหน้า KruSpace โค้ดจะไปรันผิดที่ ต้องลากไปวางบนแถบบุ๊กมาร์กเท่านั้น */
+    sgsLink.addEventListener('click', e => {
+      e.preventDefault();
+      toast('ลากปุ่มนี้ไปวางบนแถบบุ๊กมาร์ก แล้วค่อยกดตอนเปิดหน้า SGS อยู่', 'warn');
+    });
+  }
+  const sgsCopy = $('[data-sgs-act="copy"]', pane);
+  if (sgsCopy) sgsCopy.addEventListener('click', async () => {
+    const p = sgsPayloadText();
+    if (await copyTextToClipboard(p.text)) {
+      toast('คัดลอกคะแนน ' + p.count + ' คนแล้ว • ไปที่ SGS แล้วกดปุ่มบนแถบบุ๊กมาร์ก', 'ok');
+      return;
+    }
+    /* บางเครื่องไม่อนุญาตให้เขียนคลิปบอร์ด ให้ครูคัดลอกเองจากกล่องข้อความแทน */
+    openModal({ title: 'คัดลอกคะแนนไป SGS', buttons: [{ label: 'ปิด', cls: 'primary' }],
+      bodyHTML: '<div class="notice warn">เครื่องนี้คัดลอกให้อัตโนมัติไม่ได้ กด Ctrl+A แล้ว Ctrl+C ในกล่องด้านล่าง</div>' +
+        '<textarea readonly style="width:100%;height:160px;font:12px monospace">' + esc(p.text) + '</textarea>',
+      onMount(root) { const t = $('textarea', root); t.focus(); t.select(); } });
+  });
   $$('[data-portal-act]', pane).forEach(btn => btn.addEventListener('click', async () => {
     const act = btn.dataset.portalAct, cls = curClass();
     if (act === 'print') return openDocumentPreview('ใบรหัสรับสิทธิ์ • ' + cls.name, claimCodeSheetHtml(cls));
