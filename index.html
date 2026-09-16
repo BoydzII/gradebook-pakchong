@@ -6805,8 +6805,13 @@ function parseSpokenNumber(text) {
   return isFinite(value) ? value : null;
 }
 
+/* ความไวในการตัดสินใจ = รอเงียบกี่มิลลิวินาทีหลังได้ยินตัวเลขครบ แล้วจึงเติมลงช่อง
+   0 = ไม่เดาเอง รอให้เอนจินประกาศว่าจบประโยค ซึ่งช้ากว่ามากแต่ไม่มีทางเติมผิดจังหวะ */
+const VOICE_SPEEDS = [[350, 'ไว'], [220, 'ไวมาก'], [0, 'รอจบประโยค']];
+
 const ScoreVoice = {
   rec: null, on: false, dir: 'down', readName: false, busy: false, restart: null, pos: null,
+  settleTimer: null, early: null, painted: null, labels: null,
 
   grid() { return document.querySelector('#scGrid'); },
 
@@ -6852,7 +6857,10 @@ const ScoreVoice = {
     cell.focus({ preventScroll: true });
     try { cell.select(); } catch (e) {}
     this.mark(cell);
-    cell.scrollIntoView({ block: 'center', inline: 'center' });
+    /* เลื่อนจอเฉพาะตอนที่ช่องหลุดออกนอกสายตาจริง ๆ การสั่งเลื่อนทุกครั้งทำให้ตาราง
+       กระตุกตลอดเวลาและหน่วงจังหวะที่ครูกำลังพูดคำถัดไป เผื่อที่ให้แถบบนกับแผงเสียง */
+    const box = cell.getBoundingClientRect();
+    if (box.top < 96 || box.bottom > window.innerHeight - 210) cell.scrollIntoView({ block: 'center', inline: 'nearest' });
   },
 
   /** เลื่อนไปช่องถัดไป (delta 1) หรือย้อนกลับ (delta -1) ตามทิศที่ครูเลือกไว้ */
@@ -6883,34 +6891,37 @@ const ScoreVoice = {
     this.busy = true;
     try {
       const u = new SpeechSynthesisUtterance('เลขที่ ' + no + ' ' + name);
-      u.lang = 'th-TH'; u.rate = 1.15;
-      u.onend = u.onerror = () => setTimeout(() => { this.busy = false; }, 250);
+      u.lang = 'th-TH'; u.rate = 1.35;
+      u.onend = u.onerror = () => setTimeout(() => { this.busy = false; }, 200);
       speechSynthesis.cancel();
       speechSynthesis.speak(u);
       setTimeout(() => { this.busy = false; }, 6000);      // กันค้างถ้าเครื่องไม่มีเสียงไทย
     } catch (e) { this.busy = false; }
   },
 
+  /* ชื่อหัวคอลัมน์ต้องไล่หัวตารางสองชั้นกว่าจะได้มา ซึ่งแพงเกินจะทำซ้ำทุกครั้งที่
+     ได้ยินเสียง (แผงวาดใหม่หลายครั้งต่อวินาทีระหว่างครูพูด) จึงจำไว้ทั้งตาราง */
   colLabel(c) {
     const g = this.grid();
     if (!g) return '';
-    let group = '', acc = 0;
-    g.querySelectorAll('thead tr:first-child th.score-group-head').forEach(th => {
-      const span = +(th.getAttribute('colspan') || 1);
-      if (!group && c >= acc && c < acc + span) {
+    if (!this.labels) {
+      this.labels = [];
+      const subs = g.querySelectorAll('thead tr:nth-child(2) th');
+      let acc = 0;
+      const groups = [];
+      g.querySelectorAll('thead tr:first-child th.score-group-head').forEach(th => {
+        const span = +(th.getAttribute('colspan') || 1);
         const t = th.querySelector('.item-title');
-        group = t ? t.textContent : '';
-      }
-      acc += span;
-    });
-    const sub = g.querySelectorAll('thead tr:nth-child(2) th')[c];
-    let label = '';
-    if (sub) {
-      const clone = sub.cloneNode(true), hmax = clone.querySelector('.hmax');
-      if (hmax) hmax.remove();
-      label = clone.textContent.trim();
+        for (let i = 0; i < span; i++) groups[acc + i] = t ? t.textContent : '';
+        acc += span;
+      });
+      subs.forEach((sub, i) => {
+        const clone = sub.cloneNode(true), hmax = clone.querySelector('.hmax');
+        if (hmax) hmax.remove();
+        this.labels[i] = [groups[i] || '', clone.textContent.trim()].filter(Boolean).join(' • ');
+      });
     }
-    return [group, label].filter(Boolean).join(' • ');
+    return this.labels[c] || '';
   },
 
   where(cell) {
@@ -6930,6 +6941,7 @@ const ScoreVoice = {
     el.className = 'vhud';
     el.innerHTML =
       '<div class="vhud-row"><span class="vdot"></span><b>กรอกคะแนนด้วยเสียง</b><span class="spacer"></span>' +
+        '<button type="button" data-vspeed title="เร็วขึ้น = เติมทันทีที่ได้ยินตัวเลขครบ ไม่รอให้เอนจินประกาศจบประโยค"></button>' +
         '<button type="button" data-vdir title="ทิศที่จะเลื่อนไปหลังกรอกเสร็จ"></button>' +
         '<button type="button" data-vread title="ให้แอปอ่านชื่อคนถัดไปให้ฟัง"></button>' +
         '<button type="button" data-vstop>หยุด</button></div>' +
@@ -6938,21 +6950,40 @@ const ScoreVoice = {
       '<div class="vhud-tip">พูดตัวเลขได้เลย เช่น “เจ็ด” “เจ็ดจุดห้า” “สิบห้า” • ' +
         '“ข้าม” เว้นช่องนี้ • “ลบ” ล้างช่อง • “ย้อน” กลับช่องก่อนหน้า • “เต็ม” ให้คะแนนเต็ม • “หยุด” ปิดไมค์</div>';
     document.body.appendChild(el);
+    el.querySelector('[data-vspeed]').addEventListener('click', () => {
+      const i = VOICE_SPEEDS.findIndex(sp => sp[0] === this.settleMs());
+      DB.ui.voiceSettle = VOICE_SPEEDS[(i + 1) % VOICE_SPEEDS.length][0];
+      save();
+      this.painted = null; this.paint();
+    });
     el.querySelector('[data-vdir]').addEventListener('click', () => { this.dir = this.dir === 'down' ? 'right' : 'down'; this.paint(); });
     el.querySelector('[data-vread]').addEventListener('click', () => { this.readName = !this.readName; this.paint(); });
     el.querySelector('[data-vstop]').addEventListener('click', () => this.stop());
     return el;
   },
 
+  settleMs() {
+    const v = Number(DB.ui.voiceSettle);
+    return VOICE_SPEEDS.some(sp => sp[0] === v) ? v : VOICE_SPEEDS[0][0];
+  },
+
   paint(heard, kind) {
     const el = document.querySelector('#voiceHud');
     if (!el) return;
-    el.querySelector('[data-vdir]').textContent = this.dir === 'down' ? 'ลงคนถัดไป ↓' : 'ไปช่องขวา →';
-    const read = el.querySelector('[data-vread]');
-    read.textContent = 'อ่านชื่อ: ' + (this.readName ? 'เปิด' : 'ปิด');
-    read.classList.toggle('on', this.readName);
+    const ms = this.settleMs();
+    const speed = (VOICE_SPEEDS.find(sp => sp[0] === ms) || VOICE_SPEEDS[0])[1];
+    const set = (sel, text) => { const b = el.querySelector(sel); if (b.textContent !== text) b.textContent = text; };
+    set('[data-vspeed]', 'ความไว: ' + speed);
+    set('[data-vdir]', this.dir === 'down' ? 'ลงคนถัดไป ↓' : 'ไปช่องขวา →');
+    set('[data-vread]', 'อ่านชื่อ: ' + (this.readName ? 'เปิด' : 'ปิด'));
+    el.querySelector('[data-vread]').classList.toggle('on', this.readName);
+    /* วาดบล็อกบอกช่องใหม่เฉพาะตอนเปลี่ยนช่องจริง ไม่ใช่ทุกครั้งที่ได้ยินเสียง
+       เพราะระหว่างครูพูดหนึ่งคำ แผงถูกสั่งวาดหลายรอบ ถ้าเขียน innerHTML ทุกรอบจะหน่วง */
     const cur = this.cell();
-    el.querySelector('[data-vcell]').innerHTML = cur ? this.where(cur) : 'แตะช่องที่จะเริ่มกรอกก่อน';
+    if (cur !== this.painted) {
+      el.querySelector('[data-vcell]').innerHTML = cur ? this.where(cur) : 'แตะช่องที่จะเริ่มกรอกก่อน';
+      this.painted = cur;
+    }
     if (heard !== undefined) {
       const h = el.querySelector('[data-vheard]');
       h.textContent = heard;
@@ -6962,47 +6993,94 @@ const ScoreVoice = {
 
   write(cell, value) {
     cell.value = value === '' ? '' : String(value);
-    cell.dispatchEvent(new Event('input', { bubbles: true }));   // ใช้ทางเดินข้อมูลเดิมของตาราง จะได้คิดคะแนนรวมให้ด้วย
-    save(true);
+    /* ส่งต่อให้ตัวรับ input เดิมของตาราง มันเก็บค่าลง DB คิดคะแนนรวมใหม่ และสั่ง save()
+       แบบหน่วงให้เอง จึงไม่ต้องสั่ง save(true) ซ้ำตรงนี้ — การบันทึกทันทีทุกช่องแปลว่า
+       ต้องแปลงข้อมูลทั้งก้อนเป็นข้อความใหม่ทุกครั้งที่พูด ซึ่งหน่วงจังหวะพูดคำถัดไป */
+    cell.dispatchEvent(new Event('input', { bubbles: true }));
   },
 
-  accept(cell, value, note) {
+  accept(cell, value, note, earlyIdx) {
     this.write(cell, value);
     this.paint(note + ' ✓', 'ok');
+    this.early = (earlyIdx == null) ? null : { idx: earlyIdx, cell: cell, value: value };
     if (!this.step(1)) this.paint(note + ' ✓ • หมดคอลัมน์แล้ว แตะช่องใหม่เพื่อกรอกต่อ', 'warn');
   },
 
+  /* ตั้งเวลารอเงียบ ถ้ามีเสียงใหม่เข้ามาก่อนครบเวลา ให้เริ่มนับใหม่
+     ครูที่พูด "เจ็ด...จุดห้า" ช้า ๆ จึงยังได้ 7.5 ไม่ใช่ 7 */
+  settle(fn) {
+    clearTimeout(this.settleTimer);
+    this.settleTimer = fn ? setTimeout(fn, this.settleMs()) : null;
+  },
+
+  /* เอนจินรอเงียบราวหนึ่งวินาทีครึ่งก่อนประกาศว่าจบประโยค ซึ่งนานเกินไปสำหรับการ
+     ไล่กรอกทีละคน เราจึงดูคำที่ได้ยินระหว่างทาง ถ้าเป็นตัวเลขที่ใช้ได้แล้วและเงียบ
+     ต่อไปอีกชั่วครู่ ก็เติมไปก่อนเลย พอผลสุดท้ายมาถึงค่อยตรวจว่าต้องแก้หรือไม่ */
+  maybeEarly(text, idx) {
+    if (!this.settleMs() || idx < 0) return;
+    if (this.early && this.early.idx === idx) return;      // ประโยคนี้เติมไปแล้ว
+    const cur = this.cell();
+    if (!cur) return;
+    const max = num(cur.dataset.rawmax || cur.dataset.max || 0);
+    const v = parseSpokenNumber(text);
+    if (v === null || (max > 0 && v > max)) { this.settle(null); return; }
+    this.settle(() => this.heard([text], idx, true));
+  },
+
+  /** ผลสุดท้ายของประโยคที่เติมไปแล้ว — ถ้าเอนจินเปลี่ยนใจ ให้กลับไปแก้ช่องเดิม
+      ไม่ใช่เขียนทับช่องใหม่ที่ครูกำลังพูดถึงอยู่ */
+  confirm(alts) {
+    const rec = this.early;
+    this.early = null;
+    if (!rec || !rec.cell || !rec.cell.isConnected) return;
+    const max = num(rec.cell.dataset.rawmax || rec.cell.dataset.max || 0);
+    let v = null;
+    for (let i = 0; i < alts.length; i++) {
+      const g = parseSpokenNumber(alts[i]);
+      if (g === null) continue;
+      if (!(max > 0) || g <= max) { v = g; break; }
+    }
+    if (v === null || v === rec.value) return;
+    this.write(rec.cell, v);
+    this.paint('ฟังครบประโยคแล้วแก้เป็น ' + fmt(v) + ' ✓', 'warn');
+  },
+
   /** ตัดสินใจจากสิ่งที่ได้ยิน — alts คือคำที่เอนจินเดาไว้หลายแบบ เรียงจากมั่นใจที่สุด */
-  heard(alts) {
+  heard(alts, idx, early) {
     if (!this.on || this.busy) return;
     if (!this.grid()) { this.stop(); return; }
     const raw = String(alts[0] || '').trim();
     if (!raw) return;
+    if (!early && this.early && idx != null && this.early.idx === idx) { this.confirm(alts); return; }
+
     const flat = raw.replace(/[\s.]/g, '');
     const said = w => flat.indexOf(w) >= 0;
-
-    if (said('หยุด') || said('ปิดไมค์') || said('เลิก')) { this.stop(); return; }
-
     const cur = this.cell();
-    if (!cur) { this.paint('ยังไม่ได้เลือกช่อง — แตะช่องที่จะกรอกก่อน', 'warn'); return; }
-    if (blockClosedTerm()) { this.stop(); return; }
 
-    if (said('ย้อน') || said('ถอย')) { this.paint('ย้อนกลับ', 'ok'); this.step(-1); return; }
-    if (said('ข้าม') || said('ถัดไป') || said('ต่อไป') || said('ผ่าน')) {
-      this.paint('ข้ามช่องนี้', 'ok');
-      if (!this.step(1)) this.paint('หมดคอลัมน์แล้ว แตะช่องใหม่เพื่อกรอกต่อ', 'warn');
-      return;
+    /* คำสั่งรอผลสุดท้ายเสมอ ไม่เดาจากคำที่ได้ยินระหว่างทาง เพราะ "ข้าม" ที่เดาผิด
+       แก้คืนไม่ได้เหมือนตัวเลขที่เขียนทับได้ ส่วนคำสั่งนาน ๆ ใช้ที จึงไม่คุ้มเสี่ยง */
+    if (!early) {
+      if (said('หยุด') || said('ปิดไมค์') || said('เลิก')) { this.stop(); return; }
+      if (!cur) { this.paint('ยังไม่ได้เลือกช่อง — แตะช่องที่จะกรอกก่อน', 'warn'); return; }
+      if (blockClosedTerm()) { this.stop(); return; }
+      if (said('ย้อน') || said('ถอย')) { this.paint('ย้อนกลับ', 'ok'); this.step(-1); return; }
+      if (said('ข้าม') || said('ถัดไป') || said('ต่อไป') || said('ผ่าน')) {
+        this.paint('ข้ามช่องนี้', 'ok');
+        if (!this.step(1)) this.paint('หมดคอลัมน์แล้ว แตะช่องใหม่เพื่อกรอกต่อ', 'warn');
+        return;
+      }
+      if (said('ลบ') || said('ล้าง') || said('เคลียร์')) { this.write(cur, ''); this.paint('ล้างช่องนี้แล้ว', 'ok'); return; }
+      if (said('ว่าง') || said('ไม่มี') || said('ขาด')) {
+        this.write(cur, '');
+        this.paint('เว้นว่างไว้', 'ok');
+        if (!this.step(1)) this.paint('หมดคอลัมน์แล้ว แตะช่องใหม่เพื่อกรอกต่อ', 'warn');
+        return;
+      }
     }
-    if (said('ลบ') || said('ล้าง') || said('เคลียร์')) { this.write(cur, ''); this.paint('ล้างช่องนี้แล้ว', 'ok'); return; }
-    if (said('ว่าง') || said('ไม่มี') || said('ขาด')) {
-      this.write(cur, '');
-      this.paint('เว้นว่างไว้', 'ok');
-      if (!this.step(1)) this.paint('หมดคอลัมน์แล้ว แตะช่องใหม่เพื่อกรอกต่อ', 'warn');
-      return;
-    }
+    if (!cur) return;
 
     const max = num(cur.dataset.rawmax || cur.dataset.max || 0);
-    if (said('เต็ม') && max > 0) { this.accept(cur, max, 'เต็ม ' + fmt(max)); return; }
+    if (!early && said('เต็ม') && max > 0) { this.accept(cur, max, 'เต็ม ' + fmt(max)); return; }
 
     /* ลองคำเดาทุกแบบ ตัวแรกที่เป็นตัวเลขและไม่เกินคะแนนเต็มคือคำตอบ
        เพราะเอนจินมักเดาตัวแรกเป็นคำพ้องเสียงที่ไม่ใช่ตัวเลข เช่น "ห้า" เป็น "หา" */
@@ -7014,11 +7092,12 @@ const ScoreVoice = {
       if (over === null) over = v;
     }
     if (value === null) {
+      if (early) return;
       if (over !== null) this.paint('ได้ยินเป็น ' + fmt(over) + ' ซึ่งเกินคะแนนเต็ม ' + fmt(max) + ' — ยังไม่เติม พูดใหม่อีกครั้ง', 'bad');
       else this.paint('ไม่เข้าใจ “' + raw + '” — พูดใหม่อีกครั้ง', 'bad');
       return;
     }
-    this.accept(cur, value, '“' + raw + '” → ' + fmt(value));
+    this.accept(cur, value, '“' + raw + '” → ' + fmt(value), early ? idx : null);
   },
 
   /* ปิดแป้นพิมพ์บนจอระหว่างใช้เสียง ไม่งั้นแป้นพิมพ์มือถือจะเด้งขึ้นบังตารางทุกครั้ง
@@ -7047,18 +7126,23 @@ const ScoreVoice = {
     const rec = new Rec();
     rec.lang = 'th-TH';
     rec.continuous = true;
-    rec.interimResults = true;      // ใช้แสดงว่าได้ยินอะไรอยู่ ยังไม่เอาไปเติมช่อง
+    rec.interimResults = true;      // คำที่ได้ยินระหว่างทาง ใช้ทั้งโชว์บนแผงและเติมก่อนจบประโยค
     rec.maxAlternatives = 4;
     rec.onresult = ev => {
-      let interim = '';
+      let interim = '', interimIdx = -1;
       for (let i = ev.resultIndex; i < ev.results.length; i++) {
         const res = ev.results[i];
-        if (!res.isFinal) { interim += res[0].transcript; continue; }
-        const alts = [];
-        for (let k = 0; k < res.length; k++) alts.push(res[k].transcript);
-        this.heard(alts);          // isFinal = เอนจินเจอจังหวะเว้นแล้ว นี่คือจุดที่เลื่อนช่อง
+        if (res.isFinal) {
+          const alts = [];
+          for (let k = 0; k < res.length; k++) alts.push(res[k].transcript);
+          this.settle(null);             // ของจริงมาถึงแล้ว ไม่ต้องรอเดาอีก
+          this.heard(alts, i);
+        } else { interim += res[0].transcript; interimIdx = i; }
       }
-      if (interim.trim() && !this.busy) this.paint('กำลังฟัง… ' + interim.trim(), '');
+      if (interim.trim() && !this.busy) {
+        this.paint('กำลังฟัง… ' + interim.trim(), '');
+        this.maybeEarly(interim, interimIdx);
+      }
     };
     rec.onerror = ev => {
       if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
@@ -7069,15 +7153,17 @@ const ScoreVoice = {
       }
     };
     /* Chrome ปิดการฟังเองทุกไม่กี่สิบวินาทีแม้จะตั้ง continuous ไว้ ถ้าไม่สั่งเริ่มใหม่
-       ครูจะพูดต่อไปเรื่อย ๆ โดยไม่มีอะไรเกิดขึ้นเลย หน่วงนิดหนึ่งกัน start ซ้อน start */
+       ครูจะพูดต่อไปเรื่อย ๆ โดยไม่มีอะไรเกิดขึ้นเลย หน่วงสั้นที่สุดเท่าที่ไม่ทำให้
+       start ซ้อน start เพราะทุกมิลลิวินาทีในช่วงนี้คือเสียงที่หายไป */
     rec.onend = () => {
       if (!this.on) return;
       clearTimeout(this.restart);
-      this.restart = setTimeout(() => { try { rec.start(); } catch (e) {} }, 300);
+      this.restart = setTimeout(() => { try { rec.start(); } catch (e) {} }, 60);
     };
 
     this.rec = rec;
     this.on = true;
+    this.early = null; this.painted = null; this.labels = null;
     try { rec.start(); } catch (e) {}
     document.body.classList.add('voice-on');
     this.hud();
@@ -7090,6 +7176,8 @@ const ScoreVoice = {
   stop() {
     this.on = false;
     clearTimeout(this.restart);
+    clearTimeout(this.settleTimer);
+    this.early = null; this.painted = null; this.labels = null;
     if (this.rec) { try { this.rec.stop(); } catch (e) {} this.rec = null; }
     if (window.speechSynthesis) { try { speechSynthesis.cancel(); } catch (e) {} }
     this.busy = false;
@@ -7108,6 +7196,7 @@ const ScoreVoice = {
     if (!this.on) return;
     this.hud();
     this.lockKeyboard(true);
+    this.early = null; this.painted = null; this.labels = null;
     const p = this.pos || { r: 0, c: 0 };
     this.focusCell(this.at(p.r, p.c) || this.firstCell());
     this.syncButton();
