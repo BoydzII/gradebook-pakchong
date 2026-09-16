@@ -6917,11 +6917,10 @@ const ScoreVoice = {
      ระบบกรอก 6 แล้วเลื่อนไปคนถัดไป แล้วอ่าน "เลขที่ 7" ต่อ วนไปจนกรอกเองทั้งห้อง
      จึงต้องทิ้งข้อความช่วงนั้น และต้องจำว่าทิ้งถึงตรงไหนด้วย ไม่งั้นข้อความก้อนเดิม
      จะย้อนกลับมาในรอบถัดไปแล้วถูกกรอกทีหลังอยู่ดี */
-  skip(text, idx, isFinal) {
+  skip(text) {
     this.settle(null);
-    if (isFinal) { this.seg = null; return; }
     let seg = this.seg;
-    if (!seg || seg.idx !== idx) seg = this.seg = { idx: idx, consumed: '', numText: '', cell: null, value: null };
+    if (!seg) seg = this.seg = { consumed: '', numText: '', cell: null, value: null };
     seg.consumed = String(text || '');
   },
 
@@ -7039,29 +7038,49 @@ const ScoreVoice = {
      ไปถึงตรงไหนแล้ว แล้วอ่านเฉพาะส่วนที่งอกใหม่เป็นเลขตัวถัดไป
      ข้อยกเว้นเดียวคือส่วนที่ขึ้นต้นด้วย "จุด" ซึ่งคือทศนิยมของเลขตัวเดิม ให้ย้อนไป
      แก้ช่องเดิม ไม่ใช่เขียนลงช่องใหม่ */
-  ingest(text, idx, isFinal) {
+  /* เอนจินบางรอบส่งข้อความเดิมกลับมาใหม่ทั้งก้อน หรือเปลี่ยนเลขประจำประโยคจนดูเหมือน
+     เป็นประโยคใหม่ ถ้าเชื่อตามนั้นจะกรอกซ้ำทั้งชุด (พูด 3 กับ 4 ได้ 3 4 3 4)
+     จึงจำเลขที่เพิ่งกรอกไปในช่วง 2.5 วินาทีล่าสุดไว้ แล้วตัดหัวก้อนใหม่ที่ซ้ำกับของเดิมทิ้ง
+     ยอมให้พลาดเป็น "ไม่กรอกให้" ดีกว่า "กรอกเกินมาเอง" เพราะช่องว่างครูเห็นและแก้ได้
+     แต่คะแนนที่งอกมาเองครูไม่มีทางรู้เลยว่าผิด */
+  dedupe(values) {
+    const now = Date.now();
+    this.recent = (this.recent || []).filter(r => now - r.at < 2500);
+    const tail = this.recent.map(r => r.v);
+    for (let n = Math.min(tail.length, values.length); n > 0; n--) {
+      let same = true;
+      for (let i = 0; i < n; i++) if (tail[tail.length - n + i] !== values[i]) { same = false; break; }
+      if (same) return n;
+    }
+    return 0;
+  },
+
+  /* ---- อ่านสิ่งที่ได้ยิน -------------------------------------------------
+     เอนจินส่งคำที่ได้ยินมาเป็นข้อความที่ยาวขึ้นเรื่อย ๆ ครูพูด "สาม" เว้นจังหวะ แล้ว
+     พูด "สี่" มักได้มาเป็นก้อนเดียวว่า "3 4" จึงต้องจำว่ากินข้อความไปถึงตรงไหนแล้ว
+     แล้วอ่านเฉพาะส่วนที่งอกใหม่เป็นเลขตัวถัดไป
+     ไม่ยึดเลขประจำประโยคของเอนจินอีกต่อไป เพราะมันเปลี่ยนเองได้ทั้งที่เสียงชุดเดิม
+     ยึดตัวข้อความอย่างเดียวว่าต่อจากของเดิมหรือไม่ */
+  ingest(text, isFinal) {
     const t = String(text || '');
     if (!isFinal && !this.settleMs()) return;         // โหมดรอจบประโยค ไม่เดาจากคำระหว่างทาง
     let seg = this.seg;
-    if (!seg || seg.idx !== idx) seg = this.seg = { idx: idx, consumed: '', numText: '', cell: null, value: null };
+    if (!seg) seg = this.seg = { consumed: '', numText: '', cell: null, value: null };
 
-    let rest;
-    if (!seg.consumed) rest = t;
+    let rest, fresh = false;
+    if (!seg.consumed) { rest = t; fresh = true; }
     else if (t.startsWith(seg.consumed)) rest = t.slice(seg.consumed.length);
-    else if (seg.cell) { this.refine(seg, t, t); return; }   // เอนจินเขียนประโยคเดิมใหม่ทั้งก้อน
-    else { seg.consumed = ''; rest = t; }
+    else if (seg.consumed.startsWith(t)) return;      // ข้อความเดิมถูกส่งกลับมาสั้นกว่าเดิม
+    else { rest = t; fresh = true; seg.consumed = ''; seg.cell = null; seg.value = null; }
 
     const lead = rest.length - rest.replace(/^\s+/, '').length;
     const head = rest.trim();
-    if (!head) { if (isFinal) { this.seg = null; this.settle(null); } return; }
+    if (!head) { if (isFinal) this.settle(null); return; }
     const base = t.length - rest.length + lead;             // ตำแหน่งเริ่มของ head ในข้อความเต็ม
 
-    if (seg.cell && /^(จุด|\.)/.test(head)) {
-      this.refine(seg, seg.numText + head, t);
-      return;
-    }
+    if (seg.cell && /^(จุด|\.)/.test(head)) { this.refine(seg, seg.numText + head, t); return; }
 
-    if (isFinal && this.command(head, seg)) { this.seg = null; return; }
+    if (isFinal && this.command(head, seg)) { seg.consumed = t; this.settle(null); return; }
 
     /* ตัดเป็นเลขทีละตัว โดยเชื่อมคำที่มี "จุด" คั่นกลับเข้าด้วยกัน เพราะ "3 จุด 5"
        ที่เอนจินส่งมาแยกคำ คือเลขตัวเดียว ไม่ใช่สามตัว */
@@ -7073,11 +7092,24 @@ const ScoreVoice = {
       else parts.push({ w: m[0], at: m.index });
     }
     if (!parts.length) return;
+
+    /* ก้อนที่ไม่ได้ต่อจากของเดิม อาจเป็นเสียงชุดเดิมที่ถูกส่งมาใหม่ ถ้าหัวก้อนซ้ำกับ
+       เลขที่เพิ่งกรอกไปหมาด ๆ ให้ตัดทิ้ง เหลือเฉพาะส่วนที่ยังไม่เคยกรอก */
+    if (fresh) {
+      const values = parts.map(p => parseSpokenNumber(p.w));
+      const cut = this.dedupe(values);
+      if (cut) {
+        parts.splice(0, cut);
+        seg.consumed = cut < values.length ? t.slice(0, base + parts[0].at) : t;
+        if (!parts.length) { this.settle(null); return; }
+      }
+    }
+
     /* เสียงรบกวนหรือเสียงที่หลุดเข้าไมค์ มักถอดออกมาเป็นตัวเลขหลายตัวรวดเดียว
        ครูกรอกทีละคนจึงแทบไม่มีทางได้ยินเกินสามตัวในก้อนเดียว ถ้าเกินให้ทิ้งทั้งก้อน
        แล้วขอให้พูดใหม่ ดีกว่าเผลอกรอกคะแนนผิดให้นักเรียนหลายคนรวดเดียวโดยไม่รู้ตัว */
     if (parts.length > 3) {
-      this.seg = null; this.settle(null);
+      seg.consumed = t; this.settle(null);
       this.paint('ได้ยินตัวเลขรวดเดียว ' + parts.length + ' ตัว — ไม่เติมเพราะน่าจะเป็นเสียงรบกวน พูดใหม่ทีละคน', 'bad');
       return;
     }
@@ -7087,7 +7119,7 @@ const ScoreVoice = {
     const tail = parts[parts.length - 1];
     if (isFinal) {
       this.take(seg, tail.w, true);
-      this.seg = null;
+      seg.consumed = t;
       this.settle(null);
       return;
     }
@@ -7176,6 +7208,9 @@ const ScoreVoice = {
       return;
     }
     this.write(cur, v);
+    const now = Date.now();
+    this.recent = (this.recent || []).filter(r => now - r.at < 2500);
+    this.recent.push({ v: v, at: now });        // ไว้ตัดเสียงชุดเดิมที่เอนจินส่งกลับมาซ้ำ
     const note = '“' + word + '” → ' + fmt(v) + ' ✓';
     this.paint(note, 'ok');
     seg.cell = cur; seg.value = v; seg.numText = word;
@@ -7211,22 +7246,22 @@ const ScoreVoice = {
     rec.interimResults = true;      // คำที่ได้ยินระหว่างทาง ใช้ทั้งโชว์บนแผงและเติมก่อนจบประโยค
     rec.maxAlternatives = 1;
     rec.onresult = ev => {
-      let interim = '', interimIdx = -1;
+      let interim = '';
       for (let i = ev.resultIndex; i < ev.results.length; i++) {
         const res = ev.results[i];
         if (res.isFinal) {
-          if (this.busy) this.skip(res[0].transcript, i, true);
-          else this.ingest(res[0].transcript, i, true);
-        } else { interim += res[0].transcript; interimIdx = i; }
+          if (this.busy) this.skip(res[0].transcript);
+          else this.ingest(res[0].transcript, true);
+        } else interim += res[0].transcript;
       }
       if (!interim.trim()) return;
       if (this.busy) {
-        this.skip(interim, interimIdx, false);
+        this.skip(interim);
         this.paint('กำลังอ่านชื่อ… รอให้อ่านจบก่อนค่อยพูด', 'warn');
         return;
       }
       this.paint('กำลังฟัง… ' + interim.trim(), '');
-      this.ingest(interim, interimIdx, false);
+      this.ingest(interim, false);
     };
     rec.onerror = ev => {
       if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
@@ -7248,7 +7283,7 @@ const ScoreVoice = {
 
     this.rec = rec;
     this.on = true;
-    this.seg = null; this.painted = null; this.labels = null;
+    this.seg = null; this.painted = null; this.labels = null; this.recent = [];
     try { rec.start(); } catch (e) {}
     document.body.classList.add('voice-on');
     this.hud();
@@ -7263,7 +7298,7 @@ const ScoreVoice = {
     clearTimeout(this.restart);
     clearTimeout(this.settleTimer);
     clearTimeout(this.hushTimer);
-    this.seg = null; this.painted = null; this.labels = null;
+    this.seg = null; this.painted = null; this.labels = null; this.recent = [];
     if (this.rec) { try { this.rec.stop(); } catch (e) {} this.rec = null; }
     if (window.speechSynthesis) { try { speechSynthesis.cancel(); } catch (e) {} }
     this.busy = false;
