@@ -8579,6 +8579,26 @@ function sgsFillerMain() {
       });
       students.push(st);
     }
+
+    /* SGS เปิดให้กรอกทีละรอบ (ก่อนกลาง+กลางภาค หรือ หลังกลาง+ปลายภาค) และต้องติ๊ก ☐
+       ที่หัวคอลัมน์ก่อน ช่องในคอลัมน์นั้นถึงจะกรอกได้ ถ้าไม่เช็กตรงนี้ โค้ดจะเขียนค่าลงช่อง
+       ที่ถูกล็อกได้ เพราะการตั้งค่าด้วยสคริปต์ไม่ถูกกันเหมือนการพิมพ์ของคน ซึ่งเท่ากับ
+       ข้ามการเปิดปิดรอบของ SGS ไป จึงต้องรู้สถานะของแต่ละคอลัมน์ก่อนทุกครั้ง
+       open    = มีช่องที่กรอกได้อยู่แล้ว
+       tick    = ยังล็อก แต่ช่องติ๊กที่หัวคอลัมน์กดได้ (ครูหรือปุ่มนี้ติ๊กเปิดได้)
+       closed  = ช่องติ๊กกดไม่ได้ แปลว่า SGS ยังไม่เปิดรอบนี้
+       stuck   = ติ๊กไว้แล้วแต่ช่องยังล็อก ไม่รู้สาเหตุ จึงไม่แตะ */
+    var editable = function (inp) { return !!inp && !inp.disabled && !inp.readOnly; };
+    Object.keys(map).forEach(function (k) {
+      var col = map[k], tickBox = null;
+      for (var hr2 = headRow; hr2 < dataStart && !tickBox; hr2++) {
+        var hcell = (grid[hr2] || [])[col.index];
+        if (hcell) tickBox = hcell.querySelector('input[type=checkbox]');
+      }
+      col.checkbox = tickBox;
+      col.open = students.some(function (st) { return editable(st.inputs[k]); });
+      col.gate = col.open ? 'open' : !tickBox ? 'stuck' : tickBox.disabled ? 'closed' : tickBox.checked ? 'stuck' : 'tick';
+    });
     var subjectText = Array.prototype.slice.call(document.querySelectorAll('select')).map(function (s) {
       return s.selectedIndex >= 0 ? txt(s.options[s.selectedIndex].text) : '';
     }).join(' | ');
@@ -8647,7 +8667,8 @@ function sgsFillerMain() {
       '<div class="n">หน้านี้ของ SGS <b>บันทึกทันทีที่ช่องเปลี่ยน</b> ระบบจะให้ตรวจตารางเปรียบเทียบก่อนทุกครั้ง ยังไม่มีอะไรถูกกรอกจนกว่าจะกดยืนยัน</div>' +
       '<ol style="margin:0 0 10px 18px;padding:0">' +
         '<li>เลือก<b>รายวิชา</b>และ<b>กลุ่ม</b>ของ SGS ให้ตรงกับที่คัดลอกมา</li>' +
-        '<li>ตั้งช่อง <b>/หน้า</b> ของ SGS ให้เห็นนักเรียนครบทุกคน (เช่น 50) ระบบกรอกได้เฉพาะแถวที่อยู่บนหน้าจอ</li>' +
+        '<li>ตั้งช่อง <b>/หน้า</b> ของ SGS เท่ากับจำนวนนักเรียนในห้อง (ไม่เกิน 40) ให้เห็นครบทุกคน ระบบกรอกได้เฉพาะแถวที่อยู่บนหน้าจอ</li>' +
+        '<li>ติ๊ก ☐ ที่หัวคอลัมน์ที่จะกรอกให้เรียบร้อย หรือให้ปุ่มนี้ติ๊กให้ในขั้นถัดไปก็ได้</li>' +
         '<li>ใน KruSpace กดปุ่ม "คัดลอกคะแนน" แล้วกลับมาวางในช่องนี้ (Ctrl+V)</li>' +
       '</ol>' +
       '<textarea data-paste placeholder="วางข้อความที่คัดลอกจาก KruSpace ที่นี่"></textarea>',
@@ -8677,7 +8698,9 @@ function sgsFillerMain() {
       if (!col) return;
       var w = Number(W[sec.key]) || 0;
       var same = Math.abs(w - col.max) < 1e-6;
-      cols[sec.key] = { sgsMax: col.max, weight: w, same: same, usable: w > 0 && (same || !!state.scale[sec.key]) };
+      var hasData = (p.students || []).some(function (s) { return s[sec.key] != null; });
+      cols[sec.key] = { sgsMax: col.max, weight: w, same: same, gate: col.gate, hasData: hasData,
+        usable: col.gate === 'open' && w > 0 && (same || !!state.scale[sec.key]) };
       if (w > 0 && !same && !state.scale[sec.key]) blocked.push(sec.key);
     });
     var rows = [], changes = [], overwrite = 0, matched = 0;
@@ -8727,6 +8750,18 @@ function sgsFillerMain() {
     if (!subjectFound) notes += '<div class="n bad">รายวิชาที่เลือกใน SGS ไม่มีรหัส <b>' + esc(p.subject) + '</b> ' +
       '<label><input type="checkbox" data-subject-ok' + (state.subjectOk ? ' checked' : '') + '> ตรวจแล้ว เป็นวิชาเดียวกันจริง</label></div>';
     g.problems.forEach(function (t) { notes += '<div class="n">' + esc(t) + '</div>'; });
+    var toTick = [];
+    SECTIONS.forEach(function (sec) {
+      var c = pl.cols[sec.key];
+      if (!c || !c.hasData) return;      /* ส่วนที่ไม่มีคะแนนจะส่ง ไม่ต้องเตือนให้รก */
+      if (c.gate === 'tick') toTick.push(sec);
+      else if (c.gate === 'closed') notes += '<div class="n">SGS ยังไม่เปิดรอบให้กรอก<b>' + sec.label + '</b> (ช่องติ๊กที่หัวคอลัมน์กดไม่ได้) จึงข้ามส่วนนี้</div>';
+      else if (c.gate === 'stuck') notes += '<div class="n bad">คอลัมน์<b>' + sec.label + '</b> ติ๊กไว้แล้วแต่ยังกรอกไม่ได้ จึงข้ามส่วนนี้ — ลองรีเฟรชหน้า SGS แล้วเปิดปุ่มนี้ใหม่</div>';
+    });
+    if (toTick.length) notes += '<div class="n bad"><b>ยังกรอกไม่ได้:</b> SGS ต้องติ๊ก ☐ ที่หัวคอลัมน์ ' +
+      toTick.map(function (x) { return '<b>' + x.label + '</b>'; }).join(' และ ') + ' ก่อน ' +
+      '<button data-open="' + toTick.map(function (x) { return x.key; }).join(',') + '" style="margin-left:6px">ติ๊กเปิดให้เลย</button>' +
+      '<div style="font-size:12px;margin-top:4px">หรือติ๊กเองในหน้า SGS แล้วกด "ตรวจใหม่"</div></div>';
     Object.keys(pl.cols).forEach(function (k) {
       var c = pl.cols[k], sec = SECTIONS.filter(function (s) { return s.key === k; })[0];
       if (!c.same && c.weight > 0) notes += '<div class="n bad">' + sec.label + ': KruSpace เต็ม <b>' + c.weight + '</b> แต่ SGS เต็ม <b>' + c.sgsMax + '</b> ' +
@@ -8744,7 +8779,8 @@ function sgsFillerMain() {
 
     var head = '<tr><th>เลขประจำตัว</th><th>ชื่อ</th>' + SECTIONS.map(function (s) {
       var c = pl.cols[s.key];
-      return '<th>' + s.label + (c ? '<br><small>เต็ม ' + c.sgsMax + '</small>' : '<br><small>ข้าม</small>') + '</th>';
+      var tag = !c ? 'ข้าม' : c.gate === 'open' ? 'เต็ม ' + c.sgsMax : c.gate === 'tick' ? 'ยังไม่ติ๊ก' : c.gate === 'closed' ? 'ปิดรอบ' : 'ล็อก';
+      return '<th>' + s.label + '<br><small>' + tag + '</small></th>';
     }).join('') + '<th>รวมใน SGS</th><th>รวม KruSpace</th></tr>';
     var body = pl.rows.map(function (r) {
       if (!r.found) return '<tr><td>' + esc(r.sid) + '</td><td class="nm">' + esc(r.name) + '</td><td colspan="6" style="color:#a61b1b">ไม่มีในข้อมูลที่คัดลอกมา — ไม่แตะแถวนี้</td></tr>';
@@ -8772,7 +8808,7 @@ function sgsFillerMain() {
       '<button class="p" data-fill' + (canFill ? '' : ' disabled') + '>กรอกลง SGS ' + pl.changes.length + ' ช่อง</button>' +
       (pl.overwrite ? '<span style="color:#7a4700">ในนั้นเขียนทับค่าเดิม ' + pl.overwrite + ' ช่อง</span>' : '') +
       (pl.changes.length ? '' : '<span style="color:#67748a">ไม่มีช่องที่ต้องเปลี่ยน</span>') +
-      '<button data-back style="margin-left:auto">วางข้อมูลใหม่</button>');
+      '<button data-recheck style="margin-left:auto">ตรวจใหม่</button><button data-back>วางข้อมูลใหม่</button>');
 
     var q = function (s) { return box.querySelector(s); };
     q('[data-mode]').onchange = function (e) { state.mode = e.target.value; stepPreview(); };
@@ -8782,6 +8818,12 @@ function sgsFillerMain() {
     });
     if (q('[data-subject-ok]')) q('[data-subject-ok]').onchange = function (e) { state.subjectOk = e.target.checked; stepPreview(); };
     q('[data-back]').onclick = function () { stepPaste(''); };
+    q('[data-recheck]').onclick = function () {
+      state.sgs = readSgs();
+      if (state.sgs.error) return stepPaste(state.sgs.error);
+      stepPreview();
+    };
+    if (q('[data-open]')) q('[data-open]').onclick = function () { openColumns(q('[data-open]').dataset.open.split(',')); };
     q('[data-fill]').onclick = function () { if (canFill) fill(pl.changes); };
   }
 
@@ -8818,17 +8860,43 @@ function sgsFillerMain() {
     inp.blur();
   }
 
+  /* ติ๊กด้วยการคลิกช่องติ๊กของ SGS เอง ให้ตัวจัดการของ SGS ทำงานเหมือนครูกดเอง
+     ติ๊กเฉพาะช่องที่ยังไม่ได้ติ๊กและกดได้ ไม่ติ๊กออกเด็ดขาด เพราะการติ๊กออกอาจล็อกคอลัมน์
+     ที่ครูเปิดไว้ หรือทำอย่างอื่นที่เรามองไม่เห็นจากหน้าจอ */
+  function openColumns(keys) {
+    state.busy = true;
+    shell('<div class="n">กำลังติ๊กเปิดคอลัมน์ใน SGS…</div>', '');
+    (async function () {
+      for (var i = 0; i < keys.length; i++) {
+        await waitIdle();
+        var g = readSgs();
+        var col = g.map && g.map[keys[i]];
+        if (!col || col.open || !col.checkbox || col.checkbox.disabled || col.checkbox.checked) continue;
+        col.checkbox.click();
+        await sleep(300);
+        await waitIdle();
+        await sleep(300);
+      }
+      state.busy = false;
+      state.sgs = readSgs();
+      if (state.sgs.error) return stepPaste(state.sgs.error);
+      stepPreview();
+    })();
+  }
+
   function fill(changes) {
     state.busy = true;
     shell('<div class="n">กำลังกรอก… อย่าปิดหรือเปลี่ยนหน้า SGS จนกว่าจะเสร็จ</div><div data-prog style="font-size:16px;font-weight:700">0 / ' + changes.length + '</div>', '');
     var prog = box.querySelector('[data-prog]');
     (async function () {
-      var lost = [];
+      var lost = [], locked = [];
       for (var i = 0; i < changes.length; i++) {
         var ch = changes[i];
         await waitIdle();
         var inp = liveInput(ch.sid, ch.key);
         if (!inp) { lost.push(ch); continue; }
+        /* ครูอาจติ๊กคอลัมน์ออกระหว่างนั้น หรือ SGS ปิดรอบไปแล้ว ห้ามเขียนลงช่องที่ล็อก */
+        if (inp.disabled || inp.readOnly) { locked.push(ch); continue; }
         setValue(inp, ch.text);
         prog.textContent = (i + 1) + ' / ' + changes.length;
         await sleep(200);
@@ -8837,14 +8905,15 @@ function sgsFillerMain() {
       await sleep(600);
       var wrong = [];
       changes.forEach(function (ch) {
-        if (lost.indexOf(ch) >= 0) return;
+        if (lost.indexOf(ch) >= 0 || locked.indexOf(ch) >= 0) return;
         var inp = liveInput(ch.sid, ch.key), v = readNum(inp);
         if (v == null || Math.abs(v - ch.value) > 1e-6) wrong.push(ch);
       });
       state.busy = false;
-      var ok = changes.length - lost.length - wrong.length;
+      var ok = changes.length - lost.length - locked.length - wrong.length;
       shell(
-        '<div class="n ' + (lost.length || wrong.length ? 'bad' : 'ok') + '"><b>กรอกแล้ว ' + ok + ' จาก ' + changes.length + ' ช่อง</b>' +
+        '<div class="n ' + (lost.length || locked.length || wrong.length ? 'bad' : 'ok') + '"><b>กรอกแล้ว ' + ok + ' จาก ' + changes.length + ' ช่อง</b>' +
+          (locked.length ? '<br>ข้ามช่องที่ถูกล็อก ' + locked.length + ' ช่อง (คอลัมน์ไม่ได้ติ๊กเปิด หรือ SGS ปิดรอบ)' : '') +
           (lost.length ? '<br>หาช่องไม่เจอ ' + lost.length + ' ช่อง (' + esc(lost.slice(0, 8).map(function (x) { return x.sid; }).join(', ')) + ')' : '') +
           (wrong.length ? '<br>ค่าในช่องไม่ตรงกับที่กรอก ' + wrong.length + ' ช่อง (' + esc(wrong.slice(0, 8).map(function (x) { return x.sid; }).join(', ')) + ')' : '') +
         '</div>' +
@@ -8907,11 +8976,13 @@ function sgsExportCard() {
       '<li>คัดลอกคะแนนของวิชานี้ <button class="sm primary" data-sgs-act="copy"' + (withSid ? '' : ' disabled') + '>' +
         'คัดลอกคะแนน • ' + esc(sub.name) + ' • ' + esc(cls.name) + '</button>' +
         (withSid ? '' : '<div class="hint">ห้องนี้ยังไม่มีเลขประจำตัวนักเรียน จึงจับคู่กับ SGS ไม่ได้</div>') + '</li>' +
-      '<li>เปิด SGS เลือก<b>รายวิชา</b>และ<b>กลุ่ม</b>ให้ตรง แล้วตั้งช่อง <b>/หน้า</b> ให้เห็นนักเรียนครบทุกคน</li>' +
+      '<li>เปิด SGS เลือก<b>รายวิชา</b>และ<b>กลุ่ม</b>ให้ตรง แล้วตั้งช่อง <b>/หน้า</b> เท่ากับจำนวนนักเรียนในห้อง (ไม่เกิน 40) ให้เห็นครบทุกคน</li>' +
+      '<li>ติ๊ก ☐ ที่หัวคอลัมน์ที่เปิดรอบให้กรอก (ก่อนกลางภาค+กลางภาค หรือ หลังกลางภาค+ปลายภาค) หรือให้ปุ่มติ๊กให้ในขั้นตรวจก็ได้</li>' +
       '<li>กดปุ่มบนแถบบุ๊กมาร์ก → วาง (Ctrl+V) → <b>ตรวจตารางเปรียบเทียบ</b> → กด “กรอกลง SGS”</li>' +
       '<li>กด <b>F5</b> รีเฟรชหน้า SGS เพื่อยืนยันว่าบันทึกจริง</li>' +
     '</ol>' +
     '<div class="notice warn" style="margin-top:10px">หน้านี้ของ SGS <b>บันทึกทันทีที่ช่องเปลี่ยน</b> ไม่มีปุ่มยกเลิก ' +
+      'ปุ่มจะกรอกเฉพาะคอลัมน์ที่ติ๊กเปิดและอยู่ในรอบที่ SGS เปิดให้กรอกเท่านั้น ' +
       'ตรวจตารางเปรียบเทียบให้ดีก่อนกดกรอกทุกครั้ง ช่องสีส้มคือช่องที่จะเขียนทับค่าเดิมใน SGS</div></div>';
 }
 
