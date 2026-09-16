@@ -391,6 +391,31 @@ td.num,th.num{text-align:center}
 .sbox.none b{color:var(--bad)}
 .sbox.on{outline:2px solid var(--brand);outline-offset:1px}
 .sbox-note{margin-top:7px;font-size:12px;color:var(--muted);min-height:1.5em}
+/* --- โหมดกรอกคะแนนด้วยเสียง -----------------------------------------------
+   แผงนี้ลอยอยู่เหนือทุกอย่างเพราะครูต้องชำเลืองอ่านขณะก้มดูสมุด ไม่ใช่ขณะจ้องจอ
+   ตัวอักษรจึงใหญ่กว่าแผงอื่น และต้องกำหนดสีตัวอักษรของปุ่มไว้เอง เพราะปุ่มในแอป
+   สืบทอดสีจากกล่องแม่ ถ้าไม่กำหนดจะกลายเป็นขาวบนขาวบนพื้นแผงนี้ */
+.vhud{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:70;width:min(560px,calc(100vw - 20px));
+  background:var(--panel);border:1px solid var(--brand);border-radius:14px;box-shadow:var(--shadow);
+  padding:10px 12px;color:var(--ink);font-size:14px}
+.vhud-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.vhud-row button{background:var(--panel2);color:var(--ink);border:1px solid var(--line);font-size:12px;padding:5px 9px}
+.vhud-row button.on{background:color-mix(in srgb,var(--brand) 14%,transparent);color:var(--brand);border-color:var(--brand)}
+.vhud-row button[data-vstop]{background:var(--bad-bg);color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,transparent)}
+.vdot{width:10px;height:10px;border-radius:50%;background:var(--bad);animation:vpulse 1.1s infinite}
+@keyframes vpulse{0%,100%{opacity:1}50%{opacity:.2}}
+.vhud-cell{margin-top:7px;font-size:16px;line-height:1.45}
+.vhud-col{color:var(--muted);font-size:13px}
+.vhud-heard{margin-top:5px;padding:6px 9px;border-radius:9px;background:var(--panel2);color:var(--ink);
+  font-size:15px;min-height:1.7em;word-break:break-word}
+.vhud-heard.ok{background:var(--ok-bg);color:var(--ok);font-weight:700}
+.vhud-heard.bad{background:var(--bad-bg);color:var(--bad);font-weight:700}
+.vhud-heard.warn{background:var(--warn-bg);color:var(--warn);font-weight:700}
+.vhud-tip{margin-top:6px;font-size:11px;color:var(--muted);line-height:1.55}
+input.cell.voice-here{outline:3px solid var(--brand);outline-offset:-1px;background:color-mix(in srgb,var(--brand) 14%,transparent)}
+#voiceBtn.on{background:var(--bad-bg);color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,transparent)}
+/* กันแผงเสียงบังแถวท้าย ๆ ของตาราง ซึ่งเป็นแถวที่ครูกำลังจะกรอกพอดี */
+body.voice-on .tablewrap.tall{padding-bottom:190px}
 .portal-login-note{padding:10px 12px;border-radius:9px;background:var(--panel2);border:1px solid var(--line);font-size:12px;color:var(--muted)}
 .ksa-summary{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
 .ksa-chip{display:inline-flex;padding:2px 6px;border-radius:6px;background:var(--brandSoft);color:var(--brand);font-size:10px;font-weight:900}
@@ -2620,6 +2645,7 @@ function setStaffMode(mode) {
 }
 
 function setTab(t) {
+  if (t !== 'scores' && ScoreVoice.on) ScoreVoice.stop();   // ไมค์ค้างอยู่ตอนอยู่แท็บอื่นคือเติมคะแนนลงช่องที่มองไม่เห็น
   DB.ui.tab = t; save();
   $$('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
   $$('section.tabpane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + t));
@@ -6706,6 +6732,389 @@ function renderItems() {
 }
 
 /* ============================================================================
+   8ก) กรอกคะแนนด้วยเสียง
+   ครูตรวจงานโดยมือข้างหนึ่งพลิกสมุดอยู่ตลอด การละมือมาแตะจอทีละช่องคือส่วนที่
+   ช้าที่สุดของงาน โหมดนี้ให้พูดคะแนนลงช่องที่เลือกไว้ พอเว้นจังหวะ (เอนจินถือว่า
+   จบประโยคแล้ว) ระบบก็เลื่อนไปช่องถัดไปเอง ครูจึงกรอกทั้งคอลัมน์ได้โดยไม่ต้องแตะจอ
+
+   ข้อจำกัดที่ต้องรู้
+   - SpeechRecognition มีเฉพาะเอนจิน Chromium (Chrome / Edge / Samsung Internet)
+     และต้องเปิดผ่าน https ถ้าเบราว์เซอร์ไม่มี ให้ซ่อนปุ่มไปเลย ดีกว่าให้กดแล้วเงียบ
+   - เอนจินภาษาไทยคืนตัวเลขมาได้ทั้ง "7" และ "เจ็ด" จึงต้องอ่านให้ได้ทั้งสองแบบ
+   - ค่าที่เกินคะแนนเต็มจะไม่เติมลงช่อง เพราะการฟัง 7 ผิดเป็น 70 เสียหายกว่าการให้
+     ครูพูดซ้ำอีกครั้งเดียว
+   ========================================================================== */
+const VOICE_OK = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+
+const THAI_NUM_WORD = { 'ศูนย์': 0, 'สูญ': 0, 'หนึ่ง': 1, 'เอ็ด': 1, 'สอง': 2, 'ยี่': 2, 'สาม': 3,
+  'สี่': 4, 'ห้า': 5, 'หก': 6, 'เจ็ด': 7, 'แปด': 8, 'เก้า': 9 };
+
+/** อ่านเลขไทยแบบมีหลัก เช่น "สามสิบห้า" = 35 • คืน null ถ้าเจอคำที่ไม่ใช่ตัวเลข */
+function thaiWordsToInt(s) {
+  /* "เจ็ดแปด" ไม่ใช่จำนวนในภาษาไทย แต่เกิดได้จริงเมื่อครูพูดสองเลขรวดเดียวจนเอนจิน
+     ตัดเป็นประโยคเดียว ถ้าปล่อยให้บวกกันจะได้ 15 ลงช่องแบบเงียบ ๆ จึงต้องไม่รับไปเลย */
+  let total = 0, cur = 0, seen = false, i = 0, lastWasDigit = false;
+  while (i < s.length) {
+    if (s.startsWith('ร้อย', i)) { total += (cur || 1) * 100; cur = 0; seen = true; lastWasDigit = false; i += 4; continue; }
+    if (s.startsWith('พัน', i)) { total += (cur || 1) * 1000; cur = 0; seen = true; lastWasDigit = false; i += 3; continue; }
+    if (s.startsWith('สิบ', i)) { cur = (cur || 1) * 10; seen = true; lastWasDigit = false; i += 3; continue; }
+    let hit = null;
+    for (const w in THAI_NUM_WORD) if (s.startsWith(w, i) && (!hit || w.length > hit.length)) hit = w;
+    if (!hit || lastWasDigit) return null;
+    cur += THAI_NUM_WORD[hit]; seen = true; lastWasDigit = true; i += hit.length;
+  }
+  return seen ? total + cur : null;
+}
+
+/** อ่านเลขไทยแบบเรียงหลัก เช่น "สองห้า" = "25" ใช้กับเลขหลังจุดทศนิยมเท่านั้น */
+function thaiWordsToDigits(s) {
+  let out = '', i = 0;
+  while (i < s.length) {
+    let hit = null;
+    for (const w in THAI_NUM_WORD) if (s.startsWith(w, i) && (!hit || w.length > hit.length)) hit = w;
+    if (!hit) return null;
+    out += THAI_NUM_WORD[hit]; i += hit.length;
+  }
+  return out || null;
+}
+
+/** แปลงสิ่งที่ได้ยินเป็นตัวเลข รองรับ "7.5" "เจ็ดจุดห้า" "เจ็ดครึ่ง" และเลขไทย ๗ */
+function parseSpokenNumber(text) {
+  let t = String(text == null ? '' : text).trim();
+  if (!t) return null;
+  t = t.replace(/[๐-๙]/g, d => String('๐๑๒๓๔๕๖๗๘๙'.indexOf(d)));
+  t = t.replace(/คะแนน|แต้ม|เท่ากับ|ค่ะ|คะ|ครับ/g, '');
+  if (/\d\s+\d/.test(t)) return null;        // "7 8" คือพูดสองเลขรวดเดียว ไม่ใช่ 78
+  t = t.replace(/[\s,]/g, '');
+  let half = false;
+  if (/ครึ่ง$/.test(t)) { half = true; t = t.replace(/ครึ่ง$/, ''); }
+  if (!t) return half ? 0.5 : null;
+  const parts = t.split(/จุด|\./);
+  if (parts.length > 2) return null;
+  const whole = parts[0] === '' ? 0 : (/^\d+$/.test(parts[0]) ? parseInt(parts[0], 10) : thaiWordsToInt(parts[0]));
+  if (whole === null || !isFinite(whole)) return null;
+  let frac = 0;
+  if (parts.length === 2 && parts[1] !== '') {
+    const w = parts[1];
+    let digits = /^\d+$/.test(w) ? w : thaiWordsToDigits(w);
+    if (digits === null) { const n = thaiWordsToInt(w); digits = n === null ? null : String(n); }
+    if (digits === null) return null;
+    frac = Number('0.' + digits);
+  }
+  const value = whole + frac + (half ? 0.5 : 0);
+  return isFinite(value) ? value : null;
+}
+
+const ScoreVoice = {
+  rec: null, on: false, dir: 'down', readName: false, busy: false, restart: null, pos: null,
+
+  grid() { return document.querySelector('#scGrid'); },
+
+  at(r, c) {
+    const g = this.grid();
+    return g ? g.querySelector('input.cell:not(:disabled)[data-r="' + r + '"][data-c="' + c + '"]') : null;
+  },
+
+  firstCell() { const g = this.grid(); return g ? g.querySelector('input.cell:not(:disabled)') : null; },
+
+  /** ช่องที่กำลังทำงานอยู่ — ถือตามช่องที่โฟกัสก่อน แล้วค่อยถือตามช่องที่ทำเครื่องหมายไว้ */
+  cell() {
+    const g = this.grid();
+    if (!g) return null;
+    const a = document.activeElement;
+    if (a && a.classList && a.classList.contains('cell') && !a.disabled && g.contains(a)) return a;
+    return g.querySelector('input.cell.voice-here:not(:disabled)');
+  },
+
+  bounds() {
+    const g = this.grid();
+    let r = -1, c = -1;
+    if (g) g.querySelectorAll('input.cell').forEach(el => {
+      r = Math.max(r, +el.dataset.r); c = Math.max(c, +el.dataset.c);
+    });
+    return { rows: r + 1, cols: c + 1 };
+  },
+
+  /** ทำเครื่องหมายว่ากำลังอยู่ช่องไหน โดยไม่เลื่อนจอ ใช้ตอนครูแตะเลือกช่องเอง */
+  mark(cell) {
+    const g = this.grid();
+    if (!g || !cell) return;
+    $$('input.cell.voice-here', g).forEach(el => el.classList.remove('voice-here'));
+    cell.classList.add('voice-here');
+    this.pos = { r: +cell.dataset.r, c: +cell.dataset.c };
+    this.paint();
+  },
+
+  focusCell(cell) {
+    if (!cell) return;
+    /* ต้องย้ายโฟกัสก่อนแล้วค่อยทำเครื่องหมาย เพราะแผงอ่านว่า "ช่องไหนกำลังทำงาน"
+       จาก document.activeElement ถ้าทำเครื่องหมายก่อน แผงจะยังโชว์ช่องเดิมค้างไว้ */
+    cell.focus({ preventScroll: true });
+    try { cell.select(); } catch (e) {}
+    this.mark(cell);
+    cell.scrollIntoView({ block: 'center', inline: 'center' });
+  },
+
+  /** เลื่อนไปช่องถัดไป (delta 1) หรือย้อนกลับ (delta -1) ตามทิศที่ครูเลือกไว้ */
+  step(delta) {
+    const cur = this.cell();
+    if (!cur) return false;
+    const r = +cur.dataset.r, c = +cur.dataset.c, bd = this.bounds();
+    let found = null;
+    if (this.dir === 'right') {
+      for (let i = c + delta; i >= 0 && i < bd.cols; i += delta) { found = this.at(r, i); if (found) break; }
+    } else {
+      for (let i = r + delta; i >= 0 && i < bd.rows; i += delta) { found = this.at(i, c); if (found) break; }
+    }
+    if (!found) return false;
+    this.focusCell(found);
+    if (delta > 0) this.sayName(found);
+    return true;
+  },
+
+  /* อ่านชื่อคนถัดไปให้ฟัง เพื่อให้ครูไม่ต้องเงยหน้ามาดูจอเลยตลอดทั้งคอลัมน์
+     ระหว่างที่แอปพูด ต้องปิดหูตัวเองไว้ ไม่งั้นไมค์จะรับเสียงที่แอปพูดเองไปเป็นคะแนน */
+  sayName(cell) {
+    if (!this.readName || !window.speechSynthesis) return;
+    const tr = cell.closest('tr');
+    if (!tr) return;
+    const no = (tr.querySelector('.c-no') || {}).textContent || '';
+    const name = (tr.querySelector('.c-name') || {}).textContent || '';
+    this.busy = true;
+    try {
+      const u = new SpeechSynthesisUtterance('เลขที่ ' + no + ' ' + name);
+      u.lang = 'th-TH'; u.rate = 1.15;
+      u.onend = u.onerror = () => setTimeout(() => { this.busy = false; }, 250);
+      speechSynthesis.cancel();
+      speechSynthesis.speak(u);
+      setTimeout(() => { this.busy = false; }, 6000);      // กันค้างถ้าเครื่องไม่มีเสียงไทย
+    } catch (e) { this.busy = false; }
+  },
+
+  colLabel(c) {
+    const g = this.grid();
+    if (!g) return '';
+    let group = '', acc = 0;
+    g.querySelectorAll('thead tr:first-child th.score-group-head').forEach(th => {
+      const span = +(th.getAttribute('colspan') || 1);
+      if (!group && c >= acc && c < acc + span) {
+        const t = th.querySelector('.item-title');
+        group = t ? t.textContent : '';
+      }
+      acc += span;
+    });
+    const sub = g.querySelectorAll('thead tr:nth-child(2) th')[c];
+    let label = '';
+    if (sub) {
+      const clone = sub.cloneNode(true), hmax = clone.querySelector('.hmax');
+      if (hmax) hmax.remove();
+      label = clone.textContent.trim();
+    }
+    return [group, label].filter(Boolean).join(' • ');
+  },
+
+  where(cell) {
+    const tr = cell.closest('tr');
+    const no = tr ? ((tr.querySelector('.c-no') || {}).textContent || '') : '';
+    const name = tr ? ((tr.querySelector('.c-name') || {}).textContent || '') : '';
+    const max = cell.dataset.rawmax || cell.dataset.max || '';
+    return '<b>เลขที่ ' + esc(no) + ' ' + esc(name) + '</b><br><span class="vhud-col">' +
+      esc(this.colLabel(+cell.dataset.c)) + (max ? ' • เต็ม ' + esc(max) : '') + '</span>';
+  },
+
+  hud() {
+    let el = document.querySelector('#voiceHud');
+    if (el) return el;
+    el = document.createElement('div');
+    el.id = 'voiceHud';
+    el.className = 'vhud';
+    el.innerHTML =
+      '<div class="vhud-row"><span class="vdot"></span><b>กรอกคะแนนด้วยเสียง</b><span class="spacer"></span>' +
+        '<button type="button" data-vdir title="ทิศที่จะเลื่อนไปหลังกรอกเสร็จ"></button>' +
+        '<button type="button" data-vread title="ให้แอปอ่านชื่อคนถัดไปให้ฟัง"></button>' +
+        '<button type="button" data-vstop>หยุด</button></div>' +
+      '<div class="vhud-cell" data-vcell></div>' +
+      '<div class="vhud-heard" data-vheard></div>' +
+      '<div class="vhud-tip">พูดตัวเลขได้เลย เช่น “เจ็ด” “เจ็ดจุดห้า” “สิบห้า” • ' +
+        '“ข้าม” เว้นช่องนี้ • “ลบ” ล้างช่อง • “ย้อน” กลับช่องก่อนหน้า • “เต็ม” ให้คะแนนเต็ม • “หยุด” ปิดไมค์</div>';
+    document.body.appendChild(el);
+    el.querySelector('[data-vdir]').addEventListener('click', () => { this.dir = this.dir === 'down' ? 'right' : 'down'; this.paint(); });
+    el.querySelector('[data-vread]').addEventListener('click', () => { this.readName = !this.readName; this.paint(); });
+    el.querySelector('[data-vstop]').addEventListener('click', () => this.stop());
+    return el;
+  },
+
+  paint(heard, kind) {
+    const el = document.querySelector('#voiceHud');
+    if (!el) return;
+    el.querySelector('[data-vdir]').textContent = this.dir === 'down' ? 'ลงคนถัดไป ↓' : 'ไปช่องขวา →';
+    const read = el.querySelector('[data-vread]');
+    read.textContent = 'อ่านชื่อ: ' + (this.readName ? 'เปิด' : 'ปิด');
+    read.classList.toggle('on', this.readName);
+    const cur = this.cell();
+    el.querySelector('[data-vcell]').innerHTML = cur ? this.where(cur) : 'แตะช่องที่จะเริ่มกรอกก่อน';
+    if (heard !== undefined) {
+      const h = el.querySelector('[data-vheard]');
+      h.textContent = heard;
+      h.className = 'vhud-heard' + (kind ? ' ' + kind : '');
+    }
+  },
+
+  write(cell, value) {
+    cell.value = value === '' ? '' : String(value);
+    cell.dispatchEvent(new Event('input', { bubbles: true }));   // ใช้ทางเดินข้อมูลเดิมของตาราง จะได้คิดคะแนนรวมให้ด้วย
+    save(true);
+  },
+
+  accept(cell, value, note) {
+    this.write(cell, value);
+    this.paint(note + ' ✓', 'ok');
+    if (!this.step(1)) this.paint(note + ' ✓ • หมดคอลัมน์แล้ว แตะช่องใหม่เพื่อกรอกต่อ', 'warn');
+  },
+
+  /** ตัดสินใจจากสิ่งที่ได้ยิน — alts คือคำที่เอนจินเดาไว้หลายแบบ เรียงจากมั่นใจที่สุด */
+  heard(alts) {
+    if (!this.on || this.busy) return;
+    if (!this.grid()) { this.stop(); return; }
+    const raw = String(alts[0] || '').trim();
+    if (!raw) return;
+    const flat = raw.replace(/[\s.]/g, '');
+    const said = w => flat.indexOf(w) >= 0;
+
+    if (said('หยุด') || said('ปิดไมค์') || said('เลิก')) { this.stop(); return; }
+
+    const cur = this.cell();
+    if (!cur) { this.paint('ยังไม่ได้เลือกช่อง — แตะช่องที่จะกรอกก่อน', 'warn'); return; }
+    if (blockClosedTerm()) { this.stop(); return; }
+
+    if (said('ย้อน') || said('ถอย')) { this.paint('ย้อนกลับ', 'ok'); this.step(-1); return; }
+    if (said('ข้าม') || said('ถัดไป') || said('ต่อไป') || said('ผ่าน')) {
+      this.paint('ข้ามช่องนี้', 'ok');
+      if (!this.step(1)) this.paint('หมดคอลัมน์แล้ว แตะช่องใหม่เพื่อกรอกต่อ', 'warn');
+      return;
+    }
+    if (said('ลบ') || said('ล้าง') || said('เคลียร์')) { this.write(cur, ''); this.paint('ล้างช่องนี้แล้ว', 'ok'); return; }
+    if (said('ว่าง') || said('ไม่มี') || said('ขาด')) {
+      this.write(cur, '');
+      this.paint('เว้นว่างไว้', 'ok');
+      if (!this.step(1)) this.paint('หมดคอลัมน์แล้ว แตะช่องใหม่เพื่อกรอกต่อ', 'warn');
+      return;
+    }
+
+    const max = num(cur.dataset.rawmax || cur.dataset.max || 0);
+    if (said('เต็ม') && max > 0) { this.accept(cur, max, 'เต็ม ' + fmt(max)); return; }
+
+    /* ลองคำเดาทุกแบบ ตัวแรกที่เป็นตัวเลขและไม่เกินคะแนนเต็มคือคำตอบ
+       เพราะเอนจินมักเดาตัวแรกเป็นคำพ้องเสียงที่ไม่ใช่ตัวเลข เช่น "ห้า" เป็น "หา" */
+    let value = null, over = null;
+    for (let i = 0; i < alts.length; i++) {
+      const v = parseSpokenNumber(alts[i]);
+      if (v === null) continue;
+      if (!(max > 0) || v <= max) { value = v; break; }
+      if (over === null) over = v;
+    }
+    if (value === null) {
+      if (over !== null) this.paint('ได้ยินเป็น ' + fmt(over) + ' ซึ่งเกินคะแนนเต็ม ' + fmt(max) + ' — ยังไม่เติม พูดใหม่อีกครั้ง', 'bad');
+      else this.paint('ไม่เข้าใจ “' + raw + '” — พูดใหม่อีกครั้ง', 'bad');
+      return;
+    }
+    this.accept(cur, value, '“' + raw + '” → ' + fmt(value));
+  },
+
+  /* ปิดแป้นพิมพ์บนจอระหว่างใช้เสียง ไม่งั้นแป้นพิมพ์มือถือจะเด้งขึ้นบังตารางทุกครั้ง
+     ที่ระบบเลื่อนไปช่องถัดไป ซึ่งทำให้โหมดที่ตั้งใจให้ไม่ต้องแตะจอเสียประโยชน์ไปหมด */
+  lockKeyboard(lock) {
+    const g = this.grid();
+    if (g) g.querySelectorAll('input.cell').forEach(el => { el.inputMode = lock ? 'none' : 'decimal'; });
+  },
+
+  syncButton() {
+    const btn = document.querySelector('#voiceBtn');
+    if (!btn) return;
+    btn.classList.toggle('on', this.on);
+    btn.textContent = this.on ? '⏹ หยุดกรอกด้วยเสียง' : '🎤 กรอกด้วยเสียง';
+  },
+
+  toggle() { if (this.on) this.stop(); else this.start(); },
+
+  start() {
+    if (this.on) return;
+    const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Rec) { toast('เบราว์เซอร์นี้ยังไม่รองรับการกรอกด้วยเสียง — ใช้ Chrome หรือ Edge แทน', 'warn'); return; }
+    if (!this.grid()) { toast('เปิดแท็บกรอกคะแนนก่อน', 'warn'); return; }
+    if (blockClosedTerm()) return;
+
+    const rec = new Rec();
+    rec.lang = 'th-TH';
+    rec.continuous = true;
+    rec.interimResults = true;      // ใช้แสดงว่าได้ยินอะไรอยู่ ยังไม่เอาไปเติมช่อง
+    rec.maxAlternatives = 4;
+    rec.onresult = ev => {
+      let interim = '';
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        const res = ev.results[i];
+        if (!res.isFinal) { interim += res[0].transcript; continue; }
+        const alts = [];
+        for (let k = 0; k < res.length; k++) alts.push(res[k].transcript);
+        this.heard(alts);          // isFinal = เอนจินเจอจังหวะเว้นแล้ว นี่คือจุดที่เลื่อนช่อง
+      }
+      if (interim.trim() && !this.busy) this.paint('กำลังฟัง… ' + interim.trim(), '');
+    };
+    rec.onerror = ev => {
+      if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
+        this.stop();
+        toast('เบราว์เซอร์ไม่อนุญาตให้ใช้ไมโครโฟน — กดไอคอนหน้าช่องที่อยู่เว็บแล้วเลือกอนุญาตไมโครโฟน', 'bad');
+      } else if (ev.error === 'network') {
+        this.paint('ต่ออินเทอร์เน็ตไม่ได้ — การถอดเสียงต้องใช้เน็ต', 'bad');
+      }
+    };
+    /* Chrome ปิดการฟังเองทุกไม่กี่สิบวินาทีแม้จะตั้ง continuous ไว้ ถ้าไม่สั่งเริ่มใหม่
+       ครูจะพูดต่อไปเรื่อย ๆ โดยไม่มีอะไรเกิดขึ้นเลย หน่วงนิดหนึ่งกัน start ซ้อน start */
+    rec.onend = () => {
+      if (!this.on) return;
+      clearTimeout(this.restart);
+      this.restart = setTimeout(() => { try { rec.start(); } catch (e) {} }, 300);
+    };
+
+    this.rec = rec;
+    this.on = true;
+    try { rec.start(); } catch (e) {}
+    document.body.classList.add('voice-on');
+    this.hud();
+    this.lockKeyboard(true);
+    this.focusCell(this.cell() || this.firstCell());
+    this.paint('พูดคะแนนได้เลย', '');
+    this.syncButton();
+  },
+
+  stop() {
+    this.on = false;
+    clearTimeout(this.restart);
+    if (this.rec) { try { this.rec.stop(); } catch (e) {} this.rec = null; }
+    if (window.speechSynthesis) { try { speechSynthesis.cancel(); } catch (e) {} }
+    this.busy = false;
+    document.body.classList.remove('voice-on');
+    const el = document.querySelector('#voiceHud');
+    if (el) el.remove();
+    const g = this.grid();
+    if (g) $$('input.cell.voice-here', g).forEach(c => c.classList.remove('voice-here'));
+    this.lockKeyboard(false);
+    this.syncButton();
+  },
+
+  /* renderScores() วาดตารางใหม่ทั้งก้อนทุกครั้งที่กดตัวกรองส่วนคะแนน ช่องที่ทำค้างไว้
+     จึงหลุดหายไปพร้อมตำแหน่งเดิม ต้องพากลับไปยืนที่ช่องเดิมให้ครูเอง */
+  rebind() {
+    if (!this.on) return;
+    this.hud();
+    this.lockKeyboard(true);
+    const p = this.pos || { r: 0, c: 0 };
+    this.focusCell(this.at(p.r, p.c) || this.firstCell());
+    this.syncButton();
+  }
+};
+
+/* ============================================================================
    8) แท็บกรอกคะแนน
    ========================================================================== */
 function renderScores() {
@@ -6828,12 +7237,14 @@ function renderScores() {
       '<div class="row">' +
         '<h3 style="margin:0">กรอกคะแนน <span class="sub">' + esc(curSubject().name) + ' • ' + esc(curClass().name) + ' • ' + sts.length + ' คน</span></h3>' +
         '<div class="spacer"></div>' +
+        (VOICE_OK ? '<button type="button" id="voiceBtn" title="พูดคะแนนแทนการพิมพ์ เว้นจังหวะแล้วระบบเลื่อนไปช่องถัดไปเอง">🎤 กรอกด้วยเสียง</button>' : '') +
         '<label title="เหมาะกับการดูผลระหว่างภาค: ไม่นับคะแนนเต็มของหัวข้อที่ยังไม่ได้กรอก และตัดการสอบที่ยังไม่ถึงออก">' +
           '<input type="checkbox" id="pmode"' + (b.partialMode ? ' checked' : '') + '> คิดคะแนนเฉพาะส่วนที่กรอกแล้ว</label>' +
       '</div>' +
       '<div class="hint" style="margin-top:6px">' +
         'เดินด้วยลูกศร ↑↓←→ • กด Enter เพื่อลงช่องถัดไป • เว้นว่าง = ยังไม่ได้กรอก (ไม่ใช่ 0) • ' +
         '<b>คัดลอกคะแนนทั้งคอลัมน์จาก Excel มาวางได้</b> คลิกช่องแรกแล้วกด Ctrl+V ระบบจะเติมลงมาตามลำดับแถว • ' +
+        (VOICE_OK ? '<b>กรอกด้วยเสียงได้</b> กดปุ่ม 🎤 แล้วพูดคะแนน เว้นจังหวะหนึ่งครั้งระบบจะเลื่อนไปคนถัดไปเอง • ' : '') +
         '<span class="badge grp">ช่องสีม่วง</span> คือคะแนนกลุ่ม • <span class="badge bad">ตัวแดง</span> ต่ำกว่าเกณฑ์ 60% รายส่วน • คะแนนตกยังนำมารวมตามจริง และเมื่อกรอกซ่อมจะใช้คะแนนซ่อมแทนโดยอัตโนมัติ' +
       '</div>' + termLockNotice() + partToggleHtml +
       (b.partialMode ? '<div class="notice" style="margin-top:8px">กำลังใช้โหมด “เฉพาะส่วนที่กรอกแล้ว” — คะแนนรวมเป็นการประมาณการระหว่างภาค ไม่ใช่คะแนนสุดท้าย</div>' : '') +
@@ -6842,6 +7253,9 @@ function renderScores() {
       sts.map(rowHtml).join('') + '</tbody></table></div>';
 
   lockPaneFields(pane, 'input.cell');
+  const voiceBtn = $('#voiceBtn', pane);
+  if (voiceBtn) voiceBtn.addEventListener('click', () => ScoreVoice.toggle());
+  ScoreVoice.rebind();          // ถ้ากำลังกรอกด้วยเสียงอยู่ ตารางที่เพิ่งวาดใหม่ต้องรับช่วงต่อได้ทันที
   $('#pmode').addEventListener('change', e => { b.partialMode = e.target.checked; save(true); renderScores(); });
   $$('[data-part]', pane).forEach(btn => btn.addEventListener('click', () => {
     const k = btn.dataset.part;
@@ -7000,7 +7414,11 @@ function renderScores() {
     toast('วางคะแนนแล้ว ' + filled + ' ช่อง' + (skipped.length ? ' • ข้าม ' + skipped.join(' และ ') : ''),
       skipped.length ? 'warn' : 'ok');
   });
-  grid.addEventListener('focusin', e => { if (e.target.classList.contains('cell')) e.target.select(); });
+  grid.addEventListener('focusin', e => {
+    if (!e.target.classList.contains('cell')) return;
+    e.target.select();
+    if (ScoreVoice.on) ScoreVoice.mark(e.target);      // ครูแตะเลือกช่องเองระหว่างใช้เสียง แผงต้องตามไปช่องนั้น
+  });
 }
 
 /* ============================================================================
