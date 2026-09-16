@@ -391,6 +391,7 @@ td.num,th.num{text-align:center}
 .sbox.none b{color:var(--bad)}
 .sbox.on{outline:2px solid var(--brand);outline-offset:1px}
 .sbox-note{margin-top:7px;font-size:12px;color:var(--muted);min-height:1.5em}
+.calc-open{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
 /* --- โหมดกรอกคะแนนด้วยเสียง -----------------------------------------------
    แผงนี้ลอยอยู่เหนือทุกอย่างเพราะครูต้องชำเลืองอ่านขณะก้มดูสมุด ไม่ใช่ขณะจ้องจอ
    ตัวอักษรจึงใหญ่กว่าแผงอื่น และต้องกำหนดสีตัวอักษรของปุ่มไว้เอง เพราะปุ่มในแอป
@@ -2199,14 +2200,66 @@ function syncItemComponentTotal(book, sid, item) {
 /* แถบเตือนเมื่อมีคะแนนที่กรอกเกินคะแนนเต็มของช่องนั้น ซึ่งเป็นสาเหตุเดียวที่ทำให้
    คะแนนรวมรายส่วนทะลุคะแนนเต็มของส่วนได้ ที่พบบ่อยคือหัวข้อเก็บจริง 25 แต่ตั้งคะแนน
    ที่ให้ไว้ 5 แล้วกรอก 25 ลงไปตรง ๆ โดยยังไม่ได้ตั้งคะแนนดิบเต็ม */
+/* กางให้ดูทีละหัวข้อว่าคะแนนรวมของส่วนนั้นมาจากไหน เปิดจากการกดที่ช่องผลรวมในตาราง
+   มีไว้ตอบคำถาม "ทำไมรวมแล้วเกินคะแนนเต็ม" ด้วยตัวเลขจริงของนักเรียนคนนั้น
+   แทนที่จะต้องไล่สูตรเอง ซึ่งเป็นคำถามที่ตอบยากที่สุดเวลาคะแนนออกมาผิด */
+function sectionBreakdownHtml(b, st, section) {
+  const after = section === 'after';
+  const weight = num(after ? b.weights.after : b.weights.before);
+  const retakes = (b.itemRetakes || {})[st.sid] || {};
+  const comp = ((b.componentScores || {})[st.sid] || {});
+  const rows = [];
+  let raw = 0, max = 0, over = false;
+  b.items.filter(it => itemScoreSection(it) === section).forEach(it => {
+    const entry = itemEntryMax(it), given = num(it.max);
+    const done = itemScoreComplete(b, st.sid, it);
+    const original = itemScoreValue(b, st.sid, it);
+    const failed = it.kind === 'unit' && done && entry > 0 && num(original) * 100 / entry < num(b.passPercent);
+    const usedRetake = failed && has(retakes[it.id]);
+    const v = usedRetake ? retakes[it.id] : original;
+    const conv = done && entry > 0 ? num(v) * given / entry : 0;
+    if (done) raw += conv;
+    max += given;
+    const cs = itemComponents(it);
+    const parts = cs.length
+      ? cs.map(c => c.key + ' ' + (has((comp[it.id] || {})[c.key]) ? fmt((comp[it.id] || {})[c.key]) : '—') + '/' + fmt(c.rawMax)).join(' • ')
+      : (done ? fmt(original) + '/' + fmt(entry) : '—');
+    const bust = done && num(v) > entry;
+    if (bust) over = true;
+    rows.push('<tr><td>' + esc(it.name || 'ไม่มีชื่อ') + '</td>' +
+      '<td class="num">' + esc(parts) + '</td>' +
+      '<td class="num">' + (usedRetake ? fmt(retakes[it.id]) + '/' + fmt(entry) + ' <span class="badge bad">ใช้ซ่อม</span>' : '—') + '</td>' +
+      '<td class="num' + (bust ? ' score-fail' : '') + '">' + (done ? fmt(conv, 2) : '—') + '</td>' +
+      '<td class="num">' + fmt(given) + '</td></tr>');
+  });
+  const result = max > 0 ? raw * weight / max : 0;
+  return '<div class="tablewrap"><table><thead><tr><th>หัวข้อ</th><th class="num">คะแนนที่กรอก</th>' +
+    '<th class="num">ช่องซ่อม</th><th class="num">คิดเป็นคะแนนที่ให้</th><th class="num">เต็มที่ให้</th>' +
+    '</tr></thead><tbody>' + rows.join('') + '</tbody></table></div>' +
+    '<div class="notice" style="margin-top:10px">รวมที่ได้ <b>' + fmt(raw, 2) + '</b> จากเต็มที่ให้ <b>' + fmt(max) + '</b> → ' +
+      (after ? 'หลังกลางภาค' : 'ก่อนกลางภาค') + ' = ' + fmt(raw, 2) + ' × ' + fmt(weight) + ' ÷ ' + fmt(max) +
+      ' = <b>' + fmt(rnd(result)) + '</b> จากเต็ม ' + fmt(weight) + '</div>' +
+    (over ? '<div class="notice bad" style="margin-top:8px"><b>มีช่องที่กรอกเกินคะแนนเต็มของช่อง</b> ' +
+      'นี่คือสาเหตุที่ผลรวมทะลุคะแนนเต็มของส่วนนี้ แก้ได้สองทาง — แก้ตัวเลขในช่องนั้นให้อยู่ในกรอบ ' +
+      'หรือถ้าเก็บจริงมากกว่านั้น ให้ไปตั้ง <b>คะแนนดิบเต็ม</b> ของหัวข้อนั้นที่แท็บหัวข้อคะแนน</div>' : '');
+}
+
 function overMaxNotice(book, sts) {
   const bad = [];
   book.items.forEach(it => {
     const entry = itemEntryMax(it);
     if (!(entry > 0)) return;
-    let n = 0;
-    sts.forEach(st => { const v = itemScoreValue(book, st.sid, it); if (has(v) && num(v) > entry) n++; });
+    let n = 0, nr = 0;
+    sts.forEach(st => {
+      const v = itemScoreValue(book, st.sid, it);
+      if (has(v) && num(v) > entry) n++;
+      /* ช่องซ่อมถูกนำไปใช้แทนคะแนนเดิมเมื่อคนนั้นตก จึงทำให้ผลรวมทะลุได้เหมือนกัน
+         และมองไม่เห็นจากคะแนนหลัก เพราะ K/S/A แปลงมาให้อยู่ในกรอบเสมอ */
+      const rt = ((book.itemRetakes || {})[st.sid] || {})[it.id];
+      if (has(rt) && num(rt) > entry) nr++;
+    });
     if (n) bad.push(esc(it.name || 'หัวข้อไม่มีชื่อ') + ' — เกิน ' + n + ' คน (ช่องนี้เต็ม ' + fmt(entry) + ')');
+    if (nr) bad.push('ซ่อม ' + esc(it.name || 'หัวข้อไม่มีชื่อ') + ' — เกิน ' + nr + ' คน (ช่องนี้เต็ม ' + fmt(entry) + ')');
   });
   if (!bad.length) return '';
   return '<div class="notice bad" style="margin-top:8px"><b>มีคะแนนที่กรอกเกินคะแนนเต็มของช่อง</b> ' +
@@ -7530,6 +7583,7 @@ function renderScores() {
         'เดินด้วยลูกศร ↑↓←→ • กด Enter เพื่อลงช่องถัดไป • เว้นว่าง = ยังไม่ได้กรอก (ไม่ใช่ 0) • ' +
         '<b>คัดลอกคะแนนทั้งคอลัมน์จาก Excel มาวางได้</b> คลิกช่องแรกแล้วกด Ctrl+V ระบบจะเติมลงมาตามลำดับแถว • ' +
         (VOICE_OK ? '<b>กรอกด้วยเสียงได้</b> กดปุ่ม 🎤 แล้วพูดคะแนน เว้นจังหวะหนึ่งครั้งระบบจะเลื่อนไปคนถัดไปเอง • ' : '') +
+        '<b>กดที่ช่องรวมก่อน/หลังกลางภาค</b> เพื่อดูว่าคะแนนนั้นมาจากหัวข้อไหนบ้าง • ' +
         '<span class="badge grp">ช่องสีม่วง</span> คือคะแนนกลุ่ม • <span class="badge bad">ตัวแดง</span> ต่ำกว่าเกณฑ์ 60% รายส่วน • คะแนนตกยังนำมารวมตามจริง และเมื่อกรอกซ่อมจะใช้คะแนนซ่อมแทนโดยอัตโนมัติ' +
       '</div>' + overMaxNotice(b, sts) + termLockNotice() + partToggleHtml +
       (b.partialMode ? '<div class="notice" style="margin-top:8px">กำลังใช้โหมด “เฉพาะส่วนที่กรอกแล้ว” — คะแนนรวมเป็นการประมาณการระหว่างภาค ไม่ใช่คะแนนสุดท้าย</div>' : '') +
@@ -7539,6 +7593,17 @@ function renderScores() {
 
   lockPaneFields(pane, 'input.cell');
   $$('[data-go-tab]', pane).forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.goTab)));
+  $$('[data-calc="before"],[data-calc="after"]', pane).forEach(td => {
+    td.classList.add('calc-open');
+    td.title = 'กดเพื่อดูว่าคะแนนรวมนี้มาจากหัวข้อไหนบ้าง';
+    td.addEventListener('click', () => {
+      const st = sts.find(x => x.sid === td.closest('tr').dataset.sid);
+      if (!st) return;
+      openModal({ wide: true, buttons: [{ label: 'ปิด' }],
+        title: 'ที่มาของคะแนน' + (td.dataset.calc === 'after' ? 'หลังกลางภาค' : 'ก่อนกลางภาค') + ' — ' + st.name,
+        bodyHTML: sectionBreakdownHtml(b, st, td.dataset.calc) });
+    });
+  });
   const voiceBtn = $('#voiceBtn', pane);
   if (voiceBtn) voiceBtn.addEventListener('click', () => ScoreVoice.toggle());
   ScoreVoice.rebind();          // ถ้ากำลังกรอกด้วยเสียงอยู่ ตารางที่เพิ่งวาดใหม่ต้องรับช่วงต่อได้ทันที
