@@ -13194,12 +13194,30 @@ function uniqueStudentAccountsList() {
   return Array.from(map.values()).sort((a, b) => a.className.localeCompare(b.className, 'th') || a.sid.localeCompare(b.sid));
 }
 
+/* ชื่อห้องของโรงเรียนเขียนเป็น "ม.4/4" ตัวหน้าคือชั้น ตัวหลังคือห้อง แยกไว้ทำตัวกรอง
+   สองชั้น ครูจะได้เลือกชั้นก่อนแล้วค่อยเลือกห้อง ไม่ต้องเลื่อนหาในรายการยาวทั้งโรงเรียน */
+const classLevelOf = name => String(name || '').split('/')[0].trim() || String(name || '');
+
 function openStudentAccountManager() {
   const students = uniqueStudentAccountsList();
+  const levels = Array.from(new Set(students.map(x => classLevelOf(x.className)))).sort((a, b) => a.localeCompare(b, 'th'));
+  const rooms = Array.from(new Set(students.map(x => x.className))).sort((a, b) => a.localeCompare(b, 'th'));
   openModal({ title: 'จัดการบัญชีพอร์ทัลนักเรียน', wide: true,
     bodyHTML: '<div class="notice">ชื่อผู้ใช้คือ <b>เลขประจำตัวนักเรียน</b> • รหัสเริ่มต้นคือ <b>1234</b> • นักเรียนเปลี่ยนรหัสเองได้ และครูรีเซ็ตกลับเป็น 1234 ได้</div>' +
-      '<div class="tablewrap tall" style="margin-top:12px"><table><thead><tr><th>เลขประจำตัว / Username</th><th>ชื่อ-นามสกุล</th><th>ห้อง</th><th>สถานะรหัส</th><th>รหัสรับสิทธิ์</th><th></th></tr></thead><tbody>' +
-      (students.length ? students.map(st => '<tr data-account-sid="' + esc(st.sid) + '"><td><b>' + esc(st.sid) + '</b></td><td>' + esc(st.name) + '</td><td>' + esc(st.className) + '</td><td class="account-state">' +
+      /* ทั้งโรงเรียนมีเป็นพันคน ถ้าไม่มีตัวกรองก็เลื่อนหาคนเดียวไม่ไหว
+         ค้นหาช่องเดียวรับทั้งเลขประจำตัวและชื่อ เพราะครูบางคนจำเลขไม่ได้แต่จำชื่อได้ */
+      '<div class="row acc-filter" style="margin-top:12px;flex-wrap:wrap">' +
+        '<div class="pick"><label>ชั้น</label><select data-acc-level><option value="">ทุกชั้น</option>' +
+          levels.map(v => '<option value="' + esc(v) + '">' + esc(v) + '</option>').join('') + '</select></div>' +
+        '<div class="pick"><label>ห้อง</label><select data-acc-room><option value="">ทุกห้อง</option>' +
+          rooms.map(v => '<option value="' + esc(v) + '">' + esc(v) + '</option>').join('') + '</select></div>' +
+        '<div class="pick" style="flex:1;min-width:210px"><label>ค้นหา</label>' +
+          '<input data-acc-q placeholder="เลขประจำตัวหรือชื่อ" style="width:100%"></div>' +
+        '<button class="sm" data-acc-clear>ล้างตัวกรอง</button>' +
+      '</div>' +
+      '<div class="hint" data-acc-count style="margin-top:6px"></div>' +
+      '<div class="tablewrap tall" style="margin-top:8px"><table><thead><tr><th>เลขประจำตัว / Username</th><th>ชื่อ-นามสกุล</th><th>ห้อง</th><th>สถานะรหัส</th><th>รหัสรับสิทธิ์</th><th></th></tr></thead><tbody>' +
+      (students.length ? students.map(st => '<tr data-account-sid="' + esc(st.sid) + '" data-level="' + esc(classLevelOf(st.className)) + '" data-room="' + esc(st.className) + '" data-find="' + esc((st.sid + ' ' + st.name).toLowerCase()) + '"><td><b>' + esc(st.sid) + '</b></td><td>' + esc(st.name) + '</td><td>' + esc(st.className) + '</td><td class="account-state">' +
         (DB.studentAccounts[st.sid] && DB.studentAccounts[st.sid].passwordHash ? '<span class="badge ok">เปลี่ยนแล้ว</span>' : '<span class="badge">รหัสเริ่มต้น 1234</span>') +
         '</td><td class="account-code"><code>' + esc((DB.studentAccounts[st.sid] || {}).claimCode || '—') + '</code></td>' +
         '<td><button class="sm" data-reset-account="' + esc(st.sid) + '">รีเซ็ตรหัสผ่าน</button> ' +
@@ -13207,6 +13225,36 @@ function openStudentAccountManager() {
         '</td></tr>').join('') : '<tr><td colspan="6"><div class="empty">ยังไม่มีนักเรียนที่มีเลขประจำตัว</div></td></tr>') +
       '</tbody></table></div>', buttons: [{ label: 'ปิด', cls: 'primary' }],
     onMount(root) {
+      /* กรองด้วยการซ่อนแถว ไม่วาดตารางใหม่ ปุ่มรีเซ็ตที่ผูกไว้แล้วจึงยังทำงานอยู่ทุกแถว
+         และรหัสใหม่ที่เพิ่งออกให้ก็ยังค้างอยู่บนหน้าจอ ไม่หายไปตอนเปลี่ยนตัวกรอง */
+      const levelSel = $('[data-acc-level]', root), roomSel = $('[data-acc-room]', root);
+      const qBox = $('[data-acc-q]', root), countBox = $('[data-acc-count]', root);
+      const rows = $$('tr[data-account-sid]', root);
+      const applyFilter = () => {
+        const lv = levelSel.value, room = roomSel.value, q = qBox.value.trim().toLowerCase();
+        /* เลือกชั้นแล้วให้เหลือเฉพาะห้องของชั้นนั้นในรายการห้อง ไม่งั้นครูจะเลือกคู่ที่ไม่มีอยู่จริง */
+        $$('option', roomSel).forEach(op => {
+          const fit = !op.value || !lv || classLevelOf(op.value) === lv;
+          op.hidden = !fit;
+          if (!fit && roomSel.value === op.value) roomSel.value = '';
+        });
+        let shown = 0;
+        rows.forEach(tr => {
+          const hit = (!lv || tr.dataset.level === lv) && (!room || tr.dataset.room === room) &&
+            (!q || (tr.dataset.find || '').indexOf(q) >= 0);
+          tr.hidden = !hit;
+          if (hit) shown++;
+        });
+        countBox.textContent = shown === rows.length
+          ? 'แสดงทั้งหมด ' + rows.length + ' คน'
+          : 'แสดง ' + shown + ' คน จากทั้งหมด ' + rows.length + ' คน' + (shown ? '' : ' — ไม่พบนักเรียนที่ตรงกับตัวกรอง');
+      };
+      [levelSel, roomSel].forEach(el => el.addEventListener('change', applyFilter));
+      qBox.addEventListener('input', applyFilter);
+      $('[data-acc-clear]', root).addEventListener('click', () => {
+        levelSel.value = ''; roomSel.value = ''; qBox.value = ''; applyFilter(); qBox.focus();
+      });
+      applyFilter();
       $$('[data-reset-account]', root).forEach(btn => btn.addEventListener('click', async () => {
         const sid = btn.dataset.resetAccount;
         if (!await confirmBox('รีเซ็ตรหัสผ่าน', 'รีเซ็ตรหัสของ <b>' + esc(sid) + '</b> กลับเป็น <b>1234</b>?', 'รีเซ็ต')) return;
