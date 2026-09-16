@@ -173,6 +173,11 @@ td.num,th.num{text-align:center}
 .grid tbody td.c-no,.grid tbody td.c-name{position:sticky;background:var(--panel);z-index:5;padding:4px 8px}
 .grid tbody td.c-no{left:0;text-align:center;color:var(--muted);min-width:42px}
 .grid tbody td.c-name{left:42px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px}
+/* พอเลื่อนตารางไปทางขวา แปลว่าครูกำลังดูคอลัมน์คะแนนที่อยู่ไกลออกไป ชื่อเต็มไม่จำเป็น
+   อีกแล้ว เพราะมีเลขที่กำกับอยู่ติดกัน ย่อคอลัมน์ชื่อลงเพื่อคืนที่ให้ช่องคะแนน
+   เลื่อนกลับมาสุดซ้ายเมื่อไรก็คืนความกว้างเดิมให้อ่านชื่อเต็มได้เหมือนเดิม */
+.grid.namecut thead th.c-name{min-width:104px}
+.grid.namecut tbody td.c-name{max-width:104px}
 .grid tbody tr:hover td.c-no,.grid tbody tr:hover td.c-name{background:var(--panel2)}
 /* เส้นนำสายตาของแถวที่กำลังกรอกอยู่ ตารางกว้างหลายสิบคอลัมน์ ถ้าไม่มีเส้น ครูจะ
    กรอกข้ามแถวโดยไม่รู้ตัวตอนเลื่อนขึ้นลง ใช้เส้นบาง ๆ บนล่างกับสีจาง ๆ แทนการถมสี
@@ -7826,6 +7831,15 @@ function renderScores() {
   /* ออกจากตารางไปเลยค่อยลบเส้นทิ้ง ถ้าแค่ย้ายไปช่องอื่นในแถวเดิมหรือแถวใหม่
      ตัว focusin ที่ตามมาจะย้ายเส้นให้เอง */
   grid.addEventListener('focusout', e => { if (!grid.contains(e.relatedTarget)) markRow(null); });
+  /* ย่อคอลัมน์ชื่อเมื่อเลื่อนตารางออกจากซ้ายสุด ผูกกับกรอบที่เลื่อนจริงไม่ใช่ตัวตาราง
+     และหน่วงด้วยเฟรมภาพ เพราะ scroll ยิงถี่มากจนถ้าคำนวณทุกครั้งจะหน่วงตอนปัดเร็ว ๆ */
+  const wrap = grid.closest('.tablewrap');
+  if (wrap) {
+    let tick = 0;
+    const syncNameCut = () => { tick = 0; grid.classList.toggle('namecut', wrap.scrollLeft > 8); };
+    wrap.addEventListener('scroll', () => { if (!tick) tick = requestAnimationFrame(syncNameCut); });
+    syncNameCut();
+  }
 }
 
 /* ============================================================================
