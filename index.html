@@ -161,7 +161,11 @@ td.num,th.num{text-align:center}
 .tablewrap.tall{max-height:74vh}
 
 /* ตารางกรอกคะแนน */
-.grid{font-size:14px}
+/* ตารางทั่วไปกว้างเต็มกรอบ แต่ตารางกรอกคะแนนต้องกว้างเท่าที่มีคอลัมน์จริงเท่านั้น
+   เพราะเวลาครูซ่อนส่วนคะแนนจนเหลือไม่กี่ช่อง เบราว์เซอร์จะเอาที่ว่างไปยืดคอลัมน์ชื่อ
+   กับคอลัมน์ที่ยังว่างอยู่ ดันช่องที่ต้องกรอกไปอยู่ขวาสุดจนต้องกวาดตาข้ามทั้งจอ
+   พอปล่อยให้กว้างตามเนื้อหา ช่องกรอกจะมาชิดซ้ายเสมอ ส่วนตอนมีคอลัมน์เยอะก็เลื่อนได้เหมือนเดิม */
+.grid{font-size:14px;width:auto}
 .grid th,.grid td{border-right:1px solid var(--line2);padding:0}
 .grid thead th{position:sticky;top:0;z-index:8;padding:5px 6px;text-align:center;line-height:1.25}
 .grid thead th.c-no{left:0;z-index:12;min-width:42px}
