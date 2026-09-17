@@ -9005,7 +9005,7 @@ function summaryToolsCard() {
       '<button class="sm" data-sum-act="courseinfo">ข้อมูล ปพ.5</button>' +
       '<button class="sm primary" data-sum-act="backup">สำรองข้อมูล</button>' +
       '<button class="sm" data-sum-act="restore">กู้คืนข้อมูล</button></div>' +
-    '<div class="hint" style="margin-top:9px">' + esc(backupAgeText()) + '</div></div>' + bookSyncCard() + studentPortalCard() + sgsExportCard();
+    '<div class="hint" style="margin-top:9px">' + esc(backupAgeText()) + '</div></div>' + bookSyncCard() + studentPortalCard();
 }
 /** ข้อความบอกว่าสำรองข้อมูลครั้งล่าสุดเมื่อไร */
 function backupAgeText() {
@@ -9219,7 +9219,7 @@ function renderSummary() {
   if (gate) { pane.innerHTML = '<div class="card">' + gate + '</div>' + summaryToolsCard(); bindSummaryTools(pane); return; }
   const b = curBook(true);
   const sts = curStudents().slice().sort((a, c) => a.no - c.no);
-  if (!sts.length) { pane.innerHTML = '<div class="card"><div class="empty">ยังไม่มีรายชื่อนักเรียน</div></div>' + summaryToolsCard(); bindSummaryTools(pane); return; }
+  if (!sts.length) { pane.innerHTML = sgsExportCard() + '<div class="card"><div class="empty">ยังไม่มีรายชื่อนักเรียน</div></div>' + summaryToolsCard(); bindSummaryTools(pane); return; }
 
   const rows = summaryRows(b, sts, curClass().id, curSubject().id);
   const pcts = rows.map(x => x.r.total);
@@ -9372,6 +9372,8 @@ function renderSummary() {
     '</div>';
 
   pane.insertAdjacentHTML('beforeend', summaryToolsCard());
+  /* การ์ดส่งคะแนนเข้า SGS อยู่บนสุดของหน้า ครูใช้บ่อยช่วงส่งผลการเรียน ไม่ต้องเลื่อนผ่านตารางยาวลงไปหา */
+  pane.insertAdjacentHTML('afterbegin', sgsExportCard());
   bindSummaryTools(pane);
   $$('.s-note').forEach(inp => inp.addEventListener('change', () => {
     const sid = inp.closest('tr').dataset.sid;
