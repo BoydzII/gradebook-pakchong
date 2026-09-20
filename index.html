@@ -2023,6 +2023,13 @@ function loadDB() {
     if (!DB.books[nextKey]) DB.books[nextKey] = DB.books[key];
     delete DB.books[key];
   });
+  // เติมชื่อครูและกลุ่มสาระฯ ในสมุดคะแนนที่ยังว่างอยู่ให้อัตโนมัติ
+  Object.keys(DB.books).forEach(k => {
+    const parts = k.split('::');
+    if (parts.length === 3 && DB.books[k]) {
+      autoPopulateBookMeta(DB.books[k], parts[0], parts[1], parts[2]);
+    }
+  });
   DB.version = 8;
   // ตรวจว่าเขียน localStorage ได้จริงหรือไม่
   try { localStorage.setItem(LS_KEY + '.probe', '1'); localStorage.removeItem(LS_KEY + '.probe'); }
@@ -2071,6 +2078,103 @@ function headNameOfArea(area) {
   const found = headTeachersOfArea(area).map(t => t.name || t.email).filter(Boolean);
   return found.join(' / ') || '';
 }
+
+/** ดึงกลุ่มสาระจากรหัสวิชาตามมาตรฐานหลักสูตรแกนกลาง (ทั้งรหัสไทยและสากล) */
+function learningAreaFromCode(code) {
+  if (!code) return '';
+  const c = String(code).trim().toUpperCase();
+  const map = {
+    'ท': 'ภาษาไทย', 'TH': 'ภาษาไทย',
+    'ค': 'คณิตศาสตร์', 'MA': 'คณิตศาสตร์',
+    'ว': 'วิทยาศาสตร์และเทคโนโลยี', 'SC': 'วิทยาศาสตร์และเทคโนโลยี', 'ST': 'วิทยาศาสตร์และเทคโนโลยี',
+    'ส': 'สังคมศึกษา ศาสนาและวัฒนธรรม', 'SO': 'สังคมศึกษา ศาสนาและวัฒนธรรม', 'SOC': 'สังคมศึกษา ศาสนาและวัฒนธรรม',
+    'พ': 'สุขศึกษาและพลศึกษา', 'PE': 'สุขศึกษาและพลศึกษา', 'HE': 'สุขศึกษาและพลศึกษา', 'HP': 'สุขศึกษาและพลศึกษา',
+    'ศ': 'ศิลปะ', 'AR': 'ศิลปะ', 'ART': 'ศิลปะ',
+    'ง': 'การงานอาชีพ', 'OC': 'การงานอาชีพ', 'CA': 'การงานอาชีพ',
+    'อ': 'ภาษาต่างประเทศ', 'EN': 'ภาษาต่างประเทศ', 'ENG': 'ภาษาต่างประเทศ',
+    'ฝ': 'ภาษาต่างประเทศ', 'FR': 'ภาษาต่างประเทศ',
+    'จ': 'ภาษาต่างประเทศ', 'CH': 'ภาษาต่างประเทศ', 'CHN': 'ภาษาต่างประเทศ',
+    'ญ': 'ภาษาต่างประเทศ', 'JA': 'ภาษาต่างประเทศ', 'JPN': 'ภาษาต่างประเทศ',
+    'ก': 'กิจกรรมพัฒนาผู้เรียน', 'IS': 'การศึกษาค้นคว้าอิสระ'
+  };
+  const ch = c.charAt(0);
+  if (map[ch]) return map[ch];
+  const m3 = c.slice(0, 3);
+  if (map[m3]) return map[m3];
+  const m2 = c.slice(0, 2);
+  if (map[m2]) return map[m2];
+  return '';
+}
+
+/** ค้นหาโปรไฟล์ครูของสมุดเล่มนี้ (จากช่องที่กรอกไว้ -> ตารางสอน -> โปรไฟล์ปัจจุบัน) */
+function resolveTeacherForBook(b, classId, subjectId, periodId) {
+  const clsId = classId || (curClass() ? curClass().id : DB.ui.classId);
+  const subId = subjectId || (curSubject() ? curSubject().id : DB.ui.subjectId);
+  const pId = periodId || (curPeriod() ? curPeriod().id : DB.ui.periodId);
+
+  // 1. ถ้ามีชื่อครูกรอกไว้ตรงกับโปรไฟล์ที่มีในระบบ
+  const explicit = b && b.meta ? String(b.meta.teacherName || '').trim() : '';
+  if (explicit) {
+    const matched = DB.teachers.find(t => t.name === explicit || (t.email && t.email.toLowerCase() === explicit.toLowerCase()));
+    if (matched) return matched;
+  }
+
+  // 2. หาจากเจ้าของคาบในตารางสอนของห้อง/วิชา/ปีภาคนั้น
+  if (clsId && subId && pId && DB.timetable && Array.isArray(DB.timetable.entries)) {
+    const entry = DB.timetable.entries.find(e =>
+      e.classId === clsId && e.subjectId === subId && e.periodId === pId && e.teacherId);
+    if (entry) {
+      const owner = DB.teachers.find(t => t.id === entry.teacherId);
+      if (owner) return owner;
+    }
+  }
+
+  // 3. ลงท้ายด้วยโปรไฟล์ครูที่กำลังเปิดใช้งานอยู่
+  return curTeacher();
+}
+
+/** ชื่อครูผู้สอนสำหรับ ปพ. / รายงาน / การส่งออก */
+function resolveTeacherName(b, classId, subjectId, periodId) {
+  const typed = b && b.meta ? String(b.meta.teacherName || '').trim() : '';
+  if (typed) return typed;
+  const t = resolveTeacherForBook(b, classId, subjectId, periodId);
+  return t ? (t.name || t.email || '') : '';
+}
+
+/** กลุ่มสาระการเรียนรู้สำหรับ ปพ. / รายงาน / การส่งออก */
+function resolveLearningArea(b, classId, subjectId, periodId) {
+  const typed = b && b.meta ? String(b.meta.learningArea || '').trim() : '';
+  if (typed) return typed;
+  const t = resolveTeacherForBook(b, classId, subjectId, periodId);
+  const tArea = teacherArea(t);
+  if (tArea) return tArea;
+  const subId = subjectId || (curSubject() ? curSubject().id : DB.ui.subjectId);
+  const sub = DB.subjects.find(s => s.id === subId);
+  if (sub) {
+    const codeArea = learningAreaFromCode(sub.code);
+    if (codeArea) return codeArea;
+    const existing = learningAreaOf(sub.id, periodId || (curPeriod() ? curPeriod().id : DB.ui.periodId));
+    if (existing && existing !== 'ยังไม่ระบุกลุ่มสาระ') return existing;
+  }
+  return '';
+}
+
+/** เติมชื่อครูและกลุ่มสาระฯ ลงในสมุดคะแนนอัตโนมัติหากยังว่างอยู่ */
+function autoPopulateBookMeta(b, classId, subjectId, periodId) {
+  if (!b) return false;
+  b.meta = b.meta || {};
+  let changed = false;
+  if (!b.meta.teacherName) {
+    const name = resolveTeacherName(b, classId, subjectId, periodId);
+    if (name) { b.meta.teacherName = name; changed = true; }
+  }
+  if (!b.meta.learningArea) {
+    const area = resolveLearningArea(b, classId, subjectId, periodId);
+    if (area) { b.meta.learningArea = area; changed = true; }
+  }
+  return changed;
+}
+
 /** ผู้ดูแลระบบเปิดดูได้ทุกหน้า แต่ลงนามอนุมัติแทนบทบาทอื่นไม่ได้ */
 const canApprove = () => (DB.ui.staffMode || 'teacher') !== 'admin';
 /* ---- ปิดภาคเรียน ---------------------------------------------------------
@@ -2207,7 +2311,10 @@ function curBook(create) {
     if (!create) return null;
     DB.books[k] = defaultBook();
   }
-  return normalizeBook(DB.books[k]);
+  const b = normalizeBook(DB.books[k]);
+  const parts = k.split('::');
+  autoPopulateBookMeta(b, parts[0], parts[1], parts[2]);
+  return b;
 }
 const curStudents = () => { const c = curClass(); return c ? (c.students || []) : []; };
 const ready = () => !!(curPeriod() && curClass() && curSubject());
@@ -3234,14 +3341,20 @@ function managePeriods() {
 function editCourseInfo() {
   if (!ready()) return toast('กรุณาเลือกปี/ภาค ชั้น และวิชาก่อน', 'bad');
   const b = curBook(true), p = curPeriod();
+  autoPopulateBookMeta(b, DB.ui.classId, DB.ui.subjectId, DB.ui.periodId);
   openModal({
     title: 'ข้อมูล ปพ.5',
     bodyHTML:
       '<div class="row" style="margin-bottom:12px"><span class="badge">ปี ' + esc(p.academicYear) + ' • ภาค ' + esc(p.semester) + '</span>' +
         '<span class="badge">' + esc(curClass().name) + '</span><span class="badge">' + esc((curSubject().code || '') + ' ' + curSubject().name) + '</span></div>' +
       '<div class="pick" style="margin-bottom:10px"><label>ชื่อสถานศึกษา</label><input id="ciSchool" value="' + esc(DB.settings.schoolName || '') + '" style="width:100%"></div>' +
-      '<div class="row"><div class="pick" style="flex:1;min-width:220px"><label>ครูผู้สอน</label><input id="ciTeacher" value="' + esc(b.meta.teacherName || '') + '" style="width:100%"></div>' +
-      '<div class="pick" style="flex:1;min-width:220px"><label>กลุ่มสาระการเรียนรู้</label><input id="ciArea" value="' + esc(b.meta.learningArea || '') + '" style="width:100%"></div></div>' +
+      '<div class="row"><div class="pick" style="flex:1;min-width:220px"><label>ครูผู้สอน</label>' +
+        '<input id="ciTeacher" list="ciTeacherList" value="' + esc(b.meta.teacherName || '') + '" style="width:100%" placeholder="ชื่อครูผู้สอน">' +
+        '<datalist id="ciTeacherList">' + DB.teachers.map(t => '<option value="' + esc(t.name || t.email) + '">').join('') + '</datalist></div>' +
+      '<div class="pick" style="flex:1;min-width:220px"><label>กลุ่มสาระการเรียนรู้</label>' +
+        '<input id="ciArea" list="ciAreaList" value="' + esc(b.meta.learningArea || '') + '" style="width:100%" placeholder="กลุ่มสาระการเรียนรู้">' +
+        '<datalist id="ciAreaList">' + LEARNING_AREAS.map(a => '<option value="' + esc(a) + '">').join('') + '</datalist></div></div>' +
+      '<div class="hint tip" style="margin-top:4px">ระบบดึงชื่อครูและกลุ่มสาระฯ จากโปรไฟล์ครูให้อัตโนมัติ สามารถแก้ไขได้หากต้องการ</div>' +
       '<div class="row" style="margin-top:10px"><div class="pick"><label>จำนวนหน่วยกิต</label><input id="ciCredits" type="text" inputmode="decimal" value="' + esc(b.meta.credits || '') + '" style="width:110px"></div>' +
       '<div class="pick"><label>เวลาเรียน (คาบ/สัปดาห์)</label><input id="ciWeekly" type="text" inputmode="decimal" value="' + esc(b.meta.hoursPerWeek || '') + '" style="width:130px"></div>' +
       '<div class="pick"><label>เวลาเรียนรวม (ชั่วโมง)</label><input id="ciHours" type="text" inputmode="decimal" value="' + esc(b.meta.totalHours || '') + '" style="width:120px"></div></div>' +
@@ -3254,7 +3367,16 @@ function editCourseInfo() {
       b.meta.hoursPerWeek = $('#ciWeekly', root).value.trim();
       b.meta.totalHours = Math.max(0, num($('#ciHours', root).value));
       save(true); close(); render(); toast('บันทึกข้อมูล ปพ.5 แล้ว', 'ok');
-    } }]
+    } }],
+    onMount(root) {
+      $('#ciTeacher', root).addEventListener('change', () => {
+        const val = $('#ciTeacher', root).value.trim();
+        const found = DB.teachers.find(t => (t.name || t.email) === val);
+        if (found && teacherArea(found) && !$('#ciArea', root).value.trim()) {
+          $('#ciArea', root).value = teacherArea(found);
+        }
+      });
+    }
   });
 }
 
@@ -9231,7 +9353,9 @@ function bindSummaryTools(pane) {
    ใบนี้เหลือเฉพาะช่องที่ต้องคีย์เข้า SGS จริง ๆ คือ 4 ส่วนคะแนน รวม และเกรด
    ไม่มีคะแนนดิบ/เต็มกำกับ เพราะเวลานั่งคีย์ ตัวเลขส่วนเกินทำให้คีย์ผิดช่อง */
 function scoreSheetHtml(b, rows) {
-  const teacher = curTeacher(), cls = curClass(), sub = curSubject(), period = curPeriod(), s = DB.settings;
+  const cls = curClass(), sub = curSubject(), period = curPeriod(), s = DB.settings;
+  const teacherName = resolveTeacherName(b, cls ? cls.id : '', sub ? sub.id : '', period ? period.id : '');
+  const bookArea = resolveLearningArea(b, cls ? cls.id : '', sub ? sub.id : '', period ? period.id : '');
   const W = b.weights;
   const parts = [
     { label: 'ก่อนกลางภาค', w: num(W.before), val: r => r.wBefore },
@@ -9243,7 +9367,7 @@ function scoreSheetHtml(b, rows) {
   const gradeOrder = b.gradeScale.map(g => g[1]).filter((v, i, a) => a.indexOf(v) === i);
   const dist = {}; gradeOrder.forEach(g => { dist[g] = 0; });
   rows.forEach(x => { const g = x.r.grade; if (dist[g] === undefined) dist[g] = 0; dist[g]++; });
-  const headName = headNameOfArea(teacherArea(teacher)) || s.headLearningName || '';
+  const headName = headNameOfArea(bookArea) || s.headLearningName || '';
 
   const cell = (r, p) => '<td class="num"><b>' + fmt(p.val(r)) + '</b></td>';
 
@@ -9261,7 +9385,7 @@ function scoreSheetHtml(b, rows) {
       '<div class="ss-meta">' + esc((sub ? (sub.code ? sub.code + ' ' : '') + sub.name : '')) +
         (cls ? ' • ชั้น ' + esc(cls.name) : '') +
         (period ? ' • ปีการศึกษา ' + esc(period.academicYear) + ' ภาคเรียนที่ ' + esc(period.semester) : '') + '</div>' +
-      '<div class="ss-meta">ครูผู้สอน ' + esc(teacher ? teacher.name || teacher.email : (b.meta.teacherName || '—')) +
+      '<div class="ss-meta">ครูผู้สอน ' + esc(teacherName || '—') +
         ' • นักเรียน ' + rows.length + ' คน</div></div></div>' +
 
     '<div class="tablewrap"><table class="ss-table"><thead><tr>' +
@@ -9281,7 +9405,7 @@ function scoreSheetHtml(b, rows) {
       gradeOrder.map(g => 'เกรด ' + esc(g) + ' = ' + (dist[g] || 0) + ' คน').join(' • ') +
       (dist['–'] ? ' • ยังไม่ครบ ' + dist['–'] + ' คน' : '') + '</div>' +
       '<div class="ss-signs">' +
-        '<div class="ss-sign"><div class="ss-line"></div>ครูผู้สอน<br><span>(' + esc(teacher ? teacher.name || '' : (b.meta.teacherName || '')) + ')</span></div>' +
+        '<div class="ss-sign"><div class="ss-line"></div>ครูผู้สอน<br><span>(' + esc(teacherName || '') + ')</span></div>' +
         '<div class="ss-sign"><div class="ss-line"></div>หัวหน้ากลุ่มสาระการเรียนรู้<br><span>(' + esc(headName) + ')</span></div>' +
         '<div class="ss-sign"><div class="ss-line"></div>' + esc(s.directorPosition || 'ผู้อำนวยการสถานศึกษา') +
           '<br><span>(' + esc(s.directorName || '') + ')</span></div>' +
@@ -9304,7 +9428,7 @@ function exportSgsWorkbook() {
     { label: 'ปลายภาค', w: num(W.final), val: r => r.wF }
   ];
   const H = v => ({ v: v, s: 1 });
-  const teacher = curTeacher();
+  const teacherName = resolveTeacherName(b, cls.id, sub.id, period.id);
   const head = ['เลขที่', 'เลขประจำตัว', 'ชื่อ-นามสกุล']
     .concat(parts.map(p => p.label + ' (เต็ม ' + fmt(p.w) + ')'))
     .concat(['รวม (เต็ม 100)', 'เกรด']).map(H);
@@ -9317,7 +9441,7 @@ function exportSgsWorkbook() {
     ['ปีการศึกษา', period.academicYear], ['ภาคเรียน', period.semester],
     ['รหัสวิชา', sub.code || ''], ['รายวิชา', sub.name],
     ['ชั้น/ห้อง', cls.name], ['หน่วยกิต', b.meta.credits || ''],
-    ['ครูผู้สอน', teacher ? (teacher.name || teacher.email) : (b.meta.teacherName || '')],
+    ['ครูผู้สอน', teacherName || ''],
     ['จำนวนนักเรียน', rows.length],
     ['วันที่ส่งออก', thaiDate(todayISO())]
   ];
@@ -9361,8 +9485,9 @@ function renderSummary() {
     return out;
   };
   const coverCounts = countCoverGrades(rows);
-  // กลุ่มสาระของสมุดเล่มนี้ ใช้ดึงชื่อหัวหน้ากลุ่มสาระมาแสดงในช่องอนุมัติผลการเรียนอัตโนมัติ
-  const bookArea = teacherArea(curTeacher()) || learningAreaFromText(b.meta.learningArea);
+  autoPopulateBookMeta(b, curClass().id, curSubject().id, curPeriod().id);
+  const teacherName = resolveTeacherName(b, curClass().id, curSubject().id, curPeriod().id);
+  const bookArea = resolveLearningArea(b, curClass().id, curSubject().id, curPeriod().id);
   const traitsDist = assessmentDistribution(b, sts, 'traits');
   const readingDist = assessmentDistribution(b, sts, 'reading');
   const coverAssessTable = (title, d) => '<table class="cover-table"><thead><tr><th colspan="5">จำนวนนักเรียน จำแนกตาม ' + title + '</th></tr>' +
@@ -9414,15 +9539,15 @@ function renderSummary() {
       '<div class="cover-meta">' +
         '<div>ชั้น/ห้อง <b>' + esc(curClass().name) + '</b></div><div>ภาคเรียนที่ <b>' + esc(curPeriod().semester) + '</b> ปีการศึกษา <b>' + esc(curPeriod().academicYear) + '</b></div>' +
         '<div>ชื่อรายวิชา <b>' + esc(curSubject().name) + '</b></div><div>รหัสวิชา <b>' + esc(curSubject().code || '—') + '</b></div>' +
-        '<div>กลุ่มสาระการเรียนรู้ <b>' + esc(b.meta.learningArea || '—') + '</b></div><div>จำนวน <b>' + esc(b.meta.credits || '—') + '</b> หน่วยกิต • <b>' + esc(b.meta.hoursPerWeek || '—') + '</b> คาบ/สัปดาห์</div>' +
-        '<div>ครูผู้สอน <b>' + esc(b.meta.teacherName || '—') + '</b></div><div>เวลาเรียนรวม <b>' + fmt(num(b.meta.totalHours)) + '</b> ชั่วโมง • คาบตามปฏิทิน <b>' + (rows[0] ? rows[0].att.planned : 0) + '</b> คาบ</div>' +
+        '<div>กลุ่มสาระการเรียนรู้ <b>' + esc(bookArea || b.meta.learningArea || '—') + '</b></div><div>จำนวน <b>' + esc(b.meta.credits || '—') + '</b> หน่วยกิต • <b>' + esc(b.meta.hoursPerWeek || '—') + '</b> คาบ/สัปดาห์</div>' +
+        '<div>ครูผู้สอน <b>' + esc(teacherName || b.meta.teacherName || '—') + '</b></div><div>เวลาเรียนรวม <b>' + fmt(num(b.meta.totalHours)) + '</b> ชั่วโมง • คาบตามปฏิทิน <b>' + (rows[0] ? rows[0].att.planned : 0) + '</b> คาบ</div>' +
       '</div>' +
       '<div class="tablewrap"><table class="cover-table"><thead><tr><th>จำนวนนักเรียนเต็ม</th>' +
         coverGradeLevels.map(g => '<th>' + esc(g) + '</th>').join('') + '</tr></thead><tbody><tr><td><b>' + sts.length + '</b></td>' +
         coverGradeLevels.map(g => '<td>' + (coverCounts[g] || '–') + '</td>').join('') + '</tr></tbody></table></div>' +
       '<div class="cover-assess">' + coverAssessTable('การอ่าน คิดวิเคราะห์ และเขียน', readingDist) +
         coverAssessTable('คุณลักษณะอันพึงประสงค์', traitsDist) + '</div>' +
-      '<div class="cover-approvals"><div class="approval-line"><b>การอนุมัติผลการเรียน</b><br>☐ เห็นควรอนุมัติ &nbsp; ☐ ไม่เห็นควรอนุมัติ<br>ลงชื่อ ........................................ ครูผู้สอน<br><span class="hint">' + esc(b.meta.teacherName || '') + '</span></div>' +
+      '<div class="cover-approvals"><div class="approval-line"><b>การอนุมัติผลการเรียน</b><br>☐ เห็นควรอนุมัติ &nbsp; ☐ ไม่เห็นควรอนุมัติ<br>ลงชื่อ ........................................ ครูผู้สอน<br><span class="hint">' + esc(teacherName || b.meta.teacherName || '') + '</span></div>' +
         '<div class="approval-line">☐ เห็นควรอนุมัติ &nbsp; ☐ ไม่เห็นควรอนุมัติ<br>ลงชื่อ ........................................ หัวหน้ากลุ่มสาระการเรียนรู้' + esc(bookArea ? ' ' + bookArea : '') + '<br><span class="hint">' + esc(headNameOfArea(bookArea) || DB.settings.headLearningName || '') + '</span></div>' +
         '<div class="approval-line">☐ เห็นควรอนุมัติ &nbsp; ☐ ไม่เห็นควรอนุมัติ<br>ลงชื่อ ........................................ หัวหน้างานวัดผล ประเมินผลฯ<br><span class="hint">' + esc(DB.settings.headAssessmentName || '') + '</span></div>' +
         '<div class="approval-line">เรียนเสนอเพื่อโปรดพิจารณา<br>ลงชื่อ ........................................ รองผู้อำนวยการ/กลุ่มบริหารวิชาการ<br><span class="hint">' + esc(DB.settings.deputyName || '') + '</span></div>' +
@@ -9530,6 +9655,8 @@ function exportWorkbook(groupsOnly) {
   const sts = curStudents().slice().sort((a, c) => a.no - c.no);
   if (!sts.length) return toast('ไม่มีข้อมูลให้ส่งออก', 'bad');
 
+  const teacherName = resolveTeacherName(b, cls.id, sub.id, period.id);
+  const learningArea = resolveLearningArea(b, cls.id, sub.id, period.id);
   const H = v => ({ v: v, s: 1 });      // สไตล์หัวตาราง
   const G = v => ({ v: v, s: 4 });      // สไตล์ตัวเล็กสีเทา
   const sheets = [];
@@ -9538,7 +9665,7 @@ function exportWorkbook(groupsOnly) {
     ['สถานศึกษา', DB.settings.schoolName || ''],
     ['ปีการศึกษา', period.academicYear], ['ภาคเรียน', period.semester],
     ['ชั้น/ห้อง', cls.name], ['รหัสวิชา', sub.code || ''], ['รายวิชา', sub.name],
-    ['กลุ่มสาระการเรียนรู้', b.meta.learningArea || ''], ['ครูผู้สอน', b.meta.teacherName || ''],
+    ['กลุ่มสาระการเรียนรู้', learningArea || b.meta.learningArea || ''], ['ครูผู้สอน', teacherName || b.meta.teacherName || ''],
     ['จำนวนหน่วยกิต', b.meta.credits || ''], ['เวลาเรียน (คาบ/สัปดาห์)', b.meta.hoursPerWeek || ''],
     ['เวลาเรียนรวม (ชั่วโมง)', b.meta.totalHours || ''],
     ['คาบตามตารางสอน/ปฏิทิน', attendanceStudentResult(cls.id, sub.id, sts[0]).planned]
@@ -12035,7 +12162,8 @@ function renderSettings() {
       if (nextRoom && otherAdvisors >= 2) return toast('ห้องนี้มีครูที่ปรึกษาครบ 2 คนแล้ว', 'bad');
       activeTeacher.homeroomClassId = nextRoom;
       if (activeTeacher.homeroomClassId) DB.ui.classId = activeTeacher.homeroomClassId;
-      const book = curBook(false); if (book && !book.meta.teacherName) book.meta.teacherName = activeTeacher.name;
+      const book = curBook(false);
+      if (book) autoPopulateBookMeta(book);
     }
     save(true); renderTop(); renderSettings(); toast('บันทึกโปรไฟล์แล้ว', 'ok');
   });
@@ -12046,6 +12174,8 @@ function renderSettings() {
   $('#setTeacherProfile').addEventListener('change', e => {
     DB.ui.teacherId = e.target.value || null; const selected = curTeacher();
     if (selected && selected.homeroomClassId) DB.ui.classId = selected.homeroomClassId;
+    const book = curBook(false);
+    if (book) autoPopulateBookMeta(book);
     save(true); renderTop(); renderSettings();
   });
   $('#addTeacherProfile').addEventListener('click', () => openAddTeacherProfile(renderSettings, true));
@@ -14382,13 +14512,7 @@ const studentCardRef = sid => fbDb.collection('studentCards').doc(String(sid));
    แต่ตอนเผยแพร่กลับส่งเฉพาะช่องนั้นไป นักเรียนจึงเห็น "ยังไม่ระบุครูผู้สอน" ทุกวิชา
    จึงไล่หาจากตารางสอนของวิชานั้นต่อ แล้วค่อยลงท้ายด้วยโปรไฟล์ของคนที่กดเผยแพร่ */
 function publishTeacherName(book, cls, subject, periodId) {
-  const typed = book && book.meta ? String(book.meta.teacherName || '').trim() : '';
-  if (typed) return typed;
-  const entry = (DB.timetable.entries || []).find(e =>
-    e.classId === cls.id && e.subjectId === subject.id && e.periodId === periodId && e.teacherId);
-  const owner = entry ? DB.teachers.find(t => t.id === entry.teacherId) : null;
-  const me = curTeacher() || {};
-  return (owner && (owner.name || owner.email)) || me.name || me.email || '';
+  return resolveTeacherName(book, cls ? cls.id : '', subject ? subject.id : '', periodId);
 }
 /* ชื่อปี/ภาคที่อ่านออก ส่งไปกับผลที่เผยแพร่ เพราะเครื่องนักเรียนไม่มีตารางปี/ภาคของโรงเรียน */
 function periodLabelOf(periodId) {
