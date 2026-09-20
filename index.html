@@ -1919,6 +1919,10 @@ function defaultSettings() {
     headLearningName: '', headAssessmentName: '', deputyName: '', directorName: '',
     directorPosition: 'ผู้อำนวยการสถานศึกษา', approvalDate: ''
     , theme: 'light'
+    /* หน้านักเรียนจะไม่แสดงคะแนนปลายภาคและคะแนนรวม 100 จนกว่าโรงเรียนจะประกาศผล
+       อย่างเป็นทางการ ค่าเริ่มต้นจึงเป็น false และอยู่ในชุด 'ตั้งค่าโรงเรียน' ที่ซิงก์
+       ขึ้นส่วนกลาง เพื่อให้ทุกเครื่องของครูใช้นโยบายเดียวกันโดยไม่ต้องตั้งทีละคน */
+    , resultsAnnounced: false
   };
 }
 
@@ -11554,6 +11558,7 @@ function adminSectionPeople(box) {
    ปี/ภาค ชั้นเรียน รายวิชา เดิมแก้ได้จากปุ่มเล็ก ๆ บนแถบบนเท่านั้น
    ทั้งที่เป็นโครงสร้างที่ทุกหน้าจออ้างอิง จึงยกมาไว้ในคอนโซลด้วย */
 function adminSectionSchool(box) {
+  const announced = resultsAnnounced();
   const period = curPeriod();
   const masterCount = (DB.studentMaster || []).filter(x => x.active !== false).length;
   const inClassCount = DB.classes.reduce((n, c) => n + (c.students || []).length, 0);
@@ -11566,7 +11571,18 @@ function adminSectionSchool(box) {
       '</div></div>' +
     '<div class="grid2"><div class="card"><div class="row"><div><h3 style="margin:0">ฐานข้อมูลนักเรียนกลาง</h3><div class="hint tip">รายชื่อกลางที่ทุกห้องดึงไปใช้ • ใช้เลขประจำตัวเป็นตัวจับคู่</div></div><div class="spacer"></div><span class="badge">' + masterCount + ' คน</span></div>' +
       '<div class="row" style="margin-top:12px"><button class="primary" id="adminGoMaster">เปิดฐานข้อมูลนักเรียน</button><button id="adminGoClassList">รายชื่อรายห้อง</button><button id="adminGoAccounts">จัดการรหัสผ่านนักเรียน</button></div>' +
-      (masterCount && inClassCount && masterCount !== inClassCount ? '<div class="notice" style="margin-top:10px">ยอดในฐานข้อมูลกลาง (' + masterCount + ') ไม่เท่ากับยอดรวมในห้อง (' + inClassCount + ') — ตรวจที่หน้าฐานข้อมูลนักเรียน</div>' : '') + '</div>' +
+      (masterCount && inClassCount && masterCount !== inClassCount ? '<div class="notice" style="margin-top:10px">ยอดในฐานข้อมูลกลาง (' + masterCount + ') ไม่เท่ากับยอดรวมในห้อง (' + inClassCount + ') — ตรวจที่หน้าฐานข้อมูลนักเรียน</div>' : '') +
+      /* สวิตช์ประกาศผลอยู่ใต้การ์ดนักเรียน เพราะเป็นเรื่องของสิ่งที่นักเรียนเห็น
+         ค่านี้อยู่ในชุด "ตั้งค่าโรงเรียน" ต้องกดส่งขึ้นส่วนกลางเครื่องครูถึงจะรับไป */
+      '<div class="row" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"><div><b>การประกาศผลการเรียน</b>' +
+        '<div class="hint">คุมว่าหน้านักเรียนจะแสดงคะแนนปลายภาคและคะแนนรวม 100 หรือยัง</div></div><div class="spacer"></div>' +
+        (announced ? '<span class="badge ok">ประกาศผลแล้ว</span>' : '<span class="badge warn">รอประกาศผล</span>') + '</div>' +
+      '<label class="notice" style="margin-top:10px;display:block"><input type="checkbox" id="adminAnnounceResults"' + (announced ? ' checked' : '') + '> ' +
+        'ประกาศผลการเรียนอย่างเป็นทางการแล้ว — ให้นักเรียนเห็นคะแนนปลายภาค คะแนนรวม 100 และเกรด<br>' +
+        '<span class="hint">ยังไม่ติ๊ก = นักเรียนเห็นเฉพาะคะแนนเก็บระหว่างภาคกับเวลาเรียน ส่วนปลายภาคและคะแนนรวมขึ้นว่า “รอประกาศผล” ' +
+        'และตัวเลขจะไม่ถูกส่งขึ้นบัตรบนส่วนกลางเลย</span></label>' +
+      '<div class="hint tip">หลังเปลี่ยนค่านี้ ต้องกด “ส่งขึ้นส่วนกลาง” ของชุด <b>ตั้งค่าโรงเรียน</b> ที่กลุ่มงานระบบ ' +
+        'แล้วให้ครูเจ้าของวิชากดเผยแพร่ผลใหม่ บัตรที่เผยแพร่ไว้แล้วจึงจะเปลี่ยนตาม</div>' + '</div>' +
     '<div class="card"><h3>จำนวนนักเรียนรายห้อง</h3>' +
       (DB.classes.length ? '<div class="tablewrap listbox folded" style="margin-top:12px"><table><thead><tr><th>ห้อง</th><th class="num">ในห้อง</th><th class="num">ในฐานกลาง</th></tr></thead><tbody>' +
         DB.classes.map(c => { const inMaster = (DB.studentMaster || []).filter(m => m.active !== false && m.classId === c.id).length, inRoom = (c.students || []).length;
@@ -11578,6 +11594,12 @@ function adminSectionSchool(box) {
   $('#adminGoMaster', box).addEventListener('click', () => { DB.ui.studentView = 'master'; save(); setTab('students'); });
   $('#adminGoClassList', box).addEventListener('click', () => { DB.ui.studentView = 'class'; save(); setTab('students'); });
   $('#adminGoAccounts', box).addEventListener('click', openStudentAccountManager);
+  $('#adminAnnounceResults', box).addEventListener('click', e => {
+    DB.settings.resultsAnnounced = e.target.checked; save(true); renderAdmin();
+    toast(e.target.checked
+      ? 'เปิดให้นักเรียนเห็นคะแนนปลายภาคและคะแนนรวมแล้ว • อย่าลืมส่งตั้งค่าขึ้นส่วนกลาง'
+      : 'ปิดคะแนนปลายภาคและคะแนนรวมในหน้านักเรียนแล้ว • อย่าลืมส่งตั้งค่าขึ้นส่วนกลาง', 'ok');
+  });
 }
 
 /* ---- ③ ปฏิทินและตารางสอน -------------------------------------------------
@@ -13908,6 +13930,9 @@ const classLevelOf = name => String(name || '').split('/')[0].trim() || String(n
 
 function openStudentAccountManager() {
   const students = uniqueStudentAccountsList();
+  /* ปุ่มเปิดดูหน้าจอนักเรียนข้ามรหัสผ่านของเด็ก จึงให้เฉพาะบทบาทผู้ดูแลระบบ
+     หน้าต่างนี้ครูที่ปรึกษาก็เปิดได้เพื่อรีเซ็ตรหัส ปุ่มนี้จึงต้องไม่โผล่ให้เขา */
+  const isAdminView = (DB.ui.staffMode || 'teacher') === 'admin';
   const levels = Array.from(new Set(students.map(x => classLevelOf(x.className)))).sort((a, b) => a.localeCompare(b, 'th'));
   const rooms = Array.from(new Set(students.map(x => x.className))).sort((a, b) => a.localeCompare(b, 'th'));
   openModal({ title: 'จัดการบัญชีพอร์ทัลนักเรียน', wide: true,
@@ -13928,11 +13953,15 @@ function openStudentAccountManager() {
       (students.length ? students.map(st => '<tr data-account-sid="' + esc(st.sid) + '" data-level="' + esc(classLevelOf(st.className)) + '" data-room="' + esc(st.className) + '" data-find="' + esc((st.sid + ' ' + st.name).toLowerCase()) + '"><td><b>' + esc(st.sid) + '</b></td><td>' + esc(st.name) + '</td><td>' + esc(st.className) + '</td><td class="account-state">' +
         (DB.studentAccounts[st.sid] && DB.studentAccounts[st.sid].passwordHash ? '<span class="badge ok">เปลี่ยนแล้ว</span>' : '<span class="badge">รหัสเริ่มต้น 1234</span>') +
         '</td><td class="account-code"><code>' + esc((DB.studentAccounts[st.sid] || {}).claimCode || '—') + '</code></td>' +
-        '<td><button class="sm" data-reset-account="' + esc(st.sid) + '">รีเซ็ตรหัสผ่าน</button> ' +
+        '<td>' + (isAdminView ? '<button class="sm" data-view-portal="' + esc(st.sid) + '" title="เปิดหน้าจอที่นักเรียนคนนี้เห็น เพื่อตรวจความถูกต้อง">ดูหน้าจอนักเรียน</button> ' : '') +
+        '<button class="sm" data-reset-account="' + esc(st.sid) + '">รีเซ็ตรหัสผ่าน</button> ' +
         '<button class="sm" data-newcode-account="' + esc(st.sid) + '" title="ปลดการผูกเครื่องเดิมและออกรหัสรับสิทธิ์ใหม่ ใช้เมื่อนักเรียนเปลี่ยนมือถือหรือเข้าไม่ได้">ออกรหัสรับสิทธิ์ใหม่</button>' +
         '</td></tr>').join('') : '<tr><td colspan="6"><div class="empty">ยังไม่มีนักเรียนที่มีเลขประจำตัว</div></td></tr>') +
       '</tbody></table></div>', buttons: [{ label: 'ปิด', cls: 'primary' }],
-    onMount(root) {
+    onMount(root, closeManager) {
+      $$('[data-view-portal]', root).forEach(btn => btn.addEventListener('click', () => {
+        closeManager(); openStudentPortalPreview(btn.dataset.viewPortal);
+      }));
       /* กรองด้วยการซ่อนแถว ไม่วาดตารางใหม่ ปุ่มรีเซ็ตที่ผูกไว้แล้วจึงยังทำงานอยู่ทุกแถว
          และรหัสใหม่ที่เพิ่งออกให้ก็ยังค้างอยู่บนหน้าจอ ไม่หายไปตอนเปลี่ยนตัวกรอง */
       const levelSel = $('[data-acc-level]', root), roomSel = $('[data-acc-room]', root);
@@ -13993,6 +14022,21 @@ function openStudentAccountManager() {
   });
 }
 
+/* ---- การประกาศผลการเรียน ------------------------------------------------
+   ระเบียบวัดผลให้ประกาศผลอย่างเป็นทางการก่อน นักเรียนจึงจะเห็นคะแนนปลายภาค
+   และคะแนนรวม 100 แต่คะแนนเก็บระหว่างภาคกับเวลาเรียนให้ดูได้ตลอด
+   สวิตช์นี้คุมสองอย่างพร้อมกัน: สิ่งที่วาดบนหน้าจอ และสิ่งที่ส่งขึ้นบัตรบนส่วนกลาง
+   ถ้าซ่อนแค่บนหน้าจอ เด็กที่เปิดเครื่องมือนักพัฒนาก็ยังอ่านตัวเลขในบัตรได้อยู่ดี */
+const resultsAnnounced = () => !!(DB.settings || {}).resultsAnnounced;
+
+/** คะแนนชุดที่ให้นักเรียนเห็น — ตัดปลายภาค/รวม/เกรดออกจนกว่าจะประกาศผล
+    ใช้ร่วมกันทั้งตอนเผยแพร่ขึ้นบัตรและตอนคำนวณสดบนเครื่องครู ผลจึงตรงกันเสมอ */
+function portalScoreView(r) {
+  const out = { wBefore: r.wBefore, wM: r.wM, wAfter: r.wAfter };
+  if (resultsAnnounced()) { out.wF = r.wF; out.total = r.total; out.grade = String(r.grade); out.complete = !!r.complete; }
+  return out;
+}
+
 function studentMatches(sid) {
   const out = [];
   DB.classes.forEach(cls => {
@@ -14032,8 +14076,9 @@ function studentScoreBoxes(book, sid) {
     const used = b.exams.retakeEnabled && has(ex.retake) ? ex.retake : ex.mid;
     push('M', 'กลางภาค', used, midMax, 'สอบกลางภาค');
   }
-  /* ปลายภาคและคะแนนรวม ไม่ส่งให้นักเรียนเห็น รอประกาศผลทางการตามระเบียบวัดผล */
-  // if (finMax > 0) push('F', 'ปลายภาค', ex.final, finMax, 'สอบปลายภาค');
+  /* กล่องปลายภาคโผล่ต่อเมื่อประกาศผลแล้ว ฟังก์ชันนี้ใช้ทั้งตอนวาดหน้าจอและตอน
+     สร้างบัตรที่ส่งขึ้นส่วนกลาง คุมที่เดียวจึงไม่มีทางหลุดทางใดทางหนึ่ง */
+  if (finMax > 0 && resultsAnnounced()) push('F', 'ปลายภาค', ex.final, finMax, 'สอบปลายภาค');
   return boxes;
 }
 
@@ -14063,16 +14108,33 @@ function studentSubjectContexts(sid, periodId) {
       const subject = DB.subjects.find(s => s.id === subjectId); if (!subject) return;
       const key = hit.cls.id + '::' + subjectId + '::' + periodId;
       const book = DB.books[key] ? normalizeBook(DB.books[key]) : defaultBook();
-      contexts.push({ cls: hit.cls, st: hit.st, subject: subject, book: book, score: calcRow(book, hit.st), attendance: attendanceStudentResult(hit.cls.id, subjectId, hit.st, periodId) });
+      contexts.push({ cls: hit.cls, st: hit.st, subject: subject, book: book,
+        score: portalScoreView(calcRow(book, hit.st)), resultsAnnounced: resultsAnnounced(),
+        attendance: attendanceStudentResult(hit.cls.id, subjectId, hit.st, periodId) });
     });
   });
   return contexts.sort((a, b) => (a.subject.code || '').localeCompare(b.subject.code || '', 'th') || a.subject.name.localeCompare(b.subject.name, 'th'));
 }
 
 function closeStudentPortal() {
+  const preview = !!(studentSession && studentSession.preview);
   studentSession = null;
   const portal = $('#studentPortal'); portal.hidden = true; portal.innerHTML = '';
+  /* ผู้ดูแลที่แค่เปิดดูหน้าจอนักเรียน ยังล็อกอินเป็นผู้ดูแลอยู่ ปิดแล้วต้องกลับไป
+     หน้าที่ค้างไว้ ไม่ใช่โดนเด้งออกไปหน้าเลือกบทบาทแล้วต้องล็อกอินใหม่ */
+  if (preview) { document.body.style.overflow = ''; return; }
   showRoleGateway();
+}
+
+/** ผู้ดูแลระบบเปิดดูหน้าจอของนักเรียนคนหนึ่งเพื่อตรวจว่าสิ่งที่เด็กเห็นถูกต้อง
+    ใช้ข้อมูลในเครื่องนี้คำนวณสด ไม่ได้อ่านบัตรบนส่วนกลาง เพราะกฎของฐานข้อมูล
+    เปิดให้อ่านบัตรได้เฉพาะเครื่องที่นักเรียนผูกไว้เท่านั้น (ดู firestore.rules) */
+function openStudentPortalPreview(sid) {
+  sid = String(sid || '').trim();
+  if ((DB.ui.staffMode || 'teacher') !== 'admin') return toast('เปิดดูหน้าจอนักเรียนได้เฉพาะบทบาทผู้ดูแลระบบ', 'bad');
+  if (!studentMatches(sid).length) return toast('ไม่พบเลขประจำตัวนี้ในข้อมูลของเครื่องนี้', 'bad');
+  studentSession = { sid: sid, periodId: DB.ui.periodId, source: 'local', preview: true };
+  renderStudentPortal();
 }
 
 function renderStudentPortal() {
@@ -14105,6 +14167,7 @@ function renderStudentPortal() {
   const profile = fromCloud
     ? { name: (studentSession.card || {}).name || 'นักเรียน', sid: sid }
     : matches[0].st;
+  const preview = !!studentSession.preview;
   const portal = $('#studentPortal'); portal.hidden = false; document.body.style.overflow = 'hidden';
   portal.innerHTML = '<div class="portal-top"><div class="brand"><span class="dot"></span><span>พอร์ทัลนักเรียน<small>คะแนนและเวลาเรียนส่วนบุคคล</small></span></div><div class="spacer"></div>' +
     /* มีให้เลือกเมื่อมีผลมากกว่าหนึ่งภาคเรียนเท่านั้น ภาคเดียวไม่ต้องมีช่องให้สับสน */
@@ -14115,8 +14178,15 @@ function renderStudentPortal() {
               esc(p.label || ('ชุดผลการเรียนที่ ' + (i + 1))) + '</option>').join('') + '</select></div>'
           : '')
       : '<div class="pick"><label>ปี/ภาคเรียน</label><select id="portalPeriod">' + DB.periods.map(p => '<option value="' + p.id + '"' + (p.id === periodId ? ' selected' : '') + '>ปี ' + esc(p.academicYear) + ' • ภาค ' + esc(p.semester) + '</option>').join('') + '</select></div>') +
-    '<button id="portalPassword">เปลี่ยนรหัสผ่าน</button><button id="portalLogout">ออกจากระบบ</button></div>' +
-    '<div class="portal-main"><div class="card portal-hero"><div class="row"><div><h2 style="margin:0 0 5px">' + esc(profile.name) + '</h2><div class="hint">เลขประจำตัว ' + esc(sid) + ' • ' + esc(fromCloud ? ((studentSession.card || {}).className || '') : matches.map(x => x.cls.name).join(', ')) + '</div></div><div class="spacer"></div><span class="badge">' + esc(periodBadge) + '</span></div></div>' +
+    /* โหมดตรวจสอบไม่ใช่การล็อกอินเป็นนักเรียน จึงไม่มีปุ่มเปลี่ยนรหัสผ่านให้กดพลาด
+       และปุ่มปิดต้องพากลับไปหน้าเดิมของผู้ดูแล ไม่ใช่หน้าเลือกบทบาท */
+    (preview ? '<button class="primary" id="portalLogout">ปิดการตรวจสอบ</button>'
+      : '<button id="portalPassword">เปลี่ยนรหัสผ่าน</button><button id="portalLogout">ออกจากระบบ</button>') + '</div>' +
+    '<div class="portal-main">' +
+    (preview ? '<div class="notice" style="margin-bottom:12px"><b>โหมดตรวจสอบของผู้ดูแลระบบ</b> — ' +
+      'กำลังดูหน้าจอของ ' + esc(profile.name) + ' (เลขประจำตัว ' + esc(sid) + ') โดยไม่ต้องใช้รหัสผ่านของนักเรียน<br>' +
+      'หน้านี้คำนวณสดจากข้อมูลในเครื่องนี้ ตัวเลขจึงอาจต่างจากบัตรที่ครูเผยแพร่ไว้ ถ้าครูยังไม่ได้กดเผยแพร่ล่าสุด</div>' : '') +
+    '<div class="card portal-hero"><div class="row"><div><h2 style="margin:0 0 5px">' + esc(profile.name) + '</h2><div class="hint">เลขประจำตัว ' + esc(sid) + ' • ' + esc(fromCloud ? ((studentSession.card || {}).className || '') : matches.map(x => x.cls.name).join(', ')) + '</div></div><div class="spacer"></div><span class="badge">' + esc(periodBadge) + '</span></div></div>' +
     '<div class="row" style="margin:18px 0 10px"><h3 style="margin:0">รายวิชาและผลการเรียน</h3><div class="spacer"></div><span class="hint">เวลาเรียน ≥80% = ผ • 60–79.99% = มส • ต่ำกว่า 60% = เรียนซ้ำ</span></div>' +
     (contexts.length ? '<div class="portal-subjects">' + contexts.map(x => {
       /* ชื่อครูมาได้สองทาง ช่องครูผู้สอนในสมุดคะแนน กับชื่อคนที่กดเผยแพร่
@@ -14124,7 +14194,15 @@ function renderStudentPortal() {
          นักเรียนจะได้เห็นชื่อครูทันทีโดยครูไม่ต้องกดเผยแพร่ใหม่ */
       const r = x.score, a = x.attendance,
         teacher = x.book.meta.teacherName || x.publishedBy || 'ยังไม่ระบุครูผู้สอน';
-      return '<div class="card portal-subject"><div class="row"><div><span class="level-tag">' + esc(x.subject.code || 'รายวิชา') + '</span><h3 style="margin:7px 0 2px">' + esc(x.subject.name) + '</h3><div class="hint">' + esc(x.cls.name) + ' • ครูผู้สอน ' + esc(teacher) + '</div></div><div class="spacer"></div><div style="text-align:right"><span class="badge warn" style="font-size:13px;font-weight:700;padding:4px 11px;border-radius:20px;display:inline-block">รอประกาศผลทางการ</span><div class="hint" style="margin-top:4px">คะแนนรวมและเกรด</div></div></div>' +
+      /* บัตรที่เผยแพร่ไว้ก่อนมีสวิตช์นี้ไม่มีธงติดมา ถือว่ายังไม่ประกาศผลไว้ก่อน
+         ปลอดภัยกว่าเดาจากว่ามีตัวเลขรวมอยู่ในบัตรหรือไม่ */
+      const showFinal = x.resultsAnnounced === true;
+      const pendingTag = '<span class="badge warn" style="font-size:13px;font-weight:700;padding:4px 11px;border-radius:20px;display:inline-block">รอประกาศผลทางการ</span>';
+      return '<div class="card portal-subject"><div class="row"><div><span class="level-tag">' + esc(x.subject.code || 'รายวิชา') + '</span><h3 style="margin:7px 0 2px">' + esc(x.subject.name) + '</h3><div class="hint">' + esc(x.cls.name) + ' • ครูผู้สอน ' + esc(teacher) + '</div></div><div class="spacer"></div><div style="text-align:right">' +
+        (showFinal
+          ? '<div style="font-size:28px;font-weight:900;color:var(--brand)">' + fmt(r.total) + '</div><div class="hint">เกรด ' + esc(r.complete ? r.grade : 'ระหว่างเรียน') + '</div>'
+          : pendingTag + '<div class="hint" style="margin-top:4px">คะแนนรวมและเกรด</div>') +
+        '</div></div>' +
         '<div class="portal-metrics"><div class="portal-metric"><b>' + (a.counts.present + a.counts.late) + '</b>มา/สาย</div><div class="portal-metric"><b>' + a.counts.absent + '</b>ขาด</div><div class="portal-metric"><b>' + a.counts.leave + '</b>ลา</div><div class="portal-metric"><b>' + a.counts.activity + '</b>กิจกรรม</div></div>' +
         '<div class="row" style="margin-top:12px"><span>เวลาเรียน ' + a.checked + ' คาบ</span><div class="spacer"></div>' + attendanceOutcomeBadge(a.pct) + '</div>' +
         '<div class="portal-updated">' + esc(portalUpdatedText(x)) + '</div>' +
@@ -14132,7 +14210,8 @@ function renderStudentPortal() {
            ผลที่ครูเผยแพร่ไว้ก่อนหน้านี้ยังไม่มีข้อมูลนี้ ส่วนนี้จึงหายไปเงียบ ๆ ไม่พัง */
         (function () {
           const rawBoxes = Array.isArray(x.parts) ? x.parts : (x.st ? studentScoreBoxes(x.book, x.st.sid) : []);
-          const boxes = rawBoxes.filter(p => p.label !== 'F' && p.name !== 'ปลายภาค');
+          /* บัตรเก่าที่เผยแพร่ไว้ตอนยังไม่มีสวิตช์ มีกล่องปลายภาคติดมาด้วย กรองซ้ำอีกชั้น */
+          const boxes = showFinal ? rawBoxes : rawBoxes.filter(p => p.label !== 'F' && p.name !== 'ปลายภาค');
           if (!boxes.length) return '';
           return '<div class="sbox-head">คะแนนรายหัวข้อ <span class="hint">แตะที่กล่องเพื่อดูว่าเป็นเรื่องอะไร</span></div>' +
             '<div class="sbox-grid">' + boxes.map((p, i) =>
@@ -14144,7 +14223,10 @@ function renderStudentPortal() {
                 '<span>' + esc(p.label) + '</span></button>').join('') + '</div>' +
             '<div class="sbox-note" data-sbox-note>' + esc(boxes.length) + ' หัวข้อ • เขียว = ผ่านเกณฑ์ • เหลือง = ยังไม่ถึงเกณฑ์ • แดง = ยังไม่มีคะแนน</div>';
         })() +
-        '<div class="tablewrap" style="margin-top:10px"><table><thead><tr><th>ก่อนกลาง</th><th>กลางภาค</th><th>หลังกลาง</th><th>ปลายภาค</th><th>รวม</th></tr></thead><tbody><tr><td>' + fmt(r.wBefore) + '</td><td>' + fmt(r.wM) + '</td><td>' + fmt(r.wAfter) + '</td><td><span class="hint">รอประกาศผลทางการ</span></td><td><b><span class="hint">รอประกาศผลทางการ</span></b></td></tr></tbody></table></div></div>';
+        '<div class="tablewrap" style="margin-top:10px"><table><thead><tr><th>ก่อนกลาง</th><th>กลางภาค</th><th>หลังกลาง</th><th>ปลายภาค</th><th>รวม</th></tr></thead><tbody><tr><td>' + fmt(r.wBefore) + '</td><td>' + fmt(r.wM) + '</td><td>' + fmt(r.wAfter) + '</td>' +
+        (showFinal ? '<td>' + fmt(r.wF) + '</td><td><b>' + fmt(r.total) + '</b></td>'
+          : '<td><span class="hint">รอประกาศผล</span></td><td><span class="hint">รอประกาศผล</span></td>') +
+        '</tr></tbody></table></div></div>';
     }).join('') + '</div>' : '<div class="card"><div class="empty">ยังไม่พบสมุดคะแนนหรือตารางเรียนที่เชื่อมกับนักเรียนในภาคเรียนนี้</div></div>') +
     '<div class="portal-login-note" style="margin-top:16px">ข้อมูลแต่ละวิชาแยกตามห้อง วิชา ปี/ภาค และครูผู้สอน จึงรองรับนักเรียนหนึ่งคนเรียนหลายวิชาและมีครูหลายคนได้ภายในฐานข้อมูลกลางเดียวกัน</div></div>';
   /* มือถือไม่มี hover ข้อความใน title จึงไม่โผล่ ต้องแตะแล้วเขียนลงบรรทัดใต้กล่องแทน
@@ -14169,7 +14251,8 @@ function renderStudentPortal() {
   }
   const periodSel = $('#portalPeriod');
   if (periodSel) periodSel.addEventListener('change', e => { studentSession.periodId = e.target.value; renderStudentPortal(); });
-  $('#portalPassword').addEventListener('click', openStudentChangePassword);
+  const passBtn = $('#portalPassword');
+  if (passBtn) passBtn.addEventListener('click', openStudentChangePassword);
   $('#portalLogout').addEventListener('click', closeStudentPortal);
 }
 
@@ -14248,7 +14331,11 @@ function studentSubjectPayload(book, cls, subject, st, periodId, key) {
     cls: { name: cls.name || '' },
     book: { meta: { teacherName: publishTeacherName(book, cls, subject, periodId) } },
     parts: studentScoreBoxes(book, st.sid),
-    score: { wBefore: r.wBefore, wM: r.wM, wAfter: r.wAfter, wF: r.wF, total: r.total, grade: String(r.grade) },
+    /* ยังไม่ประกาศผล = ไม่ส่งคะแนนปลายภาค คะแนนรวม และเกรดขึ้นไปเลย
+       ไม่ใช่ส่งขึ้นไปแล้วค่อยซ่อนตอนวาด เพราะบัตรอยู่บนเครื่องนักเรียนแล้วอ่านได้
+       ธงนี้ติดไปกับบัตรด้วย บัตรเก่าที่ไม่มีธงจะถูกถือว่ายังไม่ประกาศผล */
+    resultsAnnounced: resultsAnnounced(),
+    score: portalScoreView(r),
     attendance: { counts: a.counts, checked: a.checked, pct: a.pct },
     publishedAt: new Date().toISOString(),
     publishedBy: (curTeacher() || {}).name || myEmailForSync() || ''
