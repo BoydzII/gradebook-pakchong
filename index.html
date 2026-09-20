@@ -405,6 +405,9 @@ td.num,th.num{text-align:center}
 .sbox.low b{color:var(--warn)}
 .sbox.none{background:var(--bad-bg);border-color:color-mix(in srgb,var(--bad) 35%,transparent)}
 .sbox.none b{color:var(--bad)}
+.sbox.mid{background:var(--group-bg);border-color:color-mix(in srgb,var(--group) 50%,transparent)}
+.sbox.mid b{color:var(--group)}
+.sbox.mid span{color:var(--group);font-weight:800}
 .sbox.on{outline:2px solid var(--brand);outline-offset:1px}
 /* บรรทัดใต้กล่องคะแนนคือที่เดียวที่นักเรียนรู้ว่ากล่องนั้นคือเรื่องอะไร
    ของเดิมเป็นตัวเล็กสีจางเท่าคำอธิบาย นักเรียนอ่านไม่ถนัด ชื่อหัวข้อจึงต้องเด่นกว่า
@@ -471,6 +474,12 @@ body.voice-on .tablewrap.tall{padding-bottom:190px}
 .grid td.score-fail,.grid td.score-fail input{color:var(--bad)!important;background:var(--bad-bg)!important;font-weight:800}
 .grid th.section-total.before,.grid td.section-total.before{background:color-mix(in srgb,var(--brand) 7%,var(--panel));color:var(--brand)}
 .grid th.section-total.after,.grid td.section-total.after{background:color-mix(in srgb,var(--group) 7%,var(--panel));color:var(--group)}
+.grid thead th.part-mid, .tablewrap table thead th.part-mid{background:color-mix(in srgb,var(--group) 12%,var(--panel2))!important;color:var(--group)!important;box-shadow:inset 0 3px 0 var(--group)}
+.grid thead th.score-group-head.part-mid{box-shadow:inset 0 3px 0 var(--group);background:color-mix(in srgb,var(--group) 14%,var(--panel2))!important;color:var(--group)!important}
+.grid thead th.calc-head.part-mid{box-shadow:inset 0 3px 0 var(--group);background:color-mix(in srgb,var(--group) 14%,var(--panel2))!important;color:var(--group)!important}
+.grid td.midcell, .tablewrap table td.midcell{background:color-mix(in srgb,var(--group) 7%,var(--panel))!important}
+.grid td.midcell input.cell{background:color-mix(in srgb,var(--group-bg) 80%,transparent);color:var(--ink)}
+.grid td.midcell.calc, .tablewrap table td.midcell{color:var(--group);font-weight:700}
 .ksa-inputs{display:grid;gap:4px;min-width:105px}
 .ksa-input-row{display:grid;grid-template-columns:20px 1fr;gap:4px;align-items:center}
 .ksa-input-row b{font-size:10px;color:var(--brand)}
@@ -7694,13 +7703,13 @@ function renderScores() {
   const head =
     '<tr>' +
     '<th class="c-no" rowspan="2">เลขที่</th><th class="c-name" rowspan="2">ชื่อ-นามสกุล</th>' +
-    headGroups.map(g => '<th colspan="' + g.span + '" class="score-group-head ' + (g.item ? 'item-group-head ' + g.section : '') + (g.total ? 'section-total ' + g.section : '') + (g.grp ? ' grpcol' : '') + '" title="' + esc(g.label + (g.gname ? ' • คะแนนกลุ่ม: ' + g.gname : '')) + '">' +
+    headGroups.map(g => '<th colspan="' + g.span + '" class="score-group-head ' + (g.item ? 'item-group-head ' + g.section : '') + (g.total ? 'section-total ' + g.section : '') + (g.grp ? ' grpcol' : '') + (g.part === 'mid' ? ' part-mid' : '') + '" title="' + esc(g.label + (g.gname ? ' • คะแนนกลุ่ม: ' + g.gname : '')) + '">' +
       '<span class="item-title">' + esc(g.label) + '</span>' + (g.item ? '<span class="hmax">' + (g.section === 'after' ? 'หลังกลางภาค' : 'ก่อนกลางภาค') + ' • รวมได้ ' + fmt(g.item.max) + '</span>' : '') + '</th>').join('') +
-    '<th class="calc-head" rowspan="2">กลาง<span class="hmax">เต็ม ' + fmt(b.weights.mid) + '</span></th>' +
+    '<th class="calc-head part-mid" rowspan="2">กลาง<span class="hmax">เต็ม ' + fmt(b.weights.mid) + '</span></th>' +
     '<th class="calc-head" rowspan="2">ปลาย<span class="hmax">เต็ม ' + fmt(b.weights.final) + '</span></th>' +
     '<th class="calc-head" rowspan="2">รวม<span class="hmax">เต็ม 100</span></th>' +
     '<th class="calc-head" rowspan="2">เกรด</th></tr>' +
-    '<tr>' + cols.map(c => '<th class="' + (c.type === 'ksa' ? 'ksa-subhead ' : '') + (c.type === 'sectionTotal' ? 'section-total ' + c.section + ' ' : '') + (c.grp ? 'grpcol ' : '') + (c.sep ? 'sepcol' : '') + '">' +
+    '<tr>' + cols.map(c => '<th class="' + (c.type === 'ksa' ? 'ksa-subhead ' : '') + (c.type === 'sectionTotal' ? 'section-total ' + c.section + ' ' : '') + (c.grp ? 'grpcol ' : '') + (c.sep ? 'sepcol' : '') + (c.part === 'mid' ? ' part-mid' : '') + '">' +
       esc(c.label) + (c.type === 'ksa' ? '<span class="hmax">' + fmt(c.max) + '</span>' : '<span class="hmax">เต็ม ' + fmt(c.max) + '</span>') + '</th>').join('') + '</tr>';
 
   const rowHtml = (st, ri) => {
@@ -7728,14 +7737,14 @@ function renderScores() {
         if (c.type === 'ksa') {
           return '<td class="ksa-cell"><input class="cell ksa-raw' + (over ? ' over' : '') + (failExam ? ' fail' : '') + '" type="text" inputmode="decimal" data-r="' + ri + '" data-c="' + ci + '" data-key="' + c.key + '" data-item="' + c.itemId + '" data-comp="' + c.comp.key + '" data-rawmax="' + c.max + '" value="' + (has(v) ? esc(v) : '') + '" title="คะแนนดิบเต็ม ' + fmt(c.max) + '"></td>';
         }
-        return '<td class="' + (c.grp ? 'gcell ' : '') + (c.sep ? 'sepcol' : '') + '">' +
+        return '<td class="' + (c.grp ? 'gcell ' : '') + (c.sep ? 'sepcol' : '') + (c.part === 'mid' ? ' midcell' : '') + '">' +
           '<input class="cell' + (over ? ' over' : '') + (failExam ? ' fail' : '') + '" type="text" inputmode="decimal" ' +
           'data-r="' + ri + '" data-c="' + ci + '" data-key="' + c.key + '" data-max="' + c.max + '" ' +
           (c.threshold ? 'data-threshold="1" ' : '') +
           (disabled ? 'disabled title="กรอกซ่อมได้เมื่อคะแนน' + (c.retake ? 'สอบรายหน่วย' : 'กลางภาค') + 'ต่ำกว่าเกณฑ์เท่านั้น" ' : '') +
           'value="' + (has(v) ? esc(v) : '') + '"></td>';
       }).join('') +
-      '<td class="calc' + ((has(ex.mid) || has(ex.retake)) && r.passM === false ? ' score-fail' : '') + '" data-calc="mid">' + fmt(r.wM) + '</td>' +
+      '<td class="calc' + ((has(ex.mid) || has(ex.retake)) && r.passM === false ? ' score-fail' : '') + ' midcell" data-calc="mid">' + fmt(r.wM) + '</td>' +
       '<td class="calc' + (has(ex.final) && r.passF === false ? ' score-fail' : '') + '" data-calc="final">' + fmt(r.wF) + '</td>' +
       '<td class="calc" data-calc="total">' + fmt(r.total) + '</td>' +
       '<td class="calc" data-calc="grade"><span class="badge ' + (r.passed ? 'ok' : 'bad') + '">' + esc(r.grade) + '</span></td>' +
@@ -11572,17 +11581,24 @@ function adminSectionSchool(box) {
     '<div class="grid2"><div class="card"><div class="row"><div><h3 style="margin:0">ฐานข้อมูลนักเรียนกลาง</h3><div class="hint tip">รายชื่อกลางที่ทุกห้องดึงไปใช้ • ใช้เลขประจำตัวเป็นตัวจับคู่</div></div><div class="spacer"></div><span class="badge">' + masterCount + ' คน</span></div>' +
       '<div class="row" style="margin-top:12px"><button class="primary" id="adminGoMaster">เปิดฐานข้อมูลนักเรียน</button><button id="adminGoClassList">รายชื่อรายห้อง</button><button id="adminGoAccounts">จัดการรหัสผ่านนักเรียน</button></div>' +
       (masterCount && inClassCount && masterCount !== inClassCount ? '<div class="notice" style="margin-top:10px">ยอดในฐานข้อมูลกลาง (' + masterCount + ') ไม่เท่ากับยอดรวมในห้อง (' + inClassCount + ') — ตรวจที่หน้าฐานข้อมูลนักเรียน</div>' : '') +
-      /* สวิตช์ประกาศผลอยู่ใต้การ์ดนักเรียน เพราะเป็นเรื่องของสิ่งที่นักเรียนเห็น
-         ค่านี้อยู่ในชุด "ตั้งค่าโรงเรียน" ต้องกดส่งขึ้นส่วนกลางเครื่องครูถึงจะรับไป */
-      '<div class="row" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"><div><b>การประกาศผลการเรียน</b>' +
-        '<div class="hint">คุมว่าหน้านักเรียนจะแสดงคะแนนปลายภาคและคะแนนรวม 100 หรือยัง</div></div><div class="spacer"></div>' +
-        (announced ? '<span class="badge ok">ประกาศผลแล้ว</span>' : '<span class="badge warn">รอประกาศผล</span>') + '</div>' +
-      '<label class="notice" style="margin-top:10px;display:block"><input type="checkbox" id="adminAnnounceResults"' + (announced ? ' checked' : '') + '> ' +
-        'ประกาศผลการเรียนอย่างเป็นทางการแล้ว — ให้นักเรียนเห็นคะแนนปลายภาค คะแนนรวม 100 และเกรด<br>' +
-        '<span class="hint">ยังไม่ติ๊ก = นักเรียนเห็นเฉพาะคะแนนเก็บระหว่างภาคกับเวลาเรียน ส่วนปลายภาคและคะแนนรวมขึ้นว่า “รอประกาศผล” ' +
-        'และตัวเลขจะไม่ถูกส่งขึ้นบัตรบนส่วนกลางเลย</span></label>' +
-      '<div class="hint tip">หลังเปลี่ยนค่านี้ ต้องกด “ส่งขึ้นส่วนกลาง” ของชุด <b>ตั้งค่าโรงเรียน</b> ที่กลุ่มงานระบบ ' +
-        'แล้วให้ครูเจ้าของวิชากดเผยแพร่ผลใหม่ บัตรที่เผยแพร่ไว้แล้วจึงจะเปลี่ยนตาม</div>' + '</div>' +
+      /* การประกาศผลอย่างเป็นทางการสำหรับผู้ดูแลระบบ ประกาศทุกวิชาพร้อมกัน */
+      '<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">' +
+        '<div class="row"><div><b style="font-size:15px">การประกาศผลการเรียนอย่างเป็นทางการ</b>' +
+          '<div class="hint">คุมการแสดงคะแนนปลายภาค คะแนนรวม 100 และเกรดในพอร์ทัลนักเรียนทุกวิชาพร้อมกัน</div></div><div class="spacer"></div>' +
+          (announced ? '<span class="badge ok" style="font-size:12.5px;padding:4px 10px">✓ ประกาศผลทางการแล้ว</span>' : '<span class="badge warn" style="font-size:12.5px;padding:4px 10px">⏳ รอประกาศผลทางการ</span>') + '</div>' +
+        (announced
+          ? '<div class="notice ok" style="margin-top:10px;line-height:1.6">' +
+              '<b>ระบบอยู่ในสถานะประกาศผลอย่างเป็นทางการแล้ว</b><br>' +
+              '• นักเรียนเห็นคะแนนปลายภาค คะแนนรวม 100 และเกรดทุกวิชา<br>' +
+              '• มีข้อความตัวสีแดงแจ้งเตือน: <span style="color:var(--bad);font-weight:700">*โปรดรอตรวจสอบความถูกต้องจากเว็บ SGS อีกครั้ง โดยให้ยึดข้อมูลจาก SGS เป็นหลักเท่านั้น</span><br>' +
+              '<div style="margin-top:10px"><button type="button" id="adminRevokeAllBtn" style="color:var(--warn);border-color:var(--warn);font-size:12px;padding:5px 12px">🔒 ยกเลิกการประกาศผล (ปิดคะแนนปลายภาค/รวม)</button></div>' +
+            '</div>'
+          : '<div class="notice" style="margin-top:10px;line-height:1.6">' +
+              'ปัจจุบันนักเรียนเห็นเฉพาะคะแนนเก็บระหว่างภาคกับเวลาเรียน ส่วนคะแนนปลายภาค คะแนนรวม และเกรดจะขึ้นว่า <b>“รอประกาศผลทางการ”</b><br>' +
+              '<div style="margin-top:10px"><button type="button" class="primary" id="adminAnnounceAllBtn" style="background:#6b3fd4;border-color:#6b3fd4;color:#fff;font-weight:800;padding:9px 18px;border-radius:8px;display:inline-flex;align-items:center;gap:7px;font-size:13.5px">' +
+                '<span>📢</span> ประกาศผลอย่างเป็นทางการ (ทุกวิชาพร้อมกัน)</button></div>' +
+            '</div>') +
+      '</div></div>' +
     '<div class="card"><h3>จำนวนนักเรียนรายห้อง</h3>' +
       (DB.classes.length ? '<div class="tablewrap listbox folded" style="margin-top:12px"><table><thead><tr><th>ห้อง</th><th class="num">ในห้อง</th><th class="num">ในฐานกลาง</th></tr></thead><tbody>' +
         DB.classes.map(c => { const inMaster = (DB.studentMaster || []).filter(m => m.active !== false && m.classId === c.id).length, inRoom = (c.students || []).length;
@@ -11594,11 +11610,61 @@ function adminSectionSchool(box) {
   $('#adminGoMaster', box).addEventListener('click', () => { DB.ui.studentView = 'master'; save(); setTab('students'); });
   $('#adminGoClassList', box).addEventListener('click', () => { DB.ui.studentView = 'class'; save(); setTab('students'); });
   $('#adminGoAccounts', box).addEventListener('click', openStudentAccountManager);
-  $('#adminAnnounceResults', box).addEventListener('click', e => {
-    DB.settings.resultsAnnounced = e.target.checked; save(true); renderAdmin();
-    toast(e.target.checked
-      ? 'เปิดให้นักเรียนเห็นคะแนนปลายภาคและคะแนนรวมแล้ว • อย่าลืมส่งตั้งค่าขึ้นส่วนกลาง'
-      : 'ปิดคะแนนปลายภาคและคะแนนรวมในหน้านักเรียนแล้ว • อย่าลืมส่งตั้งค่าขึ้นส่วนกลาง', 'ok');
+
+  const announceBtn = $('#adminAnnounceAllBtn', box);
+  if (announceBtn) announceBtn.addEventListener('click', async () => {
+    if (!await confirmBox('ยืนยันประกาศผลอย่างเป็นทางการ',
+      'ต้องการ <b>ประกาศผลการเรียนอย่างเป็นทางการทุกวิชาพร้อมกัน</b> ใช่หรือไม่?<br>' +
+      '<span class="hint">เมื่อประกาศแล้ว หน้านักเรียนจะแสดงคะแนนปลายภาค คะแนนรวม 100 และเกรดทุกวิชา ' +
+      'พร้อมข้อความแจ้งเตือนสีแดงให้ตรวจสอบกับระบบ SGS</span>', 'ประกาศผลทันที')) return;
+    announceBtn.disabled = true;
+    announceBtn.textContent = 'กำลังประกาศผลทุกวิชา...';
+    try {
+      DB.settings.resultsAnnounced = true;
+      save(true);
+      let updatedCards = 0, updatedBooks = 0;
+      if (firebaseReady() && fbSignedIn()) {
+        try {
+          await fbSetDoc(fbDb.collection('shared').doc('settings'), { value: fbPlain(DB.settings) }, 'ตั้งค่าโรงเรียน');
+        } catch (e) {
+          console.warn('Sync settings error:', e);
+        }
+        updatedCards = await setAllStudentCardsAnnounced(true);
+        const pId = (curPeriod() || {}).id;
+        updatedBooks = await publishAllBooksToStudents(pId);
+      }
+      renderAdmin();
+      toast('ประกาศผลการเรียนอย่างเป็นทางการทุกวิชาเรียบร้อยแล้ว' + (updatedCards ? ' (อัปเดตบัตรนักเรียน ' + updatedCards + ' คน' + (updatedBooks ? ' • ' + updatedBooks + ' วิชา' : '') + ')' : ''), 'ok');
+    } catch (err) {
+      toast('เกิดข้อผิดพลาด: ' + (err && err.message || err), 'bad');
+      renderAdmin();
+    }
+  });
+
+  const revokeBtn = $('#adminRevokeAllBtn', box);
+  if (revokeBtn) revokeBtn.addEventListener('click', async () => {
+    if (!await confirmBox('ยกเลิกการประกาศผล',
+      'ต้องการ <b>ยกเลิกการประกาศผลการเรียน</b> ใช่หรือไม่?<br>' +
+      '<span class="hint">ระบบจะกลับไปซ่อนคะแนนปลายภาคและคะแนนรวมในหน้านักเรียนทุกวิชา และแสดงสถานะ “รอประกาศผลทางการ”</span>', 'ยืนยันยกเลิก')) return;
+    revokeBtn.disabled = true;
+    revokeBtn.textContent = 'กำลังยกเลิก...';
+    try {
+      DB.settings.resultsAnnounced = false;
+      save(true);
+      if (firebaseReady() && fbSignedIn()) {
+        try {
+          await fbSetDoc(fbDb.collection('shared').doc('settings'), { value: fbPlain(DB.settings) }, 'ตั้งค่าโรงเรียน');
+        } catch (e) {
+          console.warn('Sync settings error:', e);
+        }
+        await setAllStudentCardsAnnounced(false);
+      }
+      renderAdmin();
+      toast('ยกเลิกการประกาศผลเรียบร้อยแล้ว (ซ่อนคะแนนปลายภาค/รวม)', 'ok');
+    } catch (err) {
+      toast('เกิดข้อผิดพลาด: ' + (err && err.message || err), 'bad');
+      renderAdmin();
+    }
   });
 }
 
@@ -14032,9 +14098,7 @@ const resultsAnnounced = () => !!(DB.settings || {}).resultsAnnounced;
 /** คะแนนชุดที่ให้นักเรียนเห็น — ตัดปลายภาค/รวม/เกรดออกจนกว่าจะประกาศผล
     ใช้ร่วมกันทั้งตอนเผยแพร่ขึ้นบัตรและตอนคำนวณสดบนเครื่องครู ผลจึงตรงกันเสมอ */
 function portalScoreView(r) {
-  const out = { wBefore: r.wBefore, wM: r.wM, wAfter: r.wAfter };
-  if (resultsAnnounced()) { out.wF = r.wF; out.total = r.total; out.grade = String(r.grade); out.complete = !!r.complete; }
-  return out;
+  return { wBefore: r.wBefore, wM: r.wM, wAfter: r.wAfter, wF: r.wF, total: r.total, grade: String(r.grade), complete: !!r.complete };
 }
 
 function studentMatches(sid) {
@@ -14051,7 +14115,7 @@ function studentMatches(sid) {
    นักเรียนเห็นแค่ตัวเลขกับสี ส่วนชื่อหัวข้อกดดูได้ เพราะชื่อยาวเกินกว่าจะใส่ในกล่อง
    สี: มีคะแนนและถึงเกณฑ์ = เขียว • มีคะแนนแต่ไม่ถึงเกณฑ์ = เหลือง • ยังไม่มีคะแนน = แดง
    เกณฑ์ใช้ passPercent ของสมุดเล่มนั้น ไม่ได้ตรึงไว้ที่ 60 เพราะครูตั้งเองได้ */
-function studentScoreBoxes(book, sid) {
+function studentScoreBoxes(book, sid, includeFinal) {
   const b = normalizeBook(book || defaultBook());
   const passPct = num(b.passPercent) || 60;
   const retakes = (b.itemRetakes || {})[sid] || {};
@@ -14076,9 +14140,8 @@ function studentScoreBoxes(book, sid) {
     const used = b.exams.retakeEnabled && has(ex.retake) ? ex.retake : ex.mid;
     push('M', 'กลางภาค', used, midMax, 'สอบกลางภาค');
   }
-  /* กล่องปลายภาคโผล่ต่อเมื่อประกาศผลแล้ว ฟังก์ชันนี้ใช้ทั้งตอนวาดหน้าจอและตอน
-     สร้างบัตรที่ส่งขึ้นส่วนกลาง คุมที่เดียวจึงไม่มีทางหลุดทางใดทางหนึ่ง */
-  if (finMax > 0 && resultsAnnounced()) push('F', 'ปลายภาค', ex.final, finMax, 'สอบปลายภาค');
+  /* กล่องปลายภาค: ส่งขึ้นบัตรไว้เสมอ หรือโผล่เมื่อประกาศผลแล้ว โดยการแสดงผลคุมด้วย showFinal */
+  if (finMax > 0 && (includeFinal || resultsAnnounced())) push('F', 'ปลายภาค', ex.final, finMax, 'สอบปลายภาค');
   return boxes;
 }
 
@@ -14108,8 +14171,11 @@ function studentSubjectContexts(sid, periodId) {
       const subject = DB.subjects.find(s => s.id === subjectId); if (!subject) return;
       const key = hit.cls.id + '::' + subjectId + '::' + periodId;
       const book = DB.books[key] ? normalizeBook(DB.books[key]) : defaultBook();
+      const r = calcRow(book, hit.st);
       contexts.push({ cls: hit.cls, st: hit.st, subject: subject, book: book,
-        score: portalScoreView(calcRow(book, hit.st)), resultsAnnounced: resultsAnnounced(),
+        parts: studentScoreBoxes(book, hit.st.sid, true),
+        score: { wBefore: r.wBefore, wM: r.wM, wAfter: r.wAfter, wF: r.wF, total: r.total, grade: String(r.grade), complete: !!r.complete },
+        resultsAnnounced: resultsAnnounced(),
         attendance: attendanceStudentResult(hit.cls.id, subjectId, hit.st, periodId) });
     });
   });
@@ -14188,15 +14254,22 @@ function renderStudentPortal() {
       'หน้านี้คำนวณสดจากข้อมูลในเครื่องนี้ ตัวเลขจึงอาจต่างจากบัตรที่ครูเผยแพร่ไว้ ถ้าครูยังไม่ได้กดเผยแพร่ล่าสุด</div>' : '') +
     '<div class="card portal-hero"><div class="row"><div><h2 style="margin:0 0 5px">' + esc(profile.name) + '</h2><div class="hint">เลขประจำตัว ' + esc(sid) + ' • ' + esc(fromCloud ? ((studentSession.card || {}).className || '') : matches.map(x => x.cls.name).join(', ')) + '</div></div><div class="spacer"></div><span class="badge">' + esc(periodBadge) + '</span></div></div>' +
     '<div class="row" style="margin:18px 0 10px"><h3 style="margin:0">รายวิชาและผลการเรียน</h3><div class="spacer"></div><span class="hint">เวลาเรียน ≥80% = ผ • 60–79.99% = มส • ต่ำกว่า 60% = เรียนซ้ำ</span></div>' +
+    (function () {
+      const anyAnnounced = contexts.some(x => (studentSession.card && studentSession.card.resultsAnnounced === true) || x.resultsAnnounced === true || resultsAnnounced() === true);
+      return anyAnnounced
+        ? '<div class="notice bad" style="font-weight:700;font-size:13px;margin:10px 0 14px;line-height:1.5;color:var(--bad)">' +
+            '*โปรดรอตรวจสอบความถูกต้องจากเว็บ SGS อีกครั้ง โดยให้ยึดข้อมูลจาก SGS เป็นหลักเท่านั้น' +
+          '</div>'
+        : '';
+    })() +
     (contexts.length ? '<div class="portal-subjects">' + contexts.map(x => {
       /* ชื่อครูมาได้สองทาง ช่องครูผู้สอนในสมุดคะแนน กับชื่อคนที่กดเผยแพร่
          ผลที่เผยแพร่ไปก่อนหน้านี้ยังไม่มีชื่อในช่องแรก จึงต้องใช้ชื่อผู้เผยแพร่แทน
          นักเรียนจะได้เห็นชื่อครูทันทีโดยครูไม่ต้องกดเผยแพร่ใหม่ */
       const r = x.score, a = x.attendance,
         teacher = x.book.meta.teacherName || x.publishedBy || 'ยังไม่ระบุครูผู้สอน';
-      /* บัตรที่เผยแพร่ไว้ก่อนมีสวิตช์นี้ไม่มีธงติดมา ถือว่ายังไม่ประกาศผลไว้ก่อน
-         ปลอดภัยกว่าเดาจากว่ามีตัวเลขรวมอยู่ในบัตรหรือไม่ */
-      const showFinal = x.resultsAnnounced === true;
+      /* ตรวจสอบสถานะการประกาศผลทางการจากบัตรนักเรียน หรือวิชา หรือการตั้งค่าของระบบ */
+      const showFinal = (studentSession.card && studentSession.card.resultsAnnounced === true) || x.resultsAnnounced === true || resultsAnnounced() === true;
       const pendingTag = '<span class="badge warn" style="font-size:13px;font-weight:700;padding:4px 11px;border-radius:20px;display:inline-block">รอประกาศผลทางการ</span>';
       return '<div class="card portal-subject"><div class="row"><div><span class="level-tag">' + esc(x.subject.code || 'รายวิชา') + '</span><h3 style="margin:7px 0 2px">' + esc(x.subject.name) + '</h3><div class="hint">' + esc(x.cls.name) + ' • ครูผู้สอน ' + esc(teacher) + '</div></div><div class="spacer"></div><div style="text-align:right">' +
         (showFinal
@@ -14210,12 +14283,12 @@ function renderStudentPortal() {
            ผลที่ครูเผยแพร่ไว้ก่อนหน้านี้ยังไม่มีข้อมูลนี้ ส่วนนี้จึงหายไปเงียบ ๆ ไม่พัง */
         (function () {
           const rawBoxes = Array.isArray(x.parts) ? x.parts : (x.st ? studentScoreBoxes(x.book, x.st.sid) : []);
-          /* บัตรเก่าที่เผยแพร่ไว้ตอนยังไม่มีสวิตช์ มีกล่องปลายภาคติดมาด้วย กรองซ้ำอีกชั้น */
+          /* ซ่อนกล่องปลายภาคไว้จนกว่าจะประกาศผลทางการ */
           const boxes = showFinal ? rawBoxes : rawBoxes.filter(p => p.label !== 'F' && p.name !== 'ปลายภาค');
           if (!boxes.length) return '';
           return '<div class="sbox-head">คะแนนรายหัวข้อ <span class="hint">แตะที่กล่องเพื่อดูว่าเป็นเรื่องอะไร</span></div>' +
             '<div class="sbox-grid">' + boxes.map((p, i) =>
-              '<button type="button" class="sbox ' + p.state + '" data-sbox="' + i + '"' +
+              '<button type="button" class="sbox ' + p.state + (p.label === 'M' ? ' mid' : '') + '" data-sbox="' + i + '"' +
                 ' data-name="' + esc(p.name) + '" data-work="' + esc(p.work || '') + '"' +
                 ' data-score="' + esc(p.value == null ? 'ยังไม่มีคะแนน' : 'ได้ ' + fmt(p.value) + ' จาก ' + fmt(p.max)) + '"' +
                 ' title="' + esc(p.name + ' • ' + (p.value == null ? 'ยังไม่มีคะแนน' : fmt(p.value) + '/' + fmt(p.max))) + '">' +
@@ -14223,10 +14296,14 @@ function renderStudentPortal() {
                 '<span>' + esc(p.label) + '</span></button>').join('') + '</div>' +
             '<div class="sbox-note" data-sbox-note>' + esc(boxes.length) + ' หัวข้อ • เขียว = ผ่านเกณฑ์ • เหลือง = ยังไม่ถึงเกณฑ์ • แดง = ยังไม่มีคะแนน</div>';
         })() +
-        '<div class="tablewrap" style="margin-top:10px"><table><thead><tr><th>ก่อนกลาง</th><th>กลางภาค</th><th>หลังกลาง</th><th>ปลายภาค</th><th>รวม</th></tr></thead><tbody><tr><td>' + fmt(r.wBefore) + '</td><td>' + fmt(r.wM) + '</td><td>' + fmt(r.wAfter) + '</td>' +
+        '<div class="tablewrap" style="margin-top:10px"><table><thead><tr><th>ก่อนกลาง</th><th class="part-mid">กลางภาค</th><th>หลังกลาง</th><th>ปลายภาค</th><th>รวม</th></tr></thead><tbody><tr><td>' + fmt(r.wBefore) + '</td><td class="midcell"><b>' + fmt(r.wM) + '</b></td><td>' + fmt(r.wAfter) + '</td>' +
         (showFinal ? '<td>' + fmt(r.wF) + '</td><td><b>' + fmt(r.total) + '</b></td>'
           : '<td><span class="hint">รอประกาศผล</span></td><td><span class="hint">รอประกาศผล</span></td>') +
-        '</tr></tbody></table></div></div>';
+        '</tr></tbody></table></div>' +
+        (showFinal
+          ? '<div style="color:var(--bad);font-weight:700;font-size:13px;margin-top:10px;line-height:1.5">*โปรดรอตรวจสอบความถูกต้องจากเว็บ SGS อีกครั้ง โดยให้ยึดข้อมูลจาก SGS เป็นหลักเท่านั้น</div>'
+          : '') +
+        '</div>';
     }).join('') + '</div>' : '<div class="card"><div class="empty">ยังไม่พบสมุดคะแนนหรือตารางเรียนที่เชื่อมกับนักเรียนในภาคเรียนนี้</div></div>') +
     '<div class="portal-login-note" style="margin-top:16px">ข้อมูลแต่ละวิชาแยกตามห้อง วิชา ปี/ภาค และครูผู้สอน จึงรองรับนักเรียนหนึ่งคนเรียนหลายวิชาและมีครูหลายคนได้ภายในฐานข้อมูลกลางเดียวกัน</div></div>';
   /* มือถือไม่มี hover ข้อความใน title จึงไม่โผล่ ต้องแตะแล้วเขียนลงบรรทัดใต้กล่องแทน
@@ -14330,12 +14407,9 @@ function studentSubjectPayload(book, cls, subject, st, periodId, key) {
     subject: { code: subject.code || '', name: subject.name || '' },
     cls: { name: cls.name || '' },
     book: { meta: { teacherName: publishTeacherName(book, cls, subject, periodId) } },
-    parts: studentScoreBoxes(book, st.sid),
-    /* ยังไม่ประกาศผล = ไม่ส่งคะแนนปลายภาค คะแนนรวม และเกรดขึ้นไปเลย
-       ไม่ใช่ส่งขึ้นไปแล้วค่อยซ่อนตอนวาด เพราะบัตรอยู่บนเครื่องนักเรียนแล้วอ่านได้
-       ธงนี้ติดไปกับบัตรด้วย บัตรเก่าที่ไม่มีธงจะถูกถือว่ายังไม่ประกาศผล */
+    parts: studentScoreBoxes(book, st.sid, true),
     resultsAnnounced: resultsAnnounced(),
-    score: portalScoreView(r),
+    score: { wBefore: r.wBefore, wM: r.wM, wAfter: r.wAfter, wF: r.wF, total: r.total, grade: String(r.grade), complete: !!r.complete },
     attendance: { counts: a.counts, checked: a.checked, pct: a.pct },
     publishedAt: new Date().toISOString(),
     publishedBy: (curTeacher() || {}).name || myEmailForSync() || ''
@@ -14369,6 +14443,50 @@ async function unpublishBookFromStudents(key) {
   const docId = bookDocId(key);
   await Promise.all(students.map(st => studentCardRef(st.sid).collection('subjects').doc(docId).delete().catch(() => {})));
   return students.length;
+}
+
+/** ผู้ดูแลระบบอัปเดตผลทุกวิชาขึ้นบัตรนักเรียนพร้อมกัน */
+async function publishAllBooksToStudents(periodId) {
+  if (!firebaseReady() || !fbSignedIn()) return 0;
+  const keys = Object.keys(DB.books || {}).filter(k => {
+    const p = k.split('::')[2];
+    return !periodId || p === periodId;
+  });
+  let count = 0;
+  for (const k of keys) {
+    try {
+      await publishBookToStudents(k);
+      count++;
+    } catch (e) {
+      console.warn('Publish book failed:', k, e);
+    }
+  }
+  return count;
+}
+
+/** ผู้ดูแลระบบตั้งสถานะประกาศผลอย่างเป็นทางการบนบัตรนักเรียนทุกคนพร้อมกัน */
+async function setAllStudentCardsAnnounced(announced) {
+  if (!firebaseReady() || !fbSignedIn()) return 0;
+  const sids = new Set();
+  (DB.studentMaster || []).forEach(st => { if (st.active !== false && st.sid) sids.add(String(st.sid).trim()); });
+  (DB.classes || []).forEach(c => (c.students || []).forEach(st => { if (st.sid) sids.add(String(st.sid).trim()); }));
+  const list = Array.from(sids);
+  if (!list.length) return 0;
+  const CHUNK_SIZE = 400;
+  const stamp = new Date().toISOString();
+  for (let i = 0; i < list.length; i += CHUNK_SIZE) {
+    const chunk = list.slice(i, i + CHUNK_SIZE);
+    const batch = fbDb.batch();
+    chunk.forEach(sid => {
+      batch.set(studentCardRef(sid), {
+        resultsAnnounced: !!announced,
+        announcedAt: announced ? stamp : null,
+        updatedAt: stamp
+      }, { merge: true });
+    });
+    await batch.commit();
+  }
+  return list.length;
 }
 
 /** สร้าง/อัปเดตบัตรของนักเรียนทั้งห้อง พร้อมออกรหัสรับสิทธิ์ให้คนที่ยังไม่มี
