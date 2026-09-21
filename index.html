@@ -2217,7 +2217,11 @@ function termLockNotice() {
     (info.mode === 'locked' ? ' (ผู้ดูแลระบบสั่งปิด)' : info.closeDate ? ' ปิดเมื่อ ' + esc(thaiDate(info.closeDate)) : '') +
     '<br>ล็อกไว้เพื่อไม่ให้คะแนนที่ส่ง ปพ.5 ไปแล้วเปลี่ยนโดยไม่มีใครรู้ ' +
     'สิ่งที่ยังทำได้คือแก้ผลการเรียนของนักเรียนที่ติด 0 ให้เป็น 1 ที่แท็บ <b>สรุป / ส่งออก</b>' +
-    '<br><span class="hint">ถ้ายังต้องกรอกเพิ่ม ให้ผู้ดูแลระบบสั่งเปิดภาคเรียนนี้กลับที่หน้าผู้ดูแลระบบ</span></div>';
+    '<br><span class="hint">ถ้ายังต้องกรอกเพิ่ม ให้ผู้ดูแลระบบสั่งเปิดภาคเรียนนี้กลับที่หน้าผู้ดูแลระบบ</span>' +
+    '<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+      '<span class="hint">หากผู้ดูแลระบบเปิดให้กรอกนอกเวลาแล้ว แต่หน้านี้ยังปิด: </span>' +
+      '<button class="sm btn-refresh-term-lock" type="button">🔄 ดึงสถานะล่าสุดจากส่วนกลาง</button>' +
+    '</div></div>';
 }
 /** ปิดช่องกรอกที่เห็นอยู่ ให้ครูรู้ตั้งแต่ยังไม่ได้พิมพ์ว่าแก้ไม่ได้ */
 function lockPaneFields(pane, selector) {
@@ -2234,22 +2238,31 @@ function termLockAdminHtml(period) {
     { key: 'open', label: 'เปิดให้กรอก', desc: 'ฝืนเปิดไว้แม้เลยวันปิดแล้ว' },
     { key: 'locked', label: 'ปิดทันที', desc: 'ล็อกเลยแม้ยังไม่ถึงวันปิด' }
   ];
+  const fbConnected = typeof firebaseReady === 'function' && firebaseReady() && typeof fbSignedIn === 'function' && fbSignedIn();
+  const unsent = typeof timetableUnsent === 'function' && timetableUnsent();
   return '<div class="lock-box' + (info.locked ? ' on' : '') + '">' +
     '<div class="row"><div><b>สถานะการกรอกข้อมูลของภาคเรียนนี้</b>' +
       '<div class="hint">ปิดแล้วครูจะกรอกคะแนน เช็กชื่อ และประเมินคุณลักษณะของภาคนี้ไม่ได้ ' +
       'เหลือทางเดียวคือแก้ผลการเรียนของนักเรียนที่ติด 0 ให้เป็น 1 เมื่อสอบแก้ตัวผ่าน</div></div>' +
-      '<div class="spacer"></div><span class="badge ' + (info.locked ? 'bad' : 'ok') + '">' +
+      '<div class="spacer"></div>' +
+      (fbConnected ? (unsent ? '<span class="badge warn" style="margin-right:4px">⚠️ ยังไม่ซิงก์ส่วนกลาง</span>' : '<span class="badge ok" style="margin-right:4px">✓ ซิงก์ส่วนกลางแล้ว</span>') : '') +
+      '<span class="badge ' + (info.locked ? 'bad' : 'ok') + '">' +
       (info.locked ? 'ปิดการกรอกแล้ว' : 'เปิดให้กรอกอยู่') + '</span></div>' +
-    '<div class="row" style="margin-top:10px;flex-wrap:wrap">' +
+    '<div class="row" style="margin-top:10px;flex-wrap:wrap;gap:6px">' +
       modes.map(m => '<button class="sm' + (info.mode === m.key ? ' primary' : '') + '" data-term-lock="' + m.key + '" title="' + esc(m.desc) + '">' +
-        esc(m.label) + '</button>').join('') + '</div>' +
+        esc(m.label) + '</button>').join('') +
+      (fbConnected && unsent ? '<button class="sm" id="termLockPush" title="ส่งสถานะเปิด/ปิดนี้ขึ้น Firebase ทันที">บันทึกขึ้นส่วนกลาง</button>' : '') +
+    '</div>' +
+    (!fbConnected
+      ? '<div class="notice warn" style="margin-top:8px;font-size:12px"><b>ยังไม่ได้เข้าสู่ระบบด้วยบัญชีโรงเรียน</b> สถานะนี้จึงมีผลเฉพาะในเครื่องนี้เท่านั้น ครูคนอื่นจะไม่ได้รับค่านี้จนกว่าผู้ดูแลระบบจะเข้าสู่ระบบโรงเรียน</div>'
+      : (unsent ? '<div class="notice warn" style="margin-top:8px;font-size:12px"><b>ยังไม่ได้บันทึกขึ้นส่วนกลาง</b> ครูคนอื่นจะยังไม่ได้รับสถานะเปิดให้กรอกนี้จนกว่าจะกด <b>บันทึกขึ้นส่วนกลาง</b></div>' : '')) +
     '<div class="hint" style="margin-top:8px">' +
       (info.mode === 'auto'
         ? (info.closeDate
             ? (info.past ? 'เลยวันปิดภาคเรียน (' + esc(thaiDate(info.closeDate)) + ') แล้ว ระบบจึงปิดให้อัตโนมัติ'
                          : 'จะปิดเองในวันที่ ' + esc(thaiDate(info.closeDate)))
             : 'ยังไม่ได้ลงวันปิดภาคเรียน ระบบจึงยังไม่ปิดให้ — ลงวันปิดไว้ด้านบนแล้วระบบจะจัดการเอง')
-        : info.mode === 'open' ? 'ผู้ดูแลระบบสั่งเปิดไว้ ระบบจะไม่ปิดเองแม้เลยวันปิดภาคเรียนแล้ว'
+        : info.mode === 'open' ? 'ผู้ดูแลระบบสั่งเปิดไว้ ระบบจะไม่ปิดเองแม้เลยวันปิดภาคเรียนแล้ว (ครูสามารถกรอกข้อมูลนอกเวลาได้)'
         : 'ผู้ดูแลระบบสั่งปิดไว้ ไม่ว่าวันปิดภาคเรียนจะถึงหรือยัง') + '</div></div>';
 }
 
@@ -10005,7 +10018,11 @@ function renderSummary() {
       '</div>' +
       (b.partialMode ? '<div class="notice" style="margin-top:8px">โหมด “เฉพาะส่วนที่กรอกแล้ว” เปิดอยู่ — ตัวเลขเป็นการประมาณการระหว่างภาค</div>' : '') +
       (periodLocked() ? '<div class="notice" style="margin-top:8px"><b>ภาคเรียนนี้ปิดแล้ว</b> — คะแนนถูกล็อกไว้ ' +
-        'แก้ได้เฉพาะช่อง <b>แก้ผล 0</b> ของนักเรียนที่ติด 0 เมื่อสอบแก้ตัวผ่านแล้ว ระบบจะเปลี่ยนเกรดให้เป็น 1</div>' : '') +
+        'แก้ได้เฉพาะช่อง <b>แก้ผล 0</b> ของนักเรียนที่ติด 0 เมื่อสอบแก้ตัวผ่านแล้ว ระบบจะเปลี่ยนเกรดให้เป็น 1' +
+        '<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+          '<span class="hint">หากผู้ดูแลระบบเปิดให้กรอกนอกเวลาแล้ว แต่หน้านี้ยังปิด: </span>' +
+          '<button class="sm btn-refresh-term-lock" type="button">🔄 ดึงสถานะล่าสุดจากส่วนกลาง</button>' +
+        '</div></div>' : '') +
     '</div>' +
 
     '<div class="card cover5">' +
@@ -12310,19 +12327,52 @@ function adminSectionCalendar(box) {
   renderAdminHolidays();
   renderAdminDayShifts();
   $('#adminSlotTimes', box).addEventListener('click', editTimetableSettings);
-  $$('[data-term-lock]', box).forEach(btn => btn.addEventListener('click', () => {
-    term.lockMode = btn.dataset.termLock;
+  $$('[data-term-lock]', box).forEach(btn => btn.addEventListener('click', async () => {
+    const newMode = btn.dataset.termLock;
+    term.lockMode = newMode;
     save(true);
-    toast(periodLocked() ? 'ปิดการกรอกข้อมูลของภาคเรียนนี้แล้ว' : 'เปิดให้กรอกข้อมูลภาคเรียนนี้แล้ว',
-      periodLocked() ? 'warn' : 'ok');
     renderAdmin(); render();
+    const modeLabel = newMode === 'open' ? 'เปิดให้กรอกข้อมูล (ฝืนเปิดนอกเวลา)' : newMode === 'locked' ? 'ปิดการกรอกข้อมูลทันที' : 'ตั้งเป็นระบบอัตโนมัติตามวันปิดภาคเรียน';
+    if (firebaseReady() && fbSignedIn()) {
+      const ok = await syncTermToFirebase(period.id);
+      if (ok) {
+        toast(modeLabel + ' • ซิงก์ขึ้นส่วนกลางแล้ว ครูทุกคนใช้งานได้ทันที', 'ok');
+      } else {
+        toast(modeLabel + ' • บันทึกในเครื่องแล้ว แต่ยังไม่ได้ส่งขึ้นส่วนกลาง กรุณากดปุ่มบันทึกขึ้นส่วนกลาง', 'warn');
+      }
+      renderAdmin();
+    } else {
+      toast(modeLabel + ' • บันทึกในเครื่องแล้ว (หากต้องการให้ครูคนอื่นกรอกได้ ต้องเข้าสู่ระบบโรงเรียน)', 'warn');
+    }
   }));
-  $('#adminTermSave', box).addEventListener('click', () => {
+  const termLockPushBtn = $('#termLockPush', box);
+  if (termLockPushBtn) termLockPushBtn.addEventListener('click', async () => {
+    if (!firebaseReady() || !fbSignedIn()) return toast('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อนจึงจะส่งขึ้นส่วนกลางได้', 'bad');
+    const oldText = termLockPushBtn.textContent;
+    termLockPushBtn.disabled = true; termLockPushBtn.textContent = 'กำลังส่ง…';
+    try {
+      const ok = await syncTermToFirebase(period.id);
+      if (ok) {
+        toast('บันทึกสถานะการกรอกข้อมูลและปฏิทินขึ้นส่วนกลางแล้ว ครูทุกคนเข้ากรอกได้ทันที', 'ok');
+      } else {
+        toast('ส่งข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง', 'bad');
+      }
+    } catch (e) {
+      toast('ส่งไม่สำเร็จ: ' + fbErrorMessage(e), 'bad');
+    } finally {
+      renderAdmin();
+    }
+  });
+  $('#adminTermSave', box).addEventListener('click', async () => {
     const open = $('#adminTermOpen', box).value, close = $('#adminTermClose', box).value;
     if (open && close && close < open) return toast('วันปิดภาคเรียนต้องไม่น้อยกว่าวันเปิดภาคเรียน', 'bad');
     term.openDate = open; term.closeDate = close;
     term.minAttendance = Math.max(0, Math.min(100, num($('#adminTermMin', box).value)));
-    save(true); renderAdmin(); renderTop(); toast('บันทึกปฏิทินภาคเรียนแล้ว', 'ok');
+    save(true);
+    if (firebaseReady() && fbSignedIn()) {
+      await syncTermToFirebase(period.id);
+    }
+    renderAdmin(); renderTop(); toast('บันทึกปฏิทินภาคเรียนแล้ว' + (firebaseReady() && fbSignedIn() ? ' (ซิงก์ส่วนกลางแล้ว)' : ''), 'ok');
   });
   $('#adminTimetableTemplate', box).addEventListener('click', downloadMultiTeacherTimetableTemplate);
   $('#adminTimetableImport', box).addEventListener('click', importMultiTeacherTimetableExcel);
@@ -13352,6 +13402,73 @@ function timetableUnsent() {
   const sigs = (DB.cloud || {}).adminSigs || {};
   return !!set && sigs.timetable !== set.sig;
 }
+
+/** ส่งเฉพาะปฏิทินและสถานะเปิด/ปิดของภาคเรียนนี้ขึ้นส่วนกลางทันที เพื่อให้ครูทุกคนกรอกได้แบบเรียลไทม์ */
+async function syncTermToFirebase(periodId) {
+  if (!firebaseReady() || !fbSignedIn()) return false;
+  const p = DB.periods.find(x => x.id === periodId) || curPeriod();
+  if (!p) return false;
+  const term = (DB.timetable.terms || {})[p.id] || null;
+  try {
+    const docRef = fbDb.collection('timetable').doc(p.id);
+    const docSnap = await docRef.get();
+    if (docSnap.exists) {
+      await docRef.update({
+        term: fbEncodeNested(fbPlain(term))
+      });
+    } else {
+      await fbSetDoc(docRef, fbPlain({
+        entries: (DB.timetable.entries || []).filter(e => e.periodId === p.id),
+        exceptions: (DB.timetable.exceptions || []).filter(e => e.periodId === p.id),
+        term: term
+      }), 'ตารางสอนปี ' + p.academicYear + '/' + p.semester);
+    }
+    const tt = DB.timetable || {};
+    const sigs = DB.cloud.adminSigs = DB.cloud.adminSigs || {};
+    sigs.timetable = quickSig(JSON.stringify({ e: tt.entries || [], x: tt.exceptions || [], t: tt.terms || {} }));
+    save(true);
+    return true;
+  } catch (err) {
+    console.warn('syncTermToFirebase failed:', err);
+    return false;
+  }
+}
+
+/** ดึงสถานะเปิด/ปิดภาคเรียนและปฏิทินล่าสุดจากส่วนกลางตรง ๆ */
+async function forceRefreshTermLock() {
+  if (!firebaseReady() || !fbSignedIn()) {
+    toast('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อน จึงจะดึงข้อมูลจากส่วนกลางได้', 'bad');
+    return false;
+  }
+  const p = curPeriod();
+  if (!p) { toast('ยังไม่ได้เลือกปี/ภาคเรียน', 'bad'); return false; }
+  try {
+    const doc = await fbDb.collection('timetable').doc(p.id).get({ source: 'server' });
+    if (!doc.exists) {
+      toast('ไม่พบข้อมูลตารางสอน/ปฏิทินของภาคเรียนนี้บนส่วนกลาง', 'bad');
+      return false;
+    }
+    const data = fbDecodeNested(doc.data() || {});
+    if (data.term) {
+      DB.timetable.terms[p.id] = data.term;
+      save(true);
+      render();
+      if (!periodLocked(p.id)) {
+        toast('ภาคเรียนนี้เปิดให้กรอกแล้ว! สามารถกรอกและแก้ไขข้อมูลได้ทันที', 'ok');
+      } else {
+        const info = termLockInfo(p.id);
+        toast('ตรวจสอบแล้ว: บนส่วนกลางยังปิดอยู่' + (info.mode === 'locked' ? ' (ผู้ดูแลระบบสั่งปิด)' : ' (เลยวันปิดภาคเรียน ' + (info.closeDate ? thaiDate(info.closeDate) : '') + ')') + ' • กรุณาแจ้งผู้ดูแลระบบให้กด "เปิดให้กรอก"', 'warn');
+      }
+      return true;
+    } else {
+      toast('ไม่พบข้อมูลปฏิทินภาคเรียนบนส่วนกลาง', 'bad');
+      return false;
+    }
+  } catch (err) {
+    toast('ดึงข้อมูลไม่สำเร็จ: ' + fbErrorMessage(err), 'bad');
+    return false;
+  }
+}
 const adminUnsyncedSets = () => { const sigs = (DB.cloud || {}).adminSigs || {}; return adminDataSets().filter(x => sigs[x.key] !== x.sig); };
 
 /** ส่งเฉพาะชุดที่เปลี่ยนไปจากครั้งก่อน กดซ้ำได้ตลอด ไม่ต้องกลัวส่งซ้ำทั้งก้อน */
@@ -13757,10 +13874,11 @@ function startFirebaseSync() {
   });
 
   fbUnsub.push(fbDb.collection('timetable').onSnapshot(snap => apply(() => {
-    /* ปฏิทินภาคเรียน (วันหยุด สลับวัน วันเปิด-ปิด) แก้ได้จากเครื่องผู้ดูแลเท่านั้น
-       ถ้าเครื่องนี้เพิ่งแก้แล้วยังไม่ได้กดส่งขึ้นส่วนกลาง ห้ามให้ของเดิมจากส่วนกลางทับ
-       เพราะผู้ดูแลจะเห็นว่าที่แก้ไว้หายไปเอง เหมือนระบบไม่ยอมบันทึกให้ */
-    const keepLocalTerms = timetableUnsent();
+    /* ปฏิทินภาคเรียน (วันหยุด สลับวัน วันเปิด-ปิด สถานะเปิดให้กรอก) แก้ได้จากเครื่องผู้ดูแลเท่านั้น
+       สำหรับครูทั่วไป ต้องรับค่าจากส่วนกลางเสมอเพื่อไม่ให้ถูกล็อกเมื่อแอดมินเปิดให้กรอกนอกเวลา
+       เฉพาะผู้ดูแลระบบที่มีการแก้ไขในเครื่องและยังไม่ได้ส่งขึ้นส่วนกลางเท่านั้นที่จะคงค่าในเครื่องไว้ */
+    const isCurrentAdmin = (DB.ui.staffMode === 'admin') || (curTeacher() && teacherHasRole(curTeacher(), 'admin'));
+    const keepLocalTerms = isCurrentAdmin && timetableUnsent();
     snap.docs.forEach(d => {
       const t = fbDecodeNested(d.data() || {});
       DB.timetable.entries = (DB.timetable.entries || []).filter(e => e.periodId !== d.id).concat(t.entries || []);
@@ -15285,6 +15403,19 @@ document.addEventListener('fullscreenchange', updateFullscreenButton);
 $$('#tabs button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openStudentSearch(); }
+});
+document.addEventListener('click', async e => {
+  const btn = e.target.closest('#btnRefreshTermLock, .btn-refresh-term-lock');
+  if (!btn) return;
+  btn.disabled = true;
+  const oldText = btn.textContent;
+  btn.textContent = 'กำลังดึงสถานะ...';
+  try {
+    await forceRefreshTermLock();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = oldText;
+  }
 });
 
 // ถ้าชั้น/วิชาที่จำไว้ถูกลบไปแล้วให้เลือกอันแรกแทน
