@@ -1428,6 +1428,14 @@ const num = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
 const has = v => v !== undefined && v !== null && v !== '' && !Number.isNaN(v);
 /** ปัดเศษครึ่งขึ้น (0.5 -> 1) แบบกันความคลาดเคลื่อนทศนิยม */
 const rnd = x => Math.round(x + 1e-9);
+/** ปัดเศษตามโหมด: 'half' (ทีละ 0.5 เช่น 15.5), 'one' (ทศนิยม 1 ตำแหน่ง เช่น 15.6), 'int' (จำนวนเต็ม เช่น 16) */
+function roundScoreBy(v, mode) {
+  if (v == null || !isFinite(v)) return 0;
+  const n = Number(v);
+  if (mode === 'int') return Math.round(n + 1e-9);
+  if (mode === 'one') return Math.round(n * 10 + 1e-9) / 10;
+  return Math.round(n * 2 + 1e-9) / 2;
+}
 /** ตัดทศนิยมส่วนเกินให้อ่านง่าย 12.500 -> 12.5 */
 const fmt = (x, d) => {
   if (!isFinite(x)) return '–';
@@ -1955,7 +1963,7 @@ function defaultDB() {
     studentMaster: [], studentAccounts: {}, pendingResults: [], timetable: defaultTimetable(),
     cloud: { clientId: PUBLIC_GOOGLE_CLIENT_ID, accountEmail: '', staffApiUrl: '', staffToken: '' },
     auditLog: [],
-    ui: { periodId: null, classId: null, subjectId: null, teacherId: null, staffMode: 'teacher', tab: 'dashboard' } };
+    ui: { periodId: null, classId: null, subjectId: null, teacherId: null, staffMode: 'teacher', tab: 'dashboard', sgsRoundMode: 'half' } };
 }
 function defaultBook() {
   return {
@@ -1967,7 +1975,8 @@ function defaultBook() {
     gradeScale: [[80, '4'], [75, '3.5'], [70, '3'], [65, '2.5'], [60, '2'], [55, '1.5'], [50, '1'], [0, '0']],
     indicators: [], scores: {}, componentScores: {}, itemRetakes: {}, exam: {}, notes: {}, resultRemedy: {}, groupSets: [], gscores: {}, presenters: {},
     assessments: { traits: {}, reading: {} },
-    partialMode: false
+    partialMode: false,
+    sgsRoundMode: 'half'
   };
 }
 
@@ -1988,6 +1997,7 @@ function loadDB() {
   });
   DB.books    = DB.books    || {};
   DB.ui       = DB.ui       || {};
+  DB.ui.sgsRoundMode = DB.ui.sgsRoundMode || 'half';
   DB.settings = Object.assign(defaultSettings(), DB.settings || {});
   DB.periods  = DB.periods || [];
   DB.studentMaster = DB.studentMaster || [];
@@ -2324,6 +2334,7 @@ function normalizeBook(b) {
   });
   b.assessments.traits = b.assessments.traits || {};
   b.assessments.reading = b.assessments.reading || {};
+  if (!b.sgsRoundMode) b.sgsRoundMode = (DB.ui && DB.ui.sgsRoundMode) || 'half';
   return b;
 }
 
@@ -2511,7 +2522,8 @@ function calcRow(book, st) {
   // คะแนนถ่วงน้ำหนักก่อนปัดเศษ ใช้บวกเป็นคะแนนรวม แล้วค่อยปัดครั้งเดียว
   // (ตรงกับสมุดคะแนนเดิม เช่น 10.588 + 7.5 = 18.088 -> รวม 18 ทั้งที่ปัดแยกได้ 11 + 8 = 19)
   const exact = parts.map(p => p.max > 0 ? p.raw * p.w / p.max : 0);
-  const wv = exact.map(rnd);                      // ตัวเลขรายส่วนที่แสดงในตาราง
+  const roundMode = (book && book.sgsRoundMode) || (DB.ui && DB.ui.sgsRoundMode) || 'half';
+  const wv = exact.map(v => roundScoreBy(v, roundMode)); // ตัวเลขรายส่วนที่แสดงในตาราง (ตามโหมดปัดเศษ SGS)
   let sumExact = 0, actW = 0;
   parts.forEach((p, i) => { if (p.active) { sumExact += exact[i]; actW += p.w; } });
   const scaled = actW > 0 ? sumExact * 100 / actW : 0;   // เทียบกลับเป็นเต็ม 100
@@ -2532,7 +2544,8 @@ function calcRow(book, st) {
     rawAfter: rawAfter, maxAfter: maxAfter, filledAfter: filledAfter,
     midRaw: midRaw, midMax: midMax, finRaw: finRaw, finMax: finMax,
     rawMid: num(ex.mid), rawRetake: num(ex.retake), midFailed: midFailed, retakeUsed: retakeUsed,
-    wBefore: wv[0], wM: wv[1], wAfter: wv[2], wF: wv[3], wC: rnd(exact[0] + exact[2]),
+    exactBefore: exact[0], exactM: exact[1], exactAfter: exact[2], exactF: exact[3],
+    wBefore: wv[0], wM: wv[1], wAfter: wv[2], wF: wv[3], wC: roundScoreBy(exact[0] + exact[2], roundMode),
     total: total, activeWeight: actW, pct: scaled,
     passBefore: pass(parts[0]), passM: pass(parts[1]), passAfter: pass(parts[2]), passF: pass(parts[3]), passC: pass({ raw: rawC, max: maxC }),
     baseGrade: baseGrade, grade: grade, remedy: remedy, complete: complete,
@@ -9222,6 +9235,7 @@ function sgsFillerMain() {
         }
       }
       if (!state.payload) return stepPaste('ข้อความนี้ไม่ใช่คะแนนที่คัดลอกจาก KruSpace — กดปุ่ม "คัดลอกคะแนน" ใน KruSpace ใหม่อีกครั้ง');
+      if (state.payload && state.payload.roundMode) state.mode = state.payload.roundMode;
       state.sgs = readSgs();
       if (state.sgs.error) return stepPaste(state.sgs.error);
       stepPreview();
@@ -9264,7 +9278,8 @@ function sgsFillerMain() {
             cell.next = nv;
             cell.state = oldV == null ? 'chg' : 'ovr';
             if (oldV != null) overwrite++;
-            changes.push({ sid: st.sid, key: sec.key, text: nv.toFixed(1), value: nv });
+            var txt = (state.mode === 'int' || nv % 1 === 0) ? String(nv) : nv.toFixed(1);
+            changes.push({ sid: st.sid, key: sec.key, text: txt, value: nv });
           }
         }
         if (cell.next != null) row.sgsTotal += cell.next;
@@ -9325,6 +9340,10 @@ function sgsFillerMain() {
       var tag = !c ? 'ข้าม' : c.gate === 'open' ? 'เต็ม ' + c.sgsMax : c.gate === 'tick' ? 'ยังไม่ติ๊ก' : c.gate === 'closed' ? 'ปิดรอบ' : 'ล็อก';
       return '<th>' + s.label + '<br><small>' + tag + '</small></th>';
     }).join('') + '<th>รวมใน SGS</th><th>รวม KruSpace</th></tr>';
+    var fmtN = function (v) {
+      if (v == null || !isFinite(v)) return '';
+      return (state.mode === 'int' || v % 1 === 0) ? String(Math.round(v)) : (Math.round(v * 10 + 1e-9) / 10).toFixed(1).replace(/\.0$/, '');
+    };
     var body = pl.rows.map(function (r) {
       if (!r.found) return '<tr><td>' + esc(r.sid) + '</td><td class="nm">' + esc(r.name) + '</td><td colspan="6" style="color:#a61b1b">ไม่มีในข้อมูลที่คัดลอกมา — ไม่แตะแถวนี้</td></tr>';
       var diff = r.kTotal != null && Math.abs(r.sgsTotal - r.kTotal) >= 0.5;
@@ -9332,13 +9351,14 @@ function sgsFillerMain() {
         SECTIONS.map(function (s) {
           var c = r.cells[s.key];
           if (!c) return '<td>—</td>';
-          var show = c.old == null ? '' : c.old.toFixed(1);
-          if (c.state === 'chg') return '<td class="chg">' + c.next.toFixed(1) + '</td>';
-          if (c.state === 'ovr') return '<td class="ovr">' + show + ' → ' + c.next.toFixed(1) + '</td>';
+          var show = fmtN(c.old);
+          var nextShow = fmtN(c.next);
+          if (c.state === 'chg') return '<td class="chg">' + nextShow + '</td>';
+          if (c.state === 'ovr') return '<td class="ovr">' + show + ' → ' + nextShow + '</td>';
           if (c.state === 'bad') return '<td class="bad">เกินเต็ม</td>';
           return '<td>' + (show || '—') + '</td>';
         }).join('') +
-        '<td' + (diff ? ' class="ovr" title="ต่างจาก KruSpace เพราะปัดเศษทีละส่วน"' : '') + '>' + r.sgsTotal.toFixed(1) + '</td>' +
+        '<td' + (diff ? ' class="ovr" title="ต่างจาก KruSpace เพราะปัดเศษทีละส่วน"' : '') + '>' + fmtN(r.sgsTotal) + '</td>' +
         '<td>' + (r.kTotal == null ? '—' : r.kTotal) + '</td></tr>';
     }).join('');
 
@@ -9481,8 +9501,10 @@ function sgsPayloadText() {
   const part = (raw, max, w) => max > 0 && w > 0 ? Math.round(raw * w / max * 10000) / 10000 : null;
   const sts = curStudents().filter(st => String(st.sid || '').trim()).slice().sort((a, c) => a.no - c.no);
   const readCfg = assessmentConfig('reading'), traitCfg = assessmentConfig('traits');
+  const roundMode = b.sgsRoundMode || (DB.ui && DB.ui.sgsRoundMode) || 'half';
   const payload = {
     v: 1, app: 'KruSpace', at: new Date().toISOString(),
+    roundMode: roundMode,
     subject: sub.code || '', subjectName: sub.name || '', cls: cls.name || '', period: periodLabelOf(DB.ui.periodId),
     weights: { before: num(W.before), mid: num(W.mid), after: num(W.after), final: num(W.final) },
     students: sts.map(st => {
@@ -9687,6 +9709,25 @@ function copyTraitsTsv(b, rows) {
   return lines.join('\n');
 }
 
+function copyScoresTsv(b, rows) {
+  const parts = [
+    { label: 'ก่อนกลางภาค', val: r => r.wBefore },
+    { label: 'กลางภาค', val: r => r.wM },
+    { label: 'หลังกลางภาค', val: r => r.wAfter },
+    { label: 'ปลายภาค', val: r => r.wF }
+  ];
+  const lines = [
+    ['เลขที่', 'เลขประจำตัว', 'ชื่อ-นามสกุล', 'ก่อนกลาง', 'กลางภาค', 'หลังกลาง', 'ปลายภาค', 'รวม', 'เกรด'].join('\t')
+  ];
+  rows.forEach(x => {
+    const row = [x.st.no, x.st.sid, x.st.name];
+    parts.forEach(p => { const v = p.val(x.r); row.push(isFinite(v) ? Number(Number(v).toFixed(2)) : ''); });
+    row.push(isFinite(x.r.total) ? Number(Number(x.r.total).toFixed(2)) : '', String(x.r.grade));
+    lines.push(row.join('\t'));
+  });
+  return lines.join('\n');
+}
+
 function copyAllSgsTsv(b, rows) {
   const parts = [
     { label: 'ก่อนกลางภาค', val: r => r.wBefore },
@@ -9735,6 +9776,16 @@ function scoreSheetHtml(b, rows) {
 
   const cell = (r, p) => '<td class="num"><b>' + fmt(p.val(r)) + '</b></td>';
   const curSgsView = window.__curSgsView || 'scores';
+  const roundMode = b.sgsRoundMode || (DB.ui && DB.ui.sgsRoundMode) || 'half';
+  const roundModeSelectHtml =
+    '<label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600">' +
+      '<span>🎯 การปัดเศษคะแนนย่อย:</span> ' +
+      '<select class="sgs-round-select" data-round-select style="font:inherit;padding:3px 8px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer">' +
+        '<option value="half"' + (roundMode === 'half' ? ' selected' : '') + '>เศษ 0.5 (เช่น 15.5) — ค่าเริ่มต้น</option>' +
+        '<option value="one"' + (roundMode === 'one' ? ' selected' : '') + '>เศษทศนิยม 1 ตัว (เช่น 15.6)</option>' +
+        '<option value="int"' + (roundMode === 'int' ? ' selected' : '') + '>จำนวนเต็ม (เช่น 16)</option>' +
+      '</select>' +
+    '</label>';
 
   const readCfg = assessmentConfig('reading');
   const traitCfg = assessmentConfig('traits');
@@ -9744,6 +9795,12 @@ function scoreSheetHtml(b, rows) {
 
   // 1. แผ่นคะแนน 4 ส่วน + เกรด
   const paneScores = '<div class="sgs-view-pane" data-sgs-pane="scores"' + (curSgsView === 'scores' ? '' : ' hidden') + '>' +
+    '<div class="sgs-toolbar noprint">' +
+      roundModeSelectHtml +
+      '<span class="hint" style="margin-left:4px">สำหรับคะแนนก่อนกลาง, กลางภาค, หลังกลาง, ปลายภาค</span>' +
+      '<div class="spacer"></div>' +
+      '<button class="sm" id="btnCopyScoresTsv">📋 คัดลอกตารางคะแนน (TSV)</button>' +
+    '</div>' +
     '<div class="tablewrap"><table class="ss-table"><thead><tr>' +
       '<th class="num">เลขที่</th><th>เลขประจำตัว</th><th>ชื่อ-นามสกุล</th>' +
       parts.map(p => '<th class="num">' + esc(p.label) + '<span class="ss-full">เต็ม ' + fmt(p.w) + '</span></th>').join('') +
@@ -9839,7 +9896,8 @@ function scoreSheetHtml(b, rows) {
   // 4. แผ่นรวมทุกส่วนสำหรับ SGS
   const paneAll = '<div class="sgs-view-pane" data-sgs-pane="all"' + (curSgsView === 'all' ? '' : ' hidden') + '>' +
     '<div class="sgs-toolbar noprint">' +
-      '<span class="hint">ตารางรวมทุกคอลัมน์ของแบบฟอร์ม SGS — ผลคะแนน, อ่านคิดวิเคราะห์ 5 ข้อ และคุณลักษณะ 8 ข้อ</span>' +
+      roundModeSelectHtml +
+      '<span class="hint" style="margin-left:4px">ผลคะแนน, อ่านคิดวิเคราะห์ 5 ข้อ และคุณลักษณะ 8 ข้อ</span>' +
       '<div class="spacer"></div>' +
       '<button class="sm" id="btnCopyAllTsv">📋 คัดลอกตารางรวมทั้งหมด (TSV)</button>' +
     '</div>' +
@@ -10103,12 +10161,30 @@ function bindScoreSheet(pane, b, rows, sts) {
     if (await copyTextToClipboard(tsv)) toast('คัดลอกตารางคุณลักษณะ (TSV) แล้ว • สามารถวางลงใน Excel ได้ทันที', 'ok');
   });
 
+  // คัดลอกตารางคะแนน 4 ส่วน
+  const btnCopyScoresTsv = $('#btnCopyScoresTsv', pane);
+  if (btnCopyScoresTsv) btnCopyScoresTsv.addEventListener('click', async () => {
+    const tsv = copyScoresTsv(b, rows);
+    if (await copyTextToClipboard(tsv)) toast('คัดลอกตารางคะแนนผลการเรียน (TSV) แล้ว • สามารถวางลงใน Excel ได้ทันที', 'ok');
+  });
+
   // คัดลอกตารางรวมทั้งหมด
   const btnCopyAllTsv = $('#btnCopyAllTsv', pane);
   if (btnCopyAllTsv) btnCopyAllTsv.addEventListener('click', async () => {
     const tsv = copyAllSgsTsv(b, rows);
     if (await copyTextToClipboard(tsv)) toast('คัดลอกตารางรวมทุกส่วน SGS (TSV) แล้ว • สามารถวางลงใน Excel ได้ทันที', 'ok');
   });
+
+  // เปลี่ยนโหมดการปัดเศษคะแนนย่อย
+  $$('.sgs-round-select', pane).forEach(sel => sel.addEventListener('change', () => {
+    const val = sel.value;
+    b.sgsRoundMode = val;
+    DB.ui.sgsRoundMode = val;
+    save(true);
+    const labelMap = { half: 'เศษ 0.5 (เช่น 15.5)', one: 'เศษทศนิยม 1 ตัว (เช่น 15.6)', int: 'จำนวนเต็ม (เช่น 16)' };
+    toast('ตั้งค่ารูปแบบการปัดเศษคะแนนเป็น: ' + (labelMap[val] || val), 'ok');
+    renderSummary();
+  }));
 }
 
 function renderSummary() {
