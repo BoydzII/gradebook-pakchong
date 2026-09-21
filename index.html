@@ -1185,6 +1185,12 @@ th.sortable:hover{color:var(--brand);text-decoration:underline}
 .score-sheet .ss-sign{flex:1}
 .score-sheet .ss-line{border-bottom:1px dotted var(--ink);margin:0 6px 6px}
 .score-sheet .ss-sign span{color:var(--muted)}
+.sgs-view-btn{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer;font-weight:600;font-size:13px;color:var(--ink);transition:all .15s}
+.sgs-view-btn:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
+.sgs-view-btn.active{background:var(--primary);color:#fff;border-color:var(--primary);box-shadow:0 2px 6px rgba(31,111,235,.3)}
+.sgs-assess-cell{padding:3px 6px;font-size:12.5px;border-radius:4px;border:1px solid var(--line);background:var(--panel);text-align:center;color:var(--ink);font-weight:600}
+.sgs-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:9px 12px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;margin-bottom:12px}
+.sgs-legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px 14px;font-size:12px;color:var(--muted);padding:8px 12px;background:var(--panel2);border-radius:8px;margin-bottom:12px}
 /* โหมดใบคะแนน — ใช้ทั้งตอนดูตัวอย่างบนจอและตอนพิมพ์จริง กฎชุดเดียวกัน
    จึงไม่มีทางที่ตัวอย่างกับของที่พิมพ์ออกมาจะไม่ตรงกัน
    บังคับเป็นตัวดำบนพื้นขาวเสมอ ไม่ว่าครูจะเปิดโหมดมืดอยู่หรือไม่ */
@@ -1197,6 +1203,10 @@ body.print-scores .score-sheet{--ink:#111;--muted:#555;--line:#8a8a8a;--panel:#f
 body.print-scores .score-sheet .tablewrap{border:0;overflow:visible;max-height:none}
 body.print-scores .ss-table th,body.print-scores .ss-table td{border:1px solid #666}
 body.print-scores .ss-dist{border:1px solid #666;background:transparent}
+body.print-scores .sgs-subnav,body.print-scores .sgs-toolbar{display:none!important}
+body.print-scores .sgs-view-pane[hidden]{display:none!important}
+body.print-scores .sgs-view-pane:not([hidden]){display:block!important}
+body.print-scores .sgs-assess-cell{border:none!important;background:transparent!important;-webkit-appearance:none;-moz-appearance:none;appearance:none;font-size:inherit!important;font-weight:inherit!important;color:#000!important;padding:0!important;text-align:center!important}
 /* แถบเครื่องมือตอนดูตัวอย่าง วางบนกระดาษจำลองขนาด A4 */
 body.print-scores.print-preview{background:#6b7280}
 body.print-scores.print-preview .score-sheet{max-width:820px;margin:18px auto 96px;padding:34px 30px;
@@ -8537,12 +8547,117 @@ function assessmentStatsHtml(b, sts, type) {
     '<div class="stat"><div class="v">' + d.blank + '</div><div class="k">ยังประเมินไม่ครบ</div></div>';
 }
 
+/** แปลงเกรด/คะแนนรวมเป็นระดับการอ่าน คิดวิเคราะห์ และเขียน (0-3) ตามกฎ สพฐ.
+ * - เกรด 0 - 1.0 -> 1 (ผ่าน)
+ * - เกรด 1.5 - 2.5 -> 2 (ดี)
+ * - เกรด > 2.5 (3.0 - 4.0) -> 3 (ดีเยี่ยม)
+ */
+function autoReadingLevelFromGrade(grade, total) {
+  const g = String(grade || '').trim();
+  if (g === '4' || g === '3.5' || g === '3') return 3;
+  if (g === '2.5' || g === '2' || g === '1.5') return 2;
+  if (g === '1' || g === '0') return 1;
+  const numG = parseFloat(g);
+  if (!isNaN(numG)) {
+    if (numG > 2.5) return 3;
+    if (numG >= 1.5) return 2;
+    return 1;
+  }
+  const t = Number(total);
+  if (isFinite(t)) {
+    if (t >= 70) return 3;
+    if (t >= 55) return 2;
+    return 1;
+  }
+  return 2;
+}
+
+/** คำนวณการอ่าน คิดวิเคราะห์ และเขียน 5 ข้อ ให้ทั้งห้องโดยอัตโนมัติตามเกรด */
+function autoAssessReading(b, sts, classId, subjectId) {
+  let count = 0;
+  b.assessments = b.assessments || {};
+  b.assessments.reading = b.assessments.reading || {};
+  sts.forEach(st => {
+    const r = calcRow(b, st);
+    const lv = autoReadingLevelFromGrade(r.grade, r.total);
+    b.assessments.reading[st.sid] = [lv, lv, lv, lv, lv];
+    count++;
+  });
+  save(true);
+  return count;
+}
+
+/** คำนวณคุณลักษณะอันพึงประสงค์ 8 ข้อ ให้ทั้งห้องโดยอัตโนมัติ
+ * เชื่อมโยง:
+ * - เวลาเรียนและการเข้าชั้นเรียน (att.pct, late)
+ * - การส่งงาน (completedItems / totalItems)
+ * - การร่วมกิจกรรมโรงเรียน (att.counts.activity, activities)
+ */
+function autoAssessTraits(b, sts, classId, subjectId, periodId) {
+  let count = 0;
+  b.assessments = b.assessments || {};
+  b.assessments.traits = b.assessments.traits || {};
+  const items = b.items || [];
+  const totalItems = items.length;
+
+  sts.forEach(st => {
+    const att = attendanceStudentResult(classId, subjectId, st, periodId);
+    let submittedRate = 1;
+    if (totalItems > 0) {
+      const completed = items.filter(it => itemScoreComplete(b, st.sid, it)).length;
+      submittedRate = completed / totalItems;
+    }
+    const attPct = att && att.pct !== null ? att.pct : 100;
+    const lateCount = att && att.counts ? (att.counts.late || 0) : 0;
+
+    // 1. รักชาติ ศาสน์ กษัตริย์: ร่วมกิจกรรม เข้าแถว (3, ถ้าขาดเรียนเยอะ < 60% ได้ 2)
+    const t1 = attPct < 60 ? 2 : 3;
+
+    // 2. ซื่อสัตย์สุจริต: เริ่มต้น 3
+    const t2 = 3;
+
+    // 3. มีวินัย: เข้าชั้นเรียนสม่ำเสมอ ตรงต่อเวลา
+    let t3 = 3;
+    if (attPct < 60 || lateCount >= 5) t3 = 1;
+    else if (attPct < 80 || lateCount >= 3) t3 = 2;
+    else t3 = 3;
+
+    // 4. ใฝ่เรียนรู้: เข้าเรียน + ส่งงาน
+    let t4 = 3;
+    if (attPct >= 80 && submittedRate >= 0.8) t4 = 3;
+    else if (attPct >= 60 && submittedRate >= 0.5) t4 = 2;
+    else t4 = 1;
+
+    // 5. อยู่อย่างพอเพียง: เริ่มต้น 3
+    const t5 = 3;
+
+    // 6. มุ่งมั่นในการทำงาน: อัตราการส่งงาน
+    let t6 = 3;
+    if (submittedRate >= 0.8) t6 = 3;
+    else if (submittedRate >= 0.6) t6 = 2;
+    else t6 = 1;
+
+    // 7. รักความเป็นไทย: เริ่มต้น 3
+    const t7 = 3;
+
+    // 8. มีจิตสาธารณะ: เริ่มต้น 3 (ถ้าขาดเรียนวิกฤต < 50% ได้ 2)
+    const t8 = attPct < 50 ? 2 : 3;
+
+    b.assessments.traits[st.sid] = [t1, t2, t3, t4, t5, t6, t7, t8];
+    count++;
+  });
+  save(true);
+  return count;
+}
+
 function assessmentSectionHtml(b, sts, type) {
   const config = assessmentConfig(type);
   const opts = v => '<option value=""' + (!(v === 0 || v === 1 || v === 2 || v === 3) ? ' selected' : '') + '>–</option>' +
     [0, 1, 2, 3].map(n => '<option value="' + n + '"' + (v === n ? ' selected' : '') + '>' + n + '</option>').join('');
   return '<div class="card" data-assess-section="' + type + '">' +
     '<div class="row"><h3 style="margin:0">' + config.title + ' <span class="badge">' + config.items.length + ' หัวข้อ</span></h3><div class="spacer"></div>' +
+      (type === 'reading' ? '<button class="sm primary" data-auto-assess="reading" title="เกรด 0-1 ได้ 1, 1.5-2.5 ได้ 2, >2.5 ได้ 3">⚡ คำนวณจากเกรดอัตโนมัติ</button>' : '') +
+      (type === 'traits' ? '<button class="sm primary" data-auto-assess="traits" title="เชื่อมโยงเวลาเรียน การเข้าชั้นเรียน การส่งงาน">⚡ คำนวณจากเวลาเรียน/ส่งงานอัตโนมัติ</button>' : '') +
       '<button class="sm" data-fill-assess="3" data-type="' + type + '">เติม 3 ในช่องว่าง</button>' +
       '<button class="sm" data-fill-assess="2" data-type="' + type + '">เติม 2 ในช่องว่าง</button>' +
       '<button class="sm danger" data-clear-assess data-type="' + type + '">ล้างส่วนนี้</button></div>' +
@@ -8592,6 +8707,17 @@ function renderAssessments() {
     $('.a-result', tr).innerHTML = assessmentBadge(r);
     $('#assessStats-' + type).innerHTML = assessmentStatsHtml(b, sts, type);
     save();
+  }));
+  $$('[data-auto-assess]', pane).forEach(btn => btn.addEventListener('click', () => {
+    const type = btn.dataset.autoAssess;
+    if (type === 'reading') {
+      const n = autoAssessReading(b, sts, curClass().id, curSubject().id);
+      toast('คำนวณการอ่าน คิดวิเคราะห์ จากเกรดอัตโนมัติ ' + n + ' คนแล้ว', 'ok');
+    } else {
+      const n = autoAssessTraits(b, sts, curClass().id, curSubject().id, curPeriod().id);
+      toast('คำนวณคุณลักษณะอันพึงประสงค์ จากเวลาเรียนและส่งงานอัตโนมัติ ' + n + ' คนแล้ว', 'ok');
+    }
+    renderAssessments();
   }));
   $$('[data-fill-assess]', pane).forEach(btn => btn.addEventListener('click', () => {
     const type = btn.dataset.type, level = +btn.dataset.fillAssess, config = assessmentConfig(type);
@@ -8925,7 +9051,7 @@ function sgsFillerMain() {
     ta.focus();
     box.querySelector('[data-next]').onclick = function () {
       var raw = String(ta.value || '').trim();
-      var m = raw.match(/KRUSPACE-SGS:v1:([\s\S]+)$/);
+      var m = raw.match(/KRUSPACE-SGS:v\d+:([\s\S]+)$/);
       if (!m) return stepPaste('ข้อความนี้ไม่ใช่คะแนนที่คัดลอกจาก KruSpace — กดปุ่ม "คัดลอกคะแนน" ใน KruSpace ใหม่อีกครั้ง');
       try { state.payload = JSON.parse(m[1]); } catch (e) { return stepPaste('อ่านข้อมูลไม่ได้ อาจคัดลอกมาไม่ครบ — ลองคัดลอกใหม่'); }
       state.sgs = readSgs();
@@ -9185,23 +9311,31 @@ function sgsPayloadText() {
   const real = Object.assign({}, b, { partialMode: false });
   const part = (raw, max, w) => max > 0 && w > 0 ? Math.round(raw * w / max * 10000) / 10000 : null;
   const sts = curStudents().filter(st => String(st.sid || '').trim()).slice().sort((a, c) => a.no - c.no);
+  const readCfg = assessmentConfig('reading'), traitCfg = assessmentConfig('traits');
   const payload = {
-    v: 1, app: 'KruSpace', at: new Date().toISOString(),
+    v: 2, app: 'KruSpace', at: new Date().toISOString(),
     subject: sub.code || '', subjectName: sub.name || '', cls: cls.name || '', period: periodLabelOf(DB.ui.periodId),
     weights: { before: num(W.before), mid: num(W.mid), after: num(W.after), final: num(W.final) },
     students: sts.map(st => {
       const r = calcRow(real, st), ex = b.exam[st.sid] || {};
+      const rVals = (b.assessments.reading || {})[st.sid] || [];
+      const tVals = (b.assessments.traits || {})[st.sid] || [];
       return {
         sid: String(st.sid).trim(), no: st.no, name: st.name || '',
         before: r.filledBefore > 0 ? part(r.rawBefore, r.maxBefore, num(W.before)) : null,
         mid: has(ex.mid) || has(ex.retake) ? part(r.midRaw, r.midMax, num(W.mid)) : null,
         after: r.filledAfter > 0 ? part(r.rawAfter, r.maxAfter, num(W.after)) : null,
         final: has(ex.final) ? part(r.finRaw, r.finMax, num(W.final)) : null,
-        total: r.total
+        total: r.total,
+        grade: r.grade,
+        reading: rVals,
+        readingLevel: assessmentResult(rVals, readCfg).level,
+        traits: tVals,
+        traitsLevel: assessmentResult(tVals, traitCfg).level
       };
     })
   };
-  return { text: 'KRUSPACE-SGS:v1:' + JSON.stringify(payload), count: payload.students.length };
+  return { text: 'KRUSPACE-SGS:v2:' + JSON.stringify(payload), count: payload.students.length };
 }
 
 /* ปุ่มบนแถบบุ๊กมาร์กคือโค้ดทั้งก้อนของ sgsFillerMain ห่อเป็นลิงก์ javascript:
@@ -9348,10 +9482,72 @@ function bindSummaryTools(pane) {
   });
 }
 
-/* ---- คะแนนสำหรับกรอก SGS --------------------------------------------------
-   ตารางสรุปรายคนมี 20 กว่าคอลัมน์ เพราะเป็นใบทำงานของครู พิมพ์ออกมาแล้วอ่านไม่ไหว
-   ใบนี้เหลือเฉพาะช่องที่ต้องคีย์เข้า SGS จริง ๆ คือ 4 ส่วนคะแนน รวม และเกรด
-   ไม่มีคะแนนดิบ/เต็มกำกับ เพราะเวลานั่งคีย์ ตัวเลขส่วนเกินทำให้คีย์ผิดช่อง */
+/* ---- ข้อมูลสำหรับกรอก SGS (คะแนน 4 ส่วน, การอ่านคิดวิเคราะห์ 5 ข้อ, คุณลักษณะ 8 ข้อ) ---- */
+function copyReadingTsv(b, rows) {
+  const readCfg = assessmentConfig('reading');
+  const lines = [
+    ['เลขที่', 'เลขประจำตัว', 'ชื่อ-นามสกุล', 'ข้อ 1', 'ข้อ 2', 'ข้อ 3', 'ข้อ 4', 'ข้อ 5', 'ผลสรุป'].join('\t')
+  ];
+  rows.forEach(x => {
+    const vals = (b.assessments.reading || {})[x.st.sid] || [];
+    const res = assessmentResult(vals, readCfg);
+    lines.push([
+      x.st.no, x.st.sid, x.st.name,
+      vals[0] != null ? vals[0] : '', vals[1] != null ? vals[1] : '', vals[2] != null ? vals[2] : '', vals[3] != null ? vals[3] : '', vals[4] != null ? vals[4] : '',
+      res.level != null ? res.level : ''
+    ].join('\t'));
+  });
+  return lines.join('\n');
+}
+
+function copyTraitsTsv(b, rows) {
+  const traitCfg = assessmentConfig('traits');
+  const lines = [
+    ['เลขที่', 'เลขประจำตัว', 'ชื่อ-นามสกุล', 'ข้อ 1', 'ข้อ 2', 'ข้อ 3', 'ข้อ 4', 'ข้อ 5', 'ข้อ 6', 'ข้อ 7', 'ข้อ 8', 'ผลสรุป'].join('\t')
+  ];
+  rows.forEach(x => {
+    const vals = (b.assessments.traits || {})[x.st.sid] || [];
+    const res = assessmentResult(vals, traitCfg);
+    lines.push([
+      x.st.no, x.st.sid, x.st.name,
+      vals[0] != null ? vals[0] : '', vals[1] != null ? vals[1] : '', vals[2] != null ? vals[2] : '', vals[3] != null ? vals[3] : '',
+      vals[4] != null ? vals[4] : '', vals[5] != null ? vals[5] : '', vals[6] != null ? vals[6] : '', vals[7] != null ? vals[7] : '',
+      res.level != null ? res.level : ''
+    ].join('\t'));
+  });
+  return lines.join('\n');
+}
+
+function copyAllSgsTsv(b, rows) {
+  const parts = [
+    { label: 'ก่อนกลางภาค', val: r => r.wBefore },
+    { label: 'กลางภาค', val: r => r.wM },
+    { label: 'หลังกลางภาค', val: r => r.wAfter },
+    { label: 'ปลายภาค', val: r => r.wF }
+  ];
+  const readCfg = assessmentConfig('reading'), traitCfg = assessmentConfig('traits');
+  const lines = [
+    ['เลขที่', 'เลขประจำตัว', 'ชื่อ-นามสกุล', 'ก่อนกลาง', 'กลางภาค', 'หลังกลาง', 'ปลายภาค', 'รวม', 'เกรด',
+     'อ่าน 1', 'อ่าน 2', 'อ่าน 3', 'อ่าน 4', 'อ่าน 5', 'สรุปอ่าน',
+     'คุณลักษณะ 1', 'คุณลักษณะ 2', 'คุณลักษณะ 3', 'คุณลักษณะ 4', 'คุณลักษณะ 5', 'คุณลักษณะ 6', 'คุณลักษณะ 7', 'คุณลักษณะ 8', 'สรุปคุณลักษณะ'].join('\t')
+  ];
+  rows.forEach(x => {
+    const rVals = (b.assessments.reading || {})[x.st.sid] || [];
+    const rRes = assessmentResult(rVals, readCfg);
+    const tVals = (b.assessments.traits || {})[x.st.sid] || [];
+    const tRes = assessmentResult(tVals, traitCfg);
+    const row = [x.st.no, x.st.sid, x.st.name];
+    parts.forEach(p => { const v = p.val(x.r); row.push(isFinite(v) ? Number(Number(v).toFixed(2)) : ''); });
+    row.push(isFinite(x.r.total) ? Number(Number(x.r.total).toFixed(2)) : '', String(x.r.grade));
+    for (let i = 0; i < 5; i++) row.push(rVals[i] != null ? rVals[i] : '');
+    row.push(rRes.level != null ? rRes.level : '');
+    for (let i = 0; i < 8; i++) row.push(tVals[i] != null ? tVals[i] : '');
+    row.push(tRes.level != null ? tRes.level : '');
+    lines.push(row.join('\t'));
+  });
+  return lines.join('\n');
+}
+
 function scoreSheetHtml(b, rows) {
   const cls = curClass(), sub = curSubject(), period = curPeriod(), s = DB.settings;
   const teacherName = resolveTeacherName(b, cls ? cls.id : '', sub ? sub.id : '', period ? period.id : '');
@@ -9363,31 +9559,22 @@ function scoreSheetHtml(b, rows) {
     { label: 'หลังกลางภาค', w: num(W.after), val: r => r.wAfter },
     { label: 'ปลายภาค', w: num(W.final), val: r => r.wF }
   ];
-  // การกระจายเกรด เรียงจากมากไปน้อยตามเกณฑ์ที่ตั้งไว้ ใช้เป็นสรุปท้ายใบ
   const gradeOrder = b.gradeScale.map(g => g[1]).filter((v, i, a) => a.indexOf(v) === i);
   const dist = {}; gradeOrder.forEach(g => { dist[g] = 0; });
   rows.forEach(x => { const g = x.r.grade; if (dist[g] === undefined) dist[g] = 0; dist[g]++; });
   const headName = headNameOfArea(bookArea) || s.headLearningName || '';
 
   const cell = (r, p) => '<td class="num"><b>' + fmt(p.val(r)) + '</b></td>';
+  const curSgsView = window.__curSgsView || 'scores';
 
-  return '<div class="card score-sheet"><div class="row noprint"><div><h3 style="margin:0">คะแนนสำหรับกรอก SGS</h3>' +
-      '<div class="hint">เรียงตามลำดับช่องที่ต้องคีย์ — ก่อนกลางภาค • กลางภาค • หลังกลางภาค • ปลายภาค • รวม • เกรด' +
-      '<br>ส่งออกเป็น Excel ได้ ถ้าอยากคัดลอกทีละคอลัมน์ไปวางแทนการคีย์ทีละช่อง</div></div>' +
-      '<div class="spacer"></div><button id="btnPreviewScores">ดูตัวอย่างก่อนพิมพ์</button>' +
-      '<button id="btnSgsXlsx">ส่งออก Excel (.xlsx)</button>' +
-      '<button class="primary" id="btnPrintScores">พิมพ์คะแนน SGS</button></div>' +
+  const readCfg = assessmentConfig('reading');
+  const traitCfg = assessmentConfig('traits');
 
-    '<div class="ss-head">' +
-      (s.logoData ? '<img class="ss-logo" src="' + s.logoData + '" alt="">' : '') +
-      '<div><div class="ss-school">' + esc(s.schoolName || '') + '</div>' +
-      '<div class="ss-title">คะแนนสำหรับกรอก SGS</div>' +
-      '<div class="ss-meta">' + esc((sub ? (sub.code ? sub.code + ' ' : '') + sub.name : '')) +
-        (cls ? ' • ชั้น ' + esc(cls.name) : '') +
-        (period ? ' • ปีการศึกษา ' + esc(period.academicYear) + ' ภาคเรียนที่ ' + esc(period.semester) : '') + '</div>' +
-      '<div class="ss-meta">ครูผู้สอน ' + esc(teacherName || '—') +
-        ' • นักเรียน ' + rows.length + ' คน</div></div></div>' +
+  const assessOpts = v => '<option value=""' + (!(v === 0 || v === 1 || v === 2 || v === 3) ? ' selected' : '') + '>–</option>' +
+    [0, 1, 2, 3].map(n => '<option value="' + n + '"' + (v === n ? ' selected' : '') + '>' + n + '</option>').join('');
 
+  // 1. แผ่นคะแนน 4 ส่วน + เกรด
+  const paneScores = '<div class="sgs-view-pane" data-sgs-pane="scores"' + (curSgsView === 'scores' ? '' : ' hidden') + '>' +
     '<div class="tablewrap"><table class="ss-table"><thead><tr>' +
       '<th class="num">เลขที่</th><th>เลขประจำตัว</th><th>ชื่อ-นามสกุล</th>' +
       parts.map(p => '<th class="num">' + esc(p.label) + '<span class="ss-full">เต็ม ' + fmt(p.w) + '</span></th>').join('') +
@@ -9400,7 +9587,6 @@ function scoreSheetHtml(b, rows) {
         '<td class="num ss-grade">' + esc(x.r.grade) + '</td></tr>').join('')
         : '<tr><td colspan="' + (5 + parts.length) + '"><div class="empty">ยังไม่มีรายชื่อนักเรียนในชั้นนี้</div></td></tr>') +
       '</tbody></table></div>' +
-
     '<div class="ss-foot"><div class="ss-dist"><b>สรุปผลการเรียน</b> ' +
       gradeOrder.map(g => 'เกรด ' + esc(g) + ' = ' + (dist[g] || 0) + ' คน').join(' • ') +
       (dist['–'] ? ' • ยังไม่ครบ ' + dist['–'] + ' คน' : '') + '</div>' +
@@ -9410,11 +9596,152 @@ function scoreSheetHtml(b, rows) {
         '<div class="ss-sign"><div class="ss-line"></div>' + esc(s.directorPosition || 'ผู้อำนวยการสถานศึกษา') +
           '<br><span>(' + esc(s.directorName || '') + ')</span></div>' +
       '</div></div></div>';
+
+  // 2. แผ่นการอ่าน คิดวิเคราะห์ (5 ข้อ)
+  const readingStats = assessmentStatsHtml(b, rows.map(x => x.st), 'reading');
+  const paneReading = '<div class="sgs-view-pane" data-sgs-pane="reading"' + (curSgsView === 'reading' ? '' : ' hidden') + '>' +
+    '<div class="sgs-toolbar noprint">' +
+      '<button class="sm primary" id="btnSgsAutoReading" title="เกรด 0-1 ได้ 1, 1.5-2.5 ได้ 2, >2.5 ได้ 3">⚡ คำนวณจากเกรดอัตโนมัติ</button>' +
+      '<button class="sm" id="btnSgsFillReading3">เติม 3 ในช่องว่าง</button>' +
+      '<button class="sm danger" id="btnSgsClearReading">ล้างส่วนนี้</button>' +
+      '<div class="spacer"></div>' +
+      '<button class="sm" id="btnCopyReadingTsv">📋 คัดลอกตาราง (TSV)</button>' +
+    '</div>' +
+    '<div class="sgs-legend noprint">' +
+      READING_ITEMS.map((item, i) => '<div><b>' + (i + 1) + '.</b> ' + esc(item) + '</div>').join('') +
+    '</div>' +
+    '<div class="tablewrap"><table class="ss-table"><thead><tr>' +
+      '<th class="num">เลขที่</th><th>เลขประจำตัว</th><th>ชื่อ-นามสกุล</th>' +
+      READING_ITEMS.map((item, i) => '<th class="num" title="' + esc(item) + '">ข้อ ' + (i + 1) + '</th>').join('') +
+      '<th class="num">สรุปผล</th>' +
+      '</tr></thead><tbody>' +
+      (rows.length ? rows.map(x => {
+        const vals = (b.assessments.reading || {})[x.st.sid] || [];
+        const res = assessmentResult(vals, readCfg);
+        return '<tr>' +
+          '<td class="num">' + esc(x.st.no) + '</td><td>' + esc(x.st.sid) + '</td><td>' + esc(x.st.name) + '</td>' +
+          [0, 1, 2, 3, 4].map(i => '<td class="num"><select class="sgs-assess-cell" data-type="reading" data-sid="' + esc(x.st.sid) + '" data-i="' + i + '">' + assessOpts(vals[i]) + '</select></td>').join('') +
+          '<td class="num">' + assessmentBadge(res) + '</td></tr>';
+      }).join('') : '<tr><td colspan="9"><div class="empty">ยังไม่มีรายชื่อนักเรียน</div></td></tr>') +
+      '</tbody></table></div>' +
+    '<div class="ss-foot"><div class="statgrid" style="margin-bottom:12px">' + readingStats + '</div>' +
+      '<div class="ss-signs">' +
+        '<div class="ss-sign"><div class="ss-line"></div>ครูผู้สอน<br><span>(' + esc(teacherName || '') + ')</span></div>' +
+        '<div class="ss-sign"><div class="ss-line"></div>หัวหน้ากลุ่มสาระการเรียนรู้<br><span>(' + esc(headName) + ')</span></div>' +
+        '<div class="ss-sign"><div class="ss-line"></div>' + esc(s.directorPosition || 'ผู้อำนวยการสถานศึกษา') +
+          '<br><span>(' + esc(s.directorName || '') + ')</span></div>' +
+      '</div></div></div>';
+
+  // 3. แผ่นคุณลักษณะอันพึงประสงค์ (8 ข้อ)
+  const traitsStats = assessmentStatsHtml(b, rows.map(x => x.st), 'traits');
+  const paneTraits = '<div class="sgs-view-pane" data-sgs-pane="traits"' + (curSgsView === 'traits' ? '' : ' hidden') + '>' +
+    '<div class="sgs-toolbar noprint">' +
+      '<button class="sm primary" id="btnSgsAutoTraits" title="เชื่อมโยงเวลาเรียน การเข้าชั้นเรียน การส่งงาน">⚡ คำนวณจากเวลาเรียน/ส่งงานอัตโนมัติ</button>' +
+      '<button class="sm" id="btnSgsFillTraits3">เติม 3 ในช่องว่าง</button>' +
+      '<button class="sm danger" id="btnSgsClearTraits">ล้างส่วนนี้</button>' +
+      '<div class="spacer"></div>' +
+      '<button class="sm" id="btnCopyTraitsTsv">📋 คัดลอกตาราง (TSV)</button>' +
+    '</div>' +
+    '<div class="sgs-legend noprint">' +
+      TRAIT_ITEMS.map((item, i) => '<div><b>' + (i + 1) + '.</b> ' + esc(item) + '</div>').join('') +
+    '</div>' +
+    '<div class="tablewrap"><table class="ss-table"><thead><tr>' +
+      '<th class="num">เลขที่</th><th>เลขประจำตัว</th><th>ชื่อ-นามสกุล</th>' +
+      TRAIT_ITEMS.map((item, i) => '<th class="num" title="' + esc(item) + '">ข้อ ' + (i + 1) + '</th>').join('') +
+      '<th class="num">สรุปผล</th>' +
+      '</tr></thead><tbody>' +
+      (rows.length ? rows.map(x => {
+        const vals = (b.assessments.traits || {})[x.st.sid] || [];
+        const res = assessmentResult(vals, traitCfg);
+        return '<tr>' +
+          '<td class="num">' + esc(x.st.no) + '</td><td>' + esc(x.st.sid) + '</td><td>' + esc(x.st.name) + '</td>' +
+          [0, 1, 2, 3, 4, 5, 6, 7].map(i => '<td class="num"><select class="sgs-assess-cell" data-type="traits" data-sid="' + esc(x.st.sid) + '" data-i="' + i + '">' + assessOpts(vals[i]) + '</select></td>').join('') +
+          '<td class="num">' + assessmentBadge(res) + '</td></tr>';
+      }).join('') : '<tr><td colspan="12"><div class="empty">ยังไม่มีรายชื่อนักเรียน</div></td></tr>') +
+      '</tbody></table></div>' +
+    '<div class="ss-foot"><div class="statgrid" style="margin-bottom:12px">' + traitsStats + '</div>' +
+      '<div class="ss-signs">' +
+        '<div class="ss-sign"><div class="ss-line"></div>ครูผู้สอน<br><span>(' + esc(teacherName || '') + ')</span></div>' +
+        '<div class="ss-sign"><div class="ss-line"></div>หัวหน้ากลุ่มสาระการเรียนรู้<br><span>(' + esc(headName) + ')</span></div>' +
+        '<div class="ss-sign"><div class="ss-line"></div>' + esc(s.directorPosition || 'ผู้อำนวยการสถานศึกษา') +
+          '<br><span>(' + esc(s.directorName || '') + ')</span></div>' +
+      '</div></div></div>';
+
+  // 4. แผ่นรวมทุกส่วนสำหรับ SGS
+  const paneAll = '<div class="sgs-view-pane" data-sgs-pane="all"' + (curSgsView === 'all' ? '' : ' hidden') + '>' +
+    '<div class="sgs-toolbar noprint">' +
+      '<span class="hint">ตารางรวมทุกคอลัมน์ของแบบฟอร์ม SGS — ผลคะแนน, อ่านคิดวิเคราะห์ 5 ข้อ และคุณลักษณะ 8 ข้อ</span>' +
+      '<div class="spacer"></div>' +
+      '<button class="sm" id="btnCopyAllTsv">📋 คัดลอกตารางรวมทั้งหมด (TSV)</button>' +
+    '</div>' +
+    '<div class="tablewrap tall"><table class="ss-table"><thead><tr>' +
+      '<th class="num">เลขที่</th><th>เลขประจำตัว</th><th>ชื่อ-นามสกุล</th>' +
+      parts.map(p => '<th class="num">' + esc(p.label) + '</th>').join('') +
+      '<th class="num">รวม</th><th class="num">เกรด</th>' +
+      [1, 2, 3, 4, 5].map(i => '<th class="num" title="' + esc(READING_ITEMS[i - 1]) + '">อ่าน ' + i + '</th>').join('') +
+      '<th class="num">สรุปอ่าน</th>' +
+      [1, 2, 3, 4, 5, 6, 7, 8].map(i => '<th class="num" title="' + esc(TRAIT_ITEMS[i - 1]) + '">คุณลักษ. ' + i + '</th>').join('') +
+      '<th class="num">สรุปคุณลักษ.</th>' +
+      '</tr></thead><tbody>' +
+      (rows.length ? rows.map(x => {
+        const rVals = (b.assessments.reading || {})[x.st.sid] || [];
+        const rRes = assessmentResult(rVals, readCfg);
+        const tVals = (b.assessments.traits || {})[x.st.sid] || [];
+        const tRes = assessmentResult(tVals, traitCfg);
+        return '<tr>' +
+          '<td class="num">' + esc(x.st.no) + '</td><td>' + esc(x.st.sid) + '</td><td style="white-space:nowrap">' + esc(x.st.name) + '</td>' +
+          parts.map(p => cell(x.r, p)).join('') +
+          '<td class="num"><b>' + fmt(x.r.total) + '</b></td>' +
+          '<td class="num ss-grade">' + esc(x.r.grade) + '</td>' +
+          [0, 1, 2, 3, 4].map(i => '<td class="num">' + (rVals[i] != null ? rVals[i] : '–') + '</td>').join('') +
+          '<td class="num">' + assessmentBadge(rRes) + '</td>' +
+          [0, 1, 2, 3, 4, 5, 6, 7].map(i => '<td class="num">' + (tVals[i] != null ? tVals[i] : '–') + '</td>').join('') +
+          '<td class="num">' + assessmentBadge(tRes) + '</td></tr>';
+      }).join('') : '<tr><td colspan="23"><div class="empty">ยังไม่มีรายชื่อนักเรียน</div></td></tr>') +
+      '</tbody></table></div>' +
+    '<div class="ss-foot">' +
+      '<div class="ss-signs">' +
+        '<div class="ss-sign"><div class="ss-line"></div>ครูผู้สอน<br><span>(' + esc(teacherName || '') + ')</span></div>' +
+        '<div class="ss-sign"><div class="ss-line"></div>หัวหน้ากลุ่มสาระการเรียนรู้<br><span>(' + esc(headName) + ')</span></div>' +
+        '<div class="ss-sign"><div class="ss-line"></div>' + esc(s.directorPosition || 'ผู้อำนวยการสถานศึกษา') +
+          '<br><span>(' + esc(s.directorName || '') + ')</span></div>' +
+      '</div></div></div>';
+
+  const viewTitles = {
+    scores: 'คะแนนสำหรับกรอก SGS',
+    reading: 'แบบประเมินการอ่าน คิดวิเคราะห์ และเขียน สำหรับกรอก SGS',
+    traits: 'แบบประเมินคุณลักษณะอันพึงประสงค์ สำหรับกรอก SGS',
+    all: 'ตารางรวมทุกส่วนสำหรับกรอก SGS'
+  };
+
+  return '<div class="card score-sheet"><div class="row noprint"><div><h3 style="margin:0" id="sgsHeadTitle">' + esc(viewTitles[curSgsView] || 'ข้อมูลสำหรับกรอก SGS') + '</h3>' +
+      '<div class="hint" id="sgsHeadHint">เรียงตามลำดับช่องที่ต้องคีย์ — รองรับคะแนนผลการเรียน, อ่านคิดวิเคราะห์ 5 ข้อ และคุณลักษณะ 8 ข้อ<br>ส่งออกเป็น Excel ได้แยกชีตตามหมวดหมู่อย่างเป็นระเบียบ</div></div>' +
+      '<div class="spacer"></div><button id="btnPreviewScores">ดูตัวอย่างก่อนพิมพ์</button>' +
+      '<button id="btnSgsXlsx">ส่งออก Excel (.xlsx ทุกส่วน)</button>' +
+      '<button class="primary" id="btnPrintScores">พิมพ์ใบคะแนน SGS</button></div>' +
+
+    '<div class="sgs-subnav noprint">' +
+      '<button class="sgs-view-btn' + (curSgsView === 'scores' ? ' active' : '') + '" data-sgs-tab="scores">📊 1. คะแนนผลการเรียน (4 ส่วน)</button>' +
+      '<button class="sgs-view-btn' + (curSgsView === 'reading' ? ' active' : '') + '" data-sgs-tab="reading">📖 2. การอ่าน คิดวิเคราะห์ (5 ข้อ)</button>' +
+      '<button class="sgs-view-btn' + (curSgsView === 'traits' ? ' active' : '') + '" data-sgs-tab="traits">🌟 3. คุณลักษณะอันพึงประสงค์ (8 ข้อ)</button>' +
+      '<button class="sgs-view-btn' + (curSgsView === 'all' ? ' active' : '') + '" data-sgs-tab="all">📋 4. รวมทุกส่วน SGS</button>' +
+    '</div>' +
+
+    '<div class="ss-head">' +
+      (s.logoData ? '<img class="ss-logo" src="' + s.logoData + '" alt="">' : '') +
+      '<div><div class="ss-school">' + esc(s.schoolName || '') + '</div>' +
+      '<div class="ss-title" id="ssPrintTitle">' + esc(viewTitles[curSgsView] || 'ข้อมูลสำหรับกรอก SGS') + '</div>' +
+      '<div class="ss-meta">' + esc((sub ? (sub.code ? sub.code + ' ' : '') + sub.name : '')) +
+        (cls ? ' • ชั้น ' + esc(cls.name) : '') +
+        (period ? ' • ปีการศึกษา ' + esc(period.academicYear) + ' ภาคเรียนที่ ' + esc(period.semester) : '') + '</div>' +
+      '<div class="ss-meta">ครูผู้สอน ' + esc(teacherName || '—') +
+        ' • นักเรียน ' + rows.length + ' คน</div></div></div>' +
+
+    paneScores + paneReading + paneTraits + paneAll +
+  '</div>';
 }
 
-/** ส่งออกใบคะแนน SGS เป็น Excel — คอลัมน์ตรงกับใบพิมพ์ทุกช่อง ไม่เพิ่มไม่ลด
-    เพราะจุดประสงค์เดียวกันคือคีย์เข้า SGS ให้ตรงช่อง ตัวเลขส่วนเกินทำให้คีย์ผิด
-    ต่างกันแค่ตรงนี้ส่งค่าเป็นตัวเลขจริง ไม่ใช่ข้อความ จะได้คัดลอกทั้งคอลัมน์ไปวางได้ */
+/** ส่งออกใบคะแนนและผลประเมิน SGS เป็น Excel ครบ 5 ชีต */
 function exportSgsWorkbook() {
   const b = curBook(true), cls = curClass(), sub = curSubject(), period = curPeriod();
   const sts = curStudents().slice().sort((a, c) => num(a.no) - num(c.no));
@@ -9429,38 +9756,190 @@ function exportSgsWorkbook() {
   ];
   const H = v => ({ v: v, s: 1 });
   const teacherName = resolveTeacherName(b, cls.id, sub.id, period.id);
-  const head = ['เลขที่', 'เลขประจำตัว', 'ชื่อ-นามสกุล']
+
+  // ชีต 1: คะแนน SGS
+  const headScores = ['เลขที่', 'เลขประจำตัว', 'ชื่อ-นามสกุล']
     .concat(parts.map(p => p.label + ' (เต็ม ' + fmt(p.w) + ')'))
     .concat(['รวม (เต็ม 100)', 'เกรด']).map(H);
-  const body = rows.map(x => [num(x.st.no), x.st.sid, x.st.name]
+  const bodyScores = rows.map(x => [num(x.st.no), x.st.sid, x.st.name]
     .concat(parts.map(p => { const v = p.val(x.r); return isFinite(v) ? Number(Number(v).toFixed(2)) : ''; }))
     .concat([isFinite(x.r.total) ? Number(Number(x.r.total).toFixed(2)) : '', String(x.r.grade)]));
+
+  // ชีต 2: อ่านคิดวิเคราะห์ 5 ข้อ
+  const readCfg = assessmentConfig('reading');
+  const headReading = ['เลขที่', 'เลขประจำตัว', 'ชื่อ-นามสกุล',
+    'ข้อ 1 (คัดสรรสื่อ)', 'ข้อ 2 (จับประเด็น)', 'ข้อ 3 (วิเคราะห์)', 'ข้อ 4 (สรุปคุณค่า)', 'ข้อ 5 (สรุปเขียน)', 'ผลการประเมิน'].map(H);
+  const bodyReading = rows.map(x => {
+    const vals = (b.assessments.reading || {})[x.st.sid] || [];
+    const res = assessmentResult(vals, readCfg);
+    return [num(x.st.no), x.st.sid, x.st.name,
+      vals[0] != null ? vals[0] : '', vals[1] != null ? vals[1] : '', vals[2] != null ? vals[2] : '',
+      vals[3] != null ? vals[3] : '', vals[4] != null ? vals[4] : '',
+      res.level != null ? res.level : ''];
+  });
+
+  // ชีต 3: คุณลักษณะ 8 ข้อ
+  const traitCfg = assessmentConfig('traits');
+  const headTraits = ['เลขที่', 'เลขประจำตัว', 'ชื่อ-นามสกุล',
+    'ข้อ 1 (รักชาติ)', 'ข้อ 2 (ซื่อสัตย์)', 'ข้อ 3 (มีวินัย)', 'ข้อ 4 (ใฝ่เรียนรู้)',
+    'ข้อ 5 (อยู่อย่างพอเพียง)', 'ข้อ 6 (มุ่งมั่นทำงาน)', 'ข้อ 7 (รักความเป็นไทย)', 'ข้อ 8 (จิตสาธารณะ)', 'ผลการประเมิน'].map(H);
+  const bodyTraits = rows.map(x => {
+    const vals = (b.assessments.traits || {})[x.st.sid] || [];
+    const res = assessmentResult(vals, traitCfg);
+    return [num(x.st.no), x.st.sid, x.st.name,
+      vals[0] != null ? vals[0] : '', vals[1] != null ? vals[1] : '', vals[2] != null ? vals[2] : '', vals[3] != null ? vals[3] : '',
+      vals[4] != null ? vals[4] : '', vals[5] != null ? vals[5] : '', vals[6] != null ? vals[6] : '', vals[7] != null ? vals[7] : '',
+      res.level != null ? res.level : ''];
+  });
+
+  // ชีต 4: รวมทุกส่วน SGS
+  const headAll = ['เลขที่', 'เลขประจำตัว', 'ชื่อ-นามสกุล']
+    .concat(parts.map(p => p.label))
+    .concat(['รวม 100', 'เกรด', 'อ่าน 1', 'อ่าน 2', 'อ่าน 3', 'อ่าน 4', 'อ่าน 5', 'สรุปอ่าน',
+      'คุณลักษณะ 1', 'คุณลักษณะ 2', 'คุณลักษณะ 3', 'คุณลักษณะ 4', 'คุณลักษณะ 5', 'คุณลักษณะ 6', 'คุณลักษณะ 7', 'คุณลักษณะ 8', 'สรุปคุณลักษณะ']).map(H);
+  const bodyAll = rows.map(x => {
+    const rVals = (b.assessments.reading || {})[x.st.sid] || [];
+    const rRes = assessmentResult(rVals, readCfg);
+    const tVals = (b.assessments.traits || {})[x.st.sid] || [];
+    const tRes = assessmentResult(tVals, traitCfg);
+    return [num(x.st.no), x.st.sid, x.st.name]
+      .concat(parts.map(p => { const v = p.val(x.r); return isFinite(v) ? Number(Number(v).toFixed(2)) : ''; }))
+      .concat([isFinite(x.r.total) ? Number(Number(x.r.total).toFixed(2)) : '', String(x.r.grade)])
+      .concat([rVals[0] != null ? rVals[0] : '', rVals[1] != null ? rVals[1] : '', rVals[2] != null ? rVals[2] : '', rVals[3] != null ? rVals[3] : '', rVals[4] != null ? rVals[4] : '', rRes.level != null ? rRes.level : ''])
+      .concat([tVals[0] != null ? tVals[0] : '', tVals[1] != null ? tVals[1] : '', tVals[2] != null ? tVals[2] : '', tVals[3] != null ? tVals[3] : '',
+               tVals[4] != null ? tVals[4] : '', tVals[5] != null ? tVals[5] : '', tVals[6] != null ? tVals[6] : '', tVals[7] != null ? tVals[7] : '', tRes.level != null ? tRes.level : '']);
+  });
+
+  // ชีต 5: ข้อมูลรายวิชา
   const infoRows = [
-    [H('คะแนนสำหรับกรอก SGS'), ''],
+    [H('ข้อมูลรายวิชาและการส่งออก SGS'), ''],
     ['สถานศึกษา', DB.settings.schoolName || ''],
     ['ปีการศึกษา', period.academicYear], ['ภาคเรียน', period.semester],
     ['รหัสวิชา', sub.code || ''], ['รายวิชา', sub.name],
     ['ชั้น/ห้อง', cls.name], ['หน่วยกิต', b.meta.credits || ''],
     ['ครูผู้สอน', teacherName || ''],
     ['จำนวนนักเรียน', rows.length],
-    ['วันที่ส่งออก', thaiDate(todayISO())]
+    ['วันที่ส่งออก', thaiDate(todayISO())],
+    ['', ''],
+    [H('เกณฑ์การประเมินการอ่าน คิดวิเคราะห์ และเขียน (5 ข้อ)'), ''],
+    ['ข้อ 1', READING_ITEMS[0]], ['ข้อ 2', READING_ITEMS[1]], ['ข้อ 3', READING_ITEMS[2]], ['ข้อ 4', READING_ITEMS[3]], ['ข้อ 5', READING_ITEMS[4]],
+    ['', ''],
+    [H('เกณฑ์การประเมินคุณลักษณะอันพึงประสงค์ (8 ข้อ)'), ''],
+    ['ข้อ 1', TRAIT_ITEMS[0]], ['ข้อ 2', TRAIT_ITEMS[1]], ['ข้อ 3', TRAIT_ITEMS[2]], ['ข้อ 4', TRAIT_ITEMS[3]],
+    ['ข้อ 5', TRAIT_ITEMS[4]], ['ข้อ 6', TRAIT_ITEMS[5]], ['ข้อ 7', TRAIT_ITEMS[6]], ['ข้อ 8', TRAIT_ITEMS[7]]
   ];
+
   const sheets = [
-    /* ชีตคะแนนเริ่มที่แถวแรกเลย ไม่มีหัวกระดาษคั่น ครูจะได้ลากคลุมทั้งคอลัมน์ไปวางใน SGS ได้ทันที
-       ข้อมูลรายวิชาแยกไปอีกชีตเพื่อไม่ให้ไปดันแถวของตาราง */
-    { name: 'กรอก SGS', rows: [head].concat(body),
-      cols: [8, 15, 30, 17, 14, 17, 14, 15, 9], freeze: { rows: 1, cols: 3 } },
-    { name: 'ข้อมูลรายวิชา', rows: infoRows, cols: [22, 40], freeze: { rows: 0, cols: 0 } }
+    { name: 'คะแนน SGS', rows: [headScores].concat(bodyScores), cols: [8, 15, 30, 17, 14, 17, 14, 15, 9], freeze: { rows: 1, cols: 3 } },
+    { name: 'อ่านคิดวิเคราะห์ 5 ข้อ', rows: [headReading].concat(bodyReading), cols: [8, 15, 30, 16, 16, 16, 16, 16, 14], freeze: { rows: 1, cols: 3 } },
+    { name: 'คุณลักษณะ 8 ข้อ', rows: [headTraits].concat(bodyTraits), cols: [8, 15, 30, 14, 14, 14, 14, 14, 14, 14, 14, 14], freeze: { rows: 1, cols: 3 } },
+    { name: 'รวมทุกส่วน SGS', rows: [headAll].concat(bodyAll), cols: [8, 15, 30, 12, 10, 12, 10, 10, 8, 8, 8, 8, 8, 8, 10, 8, 8, 8, 8, 8, 8, 8, 8, 10], freeze: { rows: 1, cols: 3 } },
+    { name: 'ข้อมูลรายวิชา', rows: infoRows, cols: [24, 60], freeze: { rows: 0, cols: 0 } }
   ];
+
   const safe = v => String(v || '').replace(/[\\\/:*?"<>|]/g, '_');
   const fn = 'SGS_' + safe(sub.code || sub.name) + '_' + safe(cls.name) +
     '_ปี' + safe(period.academicYear) + '_ภาค' + safe(period.semester) + '.xlsx';
   try {
     download(buildXlsx(sheets), fn);
-    toast('ส่งออก ' + fn, 'ok');
+    toast('ส่งออก Excel SGS ครบทุกส่วนแล้ว (' + fn + ')', 'ok');
   } catch (e) {
     toast('ส่งออกไม่สำเร็จ: ' + (e.message || e), 'bad');
   }
+}
+
+function bindScoreSheet(pane, b, rows, sts) {
+  const cls = curClass(), sub = curSubject(), period = curPeriod();
+  const viewTitles = {
+    scores: 'คะแนนสำหรับกรอก SGS',
+    reading: 'แบบประเมินการอ่าน คิดวิเคราะห์ และเขียน สำหรับกรอก SGS',
+    traits: 'แบบประเมินคุณลักษณะอันพึงประสงค์ สำหรับกรอก SGS',
+    all: 'ตารางรวมทุกส่วนสำหรับกรอก SGS'
+  };
+
+  const setView = v => {
+    window.__curSgsView = v;
+    $$('.sgs-view-btn', pane).forEach(btn => btn.classList.toggle('active', btn.dataset.sgsTab === v));
+    $$('.sgs-view-pane', pane).forEach(p => p.hidden = p.dataset.sgsPane !== v);
+    const headTitle = $('#sgsHeadTitle', pane);
+    if (headTitle) headTitle.textContent = viewTitles[v] || 'ข้อมูลสำหรับกรอก SGS';
+    const printTitle = $('#ssPrintTitle', pane);
+    if (printTitle) printTitle.textContent = viewTitles[v] || 'ข้อมูลสำหรับกรอก SGS';
+  };
+
+  $$('.sgs-view-btn', pane).forEach(btn => btn.addEventListener('click', () => setView(btn.dataset.sgsTab)));
+
+  // เซลล์คะแนนประเมินย่อยในตาราง SGS
+  $$('.sgs-assess-cell', pane).forEach(sel => sel.addEventListener('change', () => {
+    if (blockClosedTerm()) return renderSummary();
+    const type = sel.dataset.type, sid = sel.dataset.sid, i = +sel.dataset.i;
+    b.assessments[type] = b.assessments[type] || {};
+    b.assessments[type][sid] = (b.assessments[type][sid] || []).slice();
+    b.assessments[type][sid][i] = sel.value === '' ? null : +sel.value;
+    save();
+    renderSummary();
+  }));
+
+  // ปุ่มคำนวณและจัดการการอ่าน
+  const btnAutoRead = $('#btnSgsAutoReading', pane);
+  if (btnAutoRead) btnAutoRead.addEventListener('click', () => {
+    const n = autoAssessReading(b, sts, cls.id, sub.id);
+    toast('คำนวณการอ่าน คิดวิเคราะห์ จากเกรดอัตโนมัติ ' + n + ' คนแล้ว', 'ok');
+    renderSummary();
+  });
+  const btnFillRead3 = $('#btnSgsFillReading3', pane);
+  if (btnFillRead3) btnFillRead3.addEventListener('click', () => {
+    const config = assessmentConfig('reading');
+    sts.forEach(st => {
+      const arr = b.assessments.reading[st.sid] = (b.assessments.reading[st.sid] || []).slice();
+      for (let i = 0; i < config.items.length; i++) if (!(arr[i] === 0 || arr[i] === 1 || arr[i] === 2 || arr[i] === 3)) arr[i] = 3;
+    });
+    save(true); renderSummary(); toast('เติมระดับ 3 ในช่องว่างการอ่านแล้ว', 'ok');
+  });
+  const btnClearRead = $('#btnSgsClearReading', pane);
+  if (btnClearRead) btnClearRead.addEventListener('click', async () => {
+    if (!await confirmBox('ล้างผลการอ่าน', 'ล้างข้อมูลการประเมินการอ่าน คิดวิเคราะห์ ของนักเรียนทั้งห้อง?', 'ล้าง')) return;
+    b.assessments.reading = {}; save(true); renderSummary();
+  });
+  const btnCopyReadTsv = $('#btnCopyReadingTsv', pane);
+  if (btnCopyReadTsv) btnCopyReadTsv.addEventListener('click', async () => {
+    const tsv = copyReadingTsv(b, rows);
+    if (await copyTextToClipboard(tsv)) toast('คัดลอกตารางการอ่าน (TSV) แล้ว • สามารถวางลงใน Excel ได้ทันที', 'ok');
+  });
+
+  // ปุ่มคำนวณและจัดการคุณลักษณะ
+  const btnAutoTrait = $('#btnSgsAutoTraits', pane);
+  if (btnAutoTrait) btnAutoTrait.addEventListener('click', () => {
+    const n = autoAssessTraits(b, sts, cls.id, sub.id, period.id);
+    toast('คำนวณคุณลักษณะอันพึงประสงค์ จากเวลาเรียนและส่งงานอัตโนมัติ ' + n + ' คนแล้ว', 'ok');
+    renderSummary();
+  });
+  const btnFillTrait3 = $('#btnSgsFillTraits3', pane);
+  if (btnFillTrait3) btnFillTrait3.addEventListener('click', () => {
+    const config = assessmentConfig('traits');
+    sts.forEach(st => {
+      const arr = b.assessments.traits[st.sid] = (b.assessments.traits[st.sid] || []).slice();
+      for (let i = 0; i < config.items.length; i++) if (!(arr[i] === 0 || arr[i] === 1 || arr[i] === 2 || arr[i] === 3)) arr[i] = 3;
+    });
+    save(true); renderSummary(); toast('เติมระดับ 3 ในช่องว่างคุณลักษณะแล้ว', 'ok');
+  });
+  const btnClearTrait = $('#btnSgsClearTraits', pane);
+  if (btnClearTrait) btnClearTrait.addEventListener('click', async () => {
+    if (!await confirmBox('ล้างคุณลักษณะ', 'ล้างข้อมูลการประเมินคุณลักษณะอันพึงประสงค์ ของนักเรียนทั้งห้อง?', 'ล้าง')) return;
+    b.assessments.traits = {}; save(true); renderSummary();
+  });
+  const btnCopyTraitTsv = $('#btnCopyTraitsTsv', pane);
+  if (btnCopyTraitTsv) btnCopyTraitTsv.addEventListener('click', async () => {
+    const tsv = copyTraitsTsv(b, rows);
+    if (await copyTextToClipboard(tsv)) toast('คัดลอกตารางคุณลักษณะ (TSV) แล้ว • สามารถวางลงใน Excel ได้ทันที', 'ok');
+  });
+
+  // คัดลอกตารางรวมทั้งหมด
+  const btnCopyAllTsv = $('#btnCopyAllTsv', pane);
+  if (btnCopyAllTsv) btnCopyAllTsv.addEventListener('click', async () => {
+    const tsv = copyAllSgsTsv(b, rows);
+    if (await copyTextToClipboard(tsv)) toast('คัดลอกตารางรวมทุกส่วน SGS (TSV) แล้ว • สามารถวางลงใน Excel ได้ทันที', 'ok');
+  });
 }
 
 function renderSummary() {
@@ -9626,6 +10105,7 @@ function renderSummary() {
   /* การ์ดส่งคะแนนเข้า SGS อยู่บนสุดของหน้า ครูใช้บ่อยช่วงส่งผลการเรียน ไม่ต้องเลื่อนผ่านตารางยาวลงไปหา */
   pane.insertAdjacentHTML('afterbegin', sgsExportCard());
   bindSummaryTools(pane);
+  bindScoreSheet(pane, b, rows, sts);
   $$('.s-note').forEach(inp => inp.addEventListener('change', () => {
     const sid = inp.closest('tr').dataset.sid;
     const v = inp.value.trim();
