@@ -2457,8 +2457,10 @@ function overMaxNotice(book, sts) {
   if (!bad.length) return '';
   return '<div class="notice bad" style="margin-top:8px"><b>มีคะแนนที่กรอกเกินคะแนนเต็มของช่อง</b> ' +
     'ทำให้คะแนนรวมของส่วนนั้นทะลุคะแนนเต็มไปด้วย<br>' + bad.join(' • ') +
-    '<br>ถ้าหัวข้อนั้นเก็บจริงมากกว่าคะแนนที่ให้ ให้ไปตั้ง <b>คะแนนดิบเต็ม</b> ที่แท็บ ' +
-    '<button class="sm" data-go-tab="items">หัวข้อคะแนน</button> ระบบจะหารให้เอง โดยไม่ต้องแก้คะแนนที่กรอกไว้</div>';
+    '<br><div style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+    '<button class="sm primary" id="btnFixOverMax">ปรับคะแนนที่เกินให้เท่ากับคะแนนเต็มทันที</button>' +
+    '<span style="font-size:12px;color:var(--muted)">หรือถ้าหัวข้อนั้นเก็บจริงมากกว่าคะแนนที่ให้ ให้ไปตั้ง <b>คะแนนดิบเต็ม</b> ที่แท็บ ' +
+    '<button class="sm" data-go-tab="items">หัวข้อคะแนน</button> ระบบจะหารให้เอง</span></div></div>';
 }
 
 function calcRow(book, st) {
@@ -7948,6 +7950,53 @@ function renderScores() {
   const showAll = $('[data-part-all]', pane);
   if (showAll) showAll.addEventListener('click', () => { DB.ui.scoreParts = {}; save(); renderScores(); });
 
+  const btnFixOverMax = $('#btnFixOverMax', pane);
+  if (btnFixOverMax) btnFixOverMax.addEventListener('click', async () => {
+    if (!await confirmBox('ปรับคะแนนที่เกิน', 'ต้องการปรับคะแนนที่เกินคะแนนเต็มทั้งหมดให้เท่ากับคะแนนเต็มของช่องนั้นโดยอัตโนมัติหรือไม่?', 'ปรับคะแนน')) return;
+    let fixed = 0;
+    b.items.forEach(it => {
+      const entry = itemEntryMax(it);
+      if (entry > 0) {
+        sts.forEach(st => {
+          const sid = st.sid;
+          if (b.scores[sid] && has(b.scores[sid][it.id]) && num(b.scores[sid][it.id]) > entry) {
+            b.scores[sid][it.id] = entry;
+            fixed++;
+          }
+          if (b.componentScores && b.componentScores[sid] && b.componentScores[sid][it.id]) {
+            (it.components || []).forEach(comp => {
+              const compMax = num(comp.rawMax);
+              if (compMax > 0 && has(b.componentScores[sid][it.id][comp.key]) && num(b.componentScores[sid][it.id][comp.key]) > compMax) {
+                b.componentScores[sid][it.id][comp.key] = compMax;
+                fixed++;
+              }
+            });
+            syncItemComponentTotal(b, sid, it);
+          }
+          if (b.itemRetakes && b.itemRetakes[sid] && has(b.itemRetakes[sid][it.id])) {
+            const rtMax = itemRetakeMax(it);
+            if (rtMax > 0 && num(b.itemRetakes[sid][it.id]) > rtMax) {
+              b.itemRetakes[sid][it.id] = rtMax;
+              fixed++;
+            }
+          }
+        });
+      }
+    });
+    const midMax = num(b.exams.midMax), finMax = num(b.exams.finalMax);
+    sts.forEach(st => {
+      const sid = st.sid;
+      if (b.exam[sid]) {
+        if (midMax > 0 && has(b.exam[sid].mid) && num(b.exam[sid].mid) > midMax) { b.exam[sid].mid = midMax; fixed++; }
+        if (midMax > 0 && has(b.exam[sid].retake) && num(b.exam[sid].retake) > midMax) { b.exam[sid].retake = midMax; fixed++; }
+        if (finMax > 0 && has(b.exam[sid].final) && num(b.exam[sid].final) > finMax) { b.exam[sid].final = finMax; fixed++; }
+      }
+    });
+    save(true);
+    renderScores();
+    toast('ปรับคะแนนที่เกินคะแนนเต็มแล้ว ' + fixed + ' รายการ', 'ok');
+  });
+
   const grid = $('#scGrid');
   const cellAt = (r, c) => grid.querySelector('input.cell:not(:disabled)[data-r="' + r + '"][data-c="' + c + '"]');
   const seekCell = (r, c, dr, dc) => {
@@ -7958,13 +8007,31 @@ function renderScores() {
     return null;
   };
 
+  let isPasting = false;
+  let lastScoreWarnAt = 0;
+  const warnScoreClamp = msg => {
+    const now = Date.now();
+    if (now - lastScoreWarnAt > 1400) {
+      lastScoreWarnAt = now;
+      toast(msg, 'warn');
+    }
+  };
+
   grid.addEventListener('input', e => {
     const inp = e.target;
     if (blockClosedTerm()) { inp.value = ''; return; }
     if (inp.classList.contains('ksa-raw')) {
       const tr = inp.closest('tr'), sid = tr.dataset.sid, item = b.items.find(it => it.id === inp.dataset.item);
       if (!item) return;
-      const raw = inp.value.trim().replace(/[^\d.\-]/g, ''); if (raw !== inp.value.trim()) inp.value = raw;
+      let raw = inp.value.trim().replace(/[^\d.]/g, '');
+      const parts = raw.split('.');
+      if (parts.length > 2) raw = parts[0] + '.' + parts.slice(1).join('');
+      const rawMax = num(inp.dataset.rawmax);
+      if (raw !== '' && rawMax > 0 && num(raw) > rawMax) {
+        raw = String(rawMax);
+        if (!isPasting) warnScoreClamp('คะแนนเต็มของช่องนี้คือ ' + rawMax + ' (ไม่สามารถกรอกเกินได้)');
+      }
+      if (raw !== inp.value) inp.value = raw;
       b.componentScores[sid] = b.componentScores[sid] || {}; b.componentScores[sid][item.id] = b.componentScores[sid][item.id] || {};
       if (raw === '') delete b.componentScores[sid][item.id][inp.dataset.comp]; else b.componentScores[sid][item.id][inp.dataset.comp] = num(raw);
       inp.classList.toggle('over', raw !== '' && num(raw) > num(inp.dataset.rawmax));
@@ -7974,8 +8041,15 @@ function renderScores() {
     }
     if (!inp.classList.contains('cell')) return;
     const tr = inp.closest('tr'), sid = tr.dataset.sid, key = inp.dataset.key;
-    const raw = inp.value.trim().replace(/[^\d.\-]/g, '');
-    if (raw !== inp.value.trim()) inp.value = raw;
+    let raw = inp.value.trim().replace(/[^\d.]/g, '');
+    const parts = raw.split('.');
+    if (parts.length > 2) raw = parts[0] + '.' + parts.slice(1).join('');
+    const max = num(inp.dataset.max);
+    if (raw !== '' && max > 0 && num(raw) > max) {
+      raw = String(max);
+      if (!isPasting) warnScoreClamp('คะแนนเต็มของช่องนี้คือ ' + max + ' (ไม่สามารถกรอกเกินได้)');
+    }
+    if (raw !== inp.value) inp.value = raw;
     const val = raw === '' ? '' : num(raw);
     if (key.startsWith('it:')) {
       b.scores[sid] = b.scores[sid] || {};
@@ -8075,26 +8149,50 @@ function renderScores() {
     e.preventDefault();
     const r0 = num(inp.dataset.r), c0 = num(inp.dataset.c);
     const anyCellAt = (r, c) => grid.querySelector('input.cell[data-r="' + r + '"][data-c="' + c + '"]');
-    let filled = 0, locked = 0, outside = 0;
-    block.forEach((line, i) => line.forEach((raw, j) => {
-      const cell = cellAt(r0 + i, c0 + j);
-      const value = String(raw == null ? '' : raw).trim().replace(/,/g, '');
-      if (!cell) {
-        if (value !== '') { if (anyCellAt(r0 + i, c0 + j)) locked++; else outside++; }
-        return;
-      }
-      cell.value = value;
-      cell.dispatchEvent(new Event('input', { bubbles: true }));
-      filled++;
-    }));
+    let filled = 0, locked = 0, outside = 0, clamped = 0;
+    isPasting = true;
+    try {
+      block.forEach((line, i) => line.forEach((raw, j) => {
+        const cell = cellAt(r0 + i, c0 + j);
+        let value = String(raw == null ? '' : raw).trim().replace(/,/g, '');
+        if (!cell) {
+          if (value !== '') { if (anyCellAt(r0 + i, c0 + j)) locked++; else outside++; }
+          return;
+        }
+        if (value !== '') {
+          value = value.replace(/[^\d.]/g, '');
+          const parts = value.split('.');
+          if (parts.length > 2) value = parts[0] + '.' + parts.slice(1).join('');
+          const cellMax = num(cell.dataset.rawmax || cell.dataset.max);
+          if (cellMax > 0 && num(value) > cellMax) {
+            value = String(cellMax);
+            clamped++;
+          }
+        }
+        cell.value = value;
+        cell.dispatchEvent(new Event('input', { bubbles: true }));
+        filled++;
+      }));
+    } finally {
+      isPasting = false;
+    }
     save(true);
     const landing = cellAt(Math.min(r0 + block.length - 1, sts.length - 1), c0) || inp;
     landing.focus(); landing.select();
     const skipped = [];
     if (locked) skipped.push('ช่องที่ยังกรอกไม่ได้ ' + locked + ' ค่า (เช่นช่องซ่อมของคนที่ไม่ตก)');
     if (outside) skipped.push('เลยขอบตาราง ' + outside + ' ค่า');
-    toast('วางคะแนนแล้ว ' + filled + ' ช่อง' + (skipped.length ? ' • ข้าม ' + skipped.join(' และ ') : ''),
-      skipped.length ? 'warn' : 'ok');
+    let msg = 'วางคะแนนแล้ว ' + filled + ' ช่อง';
+    if (clamped) msg += ' • ปรับค่าที่เกินเป็นคะแนนเต็ม ' + clamped + ' ช่อง';
+    if (skipped.length) msg += ' • ข้าม ' + skipped.join(' และ ');
+    toast(msg, (skipped.length || clamped) ? 'warn' : 'ok');
+  });
+  grid.addEventListener('change', e => {
+    const inp = e.target;
+    if (inp && inp.classList && inp.classList.contains('cell') && inp.value.endsWith('.')) {
+      inp.value = inp.value.slice(0, -1);
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+    }
   });
   /* ทำเครื่องหมายว่ากำลังกรอกของนักเรียนคนไหนอยู่ ให้กวาดตาตามแนวนอนได้ทั้งแถว */
   /* วัดความสูงจริงของหัวตารางแถวแรก แล้วบอก CSS ว่าจะตรึงแถวที่สองไว้ตรงไหน
@@ -8403,20 +8501,31 @@ function renderGroups() {
     const g = gs.groups.find(x => x.id === inp.dataset.g);
     const itId = inp.dataset.it;
     const it = b.items.find(x => x.id === itId);
-    const raw = inp.value.trim();
+    let raw = inp.value.trim().replace(/[^\d.]/g, '');
+    const max = itemEntryMax(it);
+    let val = raw === '' ? '' : num(raw);
+    if (val !== '' && max > 0 && val > max) {
+      val = max;
+      inp.value = String(max);
+      toast('คะแนนเต็มของหัวข้อนี้คือ ' + max + ' (ปรับเป็นคะแนนเต็มให้อัตโนมัติ)', 'warn');
+    } else if (val !== '' && val < 0) {
+      val = 0;
+      inp.value = '0';
+    } else if (raw !== inp.value) {
+      inp.value = raw;
+    }
     b.gscores[itId] = b.gscores[itId] || {};
-    if (raw === '') delete b.gscores[itId][g.id];
-    else b.gscores[itId][g.id] = num(raw);
+    if (val === '') delete b.gscores[itId][g.id];
+    else b.gscores[itId][g.id] = val;
     // ลงคะแนนให้สมาชิกทุกคน
     g.members.forEach(n => {
       const st = byNo[n]; if (!st) return;
       b.scores[st.sid] = b.scores[st.sid] || {};
-      if (raw === '') delete b.scores[st.sid][itId];
-      else b.scores[st.sid][itId] = num(raw);
+      if (val === '') delete b.scores[st.sid][itId];
+      else b.scores[st.sid][itId] = val;
     });
     save(true);
-    toast(raw === '' ? 'ล้างคะแนนกลุ่ม ' + g.name : 'ลง ' + raw + ' คะแนนให้ ' + g.name + ' ' + g.members.length + ' คน' +
-      (num(raw) > itemEntryMax(it) ? ' (เกินคะแนนเต็ม!)' : ''), num(raw) > itemEntryMax(it) ? 'bad' : 'ok');
+    toast(val === '' ? 'ล้างคะแนนกลุ่ม ' + g.name : 'ลง ' + val + ' คะแนนให้ ' + g.name + ' ' + g.members.length + ' คน', 'ok');
   }));
   $$('[data-presenter]').forEach(btn => btn.addEventListener('click', () => {
     const itId = btn.dataset.it, gId = btn.dataset.g, sid = btn.dataset.sid;
@@ -9064,9 +9173,55 @@ function sgsFillerMain() {
     ta.focus();
     box.querySelector('[data-next]').onclick = function () {
       var raw = String(ta.value || '').trim();
-      var m = raw.match(/KRUSPACE-SGS:v\d+:([\s\S]+)$/);
-      if (!m) return stepPaste('ข้อความนี้ไม่ใช่คะแนนที่คัดลอกจาก KruSpace — กดปุ่ม "คัดลอกคะแนน" ใน KruSpace ใหม่อีกครั้ง');
-      try { state.payload = JSON.parse(m[1]); } catch (e) { return stepPaste('อ่านข้อมูลไม่ได้ อาจคัดลอกมาไม่ครบ — ลองคัดลอกใหม่'); }
+      var m = raw.match(/KRUSPACE-SGS:(?:v\d+:)?([\s\S]+)$/);
+      if (m) {
+        try { state.payload = JSON.parse(m[1]); } catch (e) { return stepPaste('อ่านข้อมูลไม่ได้ อาจคัดลอกมาไม่ครบ — ลองคัดลอกใหม่'); }
+      } else if (raw.charAt(0) === '{' && raw.indexOf('"students"') >= 0) {
+        try { state.payload = JSON.parse(raw); } catch (e) { return stepPaste('อ่านข้อมูล JSON ไม่ได้ — ลองคัดลอกใหม่'); }
+      } else if (raw.indexOf('\t') >= 0 || raw.indexOf('\n') >= 0) {
+        var lines = raw.split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean);
+        if (lines.length >= 2) {
+          var header = lines[0].split('\t').map(function (h) { return h.trim(); });
+          var sidIdx = -1, nameIdx = -1, noIdx = -1, bIdx = -1, mIdx = -1, aIdx = -1, fIdx = -1, tIdx = -1;
+          header.forEach(function (h, idx) {
+            if (/^(เลขประจำตัว|รหัสนักเรียน|sid|id)$/i.test(h)) sidIdx = idx;
+            else if (/^(ชื่อ-นามสกุล|ชื่อ|name)$/i.test(h)) nameIdx = idx;
+            else if (/^(เลขที่|no)$/i.test(h)) noIdx = idx;
+            else if (/^(ก่อนกลาง|ก่อนกลางภาค|before)$/i.test(h)) bIdx = idx;
+            else if (/^(กลางภาค|กลาง|mid)$/i.test(h)) mIdx = idx;
+            else if (/^(หลังกลาง|หลังกลางภาค|after)$/i.test(h)) aIdx = idx;
+            else if (/^(ปลายภาค|ปลาย|final)$/i.test(h)) fIdx = idx;
+            else if (/^(รวม|total)$/i.test(h)) tIdx = idx;
+          });
+          if (sidIdx >= 0) {
+            var students = [];
+            for (var i = 1; i < lines.length; i++) {
+              var cols = lines[i].split('\t');
+              var sid = (cols[sidIdx] || '').trim();
+              if (!/^\d{3,}$/.test(sid)) continue;
+              var cellNum = function (cIdx) {
+                if (cIdx < 0 || cols[cIdx] == null) return null;
+                var val = String(cols[cIdx]).trim();
+                return val === '' || isNaN(Number(val)) ? null : Number(val);
+              };
+              students.push({
+                sid: sid,
+                no: noIdx >= 0 ? Number(cols[noIdx]) || i : i,
+                name: nameIdx >= 0 ? (cols[nameIdx] || '').trim() : '',
+                before: cellNum(bIdx),
+                mid: cellNum(mIdx),
+                after: cellNum(aIdx),
+                final: cellNum(fIdx),
+                total: cellNum(tIdx)
+              });
+            }
+            if (students.length > 0) {
+              state.payload = { v: 1, app: 'KruSpace', weights: {}, students: students };
+            }
+          }
+        }
+      }
+      if (!state.payload) return stepPaste('ข้อความนี้ไม่ใช่คะแนนที่คัดลอกจาก KruSpace — กดปุ่ม "คัดลอกคะแนน" ใน KruSpace ใหม่อีกครั้ง');
       state.sgs = readSgs();
       if (state.sgs.error) return stepPaste(state.sgs.error);
       stepPreview();
@@ -9084,6 +9239,7 @@ function sgsFillerMain() {
       var col = g.map[sec.key];
       if (!col) return;
       var w = Number(W[sec.key]) || 0;
+      if (!w && (!W.before && !W.mid && !W.after && !W.final)) w = col.max;
       var same = Math.abs(w - col.max) < 1e-6;
       var hasData = (p.students || []).some(function (s) { return s[sec.key] != null; });
       cols[sec.key] = { sgsMax: col.max, weight: w, same: same, gate: col.gate, hasData: hasData,
@@ -9326,7 +9482,7 @@ function sgsPayloadText() {
   const sts = curStudents().filter(st => String(st.sid || '').trim()).slice().sort((a, c) => a.no - c.no);
   const readCfg = assessmentConfig('reading'), traitCfg = assessmentConfig('traits');
   const payload = {
-    v: 2, app: 'KruSpace', at: new Date().toISOString(),
+    v: 1, app: 'KruSpace', at: new Date().toISOString(),
     subject: sub.code || '', subjectName: sub.name || '', cls: cls.name || '', period: periodLabelOf(DB.ui.periodId),
     weights: { before: num(W.before), mid: num(W.mid), after: num(W.after), final: num(W.final) },
     students: sts.map(st => {
@@ -9348,7 +9504,7 @@ function sgsPayloadText() {
       };
     })
   };
-  return { text: 'KRUSPACE-SGS:v2:' + JSON.stringify(payload), count: payload.students.length };
+  return { text: 'KRUSPACE-SGS:v1:' + JSON.stringify(payload), count: payload.students.length };
 }
 
 /* ปุ่มบนแถบบุ๊กมาร์กคือโค้ดทั้งก้อนของ sgsFillerMain ห่อเป็นลิงก์ javascript:
