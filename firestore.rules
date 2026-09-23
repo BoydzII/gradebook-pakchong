@@ -108,6 +108,19 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    /* ---------- ประกาศ/นัดประชุม ----------
+       ผู้บริหาร หัวหน้ากลุ่มสาระฯ และผู้ดูแลระบบเป็นผู้ประกาศ แก้/ยกเลิกได้เฉพาะของตัวเอง (ผู้ดูแลแก้ได้ทุกอัน)
+       ครูทุกคนอ่านได้ และแตะได้เพียงช่องรับทราบของอีเมลตัวเองเท่านั้น */
+    match /notices/{noticeId} {
+      allow read: if isStaff();
+      allow create: if isAdmin() || isExecutive() || isHead();
+      allow update, delete: if isAdmin()
+        || ((isExecutive() || isHead()) && resource.data.createdByEmail == myId());
+      allow update: if isStaff()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ack'])
+        && request.resource.data.get('ack', {}).diff(resource.data.get('ack', {})).affectedKeys().hasOnly([myId()]);
+    }
+
     /* ---------- การเช็กชื่อ (เตรียมไว้สำหรับขั้นถัดไป) ----------
        ครูเขียนได้เฉพาะคาบที่ตนเป็นผู้บันทึก ผู้บริหารและผู้ดูแลระบบอ่านได้ทั้งหมด */
     match /attendance/{recordId} {

@@ -747,6 +747,25 @@ body.gateway-open .sync-fab,body:has(#studentPortal:not([hidden])) .sync-fab{dis
 .approval-ico{width:28px;height:28px;flex:0 0 28px;display:grid;place-items:center;border-radius:9px;
   background:var(--panel);border:1px solid var(--line);font-weight:800}
 .alert-bell{position:relative;font-size:14px}
+/* ประกาศ/นัดประชุม — ต้องเด่นกว่าการ์ดอื่นในหน้าภาพรวม เพราะพลาดแล้วครูไม่ได้ไปประชุมหรือส่งงานไม่ทัน */
+.notice-card{border-left:4px solid var(--bad)}
+.notice-card.has-new{border-color:color-mix(in srgb,var(--bad) 55%,var(--line));border-left-width:6px}
+.notice-item{align-items:flex-start;gap:10px}
+.notice-item.bad{border-color:color-mix(in srgb,var(--bad) 45%,var(--line));border-left:4px solid var(--bad);background:color-mix(in srgb,var(--bad-bg) 60%,var(--panel))}
+.notice-item.done{opacity:.75}
+.notice-item.cancelled .notice-title{text-decoration:line-through}
+.notice-body{min-width:0;flex:1 1 240px;line-height:1.5}
+.notice-head{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:2px}
+.notice-kind{font-size:12px;font-weight:700;color:var(--muted)}
+.notice-count{font-size:12px;font-weight:700;padding:1px 8px;border-radius:999px;border:1px solid var(--bad);color:var(--bad)}
+.notice-count.urgent{background:var(--bad);color:var(--panel)}   /* ไม่ใช้ขาวตายตัว: โหมดมืด --bad เป็นแดงอ่อน ขาวบนแดงอ่อนอ่านไม่ออก */
+.notice-title{font-size:15.5px}
+.notice-when{color:var(--bad);font-weight:700}
+.notice-detail{white-space:pre-wrap;margin-top:2px}
+.notice-acks{margin-top:4px;font-size:13px}
+.notice-acts{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.notice-pick-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px;margin-top:8px}
+.notice-people{max-height:260px;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px;margin-top:6px;border:1px solid var(--line);border-radius:9px;padding:8px}
 @media(max-width:960px){.exchange-layout{grid-template-columns:1fr}}
 @media(max-width:900px){.executive-grid{grid-template-columns:1fr}.pie-wrap{grid-template-columns:1fr}.pie-chart{margin:auto}}
 @media(max-width:1050px){.dash-metrics{grid-template-columns:repeat(2,1fr)}.dash-columns{grid-template-columns:1fr}.quick-grid{grid-template-columns:repeat(2,1fr)}}
@@ -2021,6 +2040,7 @@ function loadDB() {
   DB.timetable.exchangeRequests = DB.timetable.exchangeRequests || [];
   DB.timetable.leaveRequests = DB.timetable.leaveRequests || [];
   DB.timetable.activities = DB.timetable.activities || [];
+  DB.timetable.notices = Array.isArray(DB.timetable.notices) ? DB.timetable.notices : [];
   // ขั้นอนุมัติ: ครูส่ง → หัวหน้ากลุ่มสาระรับรอง → ผู้บริหารอนุมัติ
   DB.timetable.leaveRequests.forEach(l => {
     l.approval = l.approval || { status: 'draft', by: '', at: '', note: '' };
@@ -2768,7 +2788,7 @@ function renderTop() {
   }
   const bell = $('#btnAlerts'), count = $('#alertCount');
   if (bell && count) {
-    const n = pendingApprovals().length;
+    const n = pendingApprovals().length + noticesAwaitingMe().length;   // ประกาศที่ยังไม่กดรับทราบก็นับด้วย
     bell.hidden = !n; count.textContent = n ? ' ' + n : '';
   }
   applyRoleVisibility();
@@ -3228,6 +3248,226 @@ function bindApprovalCard(pane) {
   $$('[data-ack-act]', pane).forEach(btn => btn.addEventListener('click', () => acknowledgeActivity(btn.dataset.ackAct)));
 }
 
+/* ---------- ประกาศ/นัดประชุมที่มีกำหนดเวลา -------------------------------
+   ผู้บริหารนัดประชุมโรงเรียน หัวหน้ากลุ่มสาระฯ นัดประชุมกลุ่มสาระ ผู้ดูแลระบบแจ้งงานที่มีเส้นตาย
+   ขึ้นบนหน้าภาพรวมของผู้รับจนพ้นวันกำหนด แล้วหายไปเอง ไม่ต้องมีใครตามลบ
+   ไม่ผูกกับปี/ภาคเรียน เพราะรหัสภาคของแต่ละเครื่องไม่ตรงกัน (เครื่องที่ยังไม่ดึงข้อมูลกลาง
+   สร้างภาคเปล่าเอง) กรองด้วยรหัสภาคแล้วครูบางคนจะไม่เห็นประกาศเลย
+   การรับทราบเก็บเป็นอีเมล ไม่ใช่รหัสครู เพราะกฎฝั่งส่วนกลางตรวจได้แค่อีเมลของคนที่ล็อกอิน */
+const NOTICE_ROLES = ['executive', 'head', 'admin'];
+const NOTICE_KINDS = { meeting: { icon: '📅', label: 'นัดประชุม' }, task: { icon: '⏰', label: 'งานมีกำหนดส่ง' } };
+const noticeAckKey = t => fbStaffId((t || {}).email || '');
+const noticeList = () => (DB.timetable.notices = Array.isArray(DB.timetable.notices) ? DB.timetable.notices : []);
+const noticeActive = n => !!n && String(n.date || '') >= todayISO();
+const noticeMine = (n, me) => !!(n && me && (n.createdBy === me.id || (n.createdByEmail && n.createdByEmail === noticeAckKey(me))));
+
+/** ครูคนนี้อยู่ในกลุ่มผู้รับของประกาศหรือไม่ */
+function noticeForTeacher(n, t) {
+  if (!n || !t || t.active === false) return false;
+  const a = n.audience || {};
+  if (a.mode === 'people') return (a.teacherIds || []).indexOf(t.id) >= 0;
+  if (a.mode === 'areas') return (a.areas || []).indexOf(teacherArea(t)) >= 0;
+  return true;
+}
+/** ผู้รับทั้งหมด ไม่นับผู้ประกาศเอง ใช้นับว่ารับทราบแล้วกี่คน */
+const noticeRecipients = n => DB.teachers.filter(t => noticeForTeacher(n, t) && !noticeMine(n, t));
+const noticeAcked = (n, t) => !!((n.ack || {})[noticeAckKey(t)]);
+
+/** ประกาศที่ยังไม่พ้นกำหนดซึ่งเราควรเห็น — ของที่เราประกาศเองก็แสดง จะได้ตามดูคนรับทราบ */
+function noticesForMe() {
+  const me = curTeacher(); if (!me) return [];
+  return noticeList().filter(n => noticeActive(n) && (noticeMine(n, me) || noticeForTeacher(n, me)))
+    .sort((a, b) => (a.date + (a.time || '99:99')).localeCompare(b.date + (b.time || '99:99')));
+}
+/** ประกาศที่ยังรอเรากดรับทราบ — นับรวมในกระดิ่งแจ้งเตือน */
+function noticesAwaitingMe() {
+  const me = curTeacher(); if (!me) return [];
+  return noticesForMe().filter(n => !n.cancelled && !noticeMine(n, me) && !noticeAcked(n, me));
+}
+
+/** ข้อความนับถอยหลังแบบที่ครูอ่านแวบเดียวรู้เรื่อง */
+function noticeCountdown(n) {
+  const days = Math.round((parseISODate(n.date) - parseISODate(todayISO())) / 86400000);
+  if (days <= 0) return { text: 'วันนี้' + (n.time ? ' ' + n.time + ' น.' : ''), urgent: true };
+  if (days === 1) return { text: 'พรุ่งนี้' + (n.time ? ' ' + n.time + ' น.' : ''), urgent: true };
+  return { text: 'อีก ' + days + ' วัน', urgent: false };
+}
+const noticeWhen = n => thaiDate(n.date) + (n.time ? ' เวลา ' + n.time + ' น.' : '');
+
+function noticeCardHtml() {
+  const me = curTeacher(); if (!me) return '';
+  const list = noticesForMe();
+  const canPost = NOTICE_ROLES.some(r => teacherHasRole(me, r));
+  if (!list.length && !canPost) return '';
+  const waiting = list.filter(n => !n.cancelled && !noticeMine(n, me) && !noticeAcked(n, me)).length;
+  const item = n => {
+    const kind = NOTICE_KINDS[n.kind] || NOTICE_KINDS.task, mine = noticeMine(n, me), acked = noticeAcked(n, me);
+    const cd = noticeCountdown(n), done = n.cancelled || (!mine && acked);
+    const recips = mine ? noticeRecipients(n) : [], ackN = recips.filter(t => noticeAcked(n, t)).length;
+    return '<div class="alert-item notice-item' + (done ? ' done' : ' bad') + (n.cancelled ? ' cancelled' : '') + '">' +
+      '<span class="approval-ico">' + kind.icon + '</span>' +
+      '<div class="notice-body"><div class="notice-head"><span class="notice-kind">' + kind.label + '</span>' +
+        (n.cancelled ? '<span class="badge">ยกเลิกแล้ว</span>' : '<span class="notice-count' + (cd.urgent ? ' urgent' : '') + '">' + esc(cd.text) + '</span>') + '</div>' +
+        '<b class="notice-title">' + esc(n.title) + '</b>' +
+        '<div class="notice-when">' + (n.kind === 'meeting' ? 'วันประชุม ' : 'ภายใน ') + esc(noticeWhen(n)) + '</div>' +
+        (n.place ? '<div>สถานที่: ' + esc(n.place) + '</div>' : '') +
+        (n.detail ? '<div class="notice-detail">' + esc(n.detail) + '</div>' : '') +
+        '<div class="hint">ประกาศโดย ' + esc(n.createdByName || teacherNameOf(n.createdBy)) + ' (' + esc(roleLabel(n.createdRole)) + ') • ถึง ' + esc(noticeAudienceText(n)) + '</div>' +
+        (mine && !n.cancelled ? '<div class="notice-acks">รับทราบแล้ว <b>' + ackN + '/' + recips.length + '</b> คน' +
+          (ackN < recips.length ? ' <button class="sm ghost" data-notice-who="' + esc(n.id) + '">ดูคนที่ยังไม่รับทราบ</button>' : '') + '</div>' : '') +
+      '</div><div class="spacer"></div><div class="notice-acts">' +
+        (mine ? (n.cancelled ? '' : '<button class="sm" data-notice-edit="' + esc(n.id) + '">แก้ไข</button><button class="sm danger" data-notice-cancel="' + esc(n.id) + '">ยกเลิกประกาศ</button>')
+          : n.cancelled ? '' : acked ? '<span class="badge ok">✓ รับทราบแล้ว</span>' : '<button class="sm primary" data-notice-ack="' + esc(n.id) + '">รับทราบ</button>') +
+      '</div></div>';
+  };
+  return '<div class="card notice-card' + (waiting ? ' has-new' : '') + '"><div class="row"><div><h3 style="margin:0">📣 ประกาศและนัดหมาย</h3>' +
+      '<div class="hint">เรื่องสำคัญที่มีวัน/เวลากำหนด จะแสดงจนพ้นวันกำหนด</div></div><div class="spacer"></div>' +
+      (waiting ? '<span class="badge bad">ยังไม่รับทราบ ' + waiting + '</span>' : '') +
+      (canPost ? '<button class="sm" data-notice-new="meeting">+ นัดประชุม</button><button class="sm" data-notice-new="task">+ แจ้งงานมีกำหนด</button>' : '') + '</div>' +
+    (list.length ? '<div class="alert-list" style="margin-top:12px">' + list.map(item).join('') + '</div>'
+      : '<div class="empty" style="margin-top:10px">ยังไม่มีประกาศ</div>') + '</div>';
+}
+
+function noticeAudienceText(n) {
+  const a = n.audience || {};
+  if (a.mode === 'areas') return 'กลุ่มสาระ' + (a.areas || []).join(', ');
+  if (a.mode === 'people') return 'ครู ' + (a.teacherIds || []).length + ' คน';
+  return 'ครูทุกคน';
+}
+
+function bindNoticeCard(pane) {
+  $$('[data-notice-new]', pane).forEach(b => b.addEventListener('click', () => openNoticeEditor(null, b.dataset.noticeNew)));
+  $$('[data-notice-edit]', pane).forEach(b => b.addEventListener('click', () => openNoticeEditor(noticeList().find(n => n.id === b.dataset.noticeEdit))));
+  $$('[data-notice-ack]', pane).forEach(b => b.addEventListener('click', () => ackNotice(b.dataset.noticeAck)));
+  $$('[data-notice-cancel]', pane).forEach(b => b.addEventListener('click', () => cancelNotice(b.dataset.noticeCancel)));
+  $$('[data-notice-who]', pane).forEach(b => b.addEventListener('click', () => showNoticePending(b.dataset.noticeWho)));
+}
+
+/** กดรับทราบ — บันทึกในเครื่องก่อนให้การ์ดเปลี่ยนทันที แล้วส่งเฉพาะช่องของเราขึ้นไป */
+function ackNotice(id) {
+  const n = noticeList().find(x => x.id === id), me = curTeacher();
+  if (!n || !me) return;
+  const key = noticeAckKey(me);
+  if (!key) { toast('บัญชีนี้ไม่มีอีเมล จึงบันทึกการรับทราบไม่ได้', 'bad'); return; }
+  n.ack = Object.assign({}, n.ack || {}); n.ack[key] = new Date().toISOString();
+  save(true);
+  if (!fbApplying) outboxSend('noticeack', n);
+  render(); toast('รับทราบแล้ว', 'ok');
+}
+
+function cancelNotice(id) {
+  const n = noticeList().find(x => x.id === id); if (!n) return;
+  if (!confirm('ยกเลิกประกาศ “' + n.title + '” ?\nครูที่เป็นผู้รับจะเห็นว่าประกาศนี้ถูกยกเลิกแล้ว')) return;
+  n.cancelled = true; n.updatedAt = new Date().toISOString();
+  saveNotice(n);
+  logAudit('notice-cancel', 'ยกเลิกประกาศ ' + n.title, { id: n.id, date: n.date });
+  render(); toast('ยกเลิกประกาศแล้ว', 'ok');
+}
+
+function showNoticePending(id) {
+  const n = noticeList().find(x => x.id === id); if (!n) return;
+  const left = noticeRecipients(n).filter(t => !noticeAcked(n, t)).sort((a, b) => String(a.name).localeCompare(String(b.name), 'th'));
+  openModal({ title: 'ยังไม่รับทราบ ' + left.length + ' คน • ' + n.title,
+    bodyHTML: left.length ? '<div class="alert-list">' + left.map(t => '<div class="alert-item"><b>' + esc(t.name || t.email || 'ครู') + '</b><div class="spacer"></div><span class="hint">' + esc(teacherArea(t) || '') + '</span></div>').join('') + '</div>'
+      : '<div class="empty">ทุกคนรับทราบแล้ว</div>' });
+}
+
+function saveNotice(n) {
+  const list = noticeList(), at = list.findIndex(x => x.id === n.id);
+  if (at >= 0) list[at] = n; else list.push(n);
+  save(true);
+  if (!fbApplying) outboxSend('notice', n);
+}
+
+/** ฟอร์มสร้าง/แก้ไขประกาศ — หัวหน้ากลุ่มสาระฯ ส่งได้เฉพาะกลุ่มสาระตัวเอง ผู้บริหารและผู้ดูแลเลือกผู้รับได้อิสระ */
+function openNoticeEditor(existing, kind) {
+  const me = curTeacher(); if (!me) return;
+  const roles = NOTICE_ROLES.filter(r => teacherHasRole(me, r));
+  if (!roles.length) { toast('เฉพาะผู้บริหาร หัวหน้ากลุ่มสาระฯ และผู้ดูแลระบบ', 'bad'); return; }
+  const n = existing ? deepCopy(existing) : { kind: kind || 'meeting', title: '', detail: '', place: '', date: todayISO(), time: '',
+    audience: { mode: 'all', areas: [], teacherIds: [] }, createdRole: roles.indexOf(DB.ui.staffMode) >= 0 ? DB.ui.staffMode : roles[0] };
+  n.audience = Object.assign({ mode: 'all', areas: [], teacherIds: [] }, n.audience || {});
+  const myArea = teacherArea(me);
+  const areas = Array.from(new Set(LEARNING_AREAS.concat(DB.teachers.map(teacherArea)).filter(Boolean)));
+  const staff = DB.teachers.filter(t => t.active !== false && t.id !== me.id).sort((a, b) => String(a.name).localeCompare(String(b.name), 'th'));
+  const body =
+    '<div class="memo-fields">' +
+      '<div class="pick"><label>ประเภท</label><select id="ntKind">' + Object.keys(NOTICE_KINDS).map(k => '<option value="' + k + '"' + (n.kind === k ? ' selected' : '') + '>' + NOTICE_KINDS[k].icon + ' ' + NOTICE_KINDS[k].label + '</option>').join('') + '</select></div>' +
+      (roles.length > 1 ? '<div class="pick"><label>ประกาศในนาม</label><select id="ntRole">' + roles.map(r => '<option value="' + r + '"' + (n.createdRole === r ? ' selected' : '') + '>' + esc(roleLabel(r)) + '</option>').join('') + '</select></div>' : '') +
+      '<div class="pick" style="grid-column:1/-1"><label id="ntTitleLabel">หัวข้อ</label><input id="ntTitle" maxlength="150" value="' + esc(n.title) + '" placeholder="เช่น ประชุมครูประจำเดือน / ลงคะแนนกลางภาคให้ครบ"></div>' +
+      '<div class="pick"><label id="ntDateLabel">วันที่</label><input id="ntDate" type="date" value="' + esc(n.date) + '"></div>' +
+      '<div class="pick"><label>เวลา (ไม่บังคับ)</label><input id="ntTime" type="time" value="' + esc(n.time || '') + '"></div>' +
+      '<div class="pick" id="ntPlaceBox" style="grid-column:1/-1"><label>สถานที่</label><input id="ntPlace" maxlength="120" value="' + esc(n.place || '') + '" placeholder="เช่น ห้องประชุม 1"></div>' +
+      '<div class="pick" style="grid-column:1/-1"><label>รายละเอียด (ไม่บังคับ)</label><textarea id="ntDetail" rows="3" maxlength="1000" style="width:100%">' + esc(n.detail || '') + '</textarea></div>' +
+    '</div>' +
+    '<h4 style="margin:14px 0 6px">ผู้รับ</h4><div id="ntAudience"></div>';
+  openModal({ title: existing ? 'แก้ไขประกาศ' : 'ประกาศใหม่', bodyHTML: body,
+    buttons: [{ label: 'ยกเลิก' }, { label: existing ? 'บันทึกการแก้ไข' : 'ประกาศ', cls: 'primary', act: (close, root) => {
+      const v = id => ($(id, root) || {}).value || '';
+      n.kind = v('#ntKind') || n.kind;
+      n.createdRole = $('#ntRole', root) ? v('#ntRole') : roles[0];
+      n.title = v('#ntTitle').trim(); n.date = v('#ntDate'); n.time = v('#ntTime');
+      n.place = n.kind === 'meeting' ? v('#ntPlace').trim() : '';
+      n.detail = v('#ntDetail').trim();
+      if (!n.title) { toast('กรุณากรอกหัวข้อ', 'bad'); return; }
+      if (!parseISODate(n.date)) { toast('กรุณาเลือกวันที่', 'bad'); return; }
+      if (n.date < todayISO()) { toast('วันที่ต้องไม่ย้อนหลัง', 'bad'); return; }
+      if (n.createdRole === 'head') {
+        if (!myArea) { toast('ยังไม่ได้กำหนดกลุ่มสาระของคุณ กรุณาให้ผู้ดูแลระบบตั้งก่อน', 'bad'); return; }
+        n.audience = { mode: 'areas', areas: [myArea], teacherIds: [] };
+      } else {
+        const mode = ($('input[name=ntMode]:checked', root) || {}).value || 'all';
+        n.audience = { mode: mode,
+          areas: mode === 'areas' ? $$('[data-nt-area]:checked', root).map(x => x.dataset.ntArea) : [],
+          teacherIds: mode === 'people' ? $$('[data-nt-person]:checked', root).map(x => x.dataset.ntPerson) : [] };
+        if (mode === 'areas' && !n.audience.areas.length) { toast('กรุณาเลือกกลุ่มสาระอย่างน้อย 1 กลุ่ม', 'bad'); return; }
+        if (mode === 'people' && !n.audience.teacherIds.length) { toast('กรุณาเลือกครูอย่างน้อย 1 คน', 'bad'); return; }
+      }
+      const now = new Date().toISOString();
+      if (!existing) Object.assign(n, { id: uid('notice'), createdBy: me.id, createdByEmail: noticeAckKey(me), createdByName: me.name || me.email || '',
+        createdAt: now, cancelled: false, ack: {} });
+      n.updatedAt = now;
+      saveNotice(n);
+      logAudit(existing ? 'notice-edit' : 'notice-create', (existing ? 'แก้ไขประกาศ ' : 'ประกาศ ') + n.title, { id: n.id, date: n.date, audience: noticeAudienceText(n) });
+      close(); render();
+      toast(existing ? 'บันทึกการแก้ไขแล้ว' : 'ประกาศแล้ว ครูผู้รับจะเห็นที่หน้าภาพรวม', 'ok');
+    } }],
+    onMount: root => {
+      const drawKind = () => {
+        const meeting = v2('#ntKind') === 'meeting';
+        $('#ntPlaceBox', root).style.display = meeting ? '' : 'none';
+        $('#ntDateLabel', root).textContent = meeting ? 'วันประชุม' : 'ต้องดำเนินการภายในวันที่';
+      };
+      const v2 = id => ($(id, root) || {}).value || '';
+      /* ผู้รับวาดใหม่ตามบทบาทที่เลือก — ค่าที่ติ๊กไว้เก็บใน n.audience เพื่อไม่ให้หายเมื่อสลับไปมา */
+      const keep = () => {
+        const m = $('input[name=ntMode]:checked', root); if (!m) return;
+        n.audience = { mode: m.value, areas: $$('[data-nt-area]:checked', root).map(x => x.dataset.ntArea),
+          teacherIds: $$('[data-nt-person]:checked', root).map(x => x.dataset.ntPerson) };
+      };
+      const drawAudience = () => {
+        const box = $('#ntAudience', root), role = $('#ntRole', root) ? v2('#ntRole') : roles[0], a = n.audience;
+        if (role === 'head') {
+          box.innerHTML = myArea ? '<div class="notice">ส่งถึงครูในกลุ่มสาระ<b>' + esc(myArea) + '</b></div>'
+            : '<div class="notice bad">ยังไม่ได้กำหนดกลุ่มสาระของคุณ กรุณาให้ผู้ดูแลระบบตั้งก่อน</div>';
+          return;
+        }
+        const radio = (val, label) => '<label class="memo-check"><input type="radio" name="ntMode" value="' + val + '"' + (a.mode === val ? ' checked' : '') + '> ' + label + '</label>';
+        box.innerHTML = '<div class="row" style="gap:16px">' + radio('all', 'ครูทุกคน') + radio('areas', 'เลือกกลุ่มสาระ') + radio('people', 'เลือกรายคน') + '</div>' +
+          (a.mode === 'areas' ? '<div class="notice-pick-grid">' + areas.map(x => '<label class="memo-check"><input type="checkbox" data-nt-area="' + esc(x) + '"' + (a.areas.indexOf(x) >= 0 ? ' checked' : '') + '> ' + esc(x) + '</label>').join('') + '</div>' : '') +
+          (a.mode === 'people' ? '<input id="ntFind" placeholder="ค้นชื่อครู" style="width:100%;margin-top:8px"><div class="notice-people">' +
+            staff.map(t => '<label class="memo-check" data-nt-name="' + esc((t.name || '') + ' ' + (t.email || '') + ' ' + teacherArea(t)) + '"><input type="checkbox" data-nt-person="' + esc(t.id) + '"' + (a.teacherIds.indexOf(t.id) >= 0 ? ' checked' : '') + '> ' + esc(t.name || t.email || 'ครู') + ' <span class="hint">' + esc(teacherArea(t)) + '</span></label>').join('') + '</div>' : '');
+        $$('input[name=ntMode]', box).forEach(r => r.addEventListener('change', () => { keep(); drawAudience(); }));
+        const find = $('#ntFind', box);
+        if (find) find.addEventListener('input', () => { const q = find.value.trim().toLowerCase();
+          $$('[data-nt-name]', box).forEach(l => { l.style.display = !q || l.dataset.ntName.toLowerCase().indexOf(q) >= 0 ? '' : 'none'; }); });
+      };
+      $('#ntKind', root).addEventListener('change', drawKind);
+      const rs = $('#ntRole', root); if (rs) rs.addEventListener('change', () => { keep(); drawAudience(); });
+      drawKind(); drawAudience();
+    } });
+}
+
 function renderDashboard() {
   const pane = $('#pane-dashboard'), period = curPeriod(), cls = curClass(), sub = curSubject(), teacher = curTeacher(), homeroom = teacher ? DB.classes.find(c => c.id === teacher.homeroomClassId) : null;
   const students = cls ? (cls.students || []).slice().sort((a, b) => num(a.no) - num(b.no)) : [];
@@ -3263,7 +3503,7 @@ function renderDashboard() {
       '<div class="metric-card" style="--metric:var(--bad)"><div class="metric-icon">⏱</div><div class="metric-value">' + missed.length + '</div><div class="metric-label">คาบค้างเช็กชื่อ</div></div>' +
       '<div class="metric-card" style="--metric:var(--ok)"><div class="metric-icon">✓</div><div class="metric-value">' + completeScores + '/' + students.length + '</div><div class="metric-label">คะแนนครบทุกส่วน</div></div>' +
       '<div class="metric-card" style="--metric:var(--group)"><div class="metric-icon">◎</div><div class="metric-value">' + fmt(average, 1) + '</div><div class="metric-label">คะแนนเฉลี่ยปัจจุบัน</div></div></div>' +
-    (schoolDataMissing() ? schoolDataCard() : '') + approvalCardHtml() +
+    (schoolDataMissing() ? schoolDataCard() : '') + noticeCardHtml() + approvalCardHtml() +
     '<div class="dash-columns"><div><div class="card"><div class="row"><h3 style="margin:0">ตารางสอนวันนี้</h3>' + (todayShift ? '<span class="badge group" title="' + esc(dayShiftText(todayShift)) + '">↷ ' + esc(todayShift.mode === 'day' ? 'ใช้ตารางวัน' + schoolDayName(todayShift.sourceDay) : 'สลับคาบ') + '</span>' : '') + '<div class="spacer"></div><button class="sm" data-go-tab="schedule">ดูตารางทั้งหมด</button></div><div class="today-list" style="margin-top:10px">' +
       (todayEntries.length ? todayEntries.map(x => { const e = x.entry, slot = DB.timetable.slots.find(s => s.id === x.slotId), subject = subjectOf(e), c = classOf(e); const current = slot && nowMin >= timeToMinutes(slot.start) && nowMin <= timeToMinutes(slot.end); const checked = !!DB.timetable.attendance[attendanceKey(e.id, today)]; return '<div class="today-card' + (current ? ' current' : '') + '"><div class="today-time"><b>' + esc(slot ? slot.label : '') + '</b>' + esc(slot ? slot.start + '-' + slot.end : '') + '</div><div><b>' + esc((subject.code ? subject.code + ' ' : '') + subject.name) + '</b><div class="hint">' + esc(c.name) + (e.room ? ' • ' + esc(e.room) : '') + '</div></div><div class="spacer"></div>' + (checked ? '<span class="badge ok">เช็กแล้ว</span>' : '<button class="sm primary" data-dash-att="' + e.id + '">เช็กชื่อ</button>') + '</div>'; }).join('') : '<div class="empty">วันนี้ไม่มีคาบสอนในตาราง</div>') + '</div></div>' +
       '<div class="card"><h3>ทางลัดงานประจำ</h3><div class="quick-grid"><button class="quick-action" data-go-tab="scores">✎<b>กรอกคะแนน</b><span>คะแนนเก็บ สอบ และซ่อม</span></button><button class="quick-action" data-go-tab="attendance">◷<b>เช็กเวลาเรียน</b><span>คาบประจำ แลกคาบ สอนแทน และชดเชย</span></button><button class="quick-action" data-go-tab="groups">◉<b>คะแนนกลุ่ม</b><span>จัดกลุ่ม ให้คะแนน และผู้นำเสนอ</span></button><button class="quick-action" data-go-tab="summary">▤<b>สรุป ปพ.5</b><span>เกรด เวลาเรียน และส่งออก</span></button>' +
@@ -3271,7 +3511,7 @@ function renderDashboard() {
       '<div><div class="card"><h3>ผู้ช่วยแนะนำงาน</h3><div class="insight-list">' + insights.map(i => '<button class="insight-item" data-go-tab="' + i.tab + '" style="text-align:left;width:100%"><span class="insight-dot" style="--insight:' + i.color + '"></span><span>' + esc(i.text) + '</span><span class="spacer"></span><span>›</span></button>').join('') + '</div></div>' +
       '<div class="card"><div class="row"><h3 style="margin:0">ความพร้อมของระบบ</h3><div class="spacer"></div><b>' + setupPct + '%</b></div><div class="setup-progress"><i style="width:' + setupPct + '%"></i></div><div class="hint tip">สถานศึกษา • ห้อง • วิชา • รายชื่อ • ตารางสอน • ปฏิทิน • หัวข้อคะแนน • ฐานข้อมูลกลาง</div><button class="sm" data-go-tab="settings" style="margin-top:9px">ตรวจสอบการตั้งค่า</button></div></div></div>' + exchangeRequestCard() + leaveHistoryCard(5, true) + '<div class="card" id="pendingBox"></div>' + (schoolDataMissing() ? '' : schoolDataCard());
 
-  bindApprovalCard(pane);
+  bindApprovalCard(pane); bindNoticeCard(pane);
   $$('[data-conduct-open]', pane).forEach(btn => btn.addEventListener('click', () => openConductModal({})));
   bindPullSchoolButton(pane);
   renderPendingCard(pane);
@@ -14683,6 +14923,10 @@ function remapTeacherIds(map) {
     if (a.ack) { const out = {}; Object.keys(a.ack).forEach(k => { out[map.get(k) || k] = a.ack[k]; }); a.ack = out; }
   });
   (DB.pendingResults || []).forEach(r => fix(r, 'teacherId'));
+  (DB.timetable.notices || []).forEach(x => {
+    fix(x, 'createdBy');
+    const a = x.audience; if (a && Array.isArray(a.teacherIds)) a.teacherIds = a.teacherIds.map(k => map.get(k) || k);
+  });
   fix(DB.ui, 'teacherId');
   return n;
 }
@@ -14793,6 +15037,23 @@ function startFirebaseSync() {
   }), quiet));
 
   /* เกณฑ์คะแนนพฤติกรรมเป็นเอกสารเดียว ทุกเครื่องฟังได้ไม่เปลือง ครูจะได้เห็นรายการและแต้มล่าสุด */
+  /* ประกาศ/นัดประชุม — ฟังเฉพาะที่กำหนดไม่เก่ากว่า 30 วัน ของเก่าไม่แสดงอยู่แล้ว ไม่ต้องโหลดมาเปลืองเน็ต
+     ที่แก้/กดรับทราบในเครื่องแต่ยังส่งไม่ขึ้น ต้องคงไว้ ไม่งั้นการ์ดเด้งกลับเป็นค่าเดิม (ดู timetableUnsent) */
+  fbUnsub.push(fbDb.collection('notices').where('date', '>=', isoDate(new Date(Date.now() - 30 * 86400000))).onSnapshot(snap => apply(() => {
+    const waiting = outboxIdsOf('notice'), acking = outboxIdsOf('noticeack'), local = noticeList(), key = noticeAckKey(curTeacher());
+    const localOf = id => local.find(y => y.id === id);
+    const central = snap.docs.map(d => Object.assign({}, fbDecodeNested(d.data()), { id: d.id }));
+    const onCentral = {}; central.forEach(x => { onCentral[x.id] = true; });
+    const merged = central.map(x => {
+      const l = localOf(x.id), out = waiting[x.id] && l ? Object.assign({}, l, { ack: x.ack || {} }) : x;
+      if (acking[x.id] && key && l && l.ack && l.ack[key]) out.ack = Object.assign({}, out.ack || {}, { [key]: l.ack[key] });
+      return out;
+    });
+    DB.timetable.notices = merged.concat(local.filter(x => waiting[x.id] && !onCentral[x.id]));
+    applyStoredTeacherIdMap();
+    save(true); render();
+  }), quiet));
+
   fbUnsub.push(fbDb.collection('affairsConfig').doc('main').onSnapshot(doc => apply(() => {
     const v = doc.exists ? fbDecodeNested((doc.data() || {}).value) : null;
     if (!v) return;
@@ -15310,7 +15571,8 @@ function fbPlain(obj) { return fbEncodeNested(JSON.parse(JSON.stringify(obj))); 
    แอปนี้เป็น PWA ที่ตั้งใจให้ใช้ตอนออฟไลน์ได้ ปัญหานี้จึงเกิดจริง
    จึงจดไว้ว่ายังมีอะไรค้างส่ง ลองใหม่เมื่อกลับมาออนไลน์ และกันไม่ให้ตัวรับข้อมูลลบทิ้ง
    ใช้แนวเดียวกับที่สมุดคะแนนใช้อยู่แล้ว (syncSigs) ซึ่งพิสูจน์แล้วว่าใช้ได้ */
-const OUTBOX_COLLECTION = { swap: 'swaps', leave: 'leaves', activity: 'activities', conduct: 'conduct', hrday: 'homeroomDaily' };
+const OUTBOX_COLLECTION = { swap: 'swaps', leave: 'leaves', activity: 'activities', conduct: 'conduct', hrday: 'homeroomDaily',
+  notice: 'notices', noticeack: 'notices' };
 const outboxBag = () => (DB.cloud.outbox = DB.cloud.outbox && typeof DB.cloud.outbox === 'object' ? DB.cloud.outbox : {});
 const outboxKey = (kind, id) => kind + ':' + id;
 const outboxCount = () => Object.keys(outboxBag()).length;
@@ -15331,7 +15593,16 @@ function outboxSend(kind, item, quiet) {
   const data = fbPlain(item);
   /* รายการพฤติกรรมฟังแบบเอาเฉพาะที่เปลี่ยนหลังเวลาล่าสุด ต้องใช้เวลาของเซิร์ฟเวอร์ ไม่ใช่นาฬิกาเครื่อง */
   if (kind === 'conduct') data.serverAt = firebase.firestore.FieldValue.serverTimestamp();
-  return fbDb.collection(OUTBOX_COLLECTION[kind]).doc(item.id).set(data)
+  const ref = fbDb.collection(OUTBOX_COLLECTION[kind]).doc(item.id);
+  /* ประกาศ: ผู้ประกาศส่งทั้งเอกสารแต่ไม่แตะช่อง ack เพราะสำเนาในเครื่องอาจยังไม่มีการรับทราบล่าสุดของครูคนอื่น
+     ส่วนการรับทราบส่งเฉพาะช่องของตัวเอง ครูหลายคนกดพร้อมกันจะได้ไม่ทับกัน */
+  let job;
+  if (kind === 'noticeack') {
+    const key = noticeAckKey(curTeacher()), at = key && (item.ack || {})[key];
+    job = at ? ref.update(new firebase.firestore.FieldPath('ack', key), at) : Promise.resolve();
+  } else if (kind === 'notice') { delete data.ack; job = ref.set(data, { merge: true }); }
+  else job = ref.set(data);
+  return job
     .then(() => { outboxClear(kind, item.id); save(); renderSyncChip(); return true; })
     .catch(e => {
       if (!quiet) toast('ยังส่งขึ้นส่วนกลางไม่ได้ • เก็บไว้ในเครื่องแล้ว จะส่งให้เองเมื่อเน็ตกลับมา', 'warn');
@@ -15345,6 +15616,7 @@ function outboxItem(kind, id) {
   if (kind === 'swap') return (DB.timetable.exchangeRequests || []).find(x => x.id === id);
   if (kind === 'conduct') return ensureAffairs().records[id];
   if (kind === 'hrday') return ensureAffairs().homeroomDaily[id];
+  if (kind === 'notice' || kind === 'noticeack') return noticeList().find(x => x.id === id);
   return (DB.timetable.activities || []).find(x => x.id === id);
 }
 
@@ -16305,7 +16577,7 @@ $('#btnClasses').addEventListener('click', manageClasses);
 $('#btnSubjects').addEventListener('click', manageSubjects);
 $('#tabsMore').addEventListener('click', e => { e.stopPropagation(); toggleMoreMenu(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTabSheet(); });
-$('#btnAlerts').addEventListener('click', () => { setTab('dashboard'); setTimeout(() => { const c = $('.alert-card'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 120); });
+$('#btnAlerts').addEventListener('click', () => { setTab('dashboard'); setTimeout(() => { const c = $('.notice-card.has-new') || $('.alert-card'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 120); });
 $('#btnStaffLogout').addEventListener('click', staffLogout);
 $('#btnSearch').addEventListener('click', openStudentSearch);
 $('#btnTheme').addEventListener('click', toggleTheme);
