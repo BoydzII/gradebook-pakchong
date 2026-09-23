@@ -153,6 +153,17 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    /* ---------- เครื่องสแกนใบหน้าประกาศลิงก์ของตัวเอง ----------
+       รูปเอกสาร { url: 'https://...', name, updatedAt }
+       ลิงก์ tunnel ของเครื่องสแกนเปลี่ยนทุกครั้งที่เปิดเครื่อง เครื่องจึงเขียนลิงก์ล่าสุดไว้ที่นี่
+       ครูทุกคนอ่านได้ (ใช้ตอนกดปุ่ม "สแกนหน้า" ในหน้าเช็กชื่อ) เขียนได้เฉพาะบัญชีเครื่องสแกน (affairs) */
+    match /scanDevices/{deviceId} {
+      allow read: if isStaff();
+      allow write: if (isAffairs() || isAdmin())
+        && request.resource.data.url is string
+        && request.resource.data.url.matches('https://.*');
+    }
+
     /* ---------- สมุดคะแนนของครูแต่ละคน ----------
        เจ้าของเท่านั้นที่เข้าถึงได้ ผู้บริหารอ่านได้เพื่อดูภาพรวม */
     match /books/{ownerId}/{document=**} {

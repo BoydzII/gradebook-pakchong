@@ -5756,7 +5756,7 @@ function renderAttendancePage() {
   const classText = e => (DB.classes.find(c => c.id === e.classId) || { name: 'ไม่พบห้อง' }).name;
   const holiday = holidayOf(date), showAnyway = DB.ui.holidayCheckDate === date;
   pane.innerHTML = '<div class="card"><div class="row"><div><h3 style="margin:0">เช็กชื่อประจำวัน <span class="sub">' + thaiDate(date) + '</span></h3><div class="hint tip">คาบประจำกดเช็กได้ทันที • คำขอแลกคาบและการลาอยู่ในเมนูเฉพาะ</div></div><div class="spacer"></div>' +
-    '<div class="pick"><label>วันที่</label><input type="date" id="checkDate" value="' + date + '"></div><button id="checkToday">วันนี้</button></div>' +
+    '<div class="pick"><label>วันที่</label><input type="date" id="checkDate" value="' + date + '"></div><button id="checkToday">วันนี้</button><button id="faceScanBtn" class="primary" title="เปิดกล้องมือถือสแกนหน้านักเรียน">สแกนหน้า</button></div>' +
     (!dayInfo ? '<div class="notice" style="margin-top:10px">วันที่เลือกเป็นวันหยุดสุดสัปดาห์ แต่ยังสามารถเพิ่มการแลกคาบ สอนแทน หรือสอนชดเชยได้</div>' : '') +
     (shift ? '<div class="notice ok" style="margin-top:10px"><b>↷ ' + esc(shift.name || 'สลับวันเรียนตามประกาศของโรงเรียน') + '</b><br>' + esc(dayShiftText(shift)) + ' — ระบบเปลี่ยนคาบที่ต้องเช็กชื่อและการนับเวลาเรียนให้แล้ว</div>' : '') +
     '</div>' +
@@ -5785,6 +5785,7 @@ function renderAttendancePage() {
   if (holidayBtn) holidayBtn.addEventListener('click', () => { DB.ui.holidayCheckDate = showAnyway ? '' : date; save(); renderAttendancePage(); });
   $('#checkDate').addEventListener('change', e => { DB.ui.attendanceDate = e.target.value || todayISO(); save(); renderAttendancePage(); });
   $('#checkToday').addEventListener('click', () => { DB.ui.attendanceDate = todayISO(); save(); renderAttendancePage(); });
+  $('#faceScanBtn').addEventListener('click', openFaceScanner);
   $$('[data-special-slot]', pane).forEach(btn => btn.addEventListener('click', () => openSpecialSession(date, btn.dataset.specialSlot)));
   $$('[data-check-session]', pane).forEach(cell => cell.addEventListener('click', ev => {
     if (ev.target.closest('[data-delete-special]')) return;
@@ -13450,6 +13451,38 @@ function ensureAffairsListeners(hrDate) {
     fbUnsub.push(() => { unsub(); affairsListen.gateDate = ''; affairsListen.gateUnsub = null; });
   }
 }
+/* ---- สแกนหน้าด้วยกล้องมือถือ (แอปเช็คชื่อด้วยใบหน้าของโรงเรียน) --------------------
+   แอปสแกนรันบนคอมพิวเตอร์ของโรงเรียนและออกอินเทอร์เน็ตผ่าน tunnel ซึ่งได้ลิงก์ใหม่ทุกครั้งที่เปิดเครื่อง
+   เครื่องสแกนจึงประกาศลิงก์ปัจจุบันไว้ที่ scanDevices/{เครื่อง} และย้ำทุก 10 นาที
+   ครูกดปุ่มเดียว: หาเครื่องที่เพิ่งประกาศ → ส่งโทเค็น Google ของครูไปหลังเครื่องหมาย # ให้แอปสแกนตรวจกับ Google เอง
+   ครูจึงไม่ต้องจำลิงก์และไม่ต้องล็อกอินแอปสแกนอีกรอบ
+   ต้องเปิดแท็บใหม่ทันทีในจังหวะที่ครูกด (ก่อน await) ไม่งั้นเบราว์เซอร์มือถือถือว่าเป็นป๊อปอัปแล้วบล็อก */
+const FACE_SCANNER_FRESH_MS = 25 * 60 * 1000;
+async function openFaceScanner() {
+  if (!firebaseReady() || !fbSignedIn()) { toast('ต้องเข้าสู่ระบบด้วยบัญชี Google ของโรงเรียนก่อน จึงจะเปิดกล้องสแกนได้', 'bad'); return; }
+  let win = null;
+  try { win = window.open('', '_blank'); if (win) win.document.write('<meta charset="utf-8"><p style="font-family:sans-serif;padding:24px">กำลังเปิดกล้องสแกนหน้า...</p>'); } catch (e) { win = null; }
+  try {
+    const snap = await fbDb.collection('scanDevices').get();
+    const now = Date.now();
+    const devices = snap.docs.map(d => d.data() || {})
+      .map(d => Object.assign(d, { at: d.updatedAt && d.updatedAt.toMillis ? d.updatedAt.toMillis() : 0 }))
+      .filter(d => /^https:\/\//.test(String(d.url || '')) && now - d.at < FACE_SCANNER_FRESH_MS)
+      .sort((a, b) => b.at - a.at);
+    if (!devices.length) throw new Error('เครื่องสแกนใบหน้าของโรงเรียนยังไม่ได้เปิด (หรือปิดไปแล้ว) — แจ้งผู้ดูแลระบบให้เปิดโปรแกรมพร้อมลิงก์มือถือ');
+    const token = await fbUser.getIdToken();
+    const url = devices[0].url + '/sso#t=' + encodeURIComponent(token);
+    if (win && !win.closed) { win.location.replace(url); return; }
+    // เบราว์เซอร์บล็อกแท็บใหม่: ให้ครูกดลิงก์เอง (การกดลิงก์ตรง ๆ ไม่โดนบล็อก)
+    openModal({ title: 'เปิดกล้องสแกนหน้า',
+      bodyHTML: '<p>กดปุ่มด้านล่างเพื่อเปิดหน้าสแกนในแท็บใหม่</p><p><a class="btn primary" style="display:inline-block;padding:12px 20px" target="_blank" rel="noopener" href="' + esc(url) + '">เปิดหน้าสแกน</a></p>',
+      buttons: [{ label: 'ปิด', act: close => close() }] });
+  } catch (e) {
+    if (win && !win.closed) win.close();
+    toast(e.message || 'เปิดหน้าสแกนไม่สำเร็จ', 'bad');
+  }
+}
+
 /** เกณฑ์และรายการพฤติกรรม ฝ่ายกิจการฯ ตั้งแล้วทุกเครื่องได้ตาม */
 function pushAffairsConfig() {
   if (!firebaseReady() || !fbSignedIn()) return Promise.resolve(false);
