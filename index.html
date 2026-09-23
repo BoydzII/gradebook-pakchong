@@ -1037,6 +1037,25 @@ body.is-offline .topbar{box-shadow:inset 0 -3px 0 var(--warn)}
 .console-tab.on{background:var(--brand);border-color:var(--brand);color:#fff}
 .console-tab.on .ct-hint{color:rgba(255,255,255,.82)}
 @media(max-width:820px){.console-tab{flex:0 0 auto;min-width:152px}}
+/* หน้าผู้บริหาร: แถบหมวด + การ์ดสรุป — ซ่อนหมวดอื่นด้วยคลาส เพราะ .executive-grid ตั้ง display:grid ไว้ ทำให้ [hidden] ไม่มีผล */
+.exec-off{display:none!important}
+.exec-nav-wrap{margin-bottom:14px}
+.exec-nav{margin-bottom:6px}
+.exec-nav-tools{display:flex;gap:6px;justify-content:flex-end}
+.exec-nav-n{margin-left:auto;min-width:20px;padding:0 6px;border-radius:999px;background:var(--bad);color:var(--panel);font-size:11.5px;text-align:center;line-height:18px}
+.console-tab.on .exec-nav-n{background:var(--panel);color:var(--bad)}
+.exec-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:10px}
+.exec-tile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;white-space:normal;padding:12px 14px;border:1px solid var(--line);border-left:4px solid var(--ok);border-radius:var(--r);background:var(--panel)}
+.exec-tile.alert{border-left-color:var(--bad);background:color-mix(in srgb,var(--bad-bg) 45%,var(--panel))}
+.exec-tile:hover{border-color:var(--brand)}
+.exec-tile-sec{font-size:12px;font-weight:700;color:var(--muted)}
+.exec-tile-v{font-size:26px;line-height:1.2}
+.exec-tile.alert .exec-tile-v{color:var(--bad)}
+.exec-tile-l{font-size:13px}
+.exec-tile-go{margin-top:4px;font-size:12px;color:var(--brand);font-weight:700}
+.exec-fold-head{cursor:pointer;user-select:none}
+/* มือถือ: เมนูหมวดเหลือแค่ชื่อ ตัวเลขสรุปเรียงสองคอลัมน์ ผู้บริหารจะเห็นครบในจอเดียว */
+@media(max-width:720px){.exec-nav .console-tab{min-width:0;padding:8px 12px}.exec-nav .ct-hint{display:none}.exec-tiles{grid-template-columns:1fr 1fr;gap:8px}.exec-tile{padding:9px 11px}.exec-tile-v{font-size:22px}.exec-tile-go{display:none}}
 .sort-group button.active{background:var(--brand);color:#fff;border-color:var(--brand)}
 /* ปุ่มซ่อน/แสดงคะแนนแต่ละส่วน — ตารางกรอกคะแนนกว้างมากเมื่อหัวข้อเยอะ
    ครูที่กำลังกรอกเฉพาะส่วนใดส่วนหนึ่งจึงพับส่วนที่ยังไม่ใช้เก็บไว้ก่อนได้ */
@@ -11719,13 +11738,112 @@ function pendingExecCard() {
       '</tbody></table></div></details>' : '') + '</div>';
 }
 
+/* ---- จัดหน้าผู้บริหารเป็นหมวด ----------------------------------------------
+   เดิมทุกการ์ดเรียงยาวต่อกันสิบกว่าใบ ผู้บริหารต้องเลื่อนหาข้อมูลที่ต้องการเอง
+   จึงแบ่งเป็นหมวดมีแถบเมนูด้านบน (แบบเดียวกับศูนย์จัดการระบบ) แสดงทีละหมวด
+   ตัวการ์ดยังสร้างด้วยโค้ดเดิมทั้งหมด แล้วค่อยติดป้ายหมวดตามหัวข้อการ์ดทีหลัง
+   การ์ดที่เพิ่มในอนาคตแล้วไม่ตรงหมวดไหน จะไปอยู่หน้าภาพรวม ไม่หายไปเฉย ๆ
+   สลับหมวดด้วยการซ่อน/แสดง ไม่วาดหน้าใหม่ จึงเร็วและค่าที่พิมพ์ค้างไว้ไม่หาย */
+const EXEC_SECTIONS = [
+  { key: 'overview', icon: '◎', label: 'ภาพรวม', hint: 'ประกาศ • เรื่องที่ต้องดู' },
+  { key: 'attendance', icon: '◷', label: 'การเข้าเรียน', hint: 'สัดส่วน • กลุ่มสาระ • รายวิชา' },
+  { key: 'students', icon: '☺', label: 'นักเรียน', hint: 'ขาดติดต่อ • ห้องไม่ครบ • รายชื่อ' },
+  { key: 'academic', icon: '▤', label: 'ผลการเรียน', hint: 'นักเรียนคงค้าง 0 ร มส' },
+  { key: 'affairs', icon: '⚑', label: 'กิจการนักเรียน', hint: 'มาสาย • คะแนนพฤติกรรม' },
+  { key: 'staff', icon: '✈', label: 'ครูและการลา', hint: 'การลา • สอนแทน • ภาระงานสอน' }];
+const EXEC_CARD_SECTION = [
+  [/ประกาศและนัดหมาย/, 'overview'],
+  [/สัดส่วนสถานะ|กลุ่มสาระการเรียนรู้|รายละเอียดรายวิชา/, 'attendance'],
+  [/นักเรียนที่ควรติดตาม|ขาดเรียนติดต่อ|ไม่ครบจำนวน|ข้อมูลนักเรียนทั้งหมด/, 'students'],
+  [/คงค้างผลการเรียน/, 'academic'],
+  [/กิจการนักเรียน/, 'affairs'],
+  [/การลาและการสอนแทน|ภาระงานสอน/, 'staff']];
+const execSection = () => EXEC_SECTIONS.some(x => x.key === DB.ui.execSection) ? DB.ui.execSection : 'overview';
+
+/** ตัวเลขสรุปของแต่ละหมวด แยก try ทีละตัว ตัวใดคำนวณพังก็ไม่ทำให้ทั้งหน้าพัง */
+function execSummaryTiles(presentRate, checked, waitingLeaves) {
+  const safe = fn => { try { return fn(); } catch (e) { return null; } };
+  const streakDays = num(DB.ui.execStreakDays) || 5;
+  const streaks = safe(() => absenceStreaks(streakDays).length);
+  const pending = safe(() => pendingResultStats().students);
+  const late = safe(() => { const a = ensureAffairs(), today = todayISO();
+    return new Set(Object.values(a.records).filter(r => r.type === 'late' && r.date === today && !r.voided).map(r => r.sid)).size; });
+  return [
+    { sec: 'attendance', value: checked ? fmt(presentRate, 1) + '%' : '—', label: 'อัตราเข้าเรียนรวม', alert: checked && presentRate < 80 },
+    { sec: 'students', value: streaks, label: 'ขาดเรียนติดต่อกัน ' + streakDays + ' วันขึ้นไป', alert: streaks > 0 },
+    { sec: 'academic', value: pending, label: 'นักเรียนคงค้างผลการเรียน', alert: pending > 0 },
+    { sec: 'affairs', value: late, label: 'มาสายวันนี้', alert: late > 0 },
+    { sec: 'staff', value: waitingLeaves, label: 'ใบลารออนุมัติ', alert: waitingLeaves > 0 }];
+}
+
+function organizeExecutivePage(pane, tiles) {
+  initCollapsibles(pane);   // ต้องมีปุ่มย่อก่อน จะได้ผูกให้กดที่หัวการ์ดแล้วย่อได้ด้วย
+  const hero = $('.dash-hero', pane); if (!hero) return;
+  // ติดป้ายหมวด — กล่องตัวเลขที่ไม่มีหัวข้อ ให้ตามการ์ดใบถัดไป
+  let waiting = [];
+  Array.from(pane.children).forEach(el => {
+    if (el === hero) return;
+    const h = el.querySelector('h3');
+    if (!h) { waiting.push(el); return; }
+    const hit = EXEC_CARD_SECTION.find(x => x[0].test(h.textContent));
+    const sec = hit ? hit[1] : 'overview';
+    waiting.concat([el]).forEach(x => { x.dataset.execSec = sec; }); waiting = [];
+  });
+  waiting.forEach(x => { x.dataset.execSec = 'overview'; });
+
+  const badge = { students: tiles[1], academic: tiles[2], staff: tiles[4] };
+  hero.insertAdjacentHTML('afterend',
+    '<div class="exec-nav-wrap"><div class="console-nav exec-nav">' + EXEC_SECTIONS.map(x => {
+      const b = badge[x.key], n = b && b.alert ? b.value : 0;
+      return '<button class="console-tab" data-exec-go="' + x.key + '"><span class="ct-top"><span class="ct-ico">' + x.icon + '</span>' + esc(x.label) +
+        (n ? '<span class="exec-nav-n">' + n + '</span>' : '') + '</span><span class="ct-hint">' + esc(x.hint) + '</span></button>';
+    }).join('') + '</div><div class="exec-nav-tools"><button class="sm ghost" data-exec-fold="1">ย่อทั้งหมด</button><button class="sm ghost" data-exec-fold="0">ขยายทั้งหมด</button></div></div>');
+
+  // การ์ดสรุปหน้าภาพรวม: ตัวเลขสำคัญของแต่ละหมวด กดแล้วไปหมวดนั้นเลย
+  const summary = '<div class="card" data-exec-sec="overview"><h3>เรื่องที่ควรดูวันนี้</h3><div class="exec-tiles">' + tiles.map(t => {
+    const meta = EXEC_SECTIONS.find(x => x.key === t.sec);
+    return '<button class="exec-tile' + (t.alert ? ' alert' : '') + '" data-exec-go="' + t.sec + '">' +
+      '<span class="exec-tile-sec">' + meta.icon + ' ' + esc(meta.label) + '</span>' +
+      '<b class="exec-tile-v">' + (t.value === null || t.value === undefined ? '—' : esc(String(t.value))) + '</b>' +
+      '<span class="exec-tile-l">' + esc(t.label) + '</span><span class="exec-tile-go">ดูรายละเอียด ›</span></button>';
+  }).join('') + '</div></div>';
+  const notice = $('.notice-card', pane);
+  (notice || $('.exec-nav-wrap', pane)).insertAdjacentHTML('afterend', summary);
+
+  const show = key => {
+    DB.ui.execSection = key;
+    $$('[data-exec-sec]', pane).forEach(el => el.classList.toggle('exec-off', el.dataset.execSec !== key));
+    $$('.exec-nav [data-exec-go]', pane).forEach(b => b.classList.toggle('on', b.dataset.execGo === key));
+  };
+  show(execSection());
+  $$('[data-exec-go]', pane).forEach(b => b.addEventListener('click', () => {
+    show(b.dataset.execGo); save();
+    const nav = $('.exec-nav-wrap', pane);
+    if (nav && nav.getBoundingClientRect().top < 0) nav.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }));
+  // หัวการ์ดทั้งแถบกดย่อ/ขยายได้ ปุ่ม ▾ เล็กเกินไปจนผู้ใช้ไม่รู้ว่าย่อได้
+  $$('.card[data-collapsible]', pane).forEach(card => {
+    const h = Array.from(card.querySelectorAll('h3')).find(x => x.closest('.card') === card), btn = h && $('.card-collapse', h);
+    if (!btn) return;
+    h.classList.add('exec-fold-head');
+    h.addEventListener('click', e => { if (e.target === h) btn.click(); });
+  });
+  $$('[data-exec-fold]', pane).forEach(b => b.addEventListener('click', () => {
+    const fold = b.dataset.execFold === '1';
+    $$('.card[data-collapsible]', pane).forEach(card => {
+      if (card.dataset.execSec !== execSection() || card.classList.contains('notice-card')) return;   // ประกาศต้องเห็นเสมอ
+      if (card.classList.contains('collapsed') !== fold) { const btn = $('.card-collapse', card); if (btn) btn.click(); }
+    });
+  }));
+}
+
 function renderExecutive() {
   ensureAffairsListeners();
   const pane = $('#pane-executive'), data = attendanceExecutiveData(), total = Object.values(data.statuses).reduce((a, b) => a + b, 0), colors = { present: '#22c55e', late: '#f59e0b', leave: '#38bdf8', activity: '#8b5cf6', absent: '#ef4444' };
   const parts = []; let at = 0; ATTENDANCE_STATUSES.forEach(s => { const n = data.statuses[s.value], deg = total ? n * 360 / total : 0; parts.push(colors[s.value] + ' ' + at + 'deg ' + (at + deg) + 'deg'); at += deg; });
   const areaNames = Object.keys(data.areas).sort((a, b) => a.localeCompare(b, 'th')), selected = areaNames.includes(DB.ui.execArea) ? DB.ui.execArea : (areaNames[0] || ''), area = data.areas[selected]; DB.ui.execArea = selected;
   const presentRate = total ? (data.statuses.present + data.statuses.late + data.statuses.leave + data.statuses.activity) * 100 / total : 0;
-  pane.innerHTML = '<div class="card dash-hero"><div class="row"><div><div class="hero-sub">EXECUTIVE OVERVIEW</div><h1>ภาพรวมการเข้าเรียนทั้งสถานศึกษา</h1><div class="hero-sub">แยกกลุ่มสาระ รายวิชา ห้องเรียน และนักเรียนเสี่ยง • ' + esc(curPeriod() ? 'ปี ' + curPeriod().academicYear + ' ภาค ' + curPeriod().semester : 'กรุณาเลือกปี/ภาค') + '</div></div><div class="spacer"></div><span class="role-chip">ผู้บริหาร</span></div></div>' +
+  pane.innerHTML = '<div class="card dash-hero"><div class="row"><div><div class="hero-sub">EXECUTIVE OVERVIEW</div><h1>ภาพรวมผู้บริหาร</h1><div class="hero-sub">เลือกหมวดจากแถบด้านล่าง • ' + esc(curPeriod() ? 'ปี ' + curPeriod().academicYear + ' ภาค ' + curPeriod().semester : 'กรุณาเลือกปี/ภาค') + '</div></div><div class="spacer"></div><span class="role-chip">ผู้บริหาร</span></div></div>' +
     '<div class="dash-metrics"><div class="metric-card" style="--metric:var(--brand)"><div class="metric-value">' + data.records.length + '</div><div class="metric-label">คาบที่บันทึกแล้ว</div></div><div class="metric-card" style="--metric:var(--ok)"><div class="metric-value">' + fmt(presentRate, 1) + '%</div><div class="metric-label">อัตราเข้าเรียนรวม</div></div><div class="metric-card" style="--metric:var(--bad)"><div class="metric-value">' + data.statuses.absent + '</div><div class="metric-label">รายการขาดเรียน</div></div><div class="metric-card" style="--metric:var(--warn)"><div class="metric-value">' + data.risks.length + '</div><div class="metric-label">นักเรียน/วิชา ต่ำกว่า 80%</div></div></div>' +
     '<div class="executive-grid"><div class="card"><h3>สัดส่วนสถานะการเข้าเรียน</h3><div class="pie-wrap"><div class="pie-chart" style="background:conic-gradient(' + (total ? parts.join(',') : '#dbe3ef 0 360deg') + ')"><span>' + total + '<small>รายการ</small></span></div><div class="pie-legend">' + ATTENDANCE_STATUSES.map(s => '<div><i style="background:' + colors[s.value] + '"></i><span>' + s.label + '</span><b>' + data.statuses[s.value] + '</b></div>').join('') + '</div></div></div>' +
     '<div class="card"><h3>กลุ่มสาระการเรียนรู้</h3><div class="area-list">' + (areaNames.length ? areaNames.map(name => { const a = data.areas[name], rate = a.checked ? (a.checked - a.statuses.absent) * 100 / a.checked : 0; return '<button class="area-button' + (name === selected ? ' active' : '') + '" data-exec-area="' + esc(name) + '"><span><b>' + esc(name) + '</b><small>' + Object.keys(a.subjects).length + ' วิชา • ' + a.checked + ' รายการ</small></span><strong>' + fmt(rate, 1) + '%</strong></button>'; }).join('') : '<div class="empty">ยังไม่มีข้อมูลเช็กชื่อในภาคเรียนนี้</div>') + '</div></div></div>' +
@@ -11744,6 +11862,7 @@ function renderExecutive() {
   wireExecStudentPanels(pane);
   renderTeachingLoad(pane);
   mountNoticeCard(pane);
+  organizeExecutivePage(pane, execSummaryTiles(presentRate, total, waitingLeaves));
 }
 
 /* ---- ภาระงานสอนรายครู -----------------------------------------------------
