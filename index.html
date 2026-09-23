@@ -3524,7 +3524,7 @@ function renderDashboard() {
   if (gradeZero) insights.push({ color: 'var(--bad)', text: 'นักเรียนได้ผลการเรียน 0 จำนวน ' + gradeZero + ' คน', tab: 'summary' });
   if (assessPending) insights.push({ color: 'var(--group)', text: 'ผลคุณลักษณะ/อ่านคิดวิเคราะห์ยังไม่ครบ ' + assessPending + ' คน', tab: 'assess' });
   if (!insights.length) insights.push({ color: 'var(--ok)', text: 'งานสำคัญครบถ้วน ไม่มีรายการเร่งด่วน', tab: 'dashboard' });
-  const subjectOf = e => DB.subjects.find(s => s.id === e.subjectId) || { code: '', name: 'ไม่พบวิชา' };
+  const subjectOf = e => entrySubject(e) || { code: '', name: 'ไม่พบวิชา' };
   const classOf = e => DB.classes.find(c => c.id === e.classId) || { name: 'ไม่พบห้อง' };
 
   pane.innerHTML = '<div class="card dash-hero"><div class="row" style="position:relative;z-index:1"><div><div class="hero-sub">' + thaiDate(today) + '</div><h1>' + greeting + ' • พร้อมจัดการชั้นเรียนแล้ว</h1><div class="hero-sub">' + esc(period ? 'ปี ' + period.academicYear + ' ภาค ' + period.semester : 'เริ่มจากเพิ่มปี/ภาคเรียน') + (cls ? ' • ' + esc(cls.name) : '') + (sub ? ' • ' + esc((sub.code ? sub.code + ' ' : '') + sub.name) : '') + (teacher ? ' • ผู้ใช้ ' + esc(teacher.name || teacher.email) : '') + (homeroom ? ' • HomeRoom ' + esc(homeroom.name) : '') + '</div></div><div class="spacer"></div><button id="dashSearch">⌕ ค้นหานักเรียน</button></div></div>' +
@@ -3534,7 +3534,7 @@ function renderDashboard() {
       '<div class="metric-card" style="--metric:var(--group)"><div class="metric-icon">◎</div><div class="metric-value">' + fmt(average, 1) + '</div><div class="metric-label">คะแนนเฉลี่ยปัจจุบัน</div></div></div>' +
     (schoolDataMissing() ? schoolDataCard() : '') + noticeCardHtml() + approvalCardHtml() +
     '<div class="dash-columns"><div><div class="card"><div class="row"><h3 style="margin:0">ตารางสอนวันนี้</h3>' + (todayShift ? '<span class="badge group" title="' + esc(dayShiftText(todayShift)) + '">↷ ' + esc(todayShift.mode === 'day' ? 'ใช้ตารางวัน' + schoolDayName(todayShift.sourceDay) : 'สลับคาบ') + '</span>' : '') + '<div class="spacer"></div><button class="sm" data-go-tab="schedule">ดูตารางทั้งหมด</button></div><div class="today-list" style="margin-top:10px">' +
-      (todayEntries.length ? todayEntries.map(x => { const e = x.entry, slot = DB.timetable.slots.find(s => s.id === x.slotId), subject = subjectOf(e), c = classOf(e); const current = slot && nowMin >= timeToMinutes(slot.start) && nowMin <= timeToMinutes(slot.end); const checked = !!DB.timetable.attendance[attendanceKey(e.id, today)]; return '<div class="today-card' + (current ? ' current' : '') + '"><div class="today-time"><b>' + esc(slot ? slot.label : '') + '</b>' + esc(slot ? slot.start + '-' + slot.end : '') + '</div><div><b>' + esc((subject.code ? subject.code + ' ' : '') + subject.name) + '</b><div class="hint">' + esc(c.name) + (e.room ? ' • ' + esc(e.room) : '') + '</div></div><div class="spacer"></div>' + (checked ? '<span class="badge ok">เช็กแล้ว</span>' : '<button class="sm primary" data-dash-att="' + e.id + '">เช็กชื่อ</button>') + '</div>'; }).join('') : '<div class="empty">วันนี้ไม่มีคาบสอนในตาราง</div>') + '</div></div>' +
+      (todayEntries.length ? todayEntries.map(x => { const e = x.entry, slot = DB.timetable.slots.find(s => s.id === x.slotId), subject = subjectOf(e), c = classOf(e); const current = slot && nowMin >= timeToMinutes(slot.start) && nowMin <= timeToMinutes(slot.end); const checked = attendanceDone(e, today); return '<div class="today-card' + (current ? ' current' : '') + '"><div class="today-time"><b>' + esc(slot ? slot.label : '') + '</b>' + esc(slot ? slot.start + '-' + slot.end : '') + '</div><div><b>' + esc((subject.code ? subject.code + ' ' : '') + subject.name) + '</b><div class="hint">' + esc(c.name) + (e.room ? ' • ' + esc(e.room) : '') + '</div></div><div class="spacer"></div>' + (checked ? '<span class="badge ok">เช็กแล้ว</span>' : '<button class="sm primary" data-dash-att="' + e.id + '">เช็กชื่อ</button>') + '</div>'; }).join('') : '<div class="empty">วันนี้ไม่มีคาบสอนในตาราง</div>') + '</div></div>' +
       '<div class="card"><h3>ทางลัดงานประจำ</h3><div class="quick-grid"><button class="quick-action" data-go-tab="scores">✎<b>กรอกคะแนน</b><span>คะแนนเก็บ สอบ และซ่อม</span></button><button class="quick-action" data-go-tab="attendance">◷<b>เช็กเวลาเรียน</b><span>คาบประจำ แลกคาบ สอนแทน และชดเชย</span></button><button class="quick-action" data-go-tab="groups">◉<b>คะแนนกลุ่ม</b><span>จัดกลุ่ม ให้คะแนน และผู้นำเสนอ</span></button><button class="quick-action" data-go-tab="summary">▤<b>สรุป ปพ.5</b><span>เกรด เวลาเรียน และส่งออก</span></button>' +
       '<button class="quick-action" data-conduct-open>⚑<b>บันทึกพฤติกรรม</b><span>ความดี • ผิดระเบียบ</span></button></div></div></div>' +
       '<div><div class="card"><h3>ผู้ช่วยแนะนำงาน</h3><div class="insight-list">' + insights.map(i => '<button class="insight-item" data-go-tab="' + i.tab + '" style="text-align:left;width:100%"><span class="insight-dot" style="--insight:' + i.color + '"></span><span>' + esc(i.text) + '</span><span class="spacer"></span><span>›</span></button>').join('') + '</div></div>' +
@@ -3893,11 +3893,94 @@ function scopedSubjects(cls) {
   return base.filter(s => cls ? scope.pairs.has(cls.id + '::' + s.id) : scope.subjectIds.has(s.id));
 }
 
+/* ---- คาบ HomeRoom อัตโนมัติของครูที่ปรึกษา -----------------------------------
+   ครูที่ปรึกษาทุกคนมีคาบเข้าแถวเช้า จ.–ศ. ของห้องตัวเองโดยไม่ต้องให้ผู้ดูแลกดสร้าง และไม่นับเป็นคาบสอน
+   (คาบนี้ไม่อยู่ใน DB.timetable.entries จึงไม่เข้าภาระงานสอน การหาครูสอนแทน หรือข้อมูลที่ส่งขึ้นส่วนกลาง)
+   ห้องที่มีครูที่ปรึกษา 2 คนใช้คาบเดียวกัน — รหัสคาบคิดจากปี/ภาค+ห้อง+วัน จึงตรงกันทุกเครื่อง
+   ถ้าผู้ดูแลเคยกดสร้างคาบไว้แล้ว ใช้คาบเดิมนั้นร่วมกันทั้งสองคน
+   ใครคนหนึ่งเช็กแล้ว อีกคนรู้ได้จาก homeroomDaily ที่ส่งขึ้นส่วนกลางตอนบันทึก (สมุดเช็กชื่อของครู
+   อีกคนอ่านไม่ได้ตามกฎ Firestore) */
+const HOMEROOM_SHARE_DAYS = 14;              // ตรงกับที่ pruneHomeroomDaily เก็บไว้ในเครื่อง
+const HOMEROOM_AUTO_SINCE = '2026-09-24';    // วันที่เริ่มใช้ ก่อนหน้านี้ไม่นับเป็นคาบค้างเช็ก ไม่งั้นครูเจอค้างย้อนหลังทั้งภาค
+const HOMEROOM_PSEUDO_SUBJECT = { id: '', code: '', name: 'HomeRoom (เข้าแถวเช้า)', gradeLevels: [] };
+/** วิชาของคาบ — คาบเข้าแถวที่ยังไม่มีวิชา HomeRoom ในระบบ ให้แสดงชื่อนี้แทน "ไม่พบวิชา" */
+const entrySubject = e => DB.subjects.find(x => x.id === (e || {}).subjectId) || (e && String(e.slotId) === 'assembly' ? HOMEROOM_PSEUDO_SUBJECT : undefined);
+
+function homeroomEntriesFor(teacher, list) {
+  const cid = teacher && teacher.homeroomClassId, pid = DB.ui.periodId;
+  if (!cid || !pid || !DB.classes.some(c => c.id === cid)) return [];
+  if (!DB.timetable.slots.some(x => String(x.id) === 'assembly')) return [];   // โรงเรียนที่ไม่มีช่องเข้าแถวเช้า
+  const stored = list.filter(e => String(e.slotId) === 'assembly' && e.classId === cid);
+  const sub = homeroomSubject(false), out = stored.slice();
+  SCHOOL_DAYS.forEach(d => {
+    if (stored.some(e => num(e.day) === d.value)) return;
+    out.push({ id: 'hr_' + pid + '_' + cid + '_' + d.value, periodId: pid, teacherId: teacher.id, day: d.value, slotId: 'assembly',
+      subjectId: sub ? sub.id : '', classId: cid, room: typeof HOMEROOM_PLACE === 'string' ? HOMEROOM_PLACE : '', autoHomeroom: true });
+  });
+  return out;
+}
+
+/** ครูที่ปรึกษาอีกคนเช็กแถวเช้าของห้องนี้ในวันนั้นแล้วหรือยัง (คืนสรุปที่เขาส่งขึ้นมา) */
+function homeroomSharedCheck(entry, date) {
+  if (!entry || String(entry.slotId) !== 'assembly') return null;
+  const d = ensureAffairs().homeroomDaily[date + '_' + conductSidKey(entry.classId)];
+  return d && d.date === date ? d : null;
+}
+/** คาบเข้าแถวที่ไม่ต้องขึ้นเป็นคาบค้างเช็ก — อีกคนเช็กแล้ว หรือเก่ากว่าที่ตรวจได้ว่าอีกคนเช็กหรือยัง
+    เจ้าของคาบเดิมที่ผู้ดูแลกดสร้างให้ ยังนับค้างย้อนหลังเหมือนเดิม */
+function homeroomNotDue(entry, date) {
+  if (!entry || String(entry.slotId) !== 'assembly') return false;
+  if (homeroomSharedCheck(entry, date)) return true;
+  const me = curTeacher();
+  if (!entry.autoHomeroom && me && entry.teacherId === me.id) return false;
+  const since = isoDate(new Date(Date.now() - (HOMEROOM_SHARE_DAYS - 1) * 86400000));
+  return date < HOMEROOM_AUTO_SINCE || date < since;
+}
+const attendanceDone = (entry, date) => !!DB.timetable.attendance[attendanceKey(entry.id, date)] || !!homeroomSharedCheck(entry, date);
+function homeroomSharedStatuses(d, students) {
+  const st = {}; students.forEach(x => { st[x.sid] = 'present'; });
+  ['late', 'absent', 'leave'].forEach(k => (d[k] || []).forEach(sid => { if (sid in st) st[sid] = k; }));
+  return { statuses: st, entryId: '', sharedFrom: d };
+}
+function homeroomSharedNotice(d) {
+  return '<div class="notice ok" style="margin-bottom:10px"><b>' + esc(d.teacherName || 'ครูที่ปรึกษาอีกท่าน') + '</b> เช็กแถวเช้าห้องนี้แล้ว' +
+    (d.checkedAt ? ' เมื่อ ' + esc(new Date(d.checkedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })) + ' น.' : '') +
+    ' • แสดงผลตามที่เช็กไว้ ถ้าต้องแก้ ให้แก้แล้วกดบันทึก</div>';
+}
+
+/** ฟังสรุปแถวเช้าของห้องที่ปรึกษาย้อนหลัง 14 วัน — ใช้ชื่อเอกสารตรง ๆ อ่านไม่เกิน 14 เอกสาร
+    ไม่ฟังทั้งคอลเลกชัน เพราะครูที่ปรึกษาหลายสิบคนเปิดแอปทุกวันจะกินโควตาอ่านฟรี */
+let homeroomShareKey = '', homeroomShareUnsub = [];
+function ensureHomeroomShareListener() {
+  if (!firebaseReady() || !fbSignedIn() || !fbUnsub.length) return;
+  const me = curTeacher(), cid = me && me.homeroomClassId, today = todayISO(), key = cid ? cid + '@' + today : '';
+  if (key === homeroomShareKey) return;
+  homeroomShareUnsub.forEach(f => f()); homeroomShareUnsub = []; homeroomShareKey = key;
+  if (!cid) return;
+  const ids = [];
+  for (let i = 0; i < HOMEROOM_SHARE_DAYS; i++) ids.push(isoDate(new Date(Date.now() - i * 86400000)) + '_' + conductSidKey(cid));
+  const a = ensureAffairs(), docId = firebase.firestore.FieldPath.documentId();
+  for (let i = 0; i < ids.length; i += 10) {   // เงื่อนไข in รับได้ครั้งละ 10 รายการ
+    homeroomShareUnsub.push(fbDb.collection('homeroomDaily').where(docId, 'in', ids.slice(i, i + 10)).onSnapshot(snap => {
+      fbApplying = true;
+      try {
+        const waiting = outboxIdsOf('hrday'); let n = 0;
+        snap.docs.forEach(d => { if (waiting[d.id]) return; a.homeroomDaily[d.id] = Object.assign(fbDecodeNested(d.data() || {}), { id: d.id }); n++; });
+        if (n) { save(true); if (['dashboard', 'attendance', 'schedule'].includes(DB.ui.tab)) render(); }
+      } finally { fbApplying = false; }
+    }, () => {}));
+  }
+  fbUnsub.push(() => { homeroomShareUnsub.forEach(f => f()); homeroomShareUnsub = []; homeroomShareKey = ''; });
+}
+
 function scheduleEntries(allTeachers) {
   const list = DB.timetable.entries.filter(e => e.periodId === DB.ui.periodId);
   if (allTeachers) return list;
   const teacher = curTeacher();
-  return teacher ? list.filter(e => e.teacherId === teacher.id) : list;
+  if (!teacher) return list;
+  // คาบเข้าแถวของห้องที่ปรึกษามาจาก homeroomEntriesFor ทั้งหมด (รวมคาบที่ผู้ดูแลสร้างไว้) จะได้ไม่ซ้ำกัน
+  const isMyHr = e => String(e.slotId) === 'assembly' && !!teacher.homeroomClassId && e.classId === teacher.homeroomClassId;
+  return list.filter(e => e.teacherId === teacher.id && !isMyHr(e)).concat(homeroomEntriesFor(teacher, list));
 }
 
 function scheduledDates(entry, untilISO) {
@@ -4030,7 +4113,7 @@ function missedAttendanceItems() {
   const out = [];
   scheduleEntries().forEach(entry => scheduledDates(entry, until).forEach(date => {
     const key = attendanceKey(entry.id, date);
-    if (!hiddenRegularEntryIds(date).has(entry.id) && sessionIsDue(date, entry) && !DB.timetable.attendance[key]) out.push({ entry: entry, date: date });
+    if (!hiddenRegularEntryIds(date).has(entry.id) && sessionIsDue(date, entry) && !DB.timetable.attendance[key] && !homeroomNotDue(entry, date)) out.push({ entry: entry, date: date });
   }));
   const teacherId = (curTeacher() || {}).id || '';
   (DB.timetable.exceptions || []).filter(e => e.periodId === DB.ui.periodId && e.teacherId === teacherId && e.date && e.date <= until).forEach(entry => {
@@ -4045,7 +4128,7 @@ function attendanceStatusOptions(value) {
 }
 
 function editScheduleEntry(day, slotId, entry) {
-  const subject = entry ? DB.subjects.find(s => s.id === entry.subjectId) : null;
+  const subject = entry ? entrySubject(entry) : null;
   const cls = entry ? DB.classes.find(c => c.id === entry.classId) : (curClass() || null);
   const slot = DB.timetable.slots.find(s => s.id === String(slotId));
   const dayLabel = (SCHOOL_DAYS.find(d => d.value === num(day)) || {}).label || '';
@@ -4175,14 +4258,14 @@ function inheritNoticeHtml(inherited, students) {
 
 function openAttendance(entry, date, singleMode, slotOverride) {
   if (blockClosedTerm()) return;
-  const subject = DB.subjects.find(s => s.id === entry.subjectId), cls = DB.classes.find(c => c.id === entry.classId);
+  const subject = entrySubject(entry), cls = DB.classes.find(c => c.id === entry.classId);
   // คาบที่ถูกยกมาจากวันอื่นจะเรียนในช่องเวลาของวันนี้ ไม่ใช่เวลาเดิมของวันต้นทาง
   const slotIdFor = e => (slotOverride && e.id === entry.id) ? String(slotOverride) : String(e.slotId);
   const slot = DB.timetable.slots.find(s => s.id === slotIdFor(entry));
   if (!cls) return toast('ไม่พบชั้นเรียนของคาบนี้', 'bad');
   const groupedEntries = singleMode ? [entry] : adjacentAttendanceEntries(entry);
   const students = (cls.students || []).slice().sort((a, b) => num(a.no) - num(b.no));
-  const key = attendanceKey(entry.id, date), old = DB.timetable.attendance[key], inherited = old ? null : previousAttendanceSnapshot(entry, date), statusSource = old || inherited;
+  const key = attendanceKey(entry.id, date), old = DB.timetable.attendance[key], shared = old ? null : homeroomSharedCheck(entry, date), inherited = old ? null : shared ? homeroomSharedStatuses(shared, students) : previousAttendanceSnapshot(entry, date), statusSource = old || inherited;
   openModal({
     title: 'เช็กชื่อ' + (groupedEntries.length > 1 ? 'พร้อมกัน ' + groupedEntries.length + ' คาบ' : '') + ' • ' + (subject ? (subject.code ? subject.code + ' ' : '') + subject.name : 'วิชา') + ' • ' + cls.name,
     wide: true, full: true, buttonsTop: true,
@@ -4192,7 +4275,7 @@ function openAttendance(entry, date, singleMode, slotOverride) {
       (function () { const names = students.filter(st => activityFor(st.sid, date, slotIdFor(entry)));
         return names.length ? '<div class="notice" style="margin-bottom:10px"><b>มีนักเรียน ' + names.length +
           ' คนได้รับอนุญาตให้ทำกิจกรรมในคาบนี้</b> ระบบตั้งสถานะ “กิจกรรม” ให้แล้ว ตรวจสอบและกดบันทึกได้เลย</div>' : ''; })() +
-      (inherited ? inheritNoticeHtml(inherited, students) : '') +
+      (inherited ? (inherited.sharedFrom ? homeroomSharedNotice(inherited.sharedFrom) : inheritNoticeHtml(inherited, students)) : '') +
       (groupedEntries.length > 1 ? '<div class="notice" style="margin-bottom:10px">คาบวิชา/ห้องเดียวกันที่ติดกันจะบันทึกพร้อมกัน หากสถานะบางคาบต่างกัน ให้เลือกแก้รายคาบ: ' + groupedEntries.map(e => { const sl = DB.timetable.slots.find(s => s.id === String(e.slotId)); return '<button class="sm" data-single-att="' + e.id + '">' + esc(sl ? sl.label : e.slotId) + '</button>'; }).join(' ') + '</div>' : '') +
       '<div class="att-summary" id="attSummary"></div>' +
       (students.length ? '<div class="tablewrap tall"><table class="att-grid"><thead><tr><th class="c-no">เลขที่</th><th>ชื่อ-นามสกุล</th>' +
@@ -4295,7 +4378,7 @@ function openAttendance(entry, date, singleMode, slotOverride) {
 }
 
 function openAttendanceSummary(entry) {
-  const subject = DB.subjects.find(s => s.id === entry.subjectId), cls = DB.classes.find(c => c.id === entry.classId);
+  const subject = entrySubject(entry), cls = DB.classes.find(c => c.id === entry.classId);
   if (!cls) return;
   const term = currentTerm(true), records = Object.values(DB.timetable.attendance).filter(r => r.entryId === entry.id);
   const students = (cls.students || []).slice().sort((a, b) => num(a.no) - num(b.no));
@@ -4398,7 +4481,7 @@ function renderSchedule() {
   currentTerm(true);
   const viewTeacher = scheduleViewTeacher();
   const entries = scheduleViewEntries(), term = currentTerm(true), selectedDate = todayISO();
-  const subjectText = e => { const s = DB.subjects.find(x => x.id === e.subjectId); return s ? s : { code: '', name: 'ไม่พบวิชา' }; };
+  const subjectText = e => { const s = entrySubject(e); return s ? s : { code: '', name: 'ไม่พบวิชา' }; };
   const classText = e => { const c = DB.classes.find(x => x.id === e.classId); return c ? c.name : 'ไม่พบห้อง'; };
   const scheduleReadOnly = (DB.ui.staffMode || 'teacher') !== 'admin';
   pane.innerHTML = (scheduleReadOnly ? '<div class="notice" style="margin-bottom:12px">ตารางสอนของทั้งโรงเรียนดูแลโดย<b>ผู้ดูแลระบบ</b> การแก้ไขที่หน้านี้จะมีผลเฉพาะเครื่องนี้ และจะถูกเขียนทับเมื่อส่วนกลางอัปเดต<br><span class="hint">ถ้าตารางไม่ตรง แจ้งผู้ดูแลระบบให้แก้แล้วส่งขึ้นส่วนกลางอีกครั้ง</span></div>' : '') +
@@ -4933,7 +5016,7 @@ function candidateGroups(list) {
 }
 
 function sourceEntryText(entry, date) {
-  const subject = DB.subjects.find(s => s.id === entry.subjectId), cls = DB.classes.find(c => c.id === entry.classId), slot = DB.timetable.slots.find(s => s.id === String(entry.slotId));
+  const subject = entrySubject(entry), cls = DB.classes.find(c => c.id === entry.classId), slot = DB.timetable.slots.find(s => s.id === String(entry.slotId));
   return thaiDate(date) + ' • ' + (slot ? slot.label : '') + ' • ' + (cls ? cls.name : 'ไม่พบห้อง') + ' • ' + (subject ? (subject.code ? subject.code + ' ' : '') + subject.name : 'ไม่พบวิชา');
 }
 function createCoverageRequest(source, sourceDate, candidate, reason, reasonOther, note, leaveRequestId) {
@@ -5910,7 +5993,7 @@ const thaiMonthLabel = iso => {
   return d ? d.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }) : '—';
 };
 const missClassName = e => (DB.classes.find(c => c.id === e.classId) || { name: 'ไม่พบห้อง' }).name;
-const missSubject = e => DB.subjects.find(s => s.id === e.subjectId) || { code: '', name: 'ไม่พบวิชา' };
+const missSubject = e => entrySubject(e) || { code: '', name: 'ไม่พบวิชา' };
 const missSubjectName = e => { const s = missSubject(e); return (s.code ? s.code + ' ' : '') + s.name; };
 
 /** ตัวเลือกของช่องกรอง สร้างจากรายการที่ค้างจริง พร้อมยอดในวงเล็บ
@@ -6021,7 +6104,7 @@ function renderAttendancePage() {
     : 'ยกมาจาก' + slotLabelOf(x.from.slotId) + ' วัน' + schoolDayName(x.from.day);
   const specials = (DB.timetable.exceptions || []).filter(e => e.periodId === DB.ui.periodId && e.date === date && (!teacherId || e.teacherId === teacherId));
   const missed = missedAttendanceItems(), badge = $('#missedBadge'); if (badge) badge.innerHTML = missed.length ? '<span class="badge bad">' + missed.length + '</span>' : '';
-  const subjectText = e => DB.subjects.find(s => s.id === e.subjectId) || { code: '', name: 'ไม่พบวิชา' };
+  const subjectText = e => entrySubject(e) || { code: '', name: 'ไม่พบวิชา' };
   const classText = e => (DB.classes.find(c => c.id === e.classId) || { name: 'ไม่พบห้อง' }).name;
   const holiday = holidayOf(date), showAnyway = DB.ui.holidayCheckDate === date;
   pane.innerHTML = '<div class="card"><div class="row"><div><h3 style="margin:0">เช็กชื่อประจำวัน <span class="sub">' + thaiDate(date) + '</span></h3><div class="hint tip">คาบประจำกดเช็กได้ทันที • คำขอแลกคาบและการลาอยู่ในเมนูเฉพาะ</div></div><div class="spacer"></div>' +
@@ -6037,7 +6120,7 @@ function renderAttendancePage() {
       DB.timetable.slots.map(slot => {
         const special = specials.find(e => String(e.slotId) === slot.id), owner = slotOwner[slot.id], own = owner ? owner.entry : null, e = special || own;
         if (!e) return '<td><button class="tt-cell empty" data-special-slot="' + slot.id + '">+ คาบพิเศษ<br><span class="hint">สอนแทน • ชดเชย</span></button></td>';
-        const s = subjectText(e), checked = !!DB.timetable.attendance[attendanceKey(e.id, date)], typeLabel = sessionTypeLabel(e.sessionType);
+        const s = subjectText(e), checked = attendanceDone(e, date), typeLabel = sessionTypeLabel(e.sessionType);
         // คาบที่ยังไม่เช็ก แต่มีผลจากคาบก่อนหน้าของห้องนี้รออยู่ ครูคนต่อไปจะได้รู้ว่าไม่ได้เริ่มจากศูนย์
         const waiting = checked ? null : previousAttendanceSnapshot(e, date);
         return '<td><div class="tt-cell filled ' + esc(e.sessionType || '') + '" data-check-session="' + e.id + '">' + (special ? '<button class="tt-edit" data-delete-special="' + e.id + '" title="ลบกรณีพิเศษ">×</button>' : '') +
@@ -13011,8 +13094,8 @@ function adminSectionCalendar(box) {
       'สร้างคาบเข้าแถวเช้า จันทร์–ศุกร์ ให้ <b>' + info.plan.length + '</b> ห้องที่มีครูที่ปรึกษา ' +
       '(ห้องละ 5 คาบ รวม <b>' + (info.plan.length * 5) + '</b> คาบ)<br>' +
       '<span class="hint">ห้องที่มีคาบเข้าแถวอยู่แล้วจะข้าม ไม่สร้างซ้ำ • คาบนี้ไม่นับเป็นคาบสอน</span>' +
-      (info.extra.length ? '<div class="notice" style="margin-top:10px">มีห้องที่ครูที่ปรึกษา 2 คน ระบบสร้างให้คนแรกคนเดียว ' +
-        'อีก <b>' + info.extra.length + '</b> คนไม่ได้รับคาบนี้ ถ้าต้องการสลับกันเช็ก ให้แก้เจ้าของคาบเองที่หน้าตารางสอน</div>' : ''),
+      '<div class="notice" style="margin-top:10px">ไม่กดสร้างก็ได้ — ครูที่ปรึกษาทุกคนเห็นคาบเข้าแถวของห้องตัวเองอัตโนมัติอยู่แล้ว ' +
+        'ห้องที่มีครูที่ปรึกษา 2 คนใช้คาบเดียวกัน ใครเช็กก่อนก็ได้ ปุ่มนี้ใช้เมื่อต้องการให้คาบแสดงในตารางสอนรวมของโรงเรียน</div>',
       'สร้าง');
     if (!ok) return;
     const res = buildHomeroomEntries();
@@ -13390,7 +13473,7 @@ function activityImpact(act) {
   const rows = [];
   (act.students || []).forEach(st => {
     lessonsForStudent(st, act.date, act.slotIds).forEach(e => {
-      const teacher = DB.teachers.find(t => t.id === e.teacherId), subject = DB.subjects.find(s => s.id === e.subjectId);
+      const teacher = DB.teachers.find(t => t.id === e.teacherId), subject = entrySubject(e);
       const slot = DB.timetable.slots.find(s => String(s.id) === String(e.slotId));
       let row = rows.find(r => r.entryId === e.id);
       if (!row) { row = { entryId: e.id, slot: slot ? slot.label : String(e.slotId),
@@ -13762,6 +13845,7 @@ function pruneHomeroomDaily() {
 let affairsListen = { conduct: false, hrDate: '', hrUnsub: null, gateDate: '', gateUnsub: null };
 function ensureAffairsListeners(hrDate) {
   if (!firebaseReady() || !fbSignedIn() || !fbUnsub.length) return;
+  ensureHomeroomShareListener();
   const apply = fn => { fbApplying = true; try { fn(); } finally { fbApplying = false; } };
   const quiet = () => {};
   const a = ensureAffairs();
