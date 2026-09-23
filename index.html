@@ -3468,6 +3468,16 @@ function openNoticeEditor(existing, kind) {
     } });
 }
 
+/** วางการ์ดประกาศใต้หัวการ์ดของหน้าบทบาท — ผู้บริหาร/หัวหน้ากลุ่มสาระ/ผู้ดูแล สลับโหมดแล้วไปลงหน้าของบทบาทนั้นทันที
+    ไม่ได้ผ่านหน้าภาพรวม ถ้ามีปุ่มแค่หน้าภาพรวมจะหาไม่เจอ (ผู้ใช้แจ้งมาแล้ว) */
+function mountNoticeCard(pane) {
+  const html = pane ? noticeCardHtml() : '';
+  if (!html) return;
+  const hero = $('.dash-hero', pane);
+  if (hero) hero.insertAdjacentHTML('afterend', html); else pane.insertAdjacentHTML('afterbegin', html);
+  bindNoticeCard(pane);
+}
+
 function renderDashboard() {
   const pane = $('#pane-dashboard'), period = curPeriod(), cls = curClass(), sub = curSubject(), teacher = curTeacher(), homeroom = teacher ? DB.classes.find(c => c.id === teacher.homeroomClassId) : null;
   const students = cls ? (cls.students || []).slice().sort((a, b) => num(a.no) - num(b.no)) : [];
@@ -10935,6 +10945,7 @@ function renderHeadArea() {
   $$('[data-head-doc]', pane).forEach(b => b.addEventListener('click', () => openLeaveDocument(b.dataset.headDoc)));
   $$('[data-head-endorse]', pane).forEach(b => b.addEventListener('click', () => decideLeave(b.dataset.headEndorse, 'approve', 'head')));
   $$('[data-head-reject]', pane).forEach(b => b.addEventListener('click', () => decideLeave(b.dataset.headReject, 'reject', 'head')));
+  mountNoticeCard(pane);
 }
 
 /** คาบที่รอหัวหน้ากลุ่มสาระจัดครูสอนแทน */
@@ -11732,6 +11743,7 @@ function renderExecutive() {
   $$('[data-exec-area]', pane).forEach(btn => btn.addEventListener('click', () => { DB.ui.execArea = btn.dataset.execArea; save(); renderExecutive(); }));
   wireExecStudentPanels(pane);
   renderTeachingLoad(pane);
+  mountNoticeCard(pane);
 }
 
 /* ---- ภาระงานสอนรายครู -----------------------------------------------------
@@ -12628,6 +12640,7 @@ function renderAdmin() {
   else if (section === 'documents') adminSectionDocuments(body);
   else if (section === 'system') adminSectionSystem(body);
   else adminSectionPeople(body);
+  mountNoticeCard(pane);
   initCollapsibles(pane);
 }
 
