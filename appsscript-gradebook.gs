@@ -26,7 +26,7 @@ var SHEET_LOG = 'log';
 var TOKEN_HOURS = 12;                 // อายุการเข้าใช้ต่อครั้ง
 var STAFF_COLS = ['email', 'name', 'roles', 'learningArea', 'phone', 'homeroom', 'active', 'lastLogin'];
 var STAFF_HEAD = ['อีเมล', 'ชื่อ-นามสกุล', 'บทบาท', 'กลุ่มสาระ/กลุ่มงาน', 'เบอร์โทร', 'ห้องที่ปรึกษา', 'ใช้งาน', 'เข้าใช้ล่าสุด'];
-var VALID_ROLES = ['teacher', 'head', 'executive', 'admin'];
+var VALID_ROLES = ['teacher', 'head', 'executive', 'affairs', 'admin'];
 
 /* ---------- ตัวช่วยพื้นฐาน ---------------------------------------------- */
 function props_() { return PropertiesService.getScriptProperties(); }

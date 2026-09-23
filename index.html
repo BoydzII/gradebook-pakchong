@@ -1310,6 +1310,13 @@ body.pro-mode #btnProMode{opacity:.45}
 }
 @page scheduleSheet{size:A4 landscape;margin:7mm}
 @page coverSheet{size:A4 portrait;margin:7mm}
+/* กิจการนักเรียน */
+.conduct-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:2px 10px;max-height:46vh;overflow:auto;margin-top:10px;padding:8px;border:1px solid var(--line);border-radius:10px}
+.conduct-pick{display:flex;gap:6px;align-items:center;padding:4px 2px;cursor:pointer}
+tr.conduct-void td{opacity:.55}tr.conduct-void td b{text-decoration:line-through}
+.conduct-score{font-size:13px;min-width:44px;text-align:center}
+.gate-result{font-size:16px;line-height:1.7}
+.affairs-views{flex-wrap:wrap}
 </style>
 </head>
 <body>
@@ -1337,7 +1344,7 @@ body.pro-mode #btnProMode{opacity:.45}
     </div>
     <div class="pick" data-pick="role">
       <label for="selStaffMode">บทบาท</label>
-      <select id="selStaffMode"><option value="teacher">ครู</option><option value="head">หัวหน้ากลุ่มสาระฯ</option><option value="executive">ผู้บริหาร</option><option value="admin">ผู้ดูแลระบบ</option></select>
+      <select id="selStaffMode"><option value="teacher">ครู</option><option value="head">หัวหน้ากลุ่มสาระฯ</option><option value="executive">ผู้บริหาร</option><option value="affairs">ฝ่ายกิจการนักเรียน</option><option value="admin">ผู้ดูแลระบบ</option></select>
     </div>
   </div>
   <div class="spacer"></div>
@@ -1371,6 +1378,7 @@ body.pro-mode #btnProMode{opacity:.45}
   <button data-tab="head">กลุ่มสาระของฉัน <span id="headBadge"></span></button>
   <button data-tab="executive">ภาพรวมผู้บริหาร</button>
   <button data-tab="leaves">การลาและการอนุมัติ <span id="leaveBadge"></span></button>
+  <button data-tab="affairs">กิจการนักเรียน</button>
   <button data-tab="admin">ผู้ดูแลระบบ</button>
 </nav>
 <button class="sm tabs-more-btn" id="tabsMore" aria-haspopup="dialog" title="หน้าอื่นทั้งหมด" aria-label="หน้าอื่นทั้งหมด">☰</button>
@@ -1395,6 +1403,7 @@ body.pro-mode #btnProMode{opacity:.45}
   <section class="tabpane" id="pane-head"></section>
   <section class="tabpane" id="pane-executive"></section>
   <section class="tabpane" id="pane-leaves"></section>
+  <section class="tabpane" id="pane-affairs"></section>
   <section class="tabpane" id="pane-admin"></section>
 </main>
 <nav class="bottomnav" id="bottomNav" hidden></nav>
@@ -2083,8 +2092,8 @@ const curSubject = () => DB.subjects.find(s => s.id === DB.ui.subjectId) || null
 const curPeriod  = () => DB.periods.find(p => p.id === DB.ui.periodId) || null;
 const curTeacher = () => DB.teachers.find(t => t.id === DB.ui.teacherId) || null;
 const teacherHasRole = (teacher, role) => !!(teacher && Array.isArray(teacher.roles) && teacher.roles.includes(role));
-const STAFF_ROLES = ['teacher', 'head', 'executive', 'admin'];
-const roleLabel = role => ({ teacher: 'ครู', head: 'หัวหน้ากลุ่มสาระฯ', executive: 'ผู้บริหาร', admin: 'ผู้ดูแลระบบ' }[role] || role);
+const STAFF_ROLES = ['teacher', 'head', 'executive', 'affairs', 'admin'];
+const roleLabel = role => ({ teacher: 'ครู', head: 'หัวหน้ากลุ่มสาระฯ', executive: 'ผู้บริหาร', affairs: 'ฝ่ายกิจการนักเรียน', admin: 'ผู้ดูแลระบบ' }[role] || role);
 /* กลุ่มสาระการเรียนรู้ 8 กลุ่ม + กลุ่มงานที่ไม่ใช่กลุ่มสาระ */
 const LEARNING_AREAS = ['ภาษาไทย', 'คณิตศาสตร์', 'วิทยาศาสตร์และเทคโนโลยี', 'สังคมศึกษา ศาสนาและวัฒนธรรม',
   'สุขศึกษาและพลศึกษา', 'ศิลปะ', 'การงานอาชีพ', 'ภาษาต่างประเทศ', 'กลุ่มงานแนะแนว', 'EP', 'สำนักงาน (สนง.)', 'ผู้บริหาร'];
@@ -2768,7 +2777,7 @@ function renderTop() {
 }
 
 /* แท็บใดเป็นของบทบาทใด — ตั้งค่าและฐานนักเรียนย้ายไปเป็นงานของผู้ดูแลระบบ */
-const TAB_ROLE = { settings: 'admin', students: 'admin', admin: 'admin', executive: 'executive', leaves: 'executive', head: 'head' };
+const TAB_ROLE = { settings: 'admin', students: 'admin', admin: 'admin', executive: 'executive', leaves: 'executive', head: 'head', affairs: 'affairs' };
 const roleOfTab = tab => TAB_ROLE[tab] || 'teacher';
 /* หน้าไหนต้องใช้ตัวเลือกอะไรบ้าง — บนมือถือจะซ่อนตัวที่หน้านั้นไม่ได้ใช้
    เพื่อให้หัวเรื่องของหน้าขึ้นมาอยู่บนสุดโดยไม่ต้องเลื่อนผ่านแถบเลือกยาว ๆ */
@@ -2778,10 +2787,10 @@ const TAB_PICKERS = {
   groups: ['period', 'class', 'subject'], assess: ['period', 'class', 'subject'],
   summary: ['period', 'class', 'subject'], students: ['period', 'class'],
   attendance: ['period'], exchange: ['period'], schedule: ['period'], activities: ['period'],
-  head: ['period'], executive: ['period'], leaves: ['period'], admin: ['period'], settings: ['period']
+  head: ['period'], executive: ['period'], leaves: ['period'], admin: ['period'], settings: ['period'], affairs: ['period']
 };
 const pickersForTab = tab => TAB_PICKERS[tab] || ['period', 'class', 'subject'];
-const homeTabOfRole = role => role === 'executive' ? 'executive' : role === 'admin' ? 'admin' : role === 'head' ? 'head' : 'dashboard';
+const homeTabOfRole = role => role === 'executive' ? 'executive' : role === 'admin' ? 'admin' : role === 'head' ? 'head' : role === 'affairs' ? 'affairs' : 'dashboard';
 
 /* ---------- เมนูและการนำทาง ----------------------------------------------
    แถบบนเหลือเฉพาะสิ่งที่ใช้บ่อย ปุ่มอื่นย้ายเข้าเมนู ⋯
@@ -2789,23 +2798,24 @@ const homeTabOfRole = role => role === 'executive' ? 'executive' : role === 'adm
 const TAB_SHORT = { dashboard: 'ภาพรวม', attendance: 'เช็กชื่อ', exchange: 'แลกคาบ', scores: 'คะแนน',
   groups: 'คะแนนกลุ่ม', assess: 'คุณลักษณะ', summary: 'สรุป ปพ.5', settings: 'โปรไฟล์ครู', students: 'นักเรียน',
   schedule: 'ตารางสอน', items: 'หัวข้อคะแนน', indicators: 'ตัวชี้วัด', activities: 'กิจกรรม', head: 'กลุ่มสาระ',
-  executive: 'ผู้บริหาร', leaves: 'อนุมัติลา', admin: 'ผู้ดูแลระบบ' };
+  executive: 'ผู้บริหาร', leaves: 'อนุมัติลา', affairs: 'กิจการนักเรียน', admin: 'ผู้ดูแลระบบ' };
 const TAB_ICON = { dashboard: '◈', attendance: '◷', exchange: '⇄', scores: '✎', groups: '◉', assess: '☑',
   summary: '▤', settings: '⚙', students: '☺', schedule: '▦', items: '☰', indicators: '◇', activities: '★', head: '◆',
-  executive: '◎', leaves: '✈', admin: '⚙' };
+  executive: '◎', leaves: '✈', affairs: '⚑', admin: '⚙' };
 /* หมวดของเมนู "ไปที่หน้า" — เรียงตามลำดับที่ครูใช้งานจริงในหนึ่งวัน
    เดิมเป็นปุ่ม 17 อันเรียงติดกันไม่มีหัวข้อ ต้องกวาดตาอ่านทีละอันกว่าจะเจอ */
 const TAB_SECTIONS = [
   { label: 'งานประจำวัน', tabs: ['dashboard', 'attendance', 'exchange', 'activities'] },
   { label: 'คะแนนและ ปพ.5', tabs: ['scores', 'items', 'indicators', 'groups', 'assess', 'summary'] },
   { label: 'ข้อมูลโรงเรียน', tabs: ['students', 'schedule', 'settings'] },
-  { label: 'บริหารและอนุมัติ', tabs: ['head', 'executive', 'leaves', 'admin'] }
+  { label: 'บริหารและอนุมัติ', tabs: ['head', 'executive', 'leaves', 'affairs', 'admin'] }
 ];
 
 /* งานหลักของแต่ละบทบาท ใช้จัดปุ่มบนแถบล่างของมือถือ */
 const PRIMARY_TABS = { teacher: ['dashboard', 'attendance', 'scores', 'exchange'],
   head: ['head', 'dashboard', 'attendance', 'scores'],
   executive: ['executive', 'leaves', 'dashboard', 'summary'],
+  affairs: ['affairs', 'dashboard', 'attendance', 'scores'],
   admin: ['admin', 'students', 'schedule', 'settings'] };
 
 /* แท็บที่ปักหมุดไว้บนแถบเสมอ ที่เหลือเก็บในเมนู เพื่อให้แถบบนโล่งและหาของง่าย */
@@ -3019,6 +3029,7 @@ function render() {
   else if (t === 'head') renderHeadArea();
   else if (t === 'executive') renderExecutive();
   else if (t === 'leaves') renderLeaveApprovals();
+  else if (t === 'affairs') renderAffairs();
   else if (t === 'admin') renderAdmin();
   initCollapsibles();
   bindSearchableSelects();
@@ -3255,11 +3266,13 @@ function renderDashboard() {
     (schoolDataMissing() ? schoolDataCard() : '') + approvalCardHtml() +
     '<div class="dash-columns"><div><div class="card"><div class="row"><h3 style="margin:0">ตารางสอนวันนี้</h3>' + (todayShift ? '<span class="badge group" title="' + esc(dayShiftText(todayShift)) + '">↷ ' + esc(todayShift.mode === 'day' ? 'ใช้ตารางวัน' + schoolDayName(todayShift.sourceDay) : 'สลับคาบ') + '</span>' : '') + '<div class="spacer"></div><button class="sm" data-go-tab="schedule">ดูตารางทั้งหมด</button></div><div class="today-list" style="margin-top:10px">' +
       (todayEntries.length ? todayEntries.map(x => { const e = x.entry, slot = DB.timetable.slots.find(s => s.id === x.slotId), subject = subjectOf(e), c = classOf(e); const current = slot && nowMin >= timeToMinutes(slot.start) && nowMin <= timeToMinutes(slot.end); const checked = !!DB.timetable.attendance[attendanceKey(e.id, today)]; return '<div class="today-card' + (current ? ' current' : '') + '"><div class="today-time"><b>' + esc(slot ? slot.label : '') + '</b>' + esc(slot ? slot.start + '-' + slot.end : '') + '</div><div><b>' + esc((subject.code ? subject.code + ' ' : '') + subject.name) + '</b><div class="hint">' + esc(c.name) + (e.room ? ' • ' + esc(e.room) : '') + '</div></div><div class="spacer"></div>' + (checked ? '<span class="badge ok">เช็กแล้ว</span>' : '<button class="sm primary" data-dash-att="' + e.id + '">เช็กชื่อ</button>') + '</div>'; }).join('') : '<div class="empty">วันนี้ไม่มีคาบสอนในตาราง</div>') + '</div></div>' +
-      '<div class="card"><h3>ทางลัดงานประจำ</h3><div class="quick-grid"><button class="quick-action" data-go-tab="scores">✎<b>กรอกคะแนน</b><span>คะแนนเก็บ สอบ และซ่อม</span></button><button class="quick-action" data-go-tab="attendance">◷<b>เช็กเวลาเรียน</b><span>คาบประจำ แลกคาบ สอนแทน และชดเชย</span></button><button class="quick-action" data-go-tab="groups">◉<b>คะแนนกลุ่ม</b><span>จัดกลุ่ม ให้คะแนน และผู้นำเสนอ</span></button><button class="quick-action" data-go-tab="summary">▤<b>สรุป ปพ.5</b><span>เกรด เวลาเรียน และส่งออก</span></button></div></div></div>' +
+      '<div class="card"><h3>ทางลัดงานประจำ</h3><div class="quick-grid"><button class="quick-action" data-go-tab="scores">✎<b>กรอกคะแนน</b><span>คะแนนเก็บ สอบ และซ่อม</span></button><button class="quick-action" data-go-tab="attendance">◷<b>เช็กเวลาเรียน</b><span>คาบประจำ แลกคาบ สอนแทน และชดเชย</span></button><button class="quick-action" data-go-tab="groups">◉<b>คะแนนกลุ่ม</b><span>จัดกลุ่ม ให้คะแนน และผู้นำเสนอ</span></button><button class="quick-action" data-go-tab="summary">▤<b>สรุป ปพ.5</b><span>เกรด เวลาเรียน และส่งออก</span></button>' +
+      '<button class="quick-action" data-conduct-open>⚑<b>บันทึกพฤติกรรม</b><span>ความดี • ผิดระเบียบ</span></button></div></div></div>' +
       '<div><div class="card"><h3>ผู้ช่วยแนะนำงาน</h3><div class="insight-list">' + insights.map(i => '<button class="insight-item" data-go-tab="' + i.tab + '" style="text-align:left;width:100%"><span class="insight-dot" style="--insight:' + i.color + '"></span><span>' + esc(i.text) + '</span><span class="spacer"></span><span>›</span></button>').join('') + '</div></div>' +
       '<div class="card"><div class="row"><h3 style="margin:0">ความพร้อมของระบบ</h3><div class="spacer"></div><b>' + setupPct + '%</b></div><div class="setup-progress"><i style="width:' + setupPct + '%"></i></div><div class="hint tip">สถานศึกษา • ห้อง • วิชา • รายชื่อ • ตารางสอน • ปฏิทิน • หัวข้อคะแนน • ฐานข้อมูลกลาง</div><button class="sm" data-go-tab="settings" style="margin-top:9px">ตรวจสอบการตั้งค่า</button></div></div></div>' + exchangeRequestCard() + leaveHistoryCard(5, true) + '<div class="card" id="pendingBox"></div>' + (schoolDataMissing() ? '' : schoolDataCard());
 
   bindApprovalCard(pane);
+  $$('[data-conduct-open]', pane).forEach(btn => btn.addEventListener('click', () => openConductModal({})));
   bindPullSchoolButton(pane);
   renderPendingCard(pane);
   $$('[data-go-tab]', pane).forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.goTab)));
@@ -3905,7 +3918,8 @@ function openAttendance(entry, date, singleMode, slotOverride) {
     title: 'เช็กชื่อ' + (groupedEntries.length > 1 ? 'พร้อมกัน ' + groupedEntries.length + ' คาบ' : '') + ' • ' + (subject ? (subject.code ? subject.code + ' ' : '') + subject.name : 'วิชา') + ' • ' + cls.name,
     wide: true, full: true, buttonsTop: true,
     bodyHTML: '<div class="row att-topline"><span class="badge">' + thaiDate(date) + '</span>' + groupedEntries.map(e => { const sl = DB.timetable.slots.find(s => s.id === slotIdFor(e)); return '<span class="badge">' + esc(sl ? sl.label + ' ' + sl.start + '–' + sl.end : '') + '</span>'; }).join('') +
-      '<div class="spacer"></div><span class="hint">กดที่หัวคอลัมน์เพื่อตั้งสถานะให้ทั้งห้อง</span></div>' +
+      '<div class="spacer"></div><span class="hint">กดที่หัวคอลัมน์เพื่อตั้งสถานะให้ทั้งห้อง</span>' +
+      '<button type="button" class="sm" data-att-conduct title="บันทึกความดี/ผิดระเบียบของนักเรียนห้องนี้">⚑ บันทึกพฤติกรรม</button></div>' +
       (function () { const names = students.filter(st => activityFor(st.sid, date, slotIdFor(entry)));
         return names.length ? '<div class="notice" style="margin-bottom:10px"><b>มีนักเรียน ' + names.length +
           ' คนได้รับอนุญาตให้ทำกิจกรรมในคาบนี้</b> ระบบตั้งสถานะ “กิจกรรม” ให้แล้ว ตรวจสอบและกดบันทึกได้เลย</div>' : ''; })() +
@@ -3946,11 +3960,18 @@ function openAttendance(entry, date, singleMode, slotOverride) {
           classId: e.classId, slotId: slotIdFor(e), sessionType: e.sessionType || 'regular', note: e.note || '', statuses: Object.assign({}, statuses),
           teacherId: teacher ? teacher.id : '', teacherName: teacher ? teacher.name || teacher.email || '' : '', inheritedFrom: inherited ? inherited.entryId || '' : '', checkedAt: new Date().toISOString() };
       });
+      /* คาบเข้าแถวเช้า — ส่งสรุปให้ฝ่ายกิจการนักเรียน และหักคะแนนคนมาสายอัตโนมัติ
+         ฝ่ายกิจการฯ อ่านการเช็กชื่อในสมุดของครูไม่ได้ (กฎ Firestore) จึงต้องเขียนแยกไปอีกทาง */
+      const assembly = groupedEntries.find(e => slotIdFor(e) === 'assembly');
+      const hr = assembly ? syncHomeroomConduct(assembly, date, statuses) : null;
       save(true); close(); if (DB.ui.tab === 'attendance') renderAttendancePage(); else renderSchedule();
-      toast('บันทึกการเช็กชื่อ ' + students.length + ' คน • ' + groupedEntries.length + ' คาบแล้ว', 'ok');
+      toast('บันทึกการเช็กชื่อ ' + students.length + ' คน • ' + groupedEntries.length + ' คาบแล้ว' +
+        (hr && hr.late && num(affairsCfg().lateDeduct) ? ' • มาสาย ' + hr.late + ' คน หักคนละ ' + fmt(affairsCfg().lateDeduct) + ' คะแนน' : ''), 'ok');
     } }],
     onMount(root, close) {
       const rows = $$('[data-att-sid]', root);
+      const conductBtn = $('[data-att-conduct]', root);
+      if (conductBtn) conductBtn.addEventListener('click', () => openConductModal({ classId: cls.id }));
       const valueOf = tr => { const p = $$('.att-status', tr).find(x => x.checked); return p ? p.value : 'present'; };
       const setValue = (tr, v) => { $$('.att-status', tr).forEach(x => { x.checked = x.value === v; }); };
       function paint(tr) {
@@ -11447,6 +11468,7 @@ function pendingExecCard() {
 }
 
 function renderExecutive() {
+  ensureAffairsListeners();
   const pane = $('#pane-executive'), data = attendanceExecutiveData(), total = Object.values(data.statuses).reduce((a, b) => a + b, 0), colors = { present: '#22c55e', late: '#f59e0b', leave: '#38bdf8', activity: '#8b5cf6', absent: '#ef4444' };
   const parts = []; let at = 0; ATTENDANCE_STATUSES.forEach(s => { const n = data.statuses[s.value], deg = total ? n * 360 / total : 0; parts.push(colors[s.value] + ' ' + at + 'deg ' + (at + deg) + 'deg'); at += deg; });
   const areaNames = Object.keys(data.areas).sort((a, b) => a.localeCompare(b, 'th')), selected = areaNames.includes(DB.ui.execArea) ? DB.ui.execArea : (areaNames[0] || ''), area = data.areas[selected]; DB.ui.execArea = selected;
@@ -11457,7 +11479,7 @@ function renderExecutive() {
     '<div class="card"><h3>กลุ่มสาระการเรียนรู้</h3><div class="area-list">' + (areaNames.length ? areaNames.map(name => { const a = data.areas[name], rate = a.checked ? (a.checked - a.statuses.absent) * 100 / a.checked : 0; return '<button class="area-button' + (name === selected ? ' active' : '') + '" data-exec-area="' + esc(name) + '"><span><b>' + esc(name) + '</b><small>' + Object.keys(a.subjects).length + ' วิชา • ' + a.checked + ' รายการ</small></span><strong>' + fmt(rate, 1) + '%</strong></button>'; }).join('') : '<div class="empty">ยังไม่มีข้อมูลเช็กชื่อในภาคเรียนนี้</div>') + '</div></div></div>' +
     '<div class="card"><div class="row"><h3 style="margin:0">รายละเอียดรายวิชา • ' + esc(selected || 'ยังไม่มีข้อมูล') + '</h3><div class="spacer"></div><span class="hint">คลิกกลุ่มสาระด้านบนเพื่อเจาะดู</span></div><div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>รหัส/วิชา</th><th>รายการทั้งหมด</th><th>มา/สาย/ลา/กิจกรรม</th><th>ขาด</th><th>อัตราเข้าเรียน</th></tr></thead><tbody>' + (area ? Object.values(area.subjects).map(x => { const rate = x.checked ? (x.checked - x.statuses.absent) * 100 / x.checked : 0; return '<tr><td><b>' + esc((x.subject.code ? x.subject.code + ' ' : '') + x.subject.name) + '</b></td><td>' + x.checked + '</td><td>' + (x.checked - x.statuses.absent) + '</td><td class="' + (x.statuses.absent ? 'badtext' : '') + '">' + x.statuses.absent + '</td><td>' + fmt(rate, 1) + '%</td></tr>'; }).join('') : '<tr><td colspan="5"><div class="empty">ยังไม่มีข้อมูล</div></td></tr>') + '</tbody></table></div></div>' +
     '<div class="card"><h3>นักเรียนที่ควรติดตาม</h3><div class="tablewrap"><table><thead><tr><th>นักเรียน</th><th>ห้อง</th><th>วิชา</th><th>เข้าเรียน</th><th>ผลคาดการณ์</th></tr></thead><tbody>' + (data.risks.length ? data.risks.slice(0, 100).map(x => { const cls = DB.classes.find(c => c.id === x.classId), st = cls && (cls.students || []).find(s => String(s.sid) === String(x.sid)); return '<tr><td><b>' + esc(st ? st.name : x.sid) + '</b></td><td>' + esc(cls ? cls.name : '—') + '</td><td>' + esc((x.subject.code ? x.subject.code + ' ' : '') + x.subject.name) + '</td><td>' + fmt(x.pct, 1) + '%</td><td>' + attendanceOutcomeBadge(x.pct) + '</td></tr>'; }).join('') : '<tr><td colspan="5"><div class="empty">ไม่มีนักเรียนต่ำกว่าเกณฑ์ 80%</div></td></tr>') + '</tbody></table></div></div>' +
-    execStudentPanels() + pendingExecCard();
+    execStudentPanels() + affairsExecCard() + pendingExecCard();
   const leaveStats = leaveStatsByTeacher(DB.ui.periodId), ranking = coverageRanking(DB.ui.periodId);
   const waitingLeaves = (DB.timetable.leaveRequests || []).filter(l => l.periodId === DB.ui.periodId && (l.approval || {}).status === 'submitted').length;
   pane.insertAdjacentHTML('beforeend', '<div class="card"><div class="row"><div><h3 style="margin:0">การลาและการสอนแทน</h3><div class="hint">รวม ' + leaveStats.reduce((a, r) => a + r.times, 0) + ' ครั้ง • ' + leaveStats.reduce((a, r) => a + r.days, 0) + ' วัน • ใบลารออนุมัติ ' + waitingLeaves + ' รายการ</div></div><div class="spacer"></div><button class="primary" id="execGoLeaves">เปิดหน้าการลาและการอนุมัติ</button></div>' +
@@ -11771,7 +11793,7 @@ async function importMultiTeacherTimetableExcel() {
 
 function openAddTeacherProfile(afterSave, selectNew) {
   const bootstrap = !DB.teachers.length;
-  openModal({ title: 'เพิ่มโปรไฟล์ครู', bodyHTML: '<div class="grid2"><div class="pick"><label>ชื่อครู</label><input id="newTeacherName" style="width:100%"></div><div class="pick"><label>อีเมล</label><input id="newTeacherEmail" type="email" style="width:100%"></div><div class="pick"><label>เบอร์โทร</label><input id="newTeacherPhone" style="width:100%"></div><div class="pick"><label>กลุ่มสาระ/กลุ่มงาน</label><select id="newTeacherArea">' + learningAreaOptions('') + '</select></div><div class="pick"><label>บทบาท</label><select id="newTeacherRole"><option value="teacher"' + (bootstrap ? '' : ' selected') + '>ครู</option><option value="teacher,head">ครู + หัวหน้ากลุ่มสาระฯ</option><option value="teacher,executive">ครู + ผู้บริหาร</option><option value="teacher,admin">ครู + ผู้ดูแลระบบ</option><option value="teacher,head,executive,admin"' + (bootstrap ? ' selected' : '') + '>ทุกบทบาท</option></select></div></div>', buttons: [{ label: 'ยกเลิก' }, { label: 'เพิ่มโปรไฟล์', cls: 'primary', act(close, root) { const name = $('#newTeacherName', root).value.trim(); if (!name) return toast('กรุณากรอกชื่อครู', 'bad');
+  openModal({ title: 'เพิ่มโปรไฟล์ครู', bodyHTML: '<div class="grid2"><div class="pick"><label>ชื่อครู</label><input id="newTeacherName" style="width:100%"></div><div class="pick"><label>อีเมล</label><input id="newTeacherEmail" type="email" style="width:100%"></div><div class="pick"><label>เบอร์โทร</label><input id="newTeacherPhone" style="width:100%"></div><div class="pick"><label>กลุ่มสาระ/กลุ่มงาน</label><select id="newTeacherArea">' + learningAreaOptions('') + '</select></div><div class="pick"><label>บทบาท</label><select id="newTeacherRole"><option value="teacher"' + (bootstrap ? '' : ' selected') + '>ครู</option><option value="teacher,head">ครู + หัวหน้ากลุ่มสาระฯ</option><option value="teacher,executive">ครู + ผู้บริหาร</option><option value="teacher,admin">ครู + ผู้ดูแลระบบ</option><option value="teacher,affairs">ครู + ฝ่ายกิจการนักเรียน</option><option value="teacher,head,executive,admin"' + (bootstrap ? ' selected' : '') + '>ทุกบทบาท</option></select></div></div>', buttons: [{ label: 'ยกเลิก' }, { label: 'เพิ่มโปรไฟล์', cls: 'primary', act(close, root) { const name = $('#newTeacherName', root).value.trim(); if (!name) return toast('กรุณากรอกชื่อครู', 'bad');
       const clash = DB.teachers.find(x => normalizeName(x.name) === normalizeName(name)); if (clash) return toast('มีชื่อนี้ในระบบอยู่แล้ว: ' + (clash.name || clash.email), 'bad');
       const t = { id: uid('teacher'), name: name, email: $('#newTeacherEmail', root).value.trim(), phone: $('#newTeacherPhone', root).value.trim(), learningArea: $('#newTeacherArea', root).value, homeroomClassId: '', roles: $('#newTeacherRole', root).value.split(',') }; DB.teachers.push(t); if (selectNew !== false || bootstrap) DB.ui.teacherId = t.id; save(true); close(); if (afterSave) afterSave(); else render(); toast('เพิ่มโปรไฟล์ครูแล้ว', 'ok'); } }], onMount(root) { $('#newTeacherName', root).focus(); } });
 }
@@ -12262,7 +12284,7 @@ function renderAdminTeacherRows() {
     '<td><input class="admin-email" type="email" value="' + esc(adminDraftValue(t, 'email') || '') + '"></td>' +
     '<td><input class="admin-phone" value="' + esc(adminDraftValue(t, 'phone') || '') + '" style="width:130px"></td>' +
     '<td><select class="admin-area">' + learningAreaOptions(adminDraftValue(t, 'learningArea')) + '</select></td>' +
-    '<td>' + roleBox(t, 'teacher', 'ครู') + ' ' + roleBox(t, 'head', 'หัวหน้ากลุ่มสาระฯ') + ' ' + roleBox(t, 'executive', 'ผู้บริหาร') + ' ' + roleBox(t, 'admin', 'แอดมิน') + '</td>' +
+    '<td>' + roleBox(t, 'teacher', 'ครู') + ' ' + roleBox(t, 'head', 'หัวหน้ากลุ่มสาระฯ') + ' ' + roleBox(t, 'executive', 'ผู้บริหาร') + ' ' + roleBox(t, 'affairs', 'กิจการนักเรียน') + ' ' + roleBox(t, 'admin', 'แอดมิน') + '</td>' +
     '<td><select class="admin-homeroom"><option value="">— ไม่กำหนด —</option>' + sortedClassList(DB.classes).map(c => '<option value="' + c.id + '"' + (adminDraftValue(t, 'homeroomClassId') === c.id ? ' selected' : '') + '>' + esc(c.name) + ' (' + DB.teachers.filter(x => adminDraftValue(x, 'homeroomClassId') === c.id).length + '/2)</option>').join('') + '</select></td>' +
     '<td><button class="sm danger" data-del-teacher="' + t.id + '" title="ลบครูคนนี้">ลบ</button></td></tr>').join('')
     : '<tr><td colspan="7"><div class="empty">' + (DB.ui.adminSearch ? 'ไม่พบครูที่ตรงกับคำค้น “' + esc(DB.ui.adminSearch) + '”' : 'ยังไม่มีข้อมูลครู') + '</div></td></tr>';
@@ -13164,6 +13186,611 @@ function renderActivities() {
 }
 
 /* ============================================================================
+   17) กิจการนักเรียน — คะแนนพฤติกรรม มาสาย และสรุปแถวเช้า
+   คะแนนเริ่มต้นทุกปีการศึกษา ผิดระเบียบหัก ความดีบวกคืน
+   ครูทุกคนบันทึกได้ทันที ฝ่ายกิจการนักเรียนยกเลิกรายการที่ผิดได้ภายหลัง (ไม่ลบ เก็บเป็นหลักฐาน)
+
+   ข้อมูลวิ่งทางใหม่ของตัวเอง ไม่ปนกับสามทางเดิม เพราะการเช็กแถวเช้าเก็บใต้ books/{อีเมลครู}
+   ซึ่งกฎให้อ่านได้เฉพาะเจ้าของและผู้บริหาร ฝ่ายกิจการฯ จึงมองไม่เห็น
+   - conduct/{id}          รายการความดี/ผิดระเบียบ/มาสาย ส่งทันทีผ่านตะกร้าส่งออก (outbox)
+   - homeroomDaily/{วัน_ห้อง} สรุปแถวเช้าที่ครูที่ปรึกษาเขียนขึ้นตอนกดบันทึกเช็กชื่อ
+   - affairsConfig/main    เกณฑ์และรายการพฤติกรรม ฝ่ายกิจการฯ ตั้งครั้งเดียวใช้ทั้งโรงเรียน
+   - gateEvents/{id}       ที่ว่างไว้ให้แอปสแกนใบหน้าที่ประตูเขียนเข้ามา { sid, date, at, deviceId, method }
+   มาสายแยกรหัสตามแหล่ง (_hr แถวเช้า / _gate ประตู) เพื่อไม่ให้สองเครื่องเขียนทับเอกสารกัน
+   แล้วนับซ้ำวันเดียวกันเป็นครั้งเดียวตอนคิดคะแนน
+   ========================================================================== */
+/* เป็นฟังก์ชันไม่ใช่ const เพราะ loadDB รันตั้งแต่ต้นสคริปต์ ก่อนบรรทัดนี้จะถูกประกาศ */
+function affairsDefaultRules() { return [
+  { id: 'r_uniform', kind: 'bad', name: 'แต่งกายผิดระเบียบ', points: 5 },
+  { id: 'r_hair', kind: 'bad', name: 'ทรงผมผิดระเบียบ', points: 5 },
+  { id: 'r_skip', kind: 'bad', name: 'หนีเรียน / ออกนอกบริเวณโรงเรียนโดยไม่ได้รับอนุญาต', points: 10 },
+  { id: 'r_phone', kind: 'bad', name: 'ใช้โทรศัพท์ในเวลาเรียนโดยไม่ได้รับอนุญาต', points: 5 },
+  { id: 'r_smoke', kind: 'bad', name: 'สูบบุหรี่ / บุหรี่ไฟฟ้า', points: 20 },
+  { id: 'r_fight', kind: 'bad', name: 'ทะเลาะวิวาท', points: 20 },
+  { id: 'r_disrespect', kind: 'bad', name: 'ไม่เคารพครู / ใช้วาจาไม่สุภาพ', points: 10 },
+  { id: 'r_damage', kind: 'bad', name: 'ทำลายทรัพย์สินของโรงเรียน', points: 15 },
+  { id: 'g_volunteer', kind: 'good', name: 'จิตอาสา / ช่วยงานโรงเรียน', points: 5 },
+  { id: 'g_honest', kind: 'good', name: 'เก็บของได้แล้วส่งคืน', points: 5 },
+  { id: 'g_award', kind: 'good', name: 'ได้รับรางวัล / สร้างชื่อเสียงให้โรงเรียน', points: 10 },
+  { id: 'g_help', kind: 'good', name: 'ช่วยเหลือเพื่อน / ครู', points: 3 }
+]; }
+function defaultAffairsConfig() {
+  return { startScore: 100, threshold: 60, capAtStart: true, lateDeduct: 5, assemblyAbsentDeduct: 0,
+    lateTime: '08:00', rules: affairsDefaultRules() };
+}
+function ensureAffairs() {
+  const a = DB.affairs = DB.affairs && typeof DB.affairs === 'object' ? DB.affairs : {};
+  a.config = Object.assign(defaultAffairsConfig(), a.config || {});
+  if (!Array.isArray(a.config.rules)) a.config.rules = defaultAffairsConfig().rules;
+  a.records = a.records && typeof a.records === 'object' ? a.records : {};
+  a.homeroomDaily = a.homeroomDaily && typeof a.homeroomDaily === 'object' ? a.homeroomDaily : {};
+  a.arrivals = a.arrivals && typeof a.arrivals === 'object' ? a.arrivals : {};
+  a.sync = a.sync && typeof a.sync === 'object' ? a.sync : {};
+  return a;
+}
+const affairsCfg = () => ensureAffairs().config;
+/* คะแนนพฤติกรรมนับทั้งปีการศึกษา ไม่แยกภาค จึงผูกกับปีของภาคที่เลือกอยู่ */
+const affairsYear = period => String(((period || curPeriod()) || {}).academicYear || '');
+const periodOfEntry = entry => DB.periods.find(p => p.id === (entry || {}).periodId) || curPeriod();
+/* รหัสเอกสาร Firestore ห้ามมี / และควรสั้น เลขประจำตัวนักเรียนบางโรงเรียนมีขีดหรือช่องว่าง */
+const conductSidKey = sid => String(sid || '').trim().replace(/[^A-Za-z0-9ก-๙_-]/g, '_');
+const isAffairsStaff = () => ['affairs', 'admin'].includes(DB.ui.staffMode || 'teacher');
+/* เครื่องที่ต้องเห็นรายการของทั้งโรงเรียน — ครูทั่วไปไม่ต้องโหลด ประหยัดโควตาอ่าน Firestore */
+const affairsWatcher = () => ['affairs', 'admin', 'executive'].includes(DB.ui.staffMode || 'teacher');
+
+function conductByWho() {
+  const t = curTeacher();
+  return { byId: t ? t.id : '', byName: t ? (t.name || t.email || '') : '', byEmail: myEmailForSync() };
+}
+function conductStudentInfo(sid) {
+  const st = findStudentBySid(sid);
+  return st ? { sid: st.sid, name: st.name || '', classId: st.classId || '', className: st.className || '' }
+    : { sid: String(sid || '').trim(), name: '', classId: '', className: '' };
+}
+
+/** บันทึกลงเครื่องแล้วส่งขึ้นส่วนกลางทันที ถ้าเน็ตหลุดตะกร้าส่งออกจะลองให้ใหม่เอง */
+function putConductRecord(rec) {
+  rec.updatedAt = new Date().toISOString();
+  ensureAffairs().records[rec.id] = rec;
+  if (!fbApplying) outboxSend('conduct', rec, true);
+  return rec;
+}
+function voidConductRecord(rec, reason) {
+  if (!rec || rec.voided) return rec;
+  const who = conductByWho();
+  rec.voided = { byId: who.byId, byName: who.byName, at: new Date().toISOString(), reason: reason || '' };
+  return putConductRecord(rec);
+}
+function newConductRecord(sid, fields) {
+  const info = conductStudentInfo(sid), who = conductByWho(), now = new Date();
+  return Object.assign({ id: uid('cd'), sid: info.sid, name: info.name, classId: info.classId, className: info.className,
+    year: affairsYear(), date: todayISO(), time: pad2(now.getHours()) + ':' + pad2(now.getMinutes()),
+    kind: 'bad', type: 'rule', ruleId: '', title: '', points: 0, note: '', source: 'manual',
+    createdAt: now.toISOString() }, who, fields || {});
+}
+
+/** รวมคะแนนของนักเรียนทุกคนในปีเดียวในรอบเดียว — ตารางหลายร้อยคนจะได้ไม่ต้องวนซ้ำทีละคน
+    มาสายวันเดียวกันจากแถวเช้าและจากประตูนับเป็นครั้งเดียว ใช้รายการที่บันทึกก่อน */
+function conductSummaries(year) {
+  const cfg = affairsCfg(), out = {}, lateSeen = {};
+  const recs = Object.values(ensureAffairs().records).filter(r => r && r.year === year && !r.voided)
+    .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+  recs.forEach(r => {
+    const s = out[r.sid] = out[r.sid] || { sid: r.sid, name: r.name, classId: r.classId, className: r.className,
+      delta: 0, good: 0, bad: 0, late: 0, goodPts: 0, badPts: 0, records: [] };
+    if (r.type === 'late') {
+      const k = r.sid + '::' + r.date;
+      if (lateSeen[k]) return;
+      lateSeen[k] = true; s.late++;
+    }
+    s.records.push(r);
+    const p = num(r.points);
+    s.delta += p;
+    if (p >= 0 && r.kind === 'good') { s.good++; s.goodPts += p; } else { s.bad++; s.badPts += -p; }
+  });
+  Object.values(out).forEach(s => {
+    const raw = num(cfg.startScore) + s.delta;
+    s.score = cfg.capAtStart ? Math.min(num(cfg.startScore), raw) : raw;
+  });
+  return out;
+}
+function conductOf(sid, year) {
+  const cfg = affairsCfg(), s = conductSummaries(year || affairsYear())[String(sid || '').trim()];
+  return s || { sid: sid, delta: 0, good: 0, bad: 0, late: 0, goodPts: 0, badPts: 0, records: [], score: num(cfg.startScore) };
+}
+function conductScoreBadge(score) {
+  const cfg = affairsCfg(), low = score < num(cfg.threshold), warn = !low && score < num(cfg.threshold) + 10;
+  return '<span class="badge ' + (low ? 'bad' : warn ? 'warn' : 'ok') + ' conduct-score">' + fmt(score, 1) + '</span>';
+}
+
+/* ---- มาสาย ------------------------------------------------------------------ */
+const lateRecordId = (date, sid, source) => 'late_' + date + '_' + conductSidKey(sid) + '_' + (source === 'homeroom' ? 'hr' : 'gate');
+function lateRecordsOn(date, sid) {
+  return Object.values(ensureAffairs().records).filter(r => r.type === 'late' && r.date === date && r.sid === String(sid).trim() && !r.voided);
+}
+/** บันทึกนักเรียนมาสาย — ใช้ร่วมกันทั้งช่องกรอกที่ประตูและแอปสแกนใบหน้า
+    คืน { status: 'added' | 'exists' | 'early' | 'notfound', student } */
+function recordLateArrival(sid, opts) {
+  opts = opts || {};
+  const key = String(sid || '').trim(), info = conductStudentInfo(key);
+  if (!key) return { status: 'notfound', student: info };
+  if (!info.name && !opts.allowUnknown) return { status: 'notfound', student: info };
+  const date = opts.date || todayISO(), now = new Date();
+  const time = opts.time || (pad2(now.getHours()) + ':' + pad2(now.getMinutes()));
+  const cfg = affairsCfg();
+  if (!opts.force && timeToMinutes(time) <= timeToMinutes(cfg.lateTime)) return { status: 'early', student: info, time: time };
+  if (lateRecordsOn(date, key).length) return { status: 'exists', student: info, time: time };
+  const id = lateRecordId(date, key, 'gate'), old = ensureAffairs().records[id];
+  const period = DB.periods.find(p => p.id === DB.ui.periodId);
+  const rec = old ? Object.assign(old, { voided: null }) : newConductRecord(key, { id: id, type: 'late', ruleId: 'late', kind: 'bad',
+    title: 'มาสาย' + (opts.method === 'face' ? ' (สแกนใบหน้า)' : ' (ประตูโรงเรียน)'), points: -num(cfg.lateDeduct),
+    date: date, time: time, source: opts.method === 'face' ? 'face' : 'gate', year: affairsYear(period), note: opts.note || '' });
+  delete rec.voided;
+  putConductRecord(rec);
+  const day = ensureAffairs().arrivals[date] = ensureAffairs().arrivals[date] || {};
+  if (!day[key]) day[key] = time;
+  save();
+  return { status: 'added', student: info, time: time, record: rec };
+}
+
+/** เรียกตอนครูที่ปรึกษากดบันทึกเช็กชื่อคาบเข้าแถวเช้า
+    - สาย → หักคะแนนอัตโนมัติ (ตามที่ผู้ใช้ตัดสินใจไว้ว่าหักทุกครั้ง)
+    - เคยสายแล้วครูแก้เป็นอย่างอื่น → ยกเลิกรายการที่ระบบสร้างให้ ไม่ลบทิ้ง
+    - ขาดแถว → หักเฉพาะเมื่อฝ่ายกิจการฯ ตั้งแต้มไว้มากกว่า 0
+    รายการที่บันทึกจากประตูไม่ถูกแตะ เพราะเป็นหลักฐานคนละชิ้นกับที่ครูเห็นในแถว */
+function syncHomeroomConduct(entry, date, statuses) {
+  const cls = DB.classes.find(c => c.id === entry.classId); if (!cls) return { late: 0 };
+  const cfg = affairsCfg(), bag = ensureAffairs().records, year = affairsYear(periodOfEntry(entry));
+  const byStatus = st => Object.keys(statuses).filter(sid => statuses[sid] === st);
+  const plan = [
+    { status: 'late', type: 'late', prefix: 'late_', title: 'มาสาย (แถวเช้า)', pts: num(cfg.lateDeduct) },
+    { status: 'absent', type: 'assembly-absent', prefix: 'abs_', title: 'ขาดเข้าแถว', pts: num(cfg.assemblyAbsentDeduct) }
+  ];
+  let changed = 0;
+  plan.forEach(p => {
+    const want = new Set(p.pts > 0 ? byStatus(p.status) : []);
+    const idOf = sid => p.prefix + date + '_' + conductSidKey(sid) + '_hr';
+    want.forEach(sid => {
+      const id = idOf(sid), old = bag[id];
+      if (old && !old.voided) return;
+      const st = (cls.students || []).find(x => String(x.sid) === String(sid)) || {};
+      const rec = old || newConductRecord(sid, { id: id, name: st.name || '', classId: cls.id, className: cls.name });
+      Object.assign(rec, { type: p.type, ruleId: p.type, kind: 'bad', title: p.title, points: -p.pts, date: date, year: year, source: 'homeroom' });
+      delete rec.voided;
+      putConductRecord(rec); changed++;
+    });
+    Object.values(bag).filter(r => r.source === 'homeroom' && r.type === p.type && r.date === date && r.classId === cls.id && !r.voided && !want.has(r.sid))
+      .forEach(r => { voidConductRecord(r, 'ครูที่ปรึกษาแก้สถานะการเช็กชื่อแถวเช้า'); changed++; });
+  });
+  const counts = {}; ATTENDANCE_STATUSES.forEach(s => { counts[s.value] = byStatus(s.value).length; });
+  const t = curTeacher();
+  const day = { id: date + '_' + conductSidKey(cls.id), date: date, classId: cls.id, className: cls.name, year: year,
+    teacherId: t ? t.id : '', teacherName: t ? (t.name || t.email || '') : '', teacherEmail: myEmailForSync(),
+    counts: counts, late: byStatus('late'), absent: byStatus('absent'), leave: byStatus('leave'), total: Object.keys(statuses).length,
+    checkedAt: new Date().toISOString() };
+  const daily = ensureAffairs().homeroomDaily;
+  daily[day.id] = day;
+  pruneHomeroomDaily();
+  if (!fbApplying) outboxSend('hrday', day, true);
+  return { late: day.late.length, changed: changed };
+}
+/* เก็บสรุปแถวเช้าในเครื่องแค่ 2 สัปดาห์ ของเก่าอยู่บนส่วนกลางแล้ว ไม่ต้องกินที่ localStorage */
+function pruneHomeroomDaily() {
+  const a = ensureAffairs(), cut = new Date(); cut.setDate(cut.getDate() - 14);
+  const limit = isoDate(cut);
+  Object.keys(a.homeroomDaily).forEach(k => { if (String(a.homeroomDaily[k].date) < limit) delete a.homeroomDaily[k]; });
+  Object.keys(a.arrivals).forEach(d => { if (d < limit) delete a.arrivals[d]; });
+}
+
+/* ---- ซิงก์กับส่วนกลาง ------------------------------------------------------
+   conduct ทั้งปีอาจมีหลายพันรายการ ถ้าโหลดใหม่ทั้งก้อนทุกครั้งที่เปิดแอปจะกินโควตาอ่านฟรีรายวันหมด
+   จึงฟังเฉพาะที่เปลี่ยนหลังเวลาล่าสุดที่เคยได้ (serverAt เป็นเวลาของเซิร์ฟเวอร์ ไม่เพี้ยนตามนาฬิกาเครื่อง)
+   ย้อนเผื่อไว้ 2 นาทีกันพลาดรายการที่เขียนพร้อมกันพอดี */
+let affairsListen = { conduct: false, hrDate: '', hrUnsub: null, gateDate: '', gateUnsub: null };
+function ensureAffairsListeners(hrDate) {
+  if (!firebaseReady() || !fbSignedIn() || !fbUnsub.length) return;
+  const apply = fn => { fbApplying = true; try { fn(); } finally { fbApplying = false; } };
+  const quiet = () => {};
+  const a = ensureAffairs();
+  if (affairsWatcher() && !affairsListen.conduct) {
+    affairsListen.conduct = true;
+    const since = Math.max(0, num(a.sync.conductAt) - 120000);
+    const ts = firebase.firestore.Timestamp.fromMillis(since);
+    const unsub = fbDb.collection('conduct').where('serverAt', '>', ts).onSnapshot(snap => apply(() => {
+      const waiting = outboxIdsOf('conduct');
+      let newest = num(a.sync.conductAt), touched = 0;
+      snap.docChanges().forEach(ch => {
+        if (ch.type === 'removed') return;
+        const raw = ch.doc.data() || {}, at = raw.serverAt && raw.serverAt.toMillis ? raw.serverAt.toMillis() : 0;
+        if (at > newest) newest = at;
+        if (waiting[ch.doc.id]) return;           // ของที่เครื่องนี้ยังส่งไม่ขึ้น ใช้ฉบับในเครื่องก่อน
+        const rec = fbDecodeNested(Object.assign({}, raw)); delete rec.serverAt;
+        a.records[ch.doc.id] = Object.assign(rec, { id: ch.doc.id }); touched++;
+      });
+      a.sync.conductAt = newest;
+      save(true);
+      if (touched && ['affairs', 'executive'].includes(DB.ui.tab)) render();
+    }), quiet);
+    fbUnsub.push(() => { unsub(); affairsListen.conduct = false; });
+  }
+  const wantDate = hrDate || DB.ui.affairsDate || todayISO();
+  if (affairsWatcher() && affairsListen.hrDate !== wantDate) {
+    if (affairsListen.hrUnsub) affairsListen.hrUnsub();
+    affairsListen.hrDate = wantDate;
+    const unsub = fbDb.collection('homeroomDaily').where('date', '==', wantDate).onSnapshot(snap => apply(() => {
+      snap.docs.forEach(d => { a.homeroomDaily[d.id] = Object.assign(fbDecodeNested(d.data() || {}), { id: d.id }); });
+      save(true);
+      if (DB.ui.tab === 'affairs') render();
+    }), quiet);
+    affairsListen.hrUnsub = unsub;
+    fbUnsub.push(() => { unsub(); affairsListen.hrDate = ''; affairsListen.hrUnsub = null; });
+  }
+  /* แอปสแกนใบหน้าเขียนเหตุการณ์เข้าประตูไว้ เครื่องฝ่ายกิจการฯ แปลงเป็นรายการมาสายให้
+     รหัสรายการกำหนดตายตัว สองเครื่องแปลงซ้ำกันก็ได้ผลเดียวกัน ไม่หักซ้ำ */
+  const today = todayISO();
+  if (isAffairsStaff() && affairsListen.gateDate !== today) {
+    if (affairsListen.gateUnsub) affairsListen.gateUnsub();
+    affairsListen.gateDate = today;
+    const unsub = fbDb.collection('gateEvents').where('date', '==', today).onSnapshot(snap => {
+      let added = 0;
+      snap.docChanges().forEach(ch => {
+        if (ch.type === 'removed') return;
+        const ev = ch.doc.data() || {}, at = ev.at ? new Date(ev.at) : null;
+        if (!ev.sid || !at || isNaN(at)) return;
+        const time = pad2(at.getHours()) + ':' + pad2(at.getMinutes());
+        const day = a.arrivals[ev.date || today] = a.arrivals[ev.date || today] || {};
+        if (!day[ev.sid] || day[ev.sid] > time) day[ev.sid] = time;
+        const r = recordLateArrival(ev.sid, { date: ev.date || today, time: time, method: ev.method || 'face' });
+        if (r.status === 'added') added++;
+      });
+      save(true);
+      if (added && DB.ui.tab === 'affairs') render();
+    }, quiet);
+    affairsListen.gateUnsub = unsub;
+    fbUnsub.push(() => { unsub(); affairsListen.gateDate = ''; affairsListen.gateUnsub = null; });
+  }
+}
+/** เกณฑ์และรายการพฤติกรรม ฝ่ายกิจการฯ ตั้งแล้วทุกเครื่องได้ตาม */
+function pushAffairsConfig() {
+  if (!firebaseReady() || !fbSignedIn()) return Promise.resolve(false);
+  return fbSetDoc(fbDb.collection('affairsConfig').doc('main'), fbPlain({ value: affairsCfg(), updatedAt: new Date().toISOString(),
+    updatedBy: conductByWho().byName }), 'เกณฑ์คะแนนพฤติกรรม').then(() => true);
+}
+
+/* ---- บันทึกพฤติกรรม (ครูทุกคน) --------------------------------------------- */
+/** opts: { classId, sids:[...] } เปิดจากหน้าเช็กชื่อจะเลือกห้องไว้ให้แล้ว */
+function openConductModal(opts) {
+  opts = opts || {};
+  const cfg = affairsCfg();
+  const classes = DB.classes.filter(c => (c.students || []).length).slice().sort((a, b) => String(a.name).localeCompare(String(b.name), 'th'));
+  const picked = new Set((opts.sids || []).map(String));
+  let classId = opts.classId || (classes[0] || {}).id || '';
+  const studentList = () => {
+    const cls = DB.classes.find(c => c.id === classId);
+    const list = cls ? (cls.students || []).slice().sort((a, b) => num(a.no) - num(b.no)) : [];
+    return list.length ? list.map(st => '<label class="conduct-pick"><input type="checkbox" value="' + esc(st.sid) + '"' + (picked.has(String(st.sid)) ? ' checked' : '') + '> ' +
+      '<span class="hint">' + esc(st.no) + '</span> ' + esc(st.name) + '</label>').join('') : '<div class="empty">ห้องนี้ยังไม่มีรายชื่อ</div>';
+  };
+  const ruleOptions = kind => cfg.rules.filter(r => r.kind === kind).map(r => '<option value="' + esc(r.id) + '">' + esc(r.name) + ' (' + (kind === 'good' ? '+' : '−') + fmt(r.points) + ')</option>').join('') +
+    '<option value="">อื่น ๆ (พิมพ์เอง)</option>';
+  openModal({ title: 'บันทึกพฤติกรรมนักเรียน', wide: true,
+    bodyHTML: '<div class="grid2"><div>' +
+      '<div class="row" style="gap:8px"><div class="pick"><label>ห้อง</label><select id="cdClass">' + classes.map(c => '<option value="' + c.id + '"' + (c.id === classId ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') + '</select></div>' +
+      '<div class="pick"><label>หรือกรอกเลขประจำตัว</label><input id="cdSid" placeholder="เช่น 12345 12346" style="width:170px"></div></div>' +
+      '<div class="conduct-list" id="cdList">' + studentList() + '</div>' +
+      '<div class="hint" id="cdCount" style="margin-top:6px"></div></div>' +
+      '<div><div class="pick"><label>ประเภท</label><div class="row" style="gap:14px">' +
+        '<label><input type="radio" name="cdKind" value="bad" checked> ผิดระเบียบ (หักคะแนน)</label>' +
+        '<label><input type="radio" name="cdKind" value="good"> ความดี (เพิ่มคะแนน)</label></div></div>' +
+      '<div class="pick" style="margin-top:10px"><label>รายการ</label><select id="cdRule" style="width:100%">' + ruleOptions('bad') + '</select></div>' +
+      '<div class="pick" id="cdTitleBox" style="margin-top:10px;display:none"><label>ระบุพฤติกรรม</label><input id="cdTitle" style="width:100%"></div>' +
+      '<div class="row" style="gap:10px;margin-top:10px"><div class="pick"><label>คะแนน</label><input id="cdPoints" type="number" min="0" step="1" style="width:90px"></div>' +
+      '<div class="pick"><label>วันที่</label><input id="cdDate" type="date" value="' + todayISO() + '"></div></div>' +
+      '<div class="pick" style="margin-top:10px"><label>รายละเอียด (ถ้ามี)</label><textarea id="cdNote" rows="3" style="width:100%"></textarea></div>' +
+      '<div class="hint tip" style="margin-top:8px">บันทึกแล้วมีผลทันที ฝ่ายกิจการนักเรียนตรวจและยกเลิกรายการที่ผิดได้</div></div></div>',
+    buttons: [{ label: 'ยกเลิก' }, { label: 'บันทึก', cls: 'primary', act(close, root) {
+      const kind = ($$('[name="cdKind"]', root).find(x => x.checked) || {}).value || 'bad';
+      const rule = cfg.rules.find(r => r.id === $('#cdRule', root).value);
+      const title = rule ? rule.name : $('#cdTitle', root).value.trim();
+      const pts = Math.abs(num($('#cdPoints', root).value));
+      if (!picked.size) return toast('กรุณาเลือกนักเรียนอย่างน้อย 1 คน', 'bad');
+      if (!title) return toast('กรุณาระบุพฤติกรรม', 'bad');
+      if (!pts) return toast('กรุณาใส่คะแนนมากกว่า 0', 'bad');
+      const date = $('#cdDate', root).value || todayISO(), note = $('#cdNote', root).value.trim();
+      picked.forEach(sid => putConductRecord(newConductRecord(sid, { kind: kind, type: 'rule', ruleId: rule ? rule.id : '',
+        title: title, points: kind === 'good' ? pts : -pts, date: date, note: note })));
+      save(true); close();
+      toast('บันทึก' + (kind === 'good' ? 'ความดี' : 'การผิดระเบียบ') + ' ' + picked.size + ' คนแล้ว', 'ok');
+      if (DB.ui.tab === 'affairs') renderAffairs();
+    } }],
+    onMount(root) {
+      const count = () => { $('#cdCount', root).textContent = picked.size ? 'เลือกแล้ว ' + picked.size + ' คน' : 'ยังไม่ได้เลือกนักเรียน'; };
+      const bindList = () => $$('#cdList input', root).forEach(cb => cb.addEventListener('change', () => { if (cb.checked) picked.add(cb.value); else picked.delete(cb.value); count(); }));
+      const fillPoints = () => { const r = cfg.rules.find(x => x.id === $('#cdRule', root).value);
+        $('#cdTitleBox', root).style.display = r ? 'none' : '';   // .pick ตั้ง display เอง ใช้ hidden ไม่ได้
+        if (r) $('#cdPoints', root).value = r.points; };
+      $('#cdClass', root).addEventListener('change', e => { classId = e.target.value; $('#cdList', root).innerHTML = studentList(); bindList(); });
+      $('#cdSid', root).addEventListener('keydown', e => {
+        if (e.key !== 'Enter') return; e.preventDefault();
+        const missing = [];
+        String(e.target.value).split(/[\s,]+/).filter(Boolean).forEach(sid => { if (findStudentBySid(sid)) picked.add(sid); else missing.push(sid); });
+        e.target.value = ''; $('#cdList', root).innerHTML = studentList(); bindList(); count();
+        if (missing.length) toast('ไม่พบเลขประจำตัว ' + missing.join(', '), 'bad');
+      });
+      $$('[name="cdKind"]', root).forEach(r => r.addEventListener('change', () => { $('#cdRule', root).innerHTML = ruleOptions(r.value); fillPoints(); }));
+      $('#cdRule', root).addEventListener('change', fillPoints);
+      bindList(); fillPoints(); count();
+    } });
+}
+
+/** ประวัติรายคน ฝ่ายกิจการฯ กับผู้บันทึกเองยกเลิกรายการได้ */
+function openConductHistory(sid) {
+  const year = affairsYear(), s = conductOf(sid, year), info = conductStudentInfo(sid), cfg = affairsCfg();
+  const all = Object.values(ensureAffairs().records).filter(r => r.sid === String(sid) && r.year === year)
+    .sort((a, b) => String(b.date + b.time).localeCompare(String(a.date + a.time)));
+  const me = conductByWho();
+  const canVoid = r => !r.voided && (isAffairsStaff() || (me.byEmail && r.byEmail === me.byEmail));
+  const srcText = { manual: 'ครูบันทึก', homeroom: 'แถวเช้า', gate: 'ประตู', face: 'สแกนใบหน้า' };
+  openModal({ title: 'ประวัติพฤติกรรม • ' + (info.name || sid), wide: true,
+    bodyHTML: '<div class="row" style="gap:12px;margin-bottom:10px"><div>เลขประจำตัว ' + esc(sid) + ' • ' + esc(info.className || s.className || '') + ' • ปีการศึกษา ' + esc(year) + '</div><div class="spacer"></div>' +
+      '<b>คะแนน</b> ' + conductScoreBadge(s.score) + '<span class="hint">เกณฑ์ ' + fmt(cfg.threshold) + '</span></div>' +
+      (all.length ? '<div class="tablewrap tall"><table><thead><tr><th>วันที่</th><th>รายการ</th><th class="numcell">คะแนน</th><th>ที่มา</th><th>ผู้บันทึก</th><th></th></tr></thead><tbody>' +
+        all.map(r => '<tr' + (r.voided ? ' class="conduct-void"' : '') + '><td>' + esc(thaiDate(r.date)) + (r.time ? '<div class="hint">' + esc(r.time) + '</div>' : '') + '</td>' +
+          '<td><b>' + esc(r.title) + '</b>' + (r.note ? '<div class="hint">' + esc(r.note) + '</div>' : '') +
+          (r.voided ? '<div class="hint">ยกเลิกแล้ว • ' + esc(r.voided.byName || '') + (r.voided.reason ? ' • ' + esc(r.voided.reason) : '') + '</div>' : '') + '</td>' +
+          '<td class="numcell"><b class="' + (num(r.points) >= 0 ? 'oktext' : 'badtext') + '">' + (num(r.points) > 0 ? '+' : '') + fmt(num(r.points)) + '</b></td>' +
+          '<td>' + esc(srcText[r.source] || r.source || '') + '</td><td>' + esc(r.byName || '') + '</td>' +
+          '<td>' + (canVoid(r) ? '<button class="sm" data-void="' + esc(r.id) + '">ยกเลิก</button>' : '') + '</td></tr>').join('') +
+        '</tbody></table></div>' : '<div class="empty">ยังไม่มีรายการในปีการศึกษานี้</div>'),
+    buttons: [{ label: 'ปิด' }, { label: 'บันทึกพฤติกรรมเพิ่ม', cls: 'primary', act(close) { close(); openConductModal({ classId: info.classId, sids: [sid] }); } }],
+    onMount(root, close) {
+      $$('[data-void]', root).forEach(btn => btn.addEventListener('click', () => {
+        const rec = ensureAffairs().records[btn.dataset.void]; if (!rec) return;
+        const reason = prompt('เหตุผลที่ยกเลิกรายการ “' + rec.title + '”', '');
+        if (reason === null) return;
+        voidConductRecord(rec, reason.trim()); save(true); close();
+        toast('ยกเลิกรายการแล้ว', 'ok');
+        if (DB.ui.tab === 'affairs') renderAffairs();
+        openConductHistory(sid);
+      }));
+    } });
+}
+
+/* ---- หน้าฝ่ายกิจการนักเรียน ------------------------------------------------ */
+const AFFAIRS_VIEWS = [['today', 'วันนี้'], ['gate', 'บันทึกมาสายที่ประตู'], ['scores', 'คะแนนพฤติกรรม'], ['config', 'ตั้งค่าเกณฑ์']];
+function renderAffairs() {
+  const pane = $('#pane-affairs'); if (!pane) return;
+  ensureAffairs();
+  const view = AFFAIRS_VIEWS.some(v => v[0] === DB.ui.affairsView) ? DB.ui.affairsView : 'today';
+  const date = DB.ui.affairsDate = DB.ui.affairsDate || todayISO();
+  ensureAffairsListeners(date);
+  const offline = !(firebaseReady() && fbSignedIn());
+  pane.innerHTML = '<div class="card dash-hero"><div class="row" style="position:relative;z-index:1"><div><div class="hero-sub">STUDENT AFFAIRS</div>' +
+      '<h1>ฝ่ายกิจการนักเรียน</h1><div class="hero-sub">คะแนนพฤติกรรม • แถวเช้า • มาสาย • ปีการศึกษา ' + esc(affairsYear() || '—') + '</div></div><div class="spacer"></div>' +
+      '<button class="primary" id="afRecord">＋ บันทึกพฤติกรรม</button></div></div>' +
+    (offline ? '<div class="notice" style="margin-bottom:12px">ยังไม่ได้เข้าสู่ระบบด้วยบัญชีโรงเรียน หน้านี้จึงเห็นเฉพาะรายการที่บันทึกบนเครื่องนี้</div>' : '') +
+    '<div class="row affairs-views" style="gap:6px;margin-bottom:12px">' + AFFAIRS_VIEWS.map(v => '<button class="sm' + (v[0] === view ? ' primary' : '') + '" data-af-view="' + v[0] + '">' + esc(v[1]) + '</button>').join('') + '</div>' +
+    '<div id="afBody"></div>';
+  $('#afRecord', pane).addEventListener('click', () => openConductModal({}));
+  $$('[data-af-view]', pane).forEach(b => b.addEventListener('click', () => { DB.ui.affairsView = b.dataset.afView; save(); renderAffairs(); }));
+  const body = $('#afBody', pane);
+  if (view === 'today') renderAffairsToday(body, date);
+  else if (view === 'gate') renderAffairsGate(body);
+  else if (view === 'scores') renderAffairsScores(body);
+  else renderAffairsConfig(body);
+}
+
+function renderAffairsToday(body, date) {
+  const a = ensureAffairs(), year = affairsYear();
+  const daily = Object.values(a.homeroomDaily).filter(d => d.date === date);
+  const byClass = {}; daily.forEach(d => { if (!byClass[d.classId] || d.checkedAt > byClass[d.classId].checkedAt) byClass[d.classId] = d; });
+  const advisorRooms = new Set(homeroomPlan().plan.map(p => p.classId));
+  const rooms = DB.classes.filter(c => advisorRooms.has(c.id) || byClass[c.id]).slice().sort((x, y) => String(x.name).localeCompare(String(y.name), 'th', { numeric: true }));
+  const sum = k => Object.values(byClass).reduce((n, d) => n + num((d.counts || {})[k]), 0);
+  const lates = {};
+  Object.values(a.records).filter(r => r.type === 'late' && r.date === date && !r.voided).forEach(r => { if (!lates[r.sid] || r.source !== 'homeroom') lates[r.sid] = r; });
+  const arrivals = a.arrivals[date] || {};
+  const lateList = Object.values(lates).sort((x, y) => String(x.className).localeCompare(String(y.className), 'th', { numeric: true }) || String(x.time).localeCompare(String(y.time)));
+  const summaries = conductSummaries(year), below = Object.values(summaries).filter(s => s.score < num(affairsCfg().threshold));
+  const srcText = { homeroom: 'แถวเช้า', gate: 'ประตู', face: 'สแกนใบหน้า' };
+  body.innerHTML = '<div class="row" style="gap:10px;margin-bottom:10px"><div class="pick"><label>วันที่</label><input type="date" id="afDate" value="' + esc(date) + '"></div>' +
+      '<span class="hint">ข้อมูลแถวเช้ามาจากครูที่ปรึกษากดบันทึกเช็กชื่อคาบเข้าแถว</span></div>' +
+    '<div class="dash-metrics">' +
+      '<div class="metric-card" style="--metric:var(--brand)"><div class="metric-value">' + Object.keys(byClass).length + '/' + rooms.length + '</div><div class="metric-label">ห้องที่เช็กแถวแล้ว</div></div>' +
+      '<div class="metric-card" style="--metric:var(--att-late)"><div class="metric-value">' + lateList.length + '</div><div class="metric-label">มาสาย</div></div>' +
+      '<div class="metric-card" style="--metric:var(--att-absent)"><div class="metric-value">' + sum('absent') + '</div><div class="metric-label">ขาดแถว</div></div>' +
+      '<div class="metric-card" style="--metric:var(--att-leave)"><div class="metric-value">' + sum('leave') + '</div><div class="metric-label">ลา</div></div>' +
+      '<div class="metric-card" style="--metric:var(--bad)"><div class="metric-value">' + below.length + '</div><div class="metric-label">ต่ำกว่าเกณฑ์ทั้งปี</div></div></div>' +
+    '<div class="grid2"><div class="card"><h3>แถวเช้ารายห้อง</h3>' + (rooms.length ? '<div class="tablewrap tall"><table><thead><tr><th>ห้อง</th><th>ครูที่ปรึกษา</th><th>สถานะ</th>' +
+        '<th class="numcell">มา</th><th class="numcell">สาย</th><th class="numcell">ขาด</th><th class="numcell">ลา</th></tr></thead><tbody>' +
+        rooms.map(c => { const d = byClass[c.id], k = (d || {}).counts || {};
+          return '<tr><td><b>' + esc(c.name) + '</b></td><td>' + esc(d ? d.teacherName : homeroomTeacherName(c.id)) + '</td>' +
+            '<td>' + (d ? '<span class="badge ok">เช็กแล้ว ' + esc(new Date(d.checkedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })) + '</span>' : '<span class="badge warn">ยังไม่เช็ก</span>') + '</td>' +
+            (d ? '<td class="numcell">' + num(k.present) + '</td><td class="numcell">' + num(k.late) + '</td><td class="numcell badtext">' + num(k.absent) + '</td><td class="numcell">' + num(k.leave) + '</td>'
+              : '<td class="numcell">–</td><td class="numcell">–</td><td class="numcell">–</td><td class="numcell">–</td>') + '</tr>'; }).join('') +
+        '</tbody></table></div>' : '<div class="empty">ยังไม่มีห้องที่มีครูที่ปรึกษา ตั้งครูที่ปรึกษาที่หน้าผู้ดูแลระบบก่อน</div>') + '</div>' +
+      '<div class="card"><h3>นักเรียนมาสาย • ' + esc(thaiDate(date)) + '</h3>' + (lateList.length ? '<div class="tablewrap tall"><table><thead><tr><th>นักเรียน</th><th>ห้อง</th><th>เวลา</th><th>ที่มา</th></tr></thead><tbody>' +
+        lateList.map(r => '<tr data-af-sid="' + esc(r.sid) + '" style="cursor:pointer"><td><b>' + esc(r.name || r.sid) + '</b><div class="hint">' + esc(r.sid) + '</div></td><td>' + esc(r.className || '') + '</td>' +
+          '<td>' + esc(arrivals[r.sid] || (r.source === 'homeroom' ? '' : r.time) || '–') + '</td><td>' + esc(srcText[r.source] || '') + '</td></tr>').join('') +
+        '</tbody></table></div>' : '<div class="empty">ยังไม่มีนักเรียนมาสาย</div>') + '</div></div>';
+  $('#afDate', body).addEventListener('change', e => { DB.ui.affairsDate = e.target.value || todayISO(); save(); renderAffairs(); });
+  $$('[data-af-sid]', body).forEach(tr => tr.addEventListener('click', () => openConductHistory(tr.dataset.afSid)));
+}
+
+function renderAffairsGate(body) {
+  const a = ensureAffairs(), cfg = affairsCfg(), today = todayISO();
+  const recent = Object.values(a.records).filter(r => r.type === 'late' && r.date === today && (r.source === 'gate' || r.source === 'face'))
+    .sort((x, y) => String(y.createdAt).localeCompare(String(x.createdAt))).slice(0, 30);
+  body.innerHTML = '<div class="grid2"><div class="card"><h3>บันทึกนักเรียนมาสาย</h3>' +
+      '<div class="hint" style="margin-bottom:10px">กรอกหรือยิงบาร์โค้ดเลขประจำตัวแล้วกด Enter • เข้าหลัง <b>' + esc(cfg.lateTime) + '</b> น. นับเป็นมาสาย หักครั้งละ <b>' + fmt(cfg.lateDeduct) + '</b> คะแนน • คนที่ครูที่ปรึกษาเช็กสายไว้แล้วจะไม่ถูกหักซ้ำ</div>' +
+      '<div class="pick"><label>เลขประจำตัวนักเรียน</label><input id="afGateSid" inputmode="numeric" autocomplete="off" style="width:100%;font-size:22px;padding:10px" placeholder="เลขประจำตัว"></div>' +
+      '<div class="row" style="gap:10px;margin-top:10px"><div class="pick"><label>วันที่</label><input type="date" id="afGateDate" value="' + today + '"></div>' +
+      '<div class="pick"><label>เวลาเข้า (เว้นว่าง = ตอนนี้)</label><input type="time" id="afGateTime"></div></div>' +
+      '<div id="afGateResult" class="gate-result" style="margin-top:12px"></div>' +
+      '<div class="notice" style="margin-top:12px"><b>แอปสแกนใบหน้า</b> — เมื่อเชื่อมแล้ว รายการจะเข้ามาที่นี่เองโดยไม่ต้องกรอก (ต้องเปิดหน้านี้ค้างไว้อย่างน้อย 1 เครื่อง)</div></div>' +
+    '<div class="card"><h3>บันทึกที่ประตูวันนี้ ' + recent.length + ' คน</h3>' + (recent.length ? '<div class="tablewrap tall"><table><thead><tr><th>เวลา</th><th>นักเรียน</th><th>ห้อง</th><th></th></tr></thead><tbody>' +
+      recent.map(r => '<tr><td>' + esc(r.time) + '</td><td><b>' + esc(r.name || r.sid) + '</b><div class="hint">' + esc(r.sid) + (r.source === 'face' ? ' • สแกนใบหน้า' : '') + '</div></td><td>' + esc(r.className) + '</td>' +
+        '<td><button class="sm" data-af-hist="' + esc(r.sid) + '">ประวัติ</button></td></tr>').join('') + '</tbody></table></div>' : '<div class="empty">ยังไม่มี</div>') + '</div></div>';
+  const box = $('#afGateSid', body), out = $('#afGateResult', body);
+  box.focus();
+  box.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return; e.preventDefault();
+    const sids = String(box.value).split(/[\s,]+/).filter(Boolean); box.value = '';
+    const date = $('#afGateDate', body).value || today, time = $('#afGateTime', body).value || '';
+    const lines = sids.map(sid => {
+      const r = recordLateArrival(sid, { date: date, time: time || undefined, force: !!time });
+      const who = esc(r.student.name || sid) + (r.student.className ? ' • ' + esc(r.student.className) : '');
+      if (r.status === 'added') return '<div class="badge bad">มาสาย ' + esc(r.time) + '</div> <b>' + who + '</b> หัก ' + fmt(cfg.lateDeduct) + ' คะแนน';
+      if (r.status === 'exists') return '<div class="badge warn">บันทึกแล้ว</div> <b>' + who + '</b> วันนี้มีรายการมาสายอยู่แล้ว ไม่หักซ้ำ';
+      if (r.status === 'early') return '<div class="badge ok">ทันเวลา ' + esc(r.time) + '</div> <b>' + who + '</b>';
+      return '<div class="badge bad">ไม่พบ</div> เลขประจำตัว ' + esc(sid);
+    });
+    out.innerHTML = lines.map(l => '<div style="margin:4px 0">' + l + '</div>').join('');
+    save(true);
+    if (sids.length) setTimeout(() => { if (DB.ui.tab === 'affairs' && DB.ui.affairsView === 'gate') { const keep = out.innerHTML; renderAffairs(); const o = $('#afGateResult'); if (o) o.innerHTML = keep; } }, 50);
+  });
+  $$('[data-af-hist]', body).forEach(b => b.addEventListener('click', () => openConductHistory(b.dataset.afHist)));
+}
+
+function renderAffairsScores(body) {
+  const year = affairsYear(), cfg = affairsCfg(), sums = conductSummaries(year);
+  const f = DB.ui.affairsFilter = Object.assign({ classId: '', q: '', low: false }, DB.ui.affairsFilter || {});
+  const classes = DB.classes.filter(c => (c.students || []).length).slice().sort((x, y) => String(x.name).localeCompare(String(y.name), 'th', { numeric: true }));
+  const rows = [];
+  classes.filter(c => !f.classId || c.id === f.classId).forEach(c => (c.students || []).forEach(st => {
+    const s = sums[String(st.sid)] || { score: num(cfg.startScore), good: 0, bad: 0, late: 0, goodPts: 0, badPts: 0 };
+    rows.push({ sid: String(st.sid), no: st.no, name: st.name, className: c.name, classId: c.id, s: s });
+  }));
+  const q = String(f.q || '').trim();
+  const shown = rows.filter(r => (!f.low || r.s.score < num(cfg.threshold)) && (!q || r.name.indexOf(q) >= 0 || r.sid.indexOf(q) >= 0))
+    .sort((x, y) => f.low ? x.s.score - y.s.score : (String(x.className).localeCompare(String(y.className), 'th', { numeric: true }) || num(x.no) - num(y.no)));
+  const LIMIT = 400;
+  body.innerHTML = '<div class="card"><div class="row" style="gap:10px;flex-wrap:wrap">' +
+      '<div class="pick"><label>ห้อง</label><select id="afClass"><option value="">ทุกห้อง</option>' + classes.map(c => '<option value="' + c.id + '"' + (c.id === f.classId ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') + '</select></div>' +
+      '<div class="pick"><label>ค้นหา</label><input id="afQ" value="' + esc(f.q) + '" placeholder="ชื่อหรือเลขประจำตัว"></div>' +
+      '<label style="align-self:flex-end;padding-bottom:8px"><input type="checkbox" id="afLow"' + (f.low ? ' checked' : '') + '> เฉพาะต่ำกว่าเกณฑ์ (' + fmt(cfg.threshold) + ')</label>' +
+      '<div class="spacer"></div><button id="afExport">ส่งออก Excel</button>' +
+      (isAffairsStaff() ? '<button id="afPublish" class="primary">เผยแพร่ให้นักเรียน' + (f.classId ? 'ห้องนี้' : 'ทุกห้อง') + '</button>' : '') + '</div>' +
+    '<div class="hint" style="margin:8px 0">' + shown.length + ' คน • คะแนนเริ่มต้น ' + fmt(cfg.startScore) + ' • กดที่ชื่อเพื่อดูประวัติและยกเลิกรายการ</div>' +
+    (shown.length ? '<div class="tablewrap tall"><table><thead><tr><th>ห้อง</th><th class="c-no">เลขที่</th><th>นักเรียน</th><th class="numcell">คะแนน</th>' +
+      '<th class="numcell">ความดี</th><th class="numcell">ผิดระเบียบ</th><th class="numcell">มาสาย</th></tr></thead><tbody>' +
+      shown.slice(0, LIMIT).map(r => '<tr data-af-sid="' + esc(r.sid) + '" style="cursor:pointer"><td>' + esc(r.className) + '</td><td class="c-no">' + esc(r.no) + '</td>' +
+        '<td><b>' + esc(r.name) + '</b><div class="hint">' + esc(r.sid) + '</div></td><td class="numcell">' + conductScoreBadge(r.s.score) + '</td>' +
+        '<td class="numcell oktext">' + (r.s.good ? r.s.good + ' (+' + fmt(r.s.goodPts) + ')' : '–') + '</td>' +
+        '<td class="numcell badtext">' + (r.s.bad ? r.s.bad + ' (−' + fmt(r.s.badPts) + ')' : '–') + '</td><td class="numcell">' + (r.s.late || '–') + '</td></tr>').join('') +
+      '</tbody></table></div>' + (shown.length > LIMIT ? '<div class="hint">แสดง ' + LIMIT + ' คนแรก เลือกห้องหรือค้นหาเพื่อดูคนที่เหลือ</div>' : '')
+      : '<div class="empty">ไม่มีนักเรียนตามเงื่อนไข</div>') + '</div>';
+  const keep = () => { f.classId = $('#afClass', body).value; f.q = $('#afQ', body).value; f.low = $('#afLow', body).checked; save(); };
+  $('#afClass', body).addEventListener('change', () => { keep(); renderAffairs(); });
+  $('#afLow', body).addEventListener('change', () => { keep(); renderAffairs(); });
+  $('#afQ', body).addEventListener('keydown', e => { if (e.key === 'Enter') { keep(); renderAffairs(); } });
+  $$('[data-af-sid]', body).forEach(tr => tr.addEventListener('click', () => openConductHistory(tr.dataset.afSid)));
+  $('#afExport', body).addEventListener('click', () => {
+    const head = ['ห้อง', 'เลขที่', 'เลขประจำตัว', 'ชื่อ-นามสกุล', 'คะแนน', 'ความดี (ครั้ง)', 'คะแนนความดี', 'ผิดระเบียบ (ครั้ง)', 'คะแนนที่ถูกหัก', 'มาสาย (ครั้ง)'].map(v => ({ v: v, s: 1 }));
+    download(buildXlsx([{ name: 'คะแนนพฤติกรรม', cols: [10, 7, 14, 30, 9, 11, 11, 13, 13, 11], freeze: { rows: 1 },
+      rows: [head].concat(shown.map(r => [r.className, num(r.no) || r.no, r.sid, r.name, r.s.score, r.s.good, r.s.goodPts, r.s.bad, r.s.badPts, r.s.late])) }]),
+      'คะแนนพฤติกรรม_ปี' + year + (f.classId ? '_' + (classes.find(c => c.id === f.classId) || {}).name : '') + '.xlsx');
+  });
+  const pub = $('#afPublish', body);
+  if (pub) pub.addEventListener('click', async () => {
+    const list = rows.filter(r => !f.classId || r.classId === f.classId);
+    if (!list.length) return toast('ไม่มีนักเรียนให้เผยแพร่', 'bad');
+    if (!confirm('เผยแพร่คะแนนพฤติกรรมให้นักเรียน ' + list.length + ' คน เห็นในพอร์ทัลนักเรียน?')) return;
+    pub.disabled = true; pub.textContent = 'กำลังเผยแพร่…';
+    try { const r = await publishConductCards(list.map(x => x.sid), year);
+      toast('เผยแพร่แล้ว ' + r.ok + ' คน' + (r.missing ? ' • ยังไม่มีบัตรนักเรียน ' + r.missing + ' คน (ให้ครูที่ปรึกษาออกรหัสรับสิทธิ์ก่อน)' : ''), r.missing ? 'warn' : 'ok');
+    } catch (e) { toast(e.message || String(e), 'bad'); }
+    renderAffairs();
+  });
+}
+
+function renderAffairsConfig(body) {
+  const cfg = affairsCfg(), canEdit = isAffairsStaff();
+  const ruleRow = r => '<tr data-rule="' + esc(r.id) + '"><td><select class="rk"' + (canEdit ? '' : ' disabled') + '><option value="bad"' + (r.kind === 'bad' ? ' selected' : '') + '>ผิดระเบียบ (หัก)</option><option value="good"' + (r.kind === 'good' ? ' selected' : '') + '>ความดี (เพิ่ม)</option></select></td>' +
+    '<td><input class="rn" value="' + esc(r.name) + '" style="width:100%"' + (canEdit ? '' : ' disabled') + '></td><td><input class="rp" type="number" min="0" step="1" value="' + esc(r.points) + '" style="width:80px"' + (canEdit ? '' : ' disabled') + '></td>' +
+    '<td>' + (canEdit ? '<button class="sm" data-rule-del>ลบ</button>' : '') + '</td></tr>';
+  body.innerHTML = '<div class="grid2"><div class="card"><h3>เกณฑ์คะแนน</h3>' +
+      '<div class="grid2"><div class="pick"><label>คะแนนเริ่มต้นต่อปีการศึกษา</label><input id="afStart" type="number" value="' + esc(cfg.startScore) + '"></div>' +
+      '<div class="pick"><label>เกณฑ์ต้องติดตาม (ต่ำกว่า)</label><input id="afThreshold" type="number" value="' + esc(cfg.threshold) + '"></div>' +
+      '<div class="pick"><label>เวลาเข้าแถว (หลังจากนี้ = สาย)</label><input id="afLateTime" type="time" value="' + esc(cfg.lateTime) + '"></div>' +
+      '<div class="pick"><label>หักเมื่อมาสาย (ต่อครั้ง)</label><input id="afLateDeduct" type="number" min="0" value="' + esc(cfg.lateDeduct) + '"></div>' +
+      '<div class="pick"><label>หักเมื่อขาดเข้าแถว (0 = ไม่หัก)</label><input id="afAbsDeduct" type="number" min="0" value="' + esc(cfg.assemblyAbsentDeduct) + '"></div>' +
+      '<label style="align-self:flex-end"><input type="checkbox" id="afCap"' + (cfg.capAtStart ? ' checked' : '') + '> คะแนนความดีบวกคืนได้ไม่เกินคะแนนเริ่มต้น</label></div>' +
+      '<div class="hint tip" style="margin-top:10px">มาสายที่ครูที่ปรึกษาเช็กในแถวเช้า และที่บันทึกที่ประตู หักคะแนนอัตโนมัติ วันเดียวกันนับครั้งเดียว</div></div>' +
+    '<div class="card"><div class="row"><h3 style="margin:0">รายการพฤติกรรม</h3><div class="spacer"></div>' + (canEdit ? '<button class="sm" id="afRuleAdd">＋ เพิ่มรายการ</button>' : '') + '</div>' +
+      '<div class="tablewrap tall" style="margin-top:10px"><table><thead><tr><th>ประเภท</th><th>รายการ</th><th>คะแนน</th><th></th></tr></thead><tbody id="afRules">' + cfg.rules.map(ruleRow).join('') + '</tbody></table></div></div></div>' +
+    (canEdit ? '<div class="row" style="margin-top:4px"><div class="spacer"></div><button class="primary" id="afCfgSave">บันทึกและส่งให้ทุกเครื่อง</button></div>'
+      : '<div class="hint">ฝ่ายกิจการนักเรียนหรือผู้ดูแลระบบเท่านั้นที่แก้เกณฑ์ได้</div>');
+  if (!canEdit) return;
+  const bindDel = () => $$('[data-rule-del]', body).forEach(b => { b.onclick = () => b.closest('tr').remove(); });
+  $('#afRuleAdd', body).addEventListener('click', () => { $('#afRules', body).insertAdjacentHTML('beforeend', ruleRow({ id: uid('r'), kind: 'bad', name: '', points: 5 })); bindDel(); });
+  bindDel();
+  $('#afCfgSave', body).addEventListener('click', async () => {
+    const rules = $$('#afRules tr', body).map(tr => ({ id: tr.dataset.rule, kind: $('.rk', tr).value, name: $('.rn', tr).value.trim(), points: Math.abs(num($('.rp', tr).value)) }))
+      .filter(r => r.name && r.points > 0);
+    Object.assign(cfg, { startScore: num($('#afStart', body).value) || 100, threshold: num($('#afThreshold', body).value),
+      lateTime: $('#afLateTime', body).value || '08:00', lateDeduct: Math.abs(num($('#afLateDeduct', body).value)),
+      assemblyAbsentDeduct: Math.abs(num($('#afAbsDeduct', body).value)), capAtStart: $('#afCap', body).checked, rules: rules });
+    save(true);
+    try { const sent = await pushAffairsConfig(); toast(sent ? 'บันทึกและส่งเกณฑ์ให้ทุกเครื่องแล้ว' : 'บันทึกในเครื่องแล้ว • เข้าสู่ระบบด้วยบัญชีโรงเรียนเพื่อส่งให้ทุกเครื่อง', sent ? 'ok' : 'warn'); }
+    catch (e) { toast('บันทึกในเครื่องแล้ว แต่ส่งขึ้นส่วนกลางไม่สำเร็จ: ' + (e.message || e), 'warn'); }
+    renderAffairs();
+  });
+}
+
+/* ---- เผยแพร่ให้นักเรียนและพอร์ทัล ------------------------------------------ */
+/** เขียนสรุปคะแนนลงบัตรนักเรียนที่มีอยู่แล้วเท่านั้น
+    ใช้ update ไม่ใช่ set เพราะถ้าสร้างบัตรใหม่ตรงนี้จะไม่มีช่อง uid ว่าง นักเรียนจะผูกเครื่องไม่ได้ */
+async function publishConductCards(sids, year) {
+  if (!firebaseReady() || !fbSignedIn()) throw new Error('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อน');
+  const cfg = affairsCfg(), sums = conductSummaries(year), stamp = new Date().toISOString();
+  let ok = 0, missing = 0;
+  for (let i = 0; i < sids.length; i += 50) {
+    await Promise.all(sids.slice(i, i + 50).map(sid => {
+      const s = sums[sid] || { score: num(cfg.startScore), good: 0, bad: 0, late: 0, records: [] };
+      const recent = (s.records || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 10)
+        .map(r => ({ date: r.date, title: r.title, points: num(r.points) }));
+      return studentCardRef(sid).update({ conduct: fbPlain({ year: year, score: s.score, start: num(cfg.startScore), threshold: num(cfg.threshold),
+        good: s.good, bad: s.bad, late: s.late, recent: recent, publishedAt: stamp }) })
+        .then(() => { ok++; }).catch(() => { missing++; });
+    }));
+  }
+  return { ok: ok, missing: missing };
+}
+/** การ์ดในพอร์ทัลนักเรียน — รับข้อมูลที่เผยแพร่ไว้ในบัตรเท่านั้น ไม่อ้างข้อมูลโรงเรียนในเครื่อง */
+function portalConductHtml(c) {
+  if (!c || c.score == null) return '';
+  const low = num(c.score) < num(c.threshold);
+  return '<div class="card portal-conduct"><div class="row"><div><h3 style="margin:0 0 4px">คะแนนพฤติกรรม</h3><div class="hint">ปีการศึกษา ' + esc(c.year || '') +
+      ' • คะแนนเริ่มต้น ' + fmt(num(c.start)) + ' • เกณฑ์ ' + fmt(num(c.threshold)) + '</div></div><div class="spacer"></div>' +
+      '<div style="font-size:30px;font-weight:900;color:' + (low ? 'var(--bad)' : 'var(--ok)') + '">' + fmt(num(c.score), 1) + '</div></div>' +
+    '<div class="portal-metrics"><div class="portal-metric"><b>' + num(c.good) + '</b>ความดี</div><div class="portal-metric"><b>' + num(c.bad) + '</b>ผิดระเบียบ</div><div class="portal-metric"><b>' + num(c.late) + '</b>มาสาย</div></div>' +
+    (low ? '<div class="notice bad" style="margin-top:10px">คะแนนต่ำกว่าเกณฑ์ กรุณาติดต่อครูที่ปรึกษาหรือฝ่ายกิจการนักเรียน</div>' : '') +
+    ((c.recent || []).length ? '<details style="margin-top:10px"><summary>รายการล่าสุด</summary><div style="margin-top:6px">' + c.recent.map(r =>
+      '<div class="row" style="padding:4px 0;border-bottom:1px solid var(--line)"><span class="hint">' + esc(thaiDate(r.date)) + '</span><span>' + esc(r.title) + '</span><div class="spacer"></div><b class="' + (num(r.points) >= 0 ? 'oktext' : 'badtext') + '">' +
+        (num(r.points) > 0 ? '+' : '') + fmt(num(r.points)) + '</b></div>').join('') + '</div></details>' : '') +
+    (c.publishedAt ? '<div class="portal-updated">อัปเดต ' + esc(new Date(c.publishedAt).toLocaleString('th-TH')) + '</div>' : '') + '</div>';
+}
+
+/** บนเครื่องครู (โหมดตรวจสอบ) คำนวณสดจากรายการในเครื่อง รูปเดียวกับที่เผยแพร่ลงบัตร */
+function localConductCard(sid) {
+  const cfg = affairsCfg(), year = affairsYear(), s = conductOf(sid, year);
+  return { year: year, score: s.score, start: num(cfg.startScore), threshold: num(cfg.threshold), good: s.good, bad: s.bad, late: s.late,
+    recent: s.records.slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 10).map(r => ({ date: r.date, title: r.title, points: num(r.points) })) };
+}
+
+/** การ์ดสรุปในหน้าผู้บริหาร */
+function affairsExecCard() {
+  const a = ensureAffairs(), today = todayISO(), cfg = affairsCfg();
+  const late = new Set(Object.values(a.records).filter(r => r.type === 'late' && r.date === today && !r.voided).map(r => r.sid)).size;
+  const below = Object.values(conductSummaries(affairsYear())).filter(s => s.score < num(cfg.threshold)).sort((x, y) => x.score - y.score);
+  return '<div class="card"><div class="row"><div><h3 style="margin:0">กิจการนักเรียน</h3><div class="hint">มาสายวันนี้ ' + late + ' คน • คะแนนพฤติกรรมต่ำกว่า ' + fmt(cfg.threshold) + ' รวม ' + below.length + ' คน</div></div></div>' +
+    (below.length ? '<div class="tablewrap" style="margin-top:10px"><table><thead><tr><th>นักเรียน</th><th>ห้อง</th><th class="numcell">คะแนน</th><th class="numcell">มาสาย</th></tr></thead><tbody>' +
+      below.slice(0, 10).map(s => '<tr><td><b>' + esc(s.name || s.sid) + '</b></td><td>' + esc(s.className || '') + '</td><td class="numcell">' + conductScoreBadge(s.score) + '</td><td class="numcell">' + s.late + '</td></tr>').join('') +
+      '</tbody></table></div>' : '<div class="empty" style="margin-top:8px">ยังไม่มีนักเรียนต่ำกว่าเกณฑ์</div>') + '</div>';
+}
+
+/* ============================================================================
    13) Google Login
    ========================================================================== */
 let googleAccessToken = '';
@@ -13253,7 +13880,8 @@ async function staffApi(action, payload) {
 function normalizeRoles(value) {
   const map = { teacher: 'teacher', ครู: 'teacher', head: 'head', 'หัวหน้ากลุ่มสาระ': 'head', 'หัวหน้ากลุ่มสาระฯ': 'head',
     'หัวหน้ากลุ่ม': 'head', executive: 'executive', 'ผู้บริหาร': 'executive', director: 'executive',
-    admin: 'admin', 'ผู้ดูแลระบบ': 'admin', 'แอดมิน': 'admin' };
+    admin: 'admin', 'ผู้ดูแลระบบ': 'admin', 'แอดมิน': 'admin',
+    affairs: 'affairs', 'กิจการนักเรียน': 'affairs', 'ฝ่ายกิจการนักเรียน': 'affairs', 'ฝ่ายปกครอง': 'affairs' };
   // แยกคำในทุกกรณี รวมถึง array ที่มีสมาชิกเดียวแต่ใส่หลายบทบาทรวมกัน เช่น ["teacher head admin"]
   const raw = Array.isArray(value) ? value : [value];
   const list = raw.reduce((acc, x) => acc.concat(String(x == null ? '' : x).split(/[,\s]+/)), []);
@@ -14131,6 +14759,15 @@ function startFirebaseSync() {
     save(true); render();
   }), quiet));
 
+  /* เกณฑ์คะแนนพฤติกรรมเป็นเอกสารเดียว ทุกเครื่องฟังได้ไม่เปลือง ครูจะได้เห็นรายการและแต้มล่าสุด */
+  fbUnsub.push(fbDb.collection('affairsConfig').doc('main').onSnapshot(doc => apply(() => {
+    const v = doc.exists ? fbDecodeNested((doc.data() || {}).value) : null;
+    if (!v) return;
+    ensureAffairs().config = Object.assign(defaultAffairsConfig(), v);
+    save(true); if (DB.ui.tab === 'affairs') render();
+  }), quiet));
+  ensureAffairsListeners();
+
   [['leaves', 'leaveRequests'], ['swaps', 'exchangeRequests']].forEach(pair => {
     fbUnsub.push(fbDb.collection(pair[0]).onSnapshot(snap => apply(() => {
       /* รายการที่ยังส่งขึ้นไม่สำเร็จต้องไม่ถูกลบทิ้ง ไม่งั้นสิ่งที่ครูกรอกตอนเน็ตหลุดจะหาย */
@@ -14640,7 +15277,7 @@ function fbPlain(obj) { return fbEncodeNested(JSON.parse(JSON.stringify(obj))); 
    แอปนี้เป็น PWA ที่ตั้งใจให้ใช้ตอนออฟไลน์ได้ ปัญหานี้จึงเกิดจริง
    จึงจดไว้ว่ายังมีอะไรค้างส่ง ลองใหม่เมื่อกลับมาออนไลน์ และกันไม่ให้ตัวรับข้อมูลลบทิ้ง
    ใช้แนวเดียวกับที่สมุดคะแนนใช้อยู่แล้ว (syncSigs) ซึ่งพิสูจน์แล้วว่าใช้ได้ */
-const OUTBOX_COLLECTION = { swap: 'swaps', leave: 'leaves', activity: 'activities' };
+const OUTBOX_COLLECTION = { swap: 'swaps', leave: 'leaves', activity: 'activities', conduct: 'conduct', hrday: 'homeroomDaily' };
 const outboxBag = () => (DB.cloud.outbox = DB.cloud.outbox && typeof DB.cloud.outbox === 'object' ? DB.cloud.outbox : {});
 const outboxKey = (kind, id) => kind + ':' + id;
 const outboxCount = () => Object.keys(outboxBag()).length;
@@ -14658,7 +15295,10 @@ function outboxSend(kind, item, quiet) {
   if (!item || !item.id) return Promise.resolve(false);
   outboxMark(kind, item.id);
   if (!firebaseReady() || !fbSignedIn() || !navigator.onLine) { renderSyncChip(); return Promise.resolve(false); }
-  return fbDb.collection(OUTBOX_COLLECTION[kind]).doc(item.id).set(fbPlain(item))
+  const data = fbPlain(item);
+  /* รายการพฤติกรรมฟังแบบเอาเฉพาะที่เปลี่ยนหลังเวลาล่าสุด ต้องใช้เวลาของเซิร์ฟเวอร์ ไม่ใช่นาฬิกาเครื่อง */
+  if (kind === 'conduct') data.serverAt = firebase.firestore.FieldValue.serverTimestamp();
+  return fbDb.collection(OUTBOX_COLLECTION[kind]).doc(item.id).set(data)
     .then(() => { outboxClear(kind, item.id); save(); renderSyncChip(); return true; })
     .catch(e => {
       if (!quiet) toast('ยังส่งขึ้นส่วนกลางไม่ได้ • เก็บไว้ในเครื่องแล้ว จะส่งให้เองเมื่อเน็ตกลับมา', 'warn');
@@ -14670,6 +15310,8 @@ function outboxSend(kind, item, quiet) {
 function outboxItem(kind, id) {
   if (kind === 'leave') return (DB.timetable.leaveRequests || []).find(x => x.id === id);
   if (kind === 'swap') return (DB.timetable.exchangeRequests || []).find(x => x.id === id);
+  if (kind === 'conduct') return ensureAffairs().records[id];
+  if (kind === 'hrday') return ensureAffairs().homeroomDaily[id];
   return (DB.timetable.activities || []).find(x => x.id === id);
 }
 
@@ -14818,6 +15460,8 @@ const GATEWAY_ROLES = [
     icon: 'M9.2 11.4a3.4 3.4 0 1 0 0-6.8 3.4 3.4 0 0 0 0 6.8z M9.2 13.1c-3.4 0-6.2 1.75-6.2 3.9V19.4h12.4v-2.4c0-2.15-2.8-3.9-6.2-3.9z M17.4 11.2a2.8 2.8 0 1 0 0-5.6 2.8 2.8 0 0 0 0 5.6z M17.4 12.9c-.9 0-1.75.14-2.5.4 1.3 1.05 2.1 2.4 2.1 3.7v2.4H22v-2.6c0-1.9-2.1-3.9-4.6-3.9z' },
   { role: 'executive', label: 'ผู้บริหาร', color: '#7c3aed',
     icon: 'M9.4 3.4h5.2a2.4 2.4 0 0 1 2.4 2.4v1.8h3.4A1.6 1.6 0 0 1 22 9.2v9.4a1.6 1.6 0 0 1-1.6 1.6H3.6A1.6 1.6 0 0 1 2 18.6V9.2a1.6 1.6 0 0 1 1.6-1.6H7V5.8a2.4 2.4 0 0 1 2.4-2.4zm0 4.2h5.2V5.8H9.4v1.8z' },
+  { role: 'affairs', label: 'ฝ่ายกิจการนักเรียน', color: '#db2777',
+    icon: 'M12 2.2 3.6 5.4v6.1c0 5.1 3.6 9.3 8.4 10.3 4.8-1 8.4-5.2 8.4-10.3V5.4L12 2.2zm0 4.4 1.45 2.95 3.25.47-2.35 2.3.55 3.24L12 14.03l-2.9 1.53.55-3.24-2.35-2.3 3.25-.47L12 6.6z' },
   { role: 'admin', label: 'ผู้ดูแลระบบ', color: '#ea580c',
     icon: 'M19.22 8.33L22.50 8.71A11 11 0 0 1 22.50 15.29L19.22 15.67A8.1 8.1 0 0 1 18.79 16.42L18.79 16.42L20.10 19.45A11 11 0 0 1 14.40 22.74L12.43 20.09A8.1 8.1 0 0 1 11.57 20.09L11.57 20.09L9.60 22.74A11 11 0 0 1 3.90 19.45L5.21 16.42A8.1 8.1 0 0 1 4.78 15.67L4.78 15.67L1.50 15.29A11 11 0 0 1 1.50 8.71L4.78 8.33A8.1 8.1 0 0 1 5.21 7.58L5.21 7.58L3.90 4.55A11 11 0 0 1 9.60 1.26L11.57 3.91A8.1 8.1 0 0 1 12.43 3.91L12.43 3.91L14.40 1.26A11 11 0 0 1 20.10 4.55L18.79 7.58A8.1 8.1 0 0 1 19.22 8.33Z M15.9 12 A3.9 3.9 0 1 0 8.1 12 A3.9 3.9 0 1 0 15.9 12 Z' }
 ];
@@ -15218,6 +15862,9 @@ function renderStudentPortal() {
       'กำลังดูหน้าจอของ ' + esc(profile.name) + ' (เลขประจำตัว ' + esc(sid) + ') โดยไม่ต้องใช้รหัสผ่านของนักเรียน<br>' +
       'หน้านี้คำนวณสดจากข้อมูลในเครื่องนี้ ตัวเลขจึงอาจต่างจากบัตรที่ครูเผยแพร่ไว้ ถ้าครูยังไม่ได้กดเผยแพร่ล่าสุด</div>' : '') +
     '<div class="card portal-hero"><div class="row"><div><h2 style="margin:0 0 5px">' + esc(profile.name) + '</h2><div class="hint">เลขประจำตัว ' + esc(sid) + ' • ' + esc(fromCloud ? ((studentSession.card || {}).className || '') : matches.map(x => x.cls.name).join(', ')) + '</div></div><div class="spacer"></div><span class="badge">' + esc(periodBadge) + '</span></div></div>' +
+    /* คะแนนพฤติกรรมเห็นเมื่อฝ่ายกิจการฯ กดเผยแพร่ลงบัตรแล้วเท่านั้น */
+    (fromCloud ? portalConductHtml((studentSession.card || {}).conduct)
+      : (DB.affairs && Object.keys(DB.affairs.records || {}).length ? portalConductHtml(localConductCard(sid)) : '')) +
     '<div class="row" style="margin:18px 0 10px"><h3 style="margin:0">รายวิชาและผลการเรียน</h3><div class="spacer"></div><span class="hint">เวลาเรียน ≥80% = ผ • 60–79.99% = มส • ต่ำกว่า 60% = เรียนซ้ำ</span></div>' +
     (function () {
       const anyAnnounced = contexts.some(x => (studentSession.card && studentSession.card.resultsAnnounced === true) || x.resultsAnnounced === true || resultsAnnounced() === true);

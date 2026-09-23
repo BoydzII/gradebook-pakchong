@@ -27,6 +27,7 @@ service cloud.firestore {
     function isAdmin()     { return hasRole('admin'); }
     function isExecutive() { return hasRole('executive'); }
     function isHead()      { return hasRole('head'); }
+    function isAffairs()   { return hasRole('affairs'); }
 
     /* ---------- บุคลากร ----------
        ทุกคนที่อยู่ในระบบอ่านรายชื่อได้ (ต้องใช้หาครูสอนแทนและแสดงภาพรวม)
@@ -114,6 +115,42 @@ service cloud.firestore {
       allow create, update: if isStaff()
         && request.resource.data.teacherEmail == myId();
       allow delete: if isAdmin();
+    }
+
+    /* ---------- คะแนนพฤติกรรม (กิจการนักเรียน) ----------
+       ครูทุกคนบันทึกความดี/ผิดระเบียบได้ทันที โดยต้องลงชื่อตัวเองเป็นผู้บันทึก (byEmail)
+       แก้ได้เฉพาะผู้บันทึกเอง ฝ่ายกิจการนักเรียน และผู้ดูแลระบบ (ใช้ตอนยกเลิกรายการ)
+       ลบไม่ได้เลย รายการที่ผิดให้ "ยกเลิก" แทน เพื่อเก็บเป็นหลักฐาน */
+    match /conduct/{recordId} {
+      allow read: if isStaff();
+      allow create: if isStaff() && request.resource.data.byEmail == myId();
+      allow update: if isAffairs() || isAdmin()
+        || (isStaff() && resource.data.byEmail == myId() && request.resource.data.byEmail == myId());
+      allow delete: if false;
+    }
+
+    /* ---------- สรุปแถวเช้ารายห้อง ----------
+       ครูที่ปรึกษาเขียนตอนกดบันทึกเช็กชื่อคาบเข้าแถว ฝ่ายกิจการฯ ใช้ดูว่าห้องไหนยังไม่เช็ก */
+    match /homeroomDaily/{dayId} {
+      allow read: if isStaff();
+      allow create, update: if isStaff() && request.resource.data.teacherEmail == myId();
+      allow delete: if isAdmin();
+    }
+
+    /* ---------- เกณฑ์คะแนนพฤติกรรม ---------- */
+    match /affairsConfig/{docId} {
+      allow read: if isStaff();
+      allow write: if isAffairs() || isAdmin();
+    }
+
+    /* ---------- เหตุการณ์เข้าประตูจากแอปสแกนใบหน้า (เตรียมไว้) ----------
+       รูปเอกสาร { sid, date: 'YYYY-MM-DD', at: เวลา ISO, deviceId, method: 'face' }
+       แอปสแกนต้องล็อกอินด้วยบัญชีบุคลากรที่มีบทบาท affairs (เช่นบัญชีประจำเครื่องสแกน)
+       เครื่องที่เปิดหน้า "กิจการนักเรียน" จะแปลงเหตุการณ์หลังเวลาเข้าแถวเป็นรายการมาสายให้เอง */
+    match /gateEvents/{eventId} {
+      allow read: if isStaff();
+      allow create: if isAffairs() || isAdmin();
+      allow update, delete: if isAdmin();
     }
 
     /* ---------- สมุดคะแนนของครูแต่ละคน ----------
