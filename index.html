@@ -520,6 +520,35 @@ body.voice-on .tablewrap.tall{padding-bottom:190px}
 .setup-progress{height:9px;border-radius:10px;background:var(--line2);overflow:hidden;margin:8px 0}
 .setup-progress i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--brand),var(--brand2))}
 .search-results{display:grid;gap:6px}.search-result{display:flex;align-items:center;gap:10px;text-align:left;width:100%;padding:10px}
+/* ค้นหาทั่วไป — ช่องบนหน้าภาพรวมอยู่ในการ์ดของตัวเอง ไม่ได้ลอยทับ เพราะการ์ด hero ตัดส่วนที่ล้นทิ้ง (overflow:hidden) */
+.gsearch{padding:14px 16px}
+.gsearch-box{display:flex;align-items:center;gap:10px}
+.gsearch-box .gs-lens{font-size:20px;color:var(--brand);font-weight:800}
+.gsearch-box input{flex:1;min-width:0;font-size:16px;padding:11px 14px;border-radius:12px}
+.gs-results{display:grid;gap:12px;margin-top:10px;max-height:62vh;overflow:auto}
+#dashGlobalResults:empty{display:none}
+.gs-group h4{margin:0 0 6px;font-size:12.5px;font-weight:800;color:var(--muted)}
+.gs-item.sel{border-color:var(--brand);box-shadow:0 0 0 2px color-mix(in srgb,var(--brand) 25%,transparent)}
+.gs-ico{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;flex:none;background:color-mix(in srgb,var(--brand) 12%,var(--panel));color:var(--brand);font-weight:800}
+.gs-text{min-width:0}
+.gs-tags{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.gs-go{color:var(--muted);font-weight:800}
+/* มือถือแคบเกินจะวางป้ายท้ายแถว จึงให้ป้ายลงไปอยู่บรรทัดใต้ชื่อ ห้ามซ่อน เพราะป้ายคือเหตุผลที่ครูค้นหา */
+@media (max-width:640px){.search-result{flex-wrap:wrap}.search-result .gs-tags{order:5;width:100%;justify-content:flex-start;padding-left:45px}.search-result .gs-go{display:none}}
+/* กล่องที่ค้นเจอ กะพริบกรอบให้รู้ว่าคือกล่องไหน */
+.card.search-flash{animation:searchFlash 2.4s ease}
+@keyframes searchFlash{0%,55%{box-shadow:0 0 0 3px var(--brand),0 8px 30px color-mix(in srgb,var(--brand) 30%,transparent)}100%{box-shadow:none}}
+/* กล่องข้อมูลนักเรียน */
+.stu-head{gap:12px;align-items:center}
+.stu-head .student-avatar{width:46px;height:46px;font-size:20px}
+.stu-name{font-size:19px;font-weight:800}
+.stu-metrics{margin-top:12px}
+.stu-subj{border:1px solid var(--line);border-left:4px solid var(--ok);border-radius:12px;padding:12px;margin-top:10px;background:var(--panel)}
+.stu-subj.has-miss{border-left-color:var(--bad)}
+.stu-total{font-size:24px;font-weight:900;color:var(--brand)}
+.stu-line{margin-top:8px;line-height:1.7}
+.stu-miss{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+@media (max-width:640px){.stu-metrics{grid-template-columns:repeat(2,1fr)}}
 .student-avatar{width:35px;height:35px;border-radius:12px;background:color-mix(in srgb,var(--brand) 12%,var(--panel));color:var(--brand);display:grid;place-items:center;font-weight:800;flex:none}
 .executive-grid{display:grid;grid-template-columns:minmax(300px,.8fr) minmax(0,1.2fr);gap:14px}
 .pie-wrap{display:grid;grid-template-columns:190px 1fr;gap:20px;align-items:center}
@@ -1388,7 +1417,7 @@ tr.conduct-void td{opacity:.55}tr.conduct-void td b{text-decoration:line-through
   <div class="spacer"></div>
   <span class="who-chip" id="whoChip" hidden></span>
   <button class="sm icon-btn alert-bell" id="btnAlerts" hidden title="งานที่รอคุณดำเนินการ">🔔<span id="alertCount"></span></button>
-  <button class="sm icon-btn" id="btnSearch" title="ค้นหานักเรียนทุกห้อง (Ctrl+K)"><span class="ico">⌕</span><span class="lbl">ค้นหานักเรียน</span></button>
+  <button class="sm icon-btn" id="btnSearch" title="ค้นหานักเรียน ห้อง วิชา และเมนู (Ctrl+K)"><span class="ico">⌕</span><span class="lbl">ค้นหา</span></button>
   <button class="sm icon-btn" id="btnTheme" title="สลับโหมดสี">◐</button>
   <button class="sm icon-btn" id="btnProMode" title="ซ่อน/แสดงคำอธิบายในหน้าจอ">ⓘ</button>
   <button class="sm icon-btn" id="btnFullscreen" title="ขยายเต็มหน้าจอ" aria-label="ขยายเต็มหน้าจอ">⤢</button>
@@ -3115,34 +3144,356 @@ function toggleTheme() {
   applyTheme(DB.settings.theme); save(true);
 }
 
-function openStudentSearch() {
+/* ---------- ค้นหา: นักเรียน และทุกหน้า/กล่องในแอป ------------------------------
+   เดิมค้นนักเรียนได้แค่ชื่อกับห้อง แล้วกดเปิดพาไปแท็บนักเรียน ซึ่งเป็นหน้าของผู้ดูแลระบบ
+   ครูทั่วไปจึงค้นแล้วไม่ได้อะไรเลย ตอนนี้แถวผลค้นหาบอกงานค้างกับการขาดเรียนทันที
+   และกดแล้วเปิดกล่องข้อมูลนักเรียนที่รวมทุกวิชาไว้ในหน้าต่างเดียว */
+
+/** สรุปงานของนักเรียนหนึ่งคนในภาคที่เลือก ใช้ทั้งป้ายในผลค้นหาและกล่องข้อมูลนักเรียน
+    "ส่งงาน" = หัวข้อคะแนนเก็บที่มีคะแนนแล้ว นิยามเดียวกับ autoAssessTraits ที่คำนวณคุณลักษณะอยู่แล้ว
+    คะแนน 0 นับว่าส่งแต่ได้ 0 ส่วนสอบกลาง/ปลายภาคไม่ใช่งานที่ต้องส่ง จึงนับแยกเป็น "ยังไม่มีคะแนนสอบ" */
+function studentWorkSummary(sid, periodId) {
+  const out = { items: 0, done: 0, missing: 0, examsMissing: 0, books: 0 };
+  sid = String(sid || '').trim(); if (!sid || !periodId) return out;
+  studentMatches(sid).forEach(hit => {
+    Object.keys(DB.books || {}).forEach(key => {
+      const p = key.split('::'); if (p[0] !== hit.cls.id || p[2] !== periodId || !DB.books[key]) return;
+      const b = normalizeBook(DB.books[key]);
+      out.books++;
+      b.items.forEach(it => { out.items++; if (itemScoreComplete(b, sid, it)) out.done++; else out.missing++; });
+      const ex = (b.exam || {})[sid] || {};
+      if (num(b.exams.midMax) > 0 && !has(ex.mid) && !has(ex.retake)) out.examsMissing++;
+      if (num(b.exams.finalMax) > 0 && !has(ex.final)) out.examsMissing++;
+    });
+  });
+  return out;
+}
+
+/** ป้ายสั้นท้ายแถวนักเรียนในผลค้นหา — ให้ครูเห็นปัญหาได้โดยไม่ต้องกดเข้าไป
+    ข้อมูลเช็กชื่อใช้ดัชนีที่สร้างครั้งเดียวต่อการค้นหา เพราะไล่ทุกบันทึกต่อแถวช้าเกินไปตอนพิมพ์ */
+function studentSearchTags(sid, attIdx) {
+  const w = studentWorkSummary(sid, DB.ui.periodId), a = attIdx && attIdx.get(String(sid || '').trim());
+  const tags = [];
+  if (w.missing) tags.push('<span class="badge bad">ค้างงาน ' + w.missing + '</span>');
+  else if (w.items) tags.push('<span class="badge ok">ส่งงานครบ</span>');
+  if (a && a.absent) tags.push('<span class="badge warn">ขาด ' + a.absent + ' คาบ</span>');
+  else if (a && a.total) tags.push('<span class="badge ok">มาเรียนครบ</span>');
+  if (!tags.length) tags.push('<span class="badge">ยังไม่มีข้อมูล</span>');
+  return '<span class="gs-tags">' + tags.join('') + '</span>';
+}
+
+/** กล่องข้อมูลนักเรียน — งานที่ส่ง/ไม่ส่ง คะแนนสอบ คะแนนรวม เกรด และเวลาเรียน แยกรายวิชา
+    คำนวณสดจากข้อมูลในเครื่องนี้ด้วยฟังก์ชันเดียวกับพอร์ทัลนักเรียน (studentSubjectContexts)
+    ตัวเลขจึงตรงกับที่นักเรียนเห็นเมื่อครูกดเผยแพร่ */
+function openStudentProfile(sid) {
+  sid = String(sid || '').trim();
+  const hits = studentMatches(sid);
+  const master = (DB.studentMaster || []).find(m => String(m.sid || '').trim() === sid) || null;
+  if (!hits.length && !master) return toast('ไม่พบนักเรียนคนนี้ในเครื่องนี้', 'bad');
+  const periodId = DB.ui.periodId, period = curPeriod();
+  const st = (hits[0] || {}).st || master;
+  const baseCls = (master && DB.classes.find(c => c.id === master.classId)) || (hits[0] || {}).cls || null;
+  const advisors = baseCls ? DB.teachers.filter(t => t.homeroomClassId === baseCls.id).map(t => t.name).filter(Boolean) : [];
+  const me = curTeacher(), isAdmin = DB.ui.staffMode === 'admin';
+  /* วิชาที่ครูคนนี้สอนเองขึ้นก่อน เพราะเป็นวิชาที่ครูกดเข้าไปแก้คะแนนได้ */
+  const mine = new Set();
+  (DB.timetable.entries || []).forEach(e => { if (me && e.teacherId === me.id && e.periodId === periodId) mine.add(e.classId + '::' + e.subjectId); });
+  const isMine = x => mine.has(x.cls.id + '::' + x.subject.id);
+  const ctx = periodId ? studentSubjectContexts(sid, periodId) : [];
+  ctx.sort((a, b) => (isMine(b) ? 1 : 0) - (isMine(a) ? 1 : 0));
+
+  const tot = { present: 0, late: 0, leave: 0, activity: 0, absent: 0 };
+  let missingAll = 0, examMissAll = 0, riskSubjects = 0;
+  const blocks = ctx.map(x => {
+    const key = x.cls.id + '::' + x.subject.id + '::' + periodId, hasBook = !!DB.books[key];
+    const a = x.attendance, b = x.book;
+    Object.keys(tot).forEach(k => { tot[k] += num(a.counts[k]); });
+    if (a.pct !== null && a.pct < num(a.min || 80)) riskSubjects++;
+    const missing = b.items.filter(it => !itemScoreComplete(b, sid, it));
+    missingAll += missing.length;
+    const ex = (b.exam || {})[sid] || {};
+    const exams = [];
+    if (num(b.exams.midMax) > 0) exams.push({ label: 'กลางภาค', ok: has(ex.mid) || has(ex.retake), v: b.exams.retakeEnabled && has(ex.retake) ? ex.retake : ex.mid, max: b.exams.midMax });
+    if (num(b.exams.finalMax) > 0) exams.push({ label: 'ปลายภาค', ok: has(ex.final), v: ex.final, max: b.exams.finalMax });
+    examMissAll += exams.filter(e => !e.ok).length;
+    const canEdit = isMine(x) || isAdmin;
+    const teacher = (b.meta && b.meta.teacherName) || '';
+    return '<div class="stu-subj' + (missing.length ? ' has-miss' : '') + '">' +
+      '<div class="row"><div><span class="level-tag">' + esc(x.subject.code || 'รายวิชา') + '</span> <b>' + esc(x.subject.name) + '</b>' +
+        (isMine(x) ? ' <span class="badge grp">วิชาที่ฉันสอน</span>' : '') +
+        '<div class="hint">' + esc(x.cls.name) + (teacher ? ' • ครู' + esc(teacher) : '') + '</div></div><div class="spacer"></div>' +
+        (hasBook ? '<div style="text-align:right"><b class="stu-total">' + fmt(x.score.total) + '</b><div class="hint">เกรด ' + esc(x.score.complete ? x.score.grade : 'ยังไม่ครบ') + '</div></div>' : '') +
+      '</div>' +
+      (!hasBook ? '<div class="hint" style="margin-top:6px">ยังไม่มีสมุดคะแนนวิชานี้ในเครื่องนี้ — แสดงได้เฉพาะเวลาเรียน</div>' :
+        '<div class="stu-line"><b>งานเก็บ</b> ส่งแล้ว ' + (b.items.length - missing.length) + '/' + b.items.length + ' ชิ้น' +
+          (missing.length ? '<div class="stu-miss">' + missing.map(it => '<span class="badge bad">ไม่ส่ง • ' + esc(it.name || 'ไม่มีชื่อ') + '</span>').join('') + '</div>'
+            : (b.items.length ? ' <span class="badge ok">ครบทุกชิ้น</span>' : ' <span class="hint">ยังไม่ได้ตั้งหัวข้อคะแนน</span>')) + '</div>' +
+        (exams.length ? '<div class="stu-line"><b>สอบ</b> ' + exams.map(e => e.ok
+          ? '<span class="badge ok">' + e.label + ' ' + fmt(e.v) + '/' + fmt(e.max) + '</span>'
+          : '<span class="badge warn">' + e.label + ' ยังไม่มีคะแนน</span>').join(' ') + '</div>' : '') +
+        (x.parts.length ? '<div class="sbox-grid" style="margin-top:8px">' + x.parts.map(p =>
+          '<div class="sbox ' + p.state + (p.label === 'M' ? ' mid' : '') + '" title="' + esc(p.name + ' • ' + (p.value == null ? 'ยังไม่มีคะแนน' : fmt(p.value) + '/' + fmt(p.max))) + '">' +
+          '<b>' + (p.value == null ? '–' : esc(fmt(p.value))) + '</b><span>' + esc(p.label) + '</span></div>').join('') + '</div>' : '')) +
+      '<div class="stu-line"><b>เวลาเรียน</b> มา ' + a.counts.present + ' • สาย ' + a.counts.late + ' • ลา ' + a.counts.leave + ' • กิจกรรม ' + a.counts.activity +
+        ' • <span' + (a.counts.absent ? ' style="color:var(--bad);font-weight:700"' : '') + '>ขาด ' + a.counts.absent + '</span> จาก ' + a.checked + ' คาบที่เช็กแล้ว ' + attendanceOutcomeBadge(a.pct) + '</div>' +
+      (canEdit ? '<div class="row" style="margin-top:8px;gap:6px">' +
+        (hasBook ? '<button class="sm primary" data-prof-scores="' + esc(x.cls.id + '::' + x.subject.id) + '">✎ ไปกรอกคะแนนวิชานี้</button>' : '') +
+        '<button class="sm" data-prof-att="' + esc(x.cls.id + '::' + x.subject.id) + '">◷ ไปหน้าเช็กชื่อ</button></div>' : '') +
+      '</div>';
+  });
+  const checked = tot.present + tot.late + tot.leave + tot.activity + tot.absent;
+  const pct = checked ? (tot.present + tot.late + tot.activity) * 100 / checked : null;
+  const metric = (v, label, tone) => '<div class="portal-metric"><b' + (tone ? ' style="color:var(--' + tone + ')"' : '') + '>' + v + '</b>' + label + '</div>';
+  const body =
+    '<div class="row stu-head"><span class="student-avatar">' + esc(String(st.name || '?').trim().slice(0, 1)) + '</span><div>' +
+      '<div class="stu-name">' + esc(st.name || 'ยังไม่ระบุชื่อ') + '</div>' +
+      '<div class="hint">เลขประจำตัว ' + esc(sid || '–') + ' • ' + esc(baseCls ? baseCls.name : 'ยังไม่จัดห้อง') + ' เลขที่ ' + esc(st.no || '–') +
+        (advisors.length ? ' • ครูที่ปรึกษา ' + esc(advisors.join(', ')) : '') + '</div>' +
+      '<div class="hint">' + esc(period ? 'ปี ' + period.academicYear + ' ภาค ' + period.semester : 'ยังไม่ได้เลือกปี/ภาคเรียน') + ' • ' + ctx.length + ' วิชา</div></div></div>' +
+    '<div class="portal-metrics stu-metrics">' +
+      metric(missingAll, 'งานไม่ส่ง', missingAll ? 'bad' : 'ok') +
+      metric(examMissAll, 'สอบยังไม่มีคะแนน', examMissAll ? 'warn' : '') +
+      metric(tot.absent, 'ขาดเรียน (คาบ)', tot.absent ? 'bad' : '') +
+      metric(pct === null ? '–' : fmt(pct, 1) + '%', 'เวลาเรียนรวม', pct !== null && pct < 80 ? 'bad' : '') +
+    '</div>' +
+    (riskSubjects ? '<div class="notice bad" style="margin-top:10px">เวลาเรียนต่ำกว่าเกณฑ์ ' + riskSubjects + ' วิชา — เสี่ยงไม่มีสิทธิ์สอบ (มส)</div>' : '') +
+    (blocks.length ? blocks.join('') : '<div class="empty" style="margin-top:12px">ยังไม่พบสมุดคะแนนหรือตารางเรียนของนักเรียนคนนี้ในภาคเรียนที่เลือก</div>') +
+    '<div class="hint" style="margin-top:10px">คำนวณสดจากข้อมูลในเครื่องนี้ • วิชาของครูท่านอื่นจะแสดงเมื่อเครื่องนี้มีสมุดคะแนนเล่มนั้น • “ไม่ส่ง” หมายถึงหัวข้อที่ยังไม่มีคะแนน</div>';
+  const buttons = [{ label: 'ปิด' }];
+  if (canSeeTab('students', DB.ui.staffMode || 'teacher') && (master || hits.length)) buttons.unshift({ label: 'ดูในรายชื่อห้อง', act: close => {
+    const classId = (master && master.classId) || hits[0].cls.id;
+    DB.ui.classId = classId; DB.ui.studentView = 'class'; DB.ui.focusStudentSid = sid; closeAllModals(); setTab('students');
+  } });
+  return openModal({ title: 'ข้อมูลนักเรียน', wide: true, bodyHTML: body, buttons: buttons,
+    onMount(root, close) {
+      /* กล่องนี้อาจเปิดซ้อนอยู่บนหน้าต่างค้นหา ต้องปิดทุกชั้น ไม่งั้นหน้าต่างค้นหาบังหน้าที่พาไป */
+      const go = (val, tab) => { const p = String(val).split('::'); DB.ui.classId = p[0]; DB.ui.subjectId = p[1]; closeAllModals(); setTab(tab); };
+      $$('[data-prof-scores]', root).forEach(btn => btn.addEventListener('click', () => go(btn.dataset.profScores, 'scores')));
+      $$('[data-prof-att]', root).forEach(btn => btn.addEventListener('click', () => go(btn.dataset.profAtt, 'attendance')));
+    } });
+}
+
+function closeAllModals() { modalStack.forEach(m => m.remove()); modalStack = []; syncModalScrollLock(); }
+function activeStudentList() {
   if (syncMasterFromClasses()) save(true);
-  const all = (DB.studentMaster || []).filter(m => m.active !== false);
+  return (DB.studentMaster || []).filter(m => m.active !== false);
+}
+function studentMatchesQuery(m, q) {
+  const cls = DB.classes.find(c => c.id === m.classId);
+  return [m.name, m.sid, m.no, cls ? cls.name : ''].some(v => String(v || '').toLowerCase().includes(q));
+}
+function studentResultRow(m, attIdx, attr) {
+  const cls = DB.classes.find(c => c.id === m.classId), initial = String(m.name || '?').trim().slice(0, 1);
+  return '<button class="search-result gs-item" ' + attr + '><span class="student-avatar">' + esc(initial) + '</span><span class="gs-text"><b>' + esc(m.name || 'ยังไม่ระบุชื่อ') + '</b><span class="hint" style="display:block">เลขที่ ' + esc(m.no || '–') + ' • ' + esc(m.sid || 'ไม่มีรหัส') + ' • ' + esc(cls ? cls.name : 'ยังไม่จัดห้อง') + '</span></span><span class="spacer"></span>' + studentSearchTags(m.sid, attIdx) + '<span class="gs-go">›</span></button>';
+}
+
+function openStudentSearch(initial) {
+  const all = activeStudentList();
+  let attIdx = null;
   const modal = openModal({ title: 'ค้นหานักเรียนทุกห้อง', wide: true,
     bodyHTML: '<div class="pick"><label>ค้นหาจากชื่อ เลขประจำตัว หรือห้อง</label><input id="globalStudentSearch" type="text" placeholder="พิมพ์อย่างน้อย 1 ตัวอักษร" style="width:100%"></div><div id="globalSearchResults" style="margin-top:12px"></div>',
     buttons: [{ label: 'ปิด' }],
     onMount(root, close) {
       const input = $('#globalStudentSearch', root), results = $('#globalSearchResults', root);
+      if (initial) input.value = initial;
+      let timer = 0;
       const draw = () => {
+        attIdx = attIdx || studentAttendanceIndex();
         const q = input.value.trim().toLowerCase();
-        const found = (q ? all.filter(m => {
-          const cls = DB.classes.find(c => c.id === m.classId);
-          return [m.name, m.sid, m.no, cls ? cls.name : ''].some(v => String(v || '').toLowerCase().includes(q));
-        }) : all).slice(0, 60);
-        results.innerHTML = found.length ? '<div class="search-results">' + found.map(m => {
-          const cls = DB.classes.find(c => c.id === m.classId), initial = String(m.name || '?').trim().slice(0, 1);
-          return '<button class="search-result" data-search-mid="' + m.id + '"><span class="student-avatar">' + esc(initial) + '</span><span><b>' + esc(m.name || 'ยังไม่ระบุชื่อ') + '</b><span class="hint" style="display:block">เลขที่ ' + esc(m.no || '–') + ' • ' + esc(m.sid || 'ไม่มีรหัส') + ' • ' + esc(cls ? cls.name : 'ยังไม่จัดห้อง') + '</span></span><span class="spacer"></span><span>เปิด ›</span></button>';
-        }).join('') + '</div>' : '<div class="empty">ไม่พบนักเรียนที่ค้นหา</div>';
+        const found = (q ? all.filter(m => studentMatchesQuery(m, q)) : all).slice(0, 60);
+        results.innerHTML = found.length ? '<div class="search-results">' + found.map(m => studentResultRow(m, attIdx, 'data-search-sid="' + esc(m.sid || '') + '" data-search-mid="' + esc(m.id) + '"')).join('') + '</div>' : '<div class="empty">ไม่พบนักเรียนที่ค้นหา</div>';
         $$('[data-search-mid]', results).forEach(btn => btn.addEventListener('click', () => {
-          const m = all.find(x => x.id === btn.dataset.searchMid); if (!m || !m.classId) return toast('นักเรียนคนนี้ยังไม่ถูกจัดเข้าห้อง', 'bad');
-          DB.ui.classId = m.classId; DB.ui.studentView = 'class'; DB.ui.focusStudentSid = m.sid; close(); setTab('students');
+          if (!btn.dataset.searchSid) return toast('นักเรียนคนนี้ยังไม่มีเลขประจำตัว จึงดึงข้อมูลคะแนนไม่ได้', 'bad');
+          openStudentProfile(btn.dataset.searchSid);
         }));
       };
-      input.addEventListener('input', draw); draw(); input.focus();
+      input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(draw, 120); });
+      draw(); input.focus();
     }
   });
   return modal;
 }
+
+/* ดัชนีหน้า/กล่องที่ค้นหาได้ — card คือข้อความในหัวกล่อง (h3) ที่มีอยู่จริงในหน้านั้น
+   ใช้หาและเลื่อนไปที่กล่องหลังเปิดแท็บ ถ้าแก้ชื่อหัวกล่องในโค้ด ต้องแก้ที่นี่ด้วย
+   pre คือค่าใน DB.ui ที่ต้องตั้งก่อนเปิด เช่นหน้าย่อยของผู้ดูแลระบบหรือกิจการนักเรียน */
+const SEARCH_INDEX = [
+  { t: 'ตารางสอนวันนี้', w: 'คาบวันนี้ สอนวันนี้', tab: 'dashboard', card: 'ตารางสอนวันนี้' },
+  { t: 'ประกาศและนัดหมาย', w: 'ประชุม นัด ข่าว', tab: 'dashboard', card: 'ประกาศและนัดหมาย' },
+  { t: 'แจ้งเตือนที่ต้องดำเนินการ', w: 'อนุมัติ ตอบรับ รอ', tab: 'dashboard', card: 'แจ้งเตือนที่ต้องดำเนินการ' },
+  { t: 'นักเรียนคงค้างผลการเรียน', w: '0 ร มส มผ ติด แก้', tab: 'dashboard', card: 'นักเรียนคงค้างผลการเรียน' },
+  { t: 'บันทึกพฤติกรรม', w: 'ความดี ผิดระเบียบ คะแนนความประพฤติ', act: () => openConductModal({}) },
+  { t: 'เช็กชื่อประจำวัน', w: 'เวลาเรียน มา ขาด ลา สาย เข้าเรียน', tab: 'attendance', card: 'เช็กชื่อประจำวัน' },
+  { t: 'แลกคาบ / สอนแทน', w: 'สอนแทน ชดเชย หาครู', tab: 'exchange', pre: { exchangeMode: 'swap' }, card: 'เริ่มจากเลือกก่อนว่าจะทำอะไร' },
+  { t: 'แจ้งการลา / ขออนุญาตไปราชการ', w: 'ลาป่วย ลากิจ ไปราชการ ใบลา', tab: 'exchange', pre: { exchangeMode: 'leave' }, card: 'แจ้งการลา' },
+  { t: 'ประวัติการลาและเอกสาร', w: 'ใบลา พิมพ์', tab: 'exchange', card: 'ประวัติการลาและเอกสาร' },
+  { t: 'คำขอแลกคาบและสอนแทน', w: 'บันทึกข้อความ พิมพ์ รวมเอกสาร', tab: 'exchange', card: 'คำขอแลกคาบและสอนแทน' },
+  { t: 'กรอกคะแนน', w: 'คะแนนเก็บ ซ่อม เสียง', tab: 'scores', card: 'กรอกคะแนน' },
+  { t: 'การจัดกลุ่ม', w: 'คะแนนกลุ่ม ผู้นำเสนอ', tab: 'groups', card: 'การจัดกลุ่ม' },
+  { t: 'ประเมินคุณภาพผู้เรียน', w: 'คุณลักษณะอันพึงประสงค์ อ่าน คิดวิเคราะห์ เขียน', tab: 'assess', card: 'ประเมินคุณภาพผู้เรียน' },
+  { t: 'สรุปผล ปพ.5', w: 'เกรด สรุป', tab: 'summary', card: 'สรุปผล' },
+  { t: 'การกระจายเกรด', w: 'กราฟ เกรด', tab: 'summary', card: 'การกระจายเกรด' },
+  { t: 'ตารางสรุปรายคน', w: 'เกรด รายคน ปพ.5', tab: 'summary', card: 'ตารางสรุปรายคน' },
+  { t: 'ส่งคะแนนเข้า SGS', w: 'sgs บุ๊กมาร์ก', tab: 'summary', card: 'ส่งคะแนนเข้า SGS' },
+  { t: 'ให้นักเรียนดูผลจากมือถือตัวเอง', w: 'เผยแพร่ พอร์ทัล ประกาศผล', tab: 'summary', card: 'ให้นักเรียนดูผลจากมือถือ' },
+  { t: 'ข้อมูลรายวิชาและการสำรองข้อมูล', w: 'สำรอง backup excel ส่งออก', tab: 'summary', card: 'ข้อมูลรายวิชาและการสำรองข้อมูล' },
+  { t: 'ซิงก์สมุดคะแนนของฉันขึ้นส่วนกลาง', w: 'ซิงก์ sync คลาวด์', tab: 'summary', card: 'ซิงก์สมุดคะแนน' },
+  { t: 'ตั้งค่าตารางสอน', w: 'ตารางสอน คาบ', tab: 'schedule', card: 'ตั้งค่าตารางสอน' },
+  { t: 'จำนวนคาบตามปฏิทิน', w: 'คาบ ปฏิทิน', tab: 'schedule', card: 'จำนวนคาบตามปฏิทิน' },
+  { t: 'หัวข้อที่ให้คะแนน', w: 'หัวข้อคะแนน งาน ใบงาน kpa', tab: 'items', card: 'หัวข้อที่ให้คะแนน' },
+  { t: 'คะแนนสอบกลางภาค / ปลายภาค', w: 'สอบ เต็ม ซ่อม', tab: 'items', card: 'คะแนนสอบกลางภาค' },
+  { t: 'น้ำหนักคะแนนก่อน–หลังกลางภาค', w: 'สัดส่วน น้ำหนัก เกณฑ์ผ่าน', tab: 'items', card: 'น้ำหนักคะแนน' },
+  { t: 'เกณฑ์ตัดเกรด', w: 'เกรด ช่วงคะแนน', tab: 'items', card: 'เกณฑ์ตัดเกรด' },
+  { t: 'ตัวชี้วัด / ผลการเรียนรู้', w: 'ตัวชี้วัด มาตรฐาน', tab: 'indicators', card: 'ชุดตัวชี้วัด' },
+  { t: 'ขออนุญาตนำนักเรียนทำกิจกรรม', w: 'กิจกรรม ขอเวลาเรียน', tab: 'activities', card: '1. รายละเอียดกิจกรรม' },
+  { t: 'กิจกรรมที่บันทึกไว้', w: 'กิจกรรม', tab: 'activities', card: 'กิจกรรมที่บันทึกไว้' },
+  { t: 'โปรไฟล์ครูและห้อง HomeRoom', w: 'ครูที่ปรึกษา ชื่อ โปรไฟล์', tab: 'settings', card: 'โปรไฟล์ครู' },
+  { t: 'รายชื่อนักเรียนในห้อง', w: 'นำเข้า รายชื่อ excel', tab: 'students', pre: { studentView: 'class' }, card: 'รายชื่อนักเรียน' },
+  { t: 'ฐานนักเรียนทั้งหมด', w: 'ฐานข้อมูลนักเรียน', tab: 'students', pre: { studentView: 'master' }, card: 'ฐานนักเรียนทั้งหมด' },
+  { t: 'ใบลารอความเห็นหัวหน้ากลุ่มสาระ', w: 'ความเห็น ใบลา', tab: 'head', card: 'ใบลารอความเห็น' },
+  { t: 'คาบรอจัดครูสอนแทน', w: 'สอนแทน จัดครู', tab: 'head', card: 'คาบรอจัดครูสอนแทน' },
+  { t: 'ครูในกลุ่มสาระและภาระงาน', w: 'ภาระงาน กลุ่มสาระ', tab: 'head', card: 'ครูในกลุ่มสาระ' },
+  { t: 'ใบลารออนุมัติ', w: 'อนุมัติ ผู้บริหาร', tab: 'leaves', card: 'ใบลารออนุมัติ' },
+  { t: 'สรุปการลารายครู', w: 'สถิติ การลา', tab: 'leaves', card: 'สรุปการลารายครู' },
+  { t: 'ประวัติใบลาทั้งหมด', w: 'ใบลา ประวัติ', tab: 'leaves', card: 'ประวัติใบลาทั้งหมด' },
+  { t: 'นักเรียนที่ควรติดตาม', w: 'เสี่ยง ผู้บริหาร', tab: 'executive', card: 'นักเรียนที่ควรติดตาม' },
+  { t: 'นักเรียนขาดเรียนติดต่อกัน', w: 'ขาดเรียน ติดต่อกัน', tab: 'executive', card: 'นักเรียนขาดเรียนติดต่อกัน' },
+  { t: 'แถวเช้ารายห้อง', w: 'เข้าแถว หน้าเสาธง', tab: 'affairs', pre: { affairsView: 'today' }, card: 'แถวเช้ารายห้อง' },
+  { t: 'บันทึกนักเรียนมาสาย', w: 'มาสาย ประตู', tab: 'affairs', pre: { affairsView: 'gate' }, card: 'บันทึกนักเรียนมาสาย' },
+  { t: 'คะแนนพฤติกรรมนักเรียน', w: 'ความประพฤติ หักคะแนน', tab: 'affairs', pre: { affairsView: 'scores' } },
+  { t: 'เกณฑ์คะแนนพฤติกรรม', w: 'ตั้งค่า รายการพฤติกรรม', tab: 'affairs', pre: { affairsView: 'config' }, card: 'เกณฑ์คะแนน' },
+  { t: 'ข้อมูลครูและสิทธิ์ใช้งาน', w: 'ครู บทบาท สิทธิ์ เพิ่มครู', tab: 'admin', pre: { adminSection: 'people' }, card: 'ข้อมูลครูและสิทธิ์' },
+  { t: 'ครูที่ปรึกษาแยกรายห้อง', w: 'ครูประจำชั้น homeroom', tab: 'admin', pre: { adminSection: 'people' }, card: 'ครูที่ปรึกษาแยกรายห้อง' },
+  { t: 'กลุ่มสาระและหัวหน้ากลุ่มสาระ', w: 'หัวหน้า กลุ่มสาระ', tab: 'admin', pre: { adminSection: 'people' }, card: 'กลุ่มสาระและหัวหน้า' },
+  { t: 'โครงสร้างหลักของโรงเรียน', w: 'ปีการศึกษา ภาคเรียน ชั้น ห้อง รายวิชา', tab: 'admin', pre: { adminSection: 'school' }, card: 'โครงสร้างหลักของโรงเรียน' },
+  { t: 'ฐานข้อมูลนักเรียนกลาง', w: 'นำเข้านักเรียน', tab: 'admin', pre: { adminSection: 'school' }, card: 'ฐานข้อมูลนักเรียนกลาง' },
+  { t: 'ปฏิทินภาคเรียน', w: 'เปิดภาค ปิดภาค เกณฑ์เวลาเรียน', tab: 'admin', pre: { adminSection: 'calendar' }, card: 'ปฏิทินภาคเรียน' },
+  { t: 'ปฏิทินวันหยุด', w: 'วันหยุด หยุดเรียน', tab: 'admin', pre: { adminSection: 'calendar' }, card: 'ปฏิทินวันหยุด' },
+  { t: 'สลับวันเรียน / สลับคาบ', w: 'สลับ เรียนชดเชย', tab: 'admin', pre: { adminSection: 'calendar' }, card: 'สลับวันเรียน' },
+  { t: 'ตารางสอนทั้งโรงเรียน', w: 'ตารางสอน นำเข้า', tab: 'admin', pre: { adminSection: 'calendar' }, card: 'ตารางสอนทั้งโรงเรียน' },
+  { t: 'ข้อมูลสถานศึกษาและตราโรงเรียน', w: 'ตรา โลโก้ ชื่อโรงเรียน', tab: 'admin', pre: { adminSection: 'documents' }, card: 'ข้อมูลสถานศึกษาและตรา' },
+  { t: 'รายชื่อผู้อนุมัติในแบบพิมพ์', w: 'ผู้ลงนาม ผู้อำนวยการ', tab: 'admin', pre: { adminSection: 'documents' }, card: 'รายชื่อผู้อนุมัติ' },
+  { t: 'รูปแบบการพิมพ์บันทึกข้อความแลกคาบ', w: 'ฟอนต์ ขนาด ระยะขอบ เอกสาร', tab: 'admin', pre: { adminSection: 'documents' }, card: 'รูปแบบการพิมพ์บันทึกข้อความ' },
+  { t: 'รูปแบบการพิมพ์ใบลา', w: 'ฟอนต์ ขนาด ระยะขอบ เอกสาร ไปราชการ', tab: 'admin', pre: { adminSection: 'documents' }, card: 'รูปแบบการพิมพ์ใบลา' },
+  { t: 'ฐานข้อมูลกลาง Firebase', w: 'firebase ส่วนกลาง ส่งขึ้น ดึงข้อมูล', tab: 'admin', pre: { adminSection: 'system' }, card: 'ฐานข้อมูลกลาง Firebase' },
+  { t: 'ตรวจสุขภาพการเชื่อมต่อส่วนกลาง', w: 'เชื่อมต่อ ออนไลน์', tab: 'admin', pre: { adminSection: 'system' }, card: 'ตรวจสุขภาพการเชื่อมต่อ' },
+  { t: 'ดูแลความสะอาดของข้อมูล', w: 'ซ้ำ ล้างข้อมูล', tab: 'admin', pre: { adminSection: 'system' }, card: 'ดูแลความสะอาดของข้อมูล' },
+  { t: 'ประวัติการลบคำขอ', w: 'audit ลบ', tab: 'admin', pre: { adminSection: 'system' }, card: 'ประวัติการลบคำขอ' }
+];
+
+const tabLabelOf = tab => { const b = $('#tabs button[data-tab="' + tab + '"]'); return b ? b.childNodes[0].textContent.trim() : tab; };
+
+/** รวมผลค้นหาทุกหมวด — แยกออกมาจากส่วนวาด เพื่อให้ช่องบนหน้าภาพรวมกับหน้าต่าง Ctrl+K ใช้ร่วมกัน */
+function globalSearchHits(q, ctx) {
+  q = String(q || '').trim().toLowerCase();
+  if (!q) return [];
+  const mode = DB.ui.staffMode || 'teacher', words = q.split(/\s+/).filter(Boolean);
+  const matches = hay => { hay = hay.toLowerCase(); return words.every(w => hay.includes(w)); };
+  const groups = [];
+  const pages = SEARCH_INDEX.filter(e => (!e.tab || canSeeTab(e.tab, mode)) && matches(e.t + ' ' + (e.w || '') + ' ' + (e.tab ? tabLabelOf(e.tab) : ''))).slice(0, 8);
+  if (pages.length) groups.push({ title: 'หน้าและกล่องในแอป', items: pages.map(e => ({
+    html: '<span class="gs-ico">' + (e.act ? '⚑' : '▸') + '</span><span class="gs-text"><b>' + esc(e.t) + '</b><span class="hint" style="display:block">' + esc(e.act ? 'เปิดหน้าต่าง' : tabLabelOf(e.tab)) + '</span></span><span class="spacer"></span><span class="gs-go">›</span>',
+    run: () => goToSearchTarget(e) })) });
+  const studs = (ctx.students = ctx.students || activeStudentList()).filter(m => studentMatchesQuery(m, q));
+  if (studs.length) {
+    ctx.attIdx = ctx.attIdx || studentAttendanceIndex();
+    const items = studs.slice(0, 8).map(m => ({ row: studentResultRow(m, ctx.attIdx, ''),
+      run: () => m.sid ? openStudentProfile(m.sid) : toast('นักเรียนคนนี้ยังไม่มีเลขประจำตัว จึงดึงข้อมูลคะแนนไม่ได้', 'bad') }));
+    if (studs.length > 8) items.push({ html: '<span class="gs-ico">⌕</span><span class="gs-text"><b>ดูนักเรียนที่ตรงทั้งหมด ' + studs.length + ' คน</b></span>', run: () => openStudentSearch(q) });
+    groups.push({ title: 'นักเรียน', items: items });
+  }
+  const classes = DB.classes.filter(c => matches(String(c.name || ''))).slice(0, 5);
+  if (classes.length) groups.push({ title: 'ห้องเรียน', items: classes.map(c => ({
+    html: '<span class="gs-ico">▣</span><span class="gs-text"><b>' + esc(c.name) + '</b><span class="hint" style="display:block">นักเรียน ' + (c.students || []).length + ' คน • ' + (canSeeTab('students', mode) ? 'เปิดรายชื่อห้อง' : 'เลือกห้องนี้แล้วไปกรอกคะแนน') + '</span></span><span class="spacer"></span><span class="gs-go">›</span>',
+    run: () => { DB.ui.classId = c.id; if (canSeeTab('students', mode)) { DB.ui.studentView = 'class'; setTab('students'); } else setTab('scores'); } })) });
+  const subjects = DB.subjects.filter(s => matches((s.code || '') + ' ' + (s.name || ''))).slice(0, 5);
+  if (subjects.length) groups.push({ title: 'รายวิชา', items: subjects.map(s => ({
+    html: '<span class="gs-ico">✎</span><span class="gs-text"><b>' + esc((s.code ? s.code + ' ' : '') + (s.name || '')) + '</b><span class="hint" style="display:block">เลือกวิชานี้แล้วไปกรอกคะแนน</span></span><span class="spacer"></span><span class="gs-go">›</span>',
+    run: () => { DB.ui.subjectId = s.id; setTab('scores'); } })) });
+  if (mode === 'admin') {
+    const teachers = DB.teachers.filter(t => matches((t.name || '') + ' ' + (t.email || ''))).slice(0, 5);
+    if (teachers.length) groups.push({ title: 'ครู', items: teachers.map(t => ({
+      html: '<span class="gs-ico">☺</span><span class="gs-text"><b>' + esc(t.name || t.email || 'ครู') + '</b><span class="hint" style="display:block">' + esc(t.email || '') + ' • ข้อมูลครูและสิทธิ์</span></span><span class="spacer"></span><span class="gs-go">›</span>',
+      run: () => goToSearchTarget(SEARCH_INDEX.find(e => e.card === 'ข้อมูลครูและสิทธิ์')) })) });
+  }
+  return groups;
+}
+
+/** ผูกช่องค้นหาเข้ากับกล่องผลลัพธ์ — ↑↓ เลือก Enter เปิด ใช้ได้ทั้งบนหน้าภาพรวมและในหน้าต่าง */
+function bindGlobalSearch(input, results, opts) {
+  opts = opts || {};
+  const ctx = {};
+  let flat = [], sel = 0, timer = 0;
+  const draw = () => {
+    const q = input.value;
+    if (opts.onQuery) opts.onQuery(q);
+    const groups = globalSearchHits(q, ctx);
+    flat = []; sel = 0;
+    if (!q.trim()) { results.innerHTML = opts.emptyHtml || ''; return; }
+    results.innerHTML = groups.length ? '<div class="gs-results">' + groups.map(g => '<div class="gs-group"><h4>' + esc(g.title) + '</h4><div class="search-results">' +
+      g.items.map(it => { const i = flat.push(it) - 1; return it.row ? it.row.replace('<button class="search-result gs-item" ', '<button class="search-result gs-item" data-gs-i="' + i + '" ')
+        : '<button class="search-result gs-item" data-gs-i="' + i + '">' + it.html + '</button>'; }).join('') + '</div></div>').join('') + '</div>'
+      : '<div class="empty">ไม่พบ “' + esc(q.trim()) + '” — ลองคำอื่น เช่น ชื่อนักเรียน ห้อง วิชา หรือชื่อเมนู</div>';
+    mark();
+  };
+  const mark = () => $$('[data-gs-i]', results).forEach(b => b.classList.toggle('sel', +b.dataset.gsI === sel));
+  const run = i => { const it = flat[i]; if (!it) return; if (opts.onPick) opts.onPick(); it.run(); };
+  results.addEventListener('click', e => { const b = e.target.closest('[data-gs-i]'); if (b) run(+b.dataset.gsI); });
+  input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(draw, 100); });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!flat.length) return; e.preventDefault();
+      sel = (sel + (e.key === 'ArrowDown' ? 1 : flat.length - 1)) % flat.length; mark();
+      const b = $('[data-gs-i="' + sel + '"]', results); if (b) b.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter') { e.preventDefault(); clearTimeout(timer); draw(); run(sel); }
+    else if (e.key === 'Escape' && opts.inline && input.value) { e.stopPropagation(); input.value = ''; draw(); }
+  });
+  draw();
+  return { draw: draw };
+}
+
+/** พาไปยังกล่องที่ค้นเจอ — เปิดแท็บ ขยายกล่องถ้าถูกย่อไว้ เลื่อนจอไปหา แล้วทำกรอบกะพริบให้เห็นว่าคือกล่องไหน
+    บางกล่องแสดงเฉพาะเมื่อเลือกห้อง/วิชาแล้ว หรือเมื่อมีข้อมูล หาไม่เจอก็ยังพาไปแท็บนั้นแล้วบอกเหตุผล */
+function goToSearchTarget(entry) {
+  if (!entry) return;
+  if (entry.act) return entry.act();
+  if (entry.pre) Object.assign(DB.ui, entry.pre);
+  setTab(entry.tab);
+  if (!entry.card) return;
+  const find = tries => {
+    /* หาจากหัวข้อทุกตัว ไม่ใช่แค่หัวแรกของกล่อง เพราะบางเรื่องเป็นหัวข้อย่อยกลางกล่อง เช่นเกณฑ์ตัดเกรด */
+    const pane = $('#pane-' + entry.tab);
+    const head = pane && $$('h3', pane).find(x => x.textContent.includes(entry.card));
+    const card = head && head.closest('.card');
+    if (!card) {
+      if (tries > 0) return setTimeout(() => find(tries - 1), 150);
+      return toast('กล่อง “' + entry.t + '” ยังไม่แสดงในตอนนี้ — อาจต้องเลือกห้อง/วิชาก่อน หรือยังไม่มีข้อมูล');
+    }
+    if (card.classList.contains('collapsed')) { const b = $('.card-collapse', card); if (b) b.click(); }
+    const target = head.closest('.card-head-row') || head;
+    target.style.scrollMarginTop = '84px';
+    /* กระโดดทันที ไม่ใช้ smooth เพราะ setTab เพิ่งสั่งเลื่อนกลับบนสุดแบบ smooth ไว้ สองคำสั่งชนกันแล้วบางเบราว์เซอร์ค้างอยู่บนสุด
+       กรอบกะพริบบอกอยู่แล้วว่าคือกล่องไหน */
+    target.scrollIntoView({ block: 'start' });
+    card.classList.remove('search-flash'); void card.offsetWidth; card.classList.add('search-flash');
+    setTimeout(() => card.classList.remove('search-flash'), 2600);
+  };
+  setTimeout(() => find(4), 60);
+}
+
+/** หน้าต่างค้นหาทั่วไป — เปิดจากปุ่ม ⌕ บนแถบบนหรือ Ctrl+K ใช้ได้จากทุกหน้า */
+function openGlobalSearch() {
+  return openModal({ title: 'ค้นหา', wide: true,
+    bodyHTML: '<input id="gsModalInput" type="search" autocomplete="off" placeholder="ชื่อนักเรียน ห้อง วิชา หรือเมนู เช่น เกณฑ์ตัดเกรด, SGS, ใบลา" style="width:100%;font-size:16px"><div id="gsModalResults" style="margin-top:12px"></div>',
+    buttons: [{ label: 'ปิด' }],
+    onMount(root, close) {
+      const input = $('#gsModalInput', root);
+      bindGlobalSearch(input, $('#gsModalResults', root), { onPick: close,
+        emptyHtml: '<div class="hint">พิมพ์เพื่อค้นหา • ↑↓ เลือก • Enter เปิด</div>' });
+      input.focus();
+    } });
+}
+let dashSearchQuery = '';
 
 /* ---------- ศูนย์แจ้งเตือน: งานที่รอเราอนุญาต รับรอง หรือตอบรับ -------------
    ครู เห็นคำขอที่ส่งถึงตัวเองและกิจกรรมที่กระทบคาบสอนของตัวเอง
@@ -3498,6 +3849,7 @@ function mountNoticeCard(pane) {
 }
 
 function renderDashboard() {
+  const dashSearchHadFocus = !!(document.activeElement && document.activeElement.id === 'dashGlobalSearch');
   const pane = $('#pane-dashboard'), period = curPeriod(), cls = curClass(), sub = curSubject(), teacher = curTeacher(), homeroom = teacher ? DB.classes.find(c => c.id === teacher.homeroomClassId) : null;
   const students = cls ? (cls.students || []).slice().sort((a, b) => num(a.no) - num(b.no)) : [];
   const book = ready() ? curBook(false) : null;
@@ -3527,7 +3879,9 @@ function renderDashboard() {
   const subjectOf = e => entrySubject(e) || { code: '', name: 'ไม่พบวิชา' };
   const classOf = e => DB.classes.find(c => c.id === e.classId) || { name: 'ไม่พบห้อง' };
 
-  pane.innerHTML = '<div class="card dash-hero"><div class="row" style="position:relative;z-index:1"><div><div class="hero-sub">' + thaiDate(today) + '</div><h1>' + greeting + ' • พร้อมจัดการชั้นเรียนแล้ว</h1><div class="hero-sub">' + esc(period ? 'ปี ' + period.academicYear + ' ภาค ' + period.semester : 'เริ่มจากเพิ่มปี/ภาคเรียน') + (cls ? ' • ' + esc(cls.name) : '') + (sub ? ' • ' + esc((sub.code ? sub.code + ' ' : '') + sub.name) : '') + (teacher ? ' • ผู้ใช้ ' + esc(teacher.name || teacher.email) : '') + (homeroom ? ' • HomeRoom ' + esc(homeroom.name) : '') + '</div></div><div class="spacer"></div><button id="dashSearch">⌕ ค้นหานักเรียน</button></div></div>' +
+  pane.innerHTML = '<div class="card dash-hero"><div class="row" style="position:relative;z-index:1"><div><div class="hero-sub">' + thaiDate(today) + '</div><h1>' + greeting + ' • พร้อมจัดการชั้นเรียนแล้ว</h1><div class="hero-sub">' + esc(period ? 'ปี ' + period.academicYear + ' ภาค ' + period.semester : 'เริ่มจากเพิ่มปี/ภาคเรียน') + (cls ? ' • ' + esc(cls.name) : '') + (sub ? ' • ' + esc((sub.code ? sub.code + ' ' : '') + sub.name) : '') + (teacher ? ' • ผู้ใช้ ' + esc(teacher.name || teacher.email) : '') + (homeroom ? ' • HomeRoom ' + esc(homeroom.name) : '') + '</div></div></div></div>' +
+    /* ช่องค้นหาทั่วไป — นักเรียน ห้อง วิชา และหน้า/กล่องในแอป กดผลแล้วพาไปที่กล่องนั้นเลย */
+    '<div class="card gsearch"><div class="gsearch-box"><span class="gs-lens">⌕</span><input id="dashGlobalSearch" type="search" autocomplete="off" placeholder="ค้นหาอะไรก็ได้ — ชื่อนักเรียน ห้อง วิชา หรือเมนู เช่น เกณฑ์ตัดเกรด, SGS, ใบลา"></div><div id="dashGlobalResults"></div></div>' +
     '<div class="dash-metrics"><div class="metric-card" style="--metric:var(--brand)"><div class="metric-icon">👥</div><div class="metric-value">' + students.length + '</div><div class="metric-label">นักเรียนในห้องที่เลือก</div></div>' +
       '<div class="metric-card" style="--metric:var(--bad)"><div class="metric-icon">⏱</div><div class="metric-value">' + missed.length + '</div><div class="metric-label">คาบค้างเช็กชื่อ</div></div>' +
       '<div class="metric-card" style="--metric:var(--ok)"><div class="metric-icon">✓</div><div class="metric-value">' + completeScores + '/' + students.length + '</div><div class="metric-label">คะแนนครบทุกส่วน</div></div>' +
@@ -3555,7 +3909,11 @@ function renderDashboard() {
   $$('[data-swap-doc]', pane).forEach(btn => btn.addEventListener('click', () => openExchangeDocument(btn.dataset.swapDoc)));
   bindLeaveHistory(pane);
   bindMergeDocButton(pane); bindAcceptedDocButton(pane);
-  $('#dashSearch').addEventListener('click', openStudentSearch);
+  /* หน้าภาพรวมถูกวาดใหม่บ่อย (เช่นตอนข้อมูลส่วนกลางเข้ามา) จึงจำคำค้นกับโฟกัสไว้ ไม่งั้นกำลังพิมพ์อยู่แล้วช่องว่างเอง */
+  const gsInput = $('#dashGlobalSearch', pane);
+  gsInput.value = dashSearchQuery;
+  bindGlobalSearch(gsInput, $('#dashGlobalResults', pane), { inline: true, onQuery: q => { dashSearchQuery = q; } });
+  if (dashSearchHadFocus) { gsInput.focus(); gsInput.setSelectionRange(gsInput.value.length, gsInput.value.length); }
 }
 
 /* ============================================================================
@@ -16795,14 +17153,14 @@ $('#tabsMore').addEventListener('click', e => { e.stopPropagation(); toggleMoreM
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTabSheet(); });
 $('#btnAlerts').addEventListener('click', () => { setTab('dashboard'); setTimeout(() => { const c = $('.notice-card.has-new') || $('.alert-card'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 120); });
 $('#btnStaffLogout').addEventListener('click', staffLogout);
-$('#btnSearch').addEventListener('click', openStudentSearch);
+$('#btnSearch').addEventListener('click', () => openGlobalSearch());
 $('#btnTheme').addEventListener('click', toggleTheme);
 $('#btnProMode').addEventListener('click', toggleProMode);
 $('#btnFullscreen').addEventListener('click', toggleFullscreen);
 document.addEventListener('fullscreenchange', updateFullscreenButton);
 $$('#tabs button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
 document.addEventListener('keydown', e => {
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openStudentSearch(); }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openGlobalSearch(); }
 });
 document.addEventListener('click', async e => {
   const btn = e.target.closest('#btnRefreshTermLock, .btn-refresh-term-lock');
