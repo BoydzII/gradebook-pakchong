@@ -5,7 +5,7 @@
    วิธีอัปเดตแอปหลังแก้โค้ด: เปลี่ยนเลขเวอร์ชันที่ CACHE_VERSION แล้วอัปโหลดใหม่
    ผู้ใช้จะเห็นแถบแจ้ง "มีเวอร์ชันใหม่" ให้กดอัปเดต */
 
-const CACHE_VERSION = 'v139';
+const CACHE_VERSION = 'v140';
 const CACHE_NAME = 'gradebook-' + CACHE_VERSION;
 
 /* ไฟล์แกนของแอป โหลดไว้ล่วงหน้าให้เปิดออฟไลน์ได้ */
@@ -67,6 +67,8 @@ self.addEventListener('fetch', event => {
   const url = new URL(req.url);
   // ข้ามคำขอข้ามโดเมนทั้งหมด (Google Sign-In, Sheets API, Drive) ให้วิ่งตรงตามปกติ
   if (url.origin !== self.location.origin) return;
+  // sw.js ปล่อยวิ่งตรงไปเน็ตเสมอ หน้าเว็บอ่านเลขเวอร์ชันล่าสุดจากไฟล์นี้ ถ้าตอบจากแคชจะได้เลขเก่าของตัวเอง
+  if (url.pathname.endsWith('/sw.js')) return;
 
   // การเปิดหน้าเว็บ: เอาของใหม่จากเน็ตก่อน ถ้าเน็ตล่มค่อยใช้ของในเครื่อง
   if (req.mode === 'navigate') {

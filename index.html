@@ -937,6 +937,9 @@ body.gateway-open .sync-fab{display:none}
 .tabsheet-grid button.active{border-color:var(--brand);color:var(--brand);background:color-mix(in srgb,var(--brand) 8%,transparent)}
 .tabsheet-handle{width:44px;height:4px;border-radius:999px;background:var(--line);margin:0 auto 4px}
 .tabsheet-foot{display:flex;align-items:center;gap:10px;margin-top:12px;padding-top:11px;border-top:1px solid var(--line)}
+/* ปุ่มตรวจเวอร์ชัน: เขียว = ล่าสุดแล้ว แดง = เครื่องนี้ยังใช้เวอร์ชันเก่า ดูแวบเดียวรู้ว่าต้องกดหรือไม่ */
+#sheetRefresh.ver-ok{background:var(--ok-bg);color:var(--ok);border-color:color-mix(in srgb,var(--ok) 50%,transparent);font-weight:700}
+#sheetRefresh.ver-old{background:var(--bad);color:#fff;border-color:var(--bad);font-weight:800}
 .tabsheet-tools{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
 .tabsheet-tools button{justify-content:flex-start;padding:11px 12px;border-radius:11px;font-weight:700}
 .tabsheet-tools button:last-child{grid-column:1/-1}
@@ -2980,7 +2983,7 @@ function openTabSheet() {
   }));
   const refresh = $('#sheetRefresh', sheet);
   if (refresh) refresh.addEventListener('click', () => forceAppRefresh(refresh));
-  renderAppVersionChips(); askAppVersion();
+  renderAppVersionChips(); askAppVersion(); checkLatestVersion();
 }
 
 /** ปิดแผ่นเมนูถ้าเปิดค้างอยู่ — เรียกได้ทุกที่โดยไม่ต้องรู้ว่าเปิดอยู่ไหม */
@@ -17341,8 +17344,30 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('mess
   const d = e.data || {};
   if (d.type === 'version' && d.version) { appVersionText = d.version; renderAppVersionChips(); }
 });
+/* เทียบเวอร์ชันที่เครื่องนี้ใช้อยู่กับไฟล์บนเว็บจริง ครูจะรู้ทันทีว่าต้องกดอัปเดตหรือไม่
+   โดยไม่ต้องจำเลขเวอร์ชันเอง อ่าน CACHE_VERSION จาก sw.js ตรงจากเน็ต (sw.js ไม่ผ่านแคชของแอป ดูใน sw.js) */
+let latestVersionText = '';
+const versionNum = v => parseInt(String(v || '').replace(/\D/g, ''), 10) || 0;
+async function checkLatestVersion() {
+  if (!navigator.onLine || location.protocol === 'file:') return;
+  try {
+    const res = await fetch('./sw.js?check=' + Date.now(), { cache: 'no-store' });
+    const m = res.ok ? (await res.text()).match(/CACHE_VERSION\s*=\s*'([^']+)'/) : null;
+    if (m) { latestVersionText = m[1]; renderAppVersionChips(); }
+  } catch (e) { /* ตรวจไม่ได้ ปุ่มก็เป็นสีปกติเหมือนเดิม */ }
+}
 function renderAppVersionChips() {
   $$('[data-app-version]').forEach(el => { el.textContent = appVersionText ? 'เวอร์ชัน ' + appVersionText : ''; });
+  /* เขียว = เป็นเวอร์ชันล่าสุดแล้ว • แดง = บนเว็บมีเวอร์ชันใหม่กว่าที่ใช้อยู่ • ยังไม่รู้ = สีปกติ */
+  const known = appVersionText && latestVersionText;
+  const old = known && versionNum(latestVersionText) > versionNum(appVersionText);
+  $$('#sheetRefresh').forEach(btn => {
+    if (btn.disabled) return;
+    btn.classList.toggle('ver-ok', !!known && !old);
+    btn.classList.toggle('ver-old', !!old);
+    btn.textContent = !known ? 'ตรวจหาเวอร์ชันใหม่' : old ? '⟳ อัปเดตเป็น ' + latestVersionText : '✓ ล่าสุดแล้ว';
+    btn.title = !known ? '' : old ? 'เครื่องนี้ใช้ ' + appVersionText + ' แต่บนเว็บเป็น ' + latestVersionText : 'ตรงกับเวอร์ชันบนเว็บ (' + latestVersionText + ') กดเพื่อโหลดใหม่ได้';
+  });
 }
 
 async function forceAppRefresh(btn) {
@@ -17391,7 +17416,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').then(reg => {
       if (reg.waiting) showUpdateBar(reg.waiting);
-      askAppVersion(); setTimeout(askAppVersion, 1200);
+      askAppVersion(); setTimeout(askAppVersion, 1200); checkLatestVersion();
       reg.addEventListener('updatefound', () => {
         const sw = reg.installing; if (!sw) return;
         sw.addEventListener('statechange', () => {
