@@ -867,6 +867,23 @@ button,.tabs button,a.button,select,input{touch-action:manipulation;-webkit-tap-
 .tabsrow{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);padding-right:12px}
 .tabsrow .tabs{flex:1;min-width:0;border-bottom:none}
 .tabs-more-btn{flex:0 0 auto;font-size:17px;line-height:1;padding:7px 13px;border-radius:11px;font-weight:700}
+/* กระดิ่งแจ้งเตือนต่อท้ายแท็บสุดท้าย — เดิมอยู่บนแถบบนสุดปนกับปุ่มเล็ก ๆ อีกหลายปุ่มจนไม่มีใครเห็น
+   แถบแท็บไม่ยืดเต็มแถวแล้ว กระดิ่งจึงวางชิดแท็บได้ ส่วนปุ่ม ☰ ถูกดันไปขวาสุดเหมือนเดิม */
+.tabsrow .tabs{flex:0 1 auto}
+.tabsrow .tabs-more-btn{margin-left:auto}
+.tabs-bell{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;font-weight:800;font-size:15px}
+.tabs-bell[hidden]{display:none}
+.tabs-bell.has{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,var(--line));background:var(--bad-bg)}
+.tabs-bell .bell-n{min-width:21px;height:21px;padding:0 6px;border-radius:999px;background:var(--bad);color:#fff;font-size:12.5px;line-height:21px;text-align:center}
+.tabs-bell .bell-n:empty{display:none}
+.tabs-bell.has .bell-ico{display:inline-block;transform-origin:50% 10%;animation:bellRing 2.6s ease-in-out infinite}
+@keyframes bellRing{0%,78%,100%{transform:rotate(0)}82%{transform:rotate(14deg)}86%{transform:rotate(-12deg)}90%{transform:rotate(8deg)}94%{transform:rotate(-4deg)}}
+@media(prefers-reduced-motion:reduce){.tabs-bell .bell-ico{animation:none!important}}
+/* จอกว้างใช้กระดิ่งในแถวแท็บ มือถือไม่มีแถวแท็บ จึงยังใช้กระดิ่งบนแถบบนตัวเดิม */
+@media(min-width:721px){#btnAlerts{display:none!important}}
+.bell-list{display:grid;gap:8px}
+.bell-sec{margin:14px 0 6px;font-size:13px;font-weight:800;color:var(--muted)}
+.bell-sec:first-child{margin-top:0}
 /* ปุ่มติดตั้งแอป — ไอคอนเล็กมุมล่างขวา เห็นเฉพาะหน้าเข้าสู่ระบบ */
 .install-fab{display:none;position:fixed;right:24px;bottom:calc(26px + env(safe-area-inset-bottom));z-index:95;
   width:46px;height:46px;padding:0;border-radius:14px;font-size:20px;font-weight:800;align-items:center;justify-content:center;
@@ -1448,6 +1465,7 @@ tr.conduct-void td{opacity:.55}tr.conduct-void td b{text-decoration:line-through
   <button data-tab="affairs">กิจการนักเรียน</button>
   <button data-tab="admin">ผู้ดูแลระบบ</button>
 </nav>
+<button class="sm tabs-bell" id="tabsBell" hidden title="การแจ้งเตือน"><span class="bell-ico">🔔</span><span class="bell-n" id="tabsBellCount"></span></button>
 <button class="sm tabs-more-btn" id="tabsMore" aria-haspopup="dialog" title="หน้าอื่นทั้งหมด" aria-label="หน้าอื่นทั้งหมด">☰</button>
 </div>
 </div>
@@ -2834,11 +2852,7 @@ function renderTop() {
     if (teacher && !teacherHasRole(teacher, DB.ui.staffMode)) DB.ui.staffMode = teacher.roles[0] || 'teacher';
     mode.value = DB.ui.staffMode || 'teacher';
   }
-  const bell = $('#btnAlerts'), count = $('#alertCount');
-  if (bell && count) {
-    const n = pendingApprovals().length + noticesAwaitingMe().length;   // ประกาศที่ยังไม่กดรับทราบก็นับด้วย
-    bell.hidden = !n; count.textContent = n ? ' ' + n : '';
-  }
+  updateAlertBell();
   applyRoleVisibility();
   applyPickerRelevance();
   bindSearchableSelects();
@@ -3530,9 +3544,11 @@ function pendingApprovals() {
     detail: incoming.slice(0, 3).map(r => 'จาก ' + teacherNameOf(r.requesterTeacherId) + ' • ' + thaiDate(r.sourceDate || r.date)).join(' • ') });
 
   const acts = (DB.timetable.activities || []).filter(a => a.periodId === DB.ui.periodId &&
-    activityTeacherIds(a).indexOf(me.id) >= 0 && a.teacherId !== me.id && !activityAcked(a, me.id));
+    /* ผู้ขอที่สอนคาบที่ถูกดึงนักเรียนไปเองก็อยู่ในรายชื่อ ต้องรับทราบเหมือนครูคนอื่น
+       และกิจกรรมที่ผ่านวันไปแล้วไม่ต้องเตือนอีก ไม่งั้นกระดิ่งค้างตัวเลขไปตลอดภาคเรียน */
+    activityTeacherIds(a).indexOf(me.id) >= 0 && String(a.date || '') >= todayISO() && !activityAcked(a, me.id));
   acts.forEach(a => list.push({ tone: 'warn', icon: '★', role: 'teacher', tab: 'activities',
-    title: 'กิจกรรม “' + (a.name || 'ไม่ระบุชื่อ') + '” ขอเวลาเรียนในคาบของคุณ',
+    title: 'กิจกรรม “' + (a.name || 'ไม่ระบุชื่อ') + '” ' + (a.teacherId === me.id ? 'ของคุณใช้คาบที่คุณสอนด้วย' : 'ขอเวลาเรียนในคาบของคุณ'),
     detail: thaiDate(a.date) + ' • ผู้ขอ ' + teacherNameOf(a.teacherId) + ' • นักเรียน ' + (a.students || []).length + ' คน',
     ackId: a.id }));
 
@@ -3628,7 +3644,18 @@ const NOTICE_ROLES = ['executive', 'head', 'admin'];
 const NOTICE_KINDS = { meeting: { icon: '📅', label: 'นัดประชุม' }, task: { icon: '⏰', label: 'งานมีกำหนดส่ง' } };
 const noticeAckKey = t => fbStaffId((t || {}).email || '');
 const noticeList = () => (DB.timetable.notices = Array.isArray(DB.timetable.notices) ? DB.timetable.notices : []);
-const noticeActive = n => !!n && String(n.date || '') >= todayISO();
+/* พ้นกำหนดแล้วหายเอง — เดิมดูแค่วันที่ ประชุม 09:00 จึงค้างอยู่ทั้งวันจนเที่ยงคืน ตอนนี้ดูถึงนาทีเมื่อระบุเวลาไว้
+   นัดประชุมเผื่อไว้ 1 ชั่วโมงหลังเวลาเริ่ม ครูที่กำลังเดินไปห้องประชุมจะยังเปิดดูสถานที่ได้
+   งานมีกำหนดส่งหายทันทีที่เลยเวลา ไม่ได้ลบข้อมูลทิ้ง แค่ไม่แสดงและไม่นับในกระดิ่ง */
+function noticeActive(n) {
+  if (!n) return false;
+  const d = String(n.date || ''), today = todayISO();
+  if (d !== today) return d > today;
+  const t = String(n.time || '').split(':'), h = parseInt(t[0], 10), m = parseInt(t[1], 10) || 0;
+  if (isNaN(h)) return true;
+  const now = new Date();
+  return now.getHours() * 60 + now.getMinutes() < h * 60 + m + (n.kind === 'meeting' ? 60 : 0);
+}
 const noticeMine = (n, me) => !!(n && me && (n.createdBy === me.id || (n.createdByEmail && n.createdByEmail === noticeAckKey(me))));
 
 /** ครูคนนี้อยู่ในกลุ่มผู้รับของประกาศหรือไม่ */
@@ -3640,7 +3667,10 @@ function noticeForTeacher(n, t) {
   return true;
 }
 /** ผู้รับทั้งหมด ไม่นับผู้ประกาศเอง ใช้นับว่ารับทราบแล้วกี่คน */
-const noticeRecipients = n => DB.teachers.filter(t => noticeForTeacher(n, t) && !noticeMine(n, t));
+/* ผู้ประกาศที่อยู่ในกลุ่มผู้รับด้วย (เช่นประกาศถึงครูทุกคน หรือถึงกลุ่มสาระของตัวเอง) ก็ต้องกดรับทราบเหมือนคนอื่น
+   เดิมตัดผู้ประกาศออกเสมอ ผู้ประกาศจึงไม่มีปุ่มรับทราบ และกระดิ่งไม่นับนัดที่ตัวเองก็ต้องไปด้วย */
+const noticeRecipients = n => DB.teachers.filter(t => noticeForTeacher(n, t));
+const noticeNeedsMyAck = (n, me) => !!(n && me && !n.cancelled && noticeForTeacher(n, me) && !noticeAcked(n, me));
 const noticeAcked = (n, t) => !!((n.ack || {})[noticeAckKey(t)]);
 
 /** ประกาศที่ยังไม่พ้นกำหนดซึ่งเราควรเห็น — ของที่เราประกาศเองก็แสดง จะได้ตามดูคนรับทราบ */
@@ -3652,7 +3682,7 @@ function noticesForMe() {
 /** ประกาศที่ยังรอเรากดรับทราบ — นับรวมในกระดิ่งแจ้งเตือน */
 function noticesAwaitingMe() {
   const me = curTeacher(); if (!me) return [];
-  return noticesForMe().filter(n => !n.cancelled && !noticeMine(n, me) && !noticeAcked(n, me));
+  return noticesForMe().filter(n => noticeNeedsMyAck(n, me));
 }
 
 /** ข้อความนับถอยหลังแบบที่ครูอ่านแวบเดียวรู้เรื่อง */
@@ -3669,10 +3699,10 @@ function noticeCardHtml() {
   const list = noticesForMe();
   const canPost = NOTICE_ROLES.some(r => teacherHasRole(me, r));
   if (!list.length && !canPost) return '';
-  const waiting = list.filter(n => !n.cancelled && !noticeMine(n, me) && !noticeAcked(n, me)).length;
+  const waiting = list.filter(n => noticeNeedsMyAck(n, me)).length;
   const item = n => {
     const kind = NOTICE_KINDS[n.kind] || NOTICE_KINDS.task, mine = noticeMine(n, me), acked = noticeAcked(n, me);
-    const cd = noticeCountdown(n), done = n.cancelled || (!mine && acked);
+    const cd = noticeCountdown(n), done = !noticeNeedsMyAck(n, me);
     const recips = mine ? noticeRecipients(n) : [], ackN = recips.filter(t => noticeAcked(n, t)).length;
     return '<div class="alert-item notice-item' + (done ? ' done' : ' bad') + (n.cancelled ? ' cancelled' : '') + '">' +
       '<span class="approval-ico">' + kind.icon + '</span>' +
@@ -3686,8 +3716,8 @@ function noticeCardHtml() {
         (mine && !n.cancelled ? '<div class="notice-acks">รับทราบแล้ว <b>' + ackN + '/' + recips.length + '</b> คน' +
           (ackN < recips.length ? ' <button class="sm ghost" data-notice-who="' + esc(n.id) + '">ดูคนที่ยังไม่รับทราบ</button>' : '') + '</div>' : '') +
       '</div><div class="spacer"></div><div class="notice-acts">' +
-        (mine ? (n.cancelled ? '' : '<button class="sm" data-notice-edit="' + esc(n.id) + '">แก้ไข</button><button class="sm danger" data-notice-cancel="' + esc(n.id) + '">ยกเลิกประกาศ</button>')
-          : n.cancelled ? '' : acked ? '<span class="badge ok">✓ รับทราบแล้ว</span>' : '<button class="sm primary" data-notice-ack="' + esc(n.id) + '">รับทราบ</button>') +
+        (n.cancelled || !noticeForTeacher(n, me) ? '' : acked ? '<span class="badge ok">✓ รับทราบแล้ว</span>' : '<button class="sm primary" data-notice-ack="' + esc(n.id) + '">รับทราบ</button>') +
+        (mine && !n.cancelled ? '<button class="sm" data-notice-edit="' + esc(n.id) + '">แก้ไข</button><button class="sm danger" data-notice-cancel="' + esc(n.id) + '">ยกเลิกประกาศ</button>' : '') +
       '</div></div>';
   };
   return '<div class="card notice-card' + (waiting ? ' has-new' : '') + '"><div class="row"><div><h3 style="margin:0">📣 ประกาศและนัดหมาย</h3>' +
@@ -3696,6 +3726,63 @@ function noticeCardHtml() {
       (canPost ? '<button class="sm" data-notice-new="meeting">+ นัดประชุม</button><button class="sm" data-notice-new="task">+ แจ้งงานมีกำหนด</button>' : '') + '</div>' +
     (list.length ? '<div class="alert-list" style="margin-top:12px">' + list.map(item).join('') + '</div>'
       : '<div class="empty" style="margin-top:10px">ยังไม่มีประกาศ</div>') + '</div>';
+}
+
+/* ---------- กระดิ่งแจ้งเตือน -------------------------------------------------
+   นับ "สิ่งที่รอเราทำ": ประกาศ/นัดประชุมที่เราอยู่ในรายชื่อแต่ยังไม่กดรับทราบ กิจกรรมที่ดึงนักเรียน
+   ในคาบของเรา และงานอนุมัติ/ตอบรับตามบทบาท ตัวเลขลดลงทันทีที่กดรับทราบ
+   กระดิ่งยังแสดง (ไม่มีตัวเลข) ถ้ามีนัดที่รับทราบแล้วแต่ยังไม่ถึงเวลา และหายไปเองเมื่อทุกอย่างพ้นกำหนด */
+function alertBellState() {
+  const me = curTeacher(); if (!me) return { approvals: [], notices: [], waiting: 0, total: 0 };
+  const approvals = pendingApprovals();
+  const notices = noticesForMe().filter(n => !n.cancelled);
+  const waiting = approvals.length + notices.filter(n => noticeNeedsMyAck(n, me)).length;
+  return { approvals: approvals, notices: notices, waiting: waiting, total: approvals.length + notices.length };
+}
+
+function updateAlertBell() {
+  const s = alertBellState();
+  const title = s.waiting ? 'รอคุณดำเนินการ ' + s.waiting + ' รายการ' : s.total ? 'มีนัดหมายที่รับทราบแล้ว ' + s.total + ' รายการ' : 'ไม่มีการแจ้งเตือน';
+  const tb = $('#tabsBell'), tn = $('#tabsBellCount');
+  if (tb && tn) { tb.hidden = !s.total; tb.classList.toggle('has', s.waiting > 0); tn.textContent = s.waiting ? String(s.waiting) : ''; tb.title = title; }
+  const bell = $('#btnAlerts'), count = $('#alertCount');
+  if (bell && count) { bell.hidden = !s.total; count.textContent = s.waiting ? ' ' + s.waiting : ''; bell.title = title; }
+}
+
+/** หน้าต่างรวมการแจ้งเตือน — กดรับทราบได้จากที่นี่เลย ไม่ต้องเลื่อนหาการ์ดบนหน้าภาพรวม */
+function openAlertCenter() {
+  const draw = (root, close) => {
+    const me = curTeacher(), s = alertBellState(), body = $('.body', root);
+    const noticeRow = n => {
+      const kind = NOTICE_KINDS[n.kind] || NOTICE_KINDS.task, cd = noticeCountdown(n), need = noticeNeedsMyAck(n, me);
+      const recips = noticeMine(n, me) ? noticeRecipients(n) : [], ackN = recips.filter(t => noticeAcked(n, t)).length;
+      return '<div class="alert-item approval-item ' + (need ? 'bad' : '') + '"><span class="approval-ico">' + kind.icon + '</span>' +
+        '<div><div class="notice-head"><span class="notice-kind">' + kind.label + '</span><span class="notice-count' + (cd.urgent ? ' urgent' : '') + '">' + esc(cd.text) + '</span></div>' +
+        '<b>' + esc(n.title) + '</b><div class="hint">' + esc(noticeWhen(n)) + (n.place ? ' • ' + esc(n.place) : '') + '</div>' +
+        (noticeMine(n, me) ? '<div class="hint">คุณเป็นผู้ประกาศ • รับทราบแล้ว ' + ackN + '/' + recips.length + ' คน</div>' : '') + '</div>' +
+        '<div class="spacer"></div>' +
+        (need ? '<button class="sm primary" data-bell-ack="' + esc(n.id) + '">รับทราบ</button>' : noticeForTeacher(n, me) ? '<span class="badge ok">✓ รับทราบแล้ว</span>' : '') +
+        '<button class="sm" data-bell-notice>ดู</button></div>';
+    };
+    const approvalRow = (x, i) => '<div class="alert-item approval-item ' + x.tone + '"><span class="approval-ico">' + x.icon + '</span>' +
+      '<div><b>' + esc(x.title) + '</b>' + (x.detail ? '<div class="hint">' + esc(x.detail) + '</div>' : '') + '</div><div class="spacer"></div>' +
+      (x.ackId ? '<button class="sm primary" data-bell-act="' + esc(x.ackId) + '">รับทราบ</button>' : '') +
+      '<button class="sm" data-bell-go="' + i + '">ไปจัดการ</button></div>';
+    body.innerHTML = !s.total ? '<div class="empty">ไม่มีการแจ้งเตือน — นัดหมายที่พ้นกำหนดแล้วจะหายไปเอง</div>' :
+      (s.notices.length ? '<div class="bell-sec">📣 ประกาศและนัดหมาย</div><div class="bell-list">' + s.notices.map(noticeRow).join('') + '</div>' : '') +
+      (s.approvals.length ? '<div class="bell-sec">งานที่รอคุณดำเนินการ</div><div class="bell-list">' + s.approvals.map(approvalRow).join('') + '</div>' : '');
+    $$('[data-bell-ack]', body).forEach(b => b.addEventListener('click', () => { ackNotice(b.dataset.bellAck); draw(root, close); }));
+    $$('[data-bell-act]', body).forEach(b => b.addEventListener('click', () => { acknowledgeActivity(b.dataset.bellAct); draw(root, close); }));
+    $$('[data-bell-notice]', body).forEach(b => b.addEventListener('click', () => {
+      close(); goToSearchTarget(SEARCH_INDEX.find(e => e.card === 'ประกาศและนัดหมาย'));
+    }));
+    $$('[data-bell-go]', body).forEach(b => b.addEventListener('click', () => {
+      const x = s.approvals[num(b.dataset.bellGo)]; if (!x) return;
+      if (x.role !== 'teacher' && me && teacherHasRole(me, x.role) && (DB.ui.staffMode || 'teacher') !== x.role) DB.ui.staffMode = x.role;
+      close(); setTab(x.tab);
+    }));
+  };
+  return openModal({ title: '🔔 การแจ้งเตือน', wide: true, bodyHTML: '', buttons: [{ label: 'ปิด' }], onMount: draw });
 }
 
 function noticeAudienceText(n) {
@@ -17151,7 +17238,19 @@ $('#btnClasses').addEventListener('click', manageClasses);
 $('#btnSubjects').addEventListener('click', manageSubjects);
 $('#tabsMore').addEventListener('click', e => { e.stopPropagation(); toggleMoreMenu(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTabSheet(); });
-$('#btnAlerts').addEventListener('click', () => { setTab('dashboard'); setTimeout(() => { const c = $('.notice-card.has-new') || $('.alert-card'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 120); });
+$('#btnAlerts').addEventListener('click', () => openAlertCenter());
+$('#tabsBell').addEventListener('click', () => openAlertCenter());
+/* ประกาศกับกิจกรรมต้องหายเองเมื่อพ้นเวลา แม้ครูเปิดหน้าค้างไว้ทั้งวันโดยไม่ได้กดอะไร
+   วาดหน้าภาพรวมใหม่เฉพาะเมื่อรายการเปลี่ยนจริง และไม่วาดทับตอนครูกำลังพิมพ์หรือเปิดหน้าต่างอยู่ */
+let alertTickSig = '';
+setInterval(() => {
+  if (studentSession || !curTeacher()) return;
+  updateAlertBell();
+  const sig = noticesForMe().map(n => n.id).join(',');
+  const busy = modalStack.length || (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName));
+  if (alertTickSig && sig !== alertTickSig && DB.ui.tab === 'dashboard' && !busy) render();
+  alertTickSig = sig;
+}, 60000);
 $('#btnStaffLogout').addEventListener('click', staffLogout);
 $('#btnSearch').addEventListener('click', () => openGlobalSearch());
 $('#btnTheme').addEventListener('click', toggleTheme);
