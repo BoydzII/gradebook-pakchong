@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>วิธีใช้ KruSpace สำหรับครู</title>
+<meta name="description" content="แนะนำการใช้งาน KruSpace ในโหมดครูแบบภาพเคลื่อนไหว: เข้าสู่ระบบ ภาพรวม เช็กชื่อ คะแนนและ ปพ.5 แลกคาบและการลา">
+<link rel="icon" href="./icons/icon-192.png">
+<style>
+/* ฟอนต์เดียวกับแอป เก็บในโฟลเดอร์ vendor/fonts จึงเปิดได้แม้ออฟไลน์ */
+@font-face{font-family:'Sarabun';font-weight:400;font-display:swap;src:url('./vendor/fonts/sarabun-thai-400.woff2') format('woff2');unicode-range:U+0E01-0E5B,U+200C-200D,U+25CC}
+@font-face{font-family:'Sarabun';font-weight:400;font-display:swap;src:url('./vendor/fonts/sarabun-latin-400.woff2') format('woff2');unicode-range:U+0000-00FF,U+2000-206F,U+2190-21FF}
+@font-face{font-family:'Sarabun';font-weight:700;font-display:swap;src:url('./vendor/fonts/sarabun-thai-700.woff2') format('woff2');unicode-range:U+0E01-0E5B,U+200C-200D,U+25CC}
+@font-face{font-family:'Sarabun';font-weight:700;font-display:swap;src:url('./vendor/fonts/sarabun-latin-700.woff2') format('woff2');unicode-range:U+0000-00FF,U+2000-206F,U+2190-21FF}
+@font-face{font-family:'Sarabun';font-weight:800;font-display:swap;src:url('./vendor/fonts/sarabun-thai-800.woff2') format('woff2');unicode-range:U+0E01-0E5B,U+200C-200D,U+25CC}
+@font-face{font-family:'Sarabun';font-weight:800;font-display:swap;src:url('./vendor/fonts/sarabun-latin-800.woff2') format('woff2');unicode-range:U+0000-00FF,U+2000-206F,U+2190-21FF}
+
+/* หน้าห่อ: สุดขั้วเรื่องเดียวคือ "จอจำลอง" ตรงกลาง ทุกอย่างรอบ ๆ เงียบ ใช้สีน้ำเงินของแอปเป็นสีเน้นสีเดียว */
+:root{--page:#eef2f8;--ink:#142033;--mute:#5d6b80;--line:#d7dfeb;--brand:#1f6feb;--brand2:#6b4fd3;
+  --ok:#0f8a53;--ok-bg:#e6f6ee;--bad:#c62828;--bad-bg:#fdecec;--warn:#a05a00;--warn-bg:#fff5e2;--group:#6b3fd4;--group-bg:#f1ecfd;
+  --panel:#fff;--panel2:#f7f9fc;--hero:linear-gradient(135deg,#0f5fbb 0%,#1f6feb 52%,#6b4fd3 100%);
+  --att-present:#12a05c;--att-late:#c98a00;--att-leave:#4f6bd8;--att-activity:#0d94ad;--att-absent:#d43b3b}
+*{box-sizing:border-box;margin:0}
+html,body{background:var(--page);color:var(--ink);font-family:'Sarabun',system-ui,sans-serif;font-weight:400}
+body{min-height:100dvh;display:flex;flex-direction:column;align-items:center;padding:clamp(14px,3vw,36px) clamp(10px,3vw,32px) max(24px,env(safe-area-inset-bottom))}
+.head{width:min(1180px,100%);display:flex;align-items:flex-end;gap:16px;margin-bottom:14px}
+.head img{width:44px;height:44px;object-fit:contain}
+.head h1{font-size:clamp(22px,3.2vw,36px);font-weight:800;line-height:1.2;text-wrap:balance}
+.head p{color:var(--mute);font-size:14px;line-height:1.6}
+.head a{margin-left:auto;white-space:nowrap;color:var(--brand);font-weight:700;text-decoration:none;font-size:14px;align-self:center}
+
+/* บท: ชิป 4 บท */
+.chapters{width:min(1180px,100%);display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+.chapters button{font:inherit;text-align:left;border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:9px 12px;cursor:pointer;color:var(--ink);position:relative;overflow:hidden}
+.chapters button b{display:block;font-size:14.5px;font-weight:700;line-height:1.35}
+.chapters button span{font-size:12px;color:var(--mute)}
+.chapters button i{position:absolute;left:0;bottom:0;height:3px;background:var(--brand);width:0}
+.chapters button.on{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand)}
+@media (max-width:640px){.chapters{grid-template-columns:1fr 1fr}.chapters button span{display:none}}
+
+/* จอจำลอง: ออกแบบที่ 1280×720 แล้วย่อทั้งก้อนตามความกว้างจอ (ตัวอักษรข้างในย่อตาม ไม่ตัดบรรทัดใหม่) */
+.frame{width:min(1180px,100%);border-radius:18px;overflow:hidden;background:#0d1320;box-shadow:0 20px 50px rgba(16,30,54,.18);position:relative}
+.frame-in{position:relative;width:100%}
+#stage{position:absolute;left:0;top:0;width:1280px;height:720px;transform-origin:0 0;overflow:hidden;background:#f4f6fa;font-size:15px;line-height:1.5}
+.caption{width:min(1180px,100%);min-height:92px;padding:14px 4px 6px;display:flex;gap:14px;align-items:flex-start}
+.caption .step{flex:none;font-size:12px;font-weight:700;color:#fff;background:var(--brand);border-radius:999px;padding:3px 10px;margin-top:4px;white-space:nowrap}
+.caption p{font-size:clamp(16px,2vw,21px);line-height:1.7;font-weight:400;text-wrap:pretty;transition:opacity .25s}
+.caption p b{font-weight:700;color:var(--brand)}
+.caption p.fade{opacity:0}
+.controls{width:min(1180px,100%);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.controls button{font:inherit;border:1px solid var(--line);background:var(--panel);border-radius:10px;min-width:44px;min-height:40px;padding:0 12px;cursor:pointer;color:var(--ink);font-weight:700}
+.controls button.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.bar{flex:1;min-width:140px;height:8px;border-radius:99px;background:#dbe3ef;position:relative;cursor:pointer}
+.bar i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:var(--brand);width:0}
+.bar s{position:absolute;top:-3px;bottom:-3px;width:2px;background:#fff;text-decoration:none}
+.controls .count{font-size:13px;color:var(--mute);font-variant-numeric:tabular-nums;min-width:52px;text-align:right}
+.kbd-hint{width:min(1180px,100%);font-size:12.5px;color:var(--mute);margin-top:8px}
+@media (hover:none){.kbd-hint{display:none}}
+/* มือถือ: หัวหน้าเรียงแนวเดียวกับตรา ซ่อนคำโปรย • แถบความคืบหน้าลงไปเต็มบรรทัดล่างปุ่ม
+   จอจำลองย่อจาก 1280px จึงเล็กมากบนมือถือแนวตั้ง แนะนำให้หมุนจอ */
+.rotate{display:none;width:min(1180px,100%);font-size:13px;color:var(--mute);margin-top:8px;text-align:center}
+@media (max-width:640px){
+  .head{align-items:center;flex-wrap:wrap;gap:10px}
+  .head img{width:38px;height:38px}
+  .head p{display:none}
+  .head a{margin-left:0;flex-basis:100%;order:3}
+  .controls .bar{order:9;flex-basis:100%}
+  .controls .count{margin-left:auto}
+}
+@media (max-width:640px) and (orientation:portrait){.rotate{display:block}}
+
+/* ======================= หน้าจอแอปจำลอง (ขนาดจริง 1280×720) ======================= */
+.scr{position:absolute;inset:0}
+.app-top{height:62px;background:#fff;border-bottom:1px solid #dde3ec;display:flex;align-items:center;gap:14px;padding:0 20px}
+.brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:17px}
+.brand i{width:32px;height:32px;border-radius:10px;background:var(--brand);display:grid;place-items:center;color:#fff;font-style:normal;font-size:17px}
+.brand small{display:block;font-size:11px;color:var(--mute);font-weight:400;line-height:1.1}
+.pick{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--mute)}
+.sel{border:1px solid #dde3ec;border-radius:9px;padding:6px 12px;color:var(--ink);background:#fff;font-size:14px;min-width:120px;display:flex;justify-content:space-between;gap:10px}
+.sel:after{content:'⌄';color:var(--mute)}
+.who{margin-left:auto;border:1px solid #cfe0ff;background:#eef4ff;color:var(--brand);border-radius:99px;padding:5px 14px;font-weight:700;font-size:13px}
+.icon{width:38px;height:36px;border:1px solid #dde3ec;border-radius:10px;display:grid;place-items:center;background:#fff;font-size:15px}
+.tabs{height:54px;background:#f4f6fa;border-bottom:1px solid #dde3ec;display:flex;align-items:center;gap:6px;padding:0 20px}
+.tab{padding:8px 16px;border-radius:99px;font-weight:700;color:var(--mute);font-size:14.5px}
+.tab.on{background:var(--brand);color:#fff;box-shadow:0 6px 16px rgba(31,111,235,.24)}
+.bell{margin-left:6px;display:inline-flex;align-items:center;gap:6px;border:1px solid #f0c9c9;background:var(--bad-bg);color:var(--bad);border-radius:99px;padding:5px 12px;font-weight:800}
+.bell em{font-style:normal;background:var(--bad);color:#fff;border-radius:99px;min-width:21px;height:21px;line-height:21px;text-align:center;font-size:12px;padding:0 6px}
+.menu{margin-left:auto}
+.pane{position:absolute;left:0;right:0;top:116px;bottom:0;padding:16px 20px;overflow:hidden}
+.card{background:#fff;border:1px solid #dde3ec;border-radius:14px;padding:14px 16px;box-shadow:0 1px 2px rgba(16,30,54,.06),0 8px 24px rgba(16,30,54,.06);margin-bottom:12px}
+.card h3{font-size:16.5px;font-weight:800;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.hint{color:var(--mute);font-size:13px}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid #dde3ec;background:#fff;border-radius:10px;padding:6px 12px;font-weight:700;font-size:13.5px;color:var(--ink)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.badge{display:inline-block;padding:1px 9px;border-radius:99px;font-size:12.5px;font-weight:700;background:#eef2f7;color:var(--mute)}
+.badge.ok{background:var(--ok-bg);color:var(--ok)}.badge.bad{background:var(--bad-bg);color:var(--bad)}.badge.warn{background:var(--warn-bg);color:var(--warn)}.badge.grp{background:var(--group-bg);color:var(--group)}
+.row{display:flex;align-items:center;gap:10px}
+.sp{flex:1}
+.hero{background:var(--hero);color:#fff;border-radius:14px;padding:18px 22px;margin-bottom:12px}
+.hero h1{font-size:23px;font-weight:800}
+.hero p{font-size:13.5px;opacity:.85}
+.search{display:flex;align-items:center;gap:10px}
+.search .inp{flex:1;border:1px solid #dde3ec;border-radius:12px;padding:10px 14px;font-size:16px;color:var(--mute);background:#fff;min-height:46px}
+.search .inp.typing{color:var(--ink)}
+.search .inp.typing:after{content:'|';animation:blink 1s steps(1) infinite;color:var(--brand);margin-left:1px}
+@keyframes blink{50%{opacity:0}}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px}
+.metric{background:#fff;border:1px solid #dde3ec;border-left:4px solid var(--c);border-radius:14px;padding:12px 16px}
+.metric b{font-size:28px;font-weight:800;display:block;line-height:1.2}
+.metric span{font-size:13px;color:var(--mute)}
+.two{display:grid;grid-template-columns:1.25fr 1fr;gap:12px}
+.today{display:flex;align-items:center;gap:12px;border:1px solid #e6ebf2;border-radius:12px;padding:9px 12px;margin-top:8px}
+.today .tm{width:84px;font-size:12.5px;color:var(--mute)}.today .tm b{display:block;color:var(--ink);font-size:14px}
+.today.now{border-color:var(--brand);background:#f3f7ff}
+.res{border:1px solid #e6ebf2;border-radius:12px;padding:9px 12px;display:flex;align-items:center;gap:10px;margin-top:8px;background:#fff}
+.av{width:34px;height:34px;border-radius:11px;background:#e8f0fe;color:var(--brand);display:grid;place-items:center;font-weight:800;flex:none}
+.modal-bg{position:absolute;inset:0;background:rgba(10,18,32,.42);display:grid;place-items:center;z-index:20;animation:fadeIn .25s}
+.modal{background:#fff;border-radius:16px;width:720px;max-height:640px;overflow:hidden;box-shadow:0 30px 70px rgba(0,0,0,.3);animation:pop .3s cubic-bezier(.2,.9,.3,1.2)}
+.modal header{padding:14px 18px;border-bottom:1px solid #e6ebf2;font-weight:800;font-size:17px;display:flex}
+.modal header:after{content:'×';margin-left:auto;color:var(--mute)}
+.modal .body{padding:16px 18px}
+.modal footer{padding:12px 18px;border-top:1px solid #e6ebf2;display:flex;justify-content:flex-end;gap:8px}
+@keyframes fadeIn{from{opacity:0}}
+@keyframes pop{from{transform:scale(.92);opacity:0}}
+.toast{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);background:#142033;color:#fff;border-radius:12px;padding:10px 18px;font-weight:700;z-index:40;animation:toastIn .3s}
+.toast.ok{background:var(--ok)}
+@keyframes toastIn{from{transform:translate(-50%,16px);opacity:0}}
+table.g{width:100%;border-collapse:collapse;font-size:14px}
+table.g th,table.g td{border-bottom:1px solid #edf1f6;padding:6px 8px;text-align:left}
+table.g th{font-size:12.5px;color:var(--mute);font-weight:700;background:#f7f9fc}
+table.g td.n,table.g th.n{text-align:center;font-variant-numeric:tabular-nums}
+.chk{width:20px;height:20px;border-radius:6px;border:2px solid #c9d3e0;display:inline-block;vertical-align:middle;position:relative;background:#fff}
+.chk.on{background:var(--c);border-color:var(--c)}
+.chk.on:after{content:'✓';color:#fff;position:absolute;inset:0;display:grid;place-items:center;font-size:13px;font-weight:800;line-height:1}
+.slotgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.slotcell{border:1px solid #e1e7f0;border-radius:12px;padding:10px;min-height:94px;background:#fff;font-size:13px}
+.slotcell b{display:block;font-size:14px}
+.slotcell.mine{border-color:#b9d0ff;background:#f3f7ff}
+.slotcell.done{border-color:#bfe6d0;background:var(--ok-bg)}
+.scoregrid td.in{width:74px}
+.cellin{border:1px solid #dde3ec;border-radius:8px;height:30px;display:grid;place-items:center;font-variant-numeric:tabular-nums;font-weight:700}
+.cellin.cur{border-color:var(--brand);box-shadow:0 0 0 3px rgba(31,111,235,.2)}
+.dist{display:flex;align-items:flex-end;gap:14px;height:150px;padding:6px 10px 0}
+.dist div{flex:1;background:linear-gradient(to top,var(--brand),#7aa7ff);border-radius:8px 8px 0 0;height:0;transition:height 1.1s cubic-bezier(.2,.8,.2,1);position:relative}
+.dist div span{position:absolute;bottom:-24px;left:0;right:0;text-align:center;font-weight:800;font-size:14px;color:var(--ink)}
+.dist div em{position:absolute;top:-22px;left:0;right:0;text-align:center;font-style:normal;font-size:12.5px;color:var(--mute)}
+.mode{display:flex;gap:10px;margin-bottom:12px}
+.mode div{flex:1;border:1px solid #dde3ec;border-radius:14px;padding:12px 14px;background:#fff;font-weight:800}
+.mode div span{display:block;font-weight:400;font-size:13px;color:var(--mute)}
+.mode div.on{border-color:var(--brand);box-shadow:0 0 0 2px rgba(31,111,235,.25);background:#f3f7ff}
+.cand{border:1px solid #e6ebf2;border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:10px;margin-top:8px}
+.sheet{background:#fff;width:470px;height:600px;margin:0 auto;box-shadow:0 20px 50px rgba(0,0,0,.25);padding:40px 46px;font-family:'Sarabun',serif;font-size:14px;line-height:1.75;animation:pop .45s cubic-bezier(.2,.9,.3,1.1)}
+.sheet h4{text-align:center;font-size:22px;font-weight:800;margin:4px 0 12px}
+.sheet .l{height:9px;background:#e9edf3;border-radius:4px;margin:9px 0}
+.krut{width:52px;height:52px;border-radius:50%;margin:0 auto;background:#c89b3c;opacity:.85}
+.menu-sheet{position:absolute;right:20px;top:120px;width:430px;background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.25);padding:14px;z-index:15;animation:pop .3s}
+.menu-sheet .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.menu-sheet .grid div{border:1px solid #e1e7f0;border-radius:12px;padding:10px 12px;font-weight:700}
+.vbtn{border:1px solid #bde5cd;background:var(--ok-bg);color:var(--ok);border-radius:10px;padding:6px 12px;font-weight:800;font-size:13.5px}
+.vbtn.old{background:var(--bad);border-color:var(--bad);color:#fff}
+
+/* หน้าทางเข้าจำลอง (ใช้ภาพจริงของแอป) */
+.gw{position:absolute;inset:0;background:#0c0b10;color:#f4f1f8;overflow:hidden}
+.gw:before{content:'';position:absolute;inset:-40px;background:url(./icons/gateway-roles.jpg) center 70%/cover;filter:blur(26px) brightness(.3)}
+.gw-top{position:relative;display:flex;align-items:center;gap:12px;padding:22px 40px}
+.gw-top img{width:42px;height:42px}
+.gw-top b{font-size:19px;font-weight:800;display:block}.gw-top span{font-size:13px;color:#a59fb3}
+.gw-stage{position:relative;display:flex;width:560px;height:560px;margin:0 auto;--L:48px}
+.gw-slot{position:relative;flex:1 1 0;min-width:0;clip-path:polygon(var(--L) 0,100% 0,calc(100% - var(--L)) 100%,0 100%);background:#1b1822;transition:flex-grow .45s,filter .35s,background .3s}
+.gw-slot + .gw-slot{margin-left:calc(10px - var(--L))}
+.gw-slot .art{position:absolute;inset:2px;overflow:hidden;clip-path:polygon(calc(var(--L) + 1px) 0,100% 0,calc(100% - var(--L) - 1px) 100%,0 100%)}
+.gw-slot img{position:absolute;height:760px;top:-205px;left:50%;transform:translateX(calc(var(--fx) * -100%));transition:transform .6s}
+.gw-slot .art:after{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(8,7,12,.95) 8%,transparent 55%)}
+.gw-slot .lab{position:absolute;left:16px;right:40px;bottom:22px;z-index:2}
+.gw-slot .en{font-size:10px;font-weight:800;letter-spacing:.05em;color:var(--c);line-height:1.3}
+.gw-slot .en:first-letter{font-size:200%}
+.gw-slot .th{font-size:23px;font-weight:800;line-height:1.2;white-space:nowrap}
+.gw-slot .th.long{font-size:18px}
+.gw-slot.on .th.long{font-size:22px}
+.gw-slot .go{display:inline-block;margin-top:8px;background:var(--c);color:#0c0b10;font-weight:800;padding:6px 12px;font-size:13px;opacity:0;transition:opacity .3s}
+.gw-stage.picked .gw-slot:not(.on){filter:brightness(.45) grayscale(.6)}
+.gw-slot.on{flex-grow:1.9;background:var(--c)}
+/* ช่องที่ถูกบีบตอนเลือกช่องอื่น: ซ่อนชื่ออังกฤษ ชื่อไทยเล็กลง ไม่ให้ขอบเฉียงตัดตัวอักษร */
+.gw-stage.picked .gw-slot:not(.on) .en{visibility:hidden}
+.gw-stage.picked .gw-slot:not(.on) .th{font-size:17px}
+.gw-stage.picked .gw-slot:not(.on) .th.long{font-size:14px}
+.gw-slot.on .go{opacity:1}
+.gw-slot.on img{transform:translateX(calc(var(--fx) * -100%)) scale(1.05)}
+
+/* ตัวชี้ + ไฮไลต์ */
+#cursor{position:absolute;left:0;top:0;width:30px;height:30px;z-index:60;pointer-events:none;transition:transform .75s cubic-bezier(.45,.05,.25,1);transform:translate(640px,400px)}
+#cursor svg{width:30px;height:30px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.35))}
+.ripple{position:absolute;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;border:3px solid var(--brand);z-index:59;pointer-events:none;animation:ripple .6s ease-out forwards}
+@keyframes ripple{to{transform:scale(3.4);opacity:0}}
+#hl{position:absolute;z-index:55;border:3px solid #ffb020;border-radius:14px;box-shadow:0 0 0 9999px rgba(10,18,32,.28),0 0 22px rgba(255,176,32,.6);pointer-events:none;opacity:0;transition:all .45s cubic-bezier(.3,.8,.3,1)}
+#hl.on{opacity:1}
+.title-card ~ #cursor{display:none}
+/* การ์ดปิดท้าย/เปิดบท */
+.title-card{position:absolute;inset:0;background:var(--hero);color:#fff;display:grid;place-content:center;text-align:center;padding:40px}
+.title-card small{font-size:18px;opacity:.85;letter-spacing:.02em}
+.title-card h2{font-size:64px;font-weight:800;line-height:1.2;margin:8px 0 10px}
+.title-card p{font-size:20px;opacity:.9;max-width:760px;margin:0 auto;line-height:1.7}
+.title-card .num{font-size:120px;font-weight:800;opacity:.18;position:absolute;right:60px;bottom:10px;line-height:1}
+@media (prefers-reduced-motion:reduce){#cursor,#hl,.gw-slot,.gw-slot img,.dist div{transition:none!important}.modal,.modal-bg,.toast,.sheet,.menu-sheet{animation:none!important}}
+</style>
+</head>
+<body>
+<header class="head">
+  <img src="./icons/school-logo.png" alt="" onerror="this.style.display='none'">
+  <div><h1>วิธีใช้ KruSpace สำหรับครู</h1><p>ภาพเคลื่อนไหวแนะนำงานประจำของครู 4 เรื่อง • กดเลือกบท หรือกดเล่นดูต่อกันทั้งหมด</p></div>
+  <a href="./">เปิดแอป KruSpace ›</a>
+</header>
+<nav class="chapters" id="chapters"></nav>
+<div class="frame"><div class="frame-in" id="frameIn"><div id="stage" aria-live="off"></div></div></div>
+<div class="caption"><span class="step" id="stepTag">1/1</span><p id="cap"></p></div>
+<div class="controls">
+  <button id="bPrev" title="ขั้นก่อนหน้า" aria-label="ขั้นก่อนหน้า">⏮</button>
+  <button id="bPlay" class="primary" title="เล่น/หยุด" aria-label="เล่นหรือหยุด">⏸</button>
+  <button id="bNext" title="ขั้นถัดไป" aria-label="ขั้นถัดไป">⏭</button>
+  <div class="bar" id="bar"><i id="barFill"></i></div>
+  <span class="count" id="count"></span>
+  <button id="bSpeed" title="ความเร็ว">1×</button>
+</div>
+<p class="rotate">📱 หมุนมือถือเป็นแนวนอนเพื่อดูภาพใหญ่ขึ้น</p>
+<p class="kbd-hint">แป้นลัด: เว้นวรรค = เล่น/หยุด • ← → = ย้อน/ถัดไปทีละขั้น • ข้อมูลในภาพเป็นข้อมูลสมมติ</p>
+
+<script>
+'use strict';
+/* ============================================================================
+   ตัวเล่น: แต่ละ "ขั้น" วาดหน้าจอเริ่มต้นของตัวเองใหม่ทั้งหมด (build) แล้วเล่นท่าทาง (run)
+   ขั้นจึงไม่พึ่งขั้นก่อนหน้า กดข้ามไปขั้นไหนก็ได้หน้าจอถูกต้องเสมอ
+   การเล่นแต่ละรอบมีเลขประจำรอบ (run token) ถ้ากดข้ามกลางคัน รอบเก่าจะหยุดเองที่ await ถัดไป
+   ========================================================================== */
+const stage = document.getElementById('stage'), capEl = document.getElementById('cap');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let speed = 1, playing = true, cur = 0, token = 0, resumeWait = null;
+
+/* ---------------- ย่อจอจำลองให้พอดีกรอบ ---------------- */
+const frameIn = document.getElementById('frameIn');
+function fit() {
+  const w = frameIn.parentElement.clientWidth, s = w / 1280;
+  stage.style.transform = 'scale(' + s + ')';
+  frameIn.style.height = Math.round(720 * s) + 'px';
+}
+addEventListener('resize', fit);
+
+/* ---------------- เครื่องมือของแต่ละขั้น ---------------- */
+const $ = s => stage.querySelector(s);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+class Stop extends Error {}
+function api(my) {
+  const alive = () => { if (my !== token) throw new Stop(); };
+  const wait = async ms => {
+    let left = ms / speed;
+    while (left > 0) { alive(); if (!playing) { await new Promise(r => { resumeWait = r; }); continue; } const t = Math.min(left, 120); await sleep(t); left -= t; }
+    alive();
+  };
+  /* จุดที่หาไม่เจอจดไว้ใน __guideMissing — ถ้าแก้หน้าจอจำลองแล้วลืมแก้ขั้นที่อ้างถึง จะตรวจเจอได้ */
+  const center = sel => { const el = typeof sel === 'string' ? $(sel) : sel; if (!el) { (window.__guideMissing = window.__guideMissing || []).push(cur + ':' + sel); return null; } const s = stage.getBoundingClientRect(), r = el.getBoundingClientRect(), k = s.width / 1280;
+    return { x: (r.left - s.left + r.width / 2) / k, y: (r.top - s.top + r.height / 2) / k, w: r.width / k, h: r.height / k, l: (r.left - s.left) / k, t: (r.top - s.top) / k }; };
+  const cursor = () => document.getElementById('cursor');
+  return {
+    wait,
+    cap(html) { capEl.classList.add('fade'); setTimeout(() => { capEl.innerHTML = html; capEl.classList.remove('fade'); }, reduce ? 0 : 180); },
+    async move(sel, ms = 800) { const c = center(sel); if (!c) return; cursor().style.transitionDuration = (reduce ? 0 : ms / speed) + 'ms';
+      cursor().style.transform = 'translate(' + (c.x - 6) + 'px,' + (c.y - 4) + 'px)'; await wait(ms); },
+    async click(sel) { if (sel) await this.move(sel); const c = center(sel || cursor()); const cs = cursor().style.transform.match(/-?[\d.]+/g) || [0, 0];
+      const r = document.createElement('span'); r.className = 'ripple'; r.style.left = (+cs[0] + 6) + 'px'; r.style.top = (+cs[1] + 4) + 'px'; stage.appendChild(r);
+      setTimeout(() => r.remove(), 700); await wait(260); },
+    hl(sel, pad = 6) { const el = document.getElementById('hl'); if (!sel) { el.classList.remove('on'); return; } const c = center(sel); if (!c) return;
+      Object.assign(el.style, { left: (c.l - pad) + 'px', top: (c.t - pad) + 'px', width: (c.w + pad * 2) + 'px', height: (c.h + pad * 2) + 'px' }); el.classList.add('on'); },
+    async type(sel, text, per = 90) { const el = $(sel); el.classList.add('typing'); el.textContent = ''; for (const ch of Array.from(text)) { el.textContent += ch; await wait(per); } },
+    toast(msg, kind) { const t = document.createElement('div'); t.className = 'toast ' + (kind || ''); t.textContent = msg; stage.appendChild(t); setTimeout(() => t.remove(), 2200 / speed); },
+    set(sel, fn) { const el = $(sel); if (el) fn(el); },
+    html(sel, h) { const el = $(sel); if (el) el.innerHTML = h; },
+    modal(title, body, foot) { const d = document.createElement('div'); d.className = 'modal-bg'; d.id = 'mbg';
+      d.innerHTML = '<div class="modal"><header>' + title + '</header><div class="body">' + body + '</div>' + (foot ? '<footer>' + foot + '</footer>' : '') + '</div>'; stage.appendChild(d); },
+    closeModal() { const m = $('#mbg'); if (m) m.remove(); }
+  };
+}
+
+/* ---------------- ชิ้นส่วนหน้าจอแอป ---------------- */
+const TABS = ['ภาพรวม', 'เช็กชื่อ', 'แลกคาบ / การลา', 'กรอกคะแนน', 'หัวข้อคะแนน', 'สรุป / ส่งออก'];
+function shell(active, paneHtml, opt = {}) {
+  return '<div class="scr"><div class="app-top"><div class="brand"><i>S</i><span>KruSpace<small>ศูนย์จัดการงานชั้นเรียนแบบครบวงจร</small></span></div>' +
+    '<div class="pick">ปี/ภาค <span class="sel" id="pPeriod">2569 • ภาค 2</span></div><div class="pick">ชั้น <span class="sel" id="pClass">ม.2/3 (38 คน)</span></div>' +
+    '<div class="pick">วิชา <span class="sel" id="pSubject" style="min-width:190px">ว22102 วิทยาศาสตร์ 4</span></div>' +
+    '<span class="who">ครูสมใจ ใจดี • ครู</span><span class="icon">⌕</span><span class="icon">◐</span></div>' +
+    '<div class="tabs">' + TABS.map(t => '<span class="tab' + (t === active ? ' on' : '') + '" data-tab="' + t + '">' + t + '</span>').join('') +
+    '<span class="bell" id="bell">🔔<em id="bellN">' + (opt.bell == null ? 2 : opt.bell) + '</em></span><span class="icon menu" id="menuBtn">☰</span></div>' +
+    '<div class="pane" id="pane">' + paneHtml + '</div></div>';
+}
+const STUDENTS = ['เด็กชายกิตติพัฒน์ ทองดี', 'เด็กหญิงชนิดา ศรีสุข', 'เด็กชายณัฐวุฒิ มั่นคง', 'เด็กหญิงธิดารัตน์ ใจงาม', 'เด็กชายภูมิพัฒน์ แก้วใส', 'เด็กหญิงพิมพ์ชนก รุ่งเรือง', 'เด็กชายวรเมธ ศักดิ์ดี'];
+const dashPane = () =>
+  '<div class="hero"><p>27 กันยายน 2569</p><h1>สวัสดีตอนเช้า • พร้อมจัดการชั้นเรียนแล้ว</h1><p>ปี 2569 ภาค 2 • ม.2/3 • ว22102 วิทยาศาสตร์ 4</p></div>' +
+  '<div class="card search" id="dSearch"><span style="color:var(--brand);font-weight:800;font-size:20px">⌕</span><div class="inp" id="dInp">ค้นหาอะไรก็ได้ — ชื่อนักเรียน ห้อง วิชา หรือเมนู เช่น เกณฑ์ตัดเกรด, SGS, ใบลา</div></div>' +
+  '<div id="dRes"></div>' +
+  '<div class="metrics" id="dMetrics">' + [['👥', '38', 'นักเรียนในห้องที่เลือก', '#1f6feb'], ['⏱', '1', 'คาบค้างเช็กชื่อ', '#c62828'], ['✓', '30/38', 'คะแนนครบทุกส่วน', '#0f8a53'], ['◎', '71.4', 'คะแนนเฉลี่ยปัจจุบัน', '#6b3fd4']]
+    .map(m => '<div class="metric" style="--c:' + m[3] + '"><b>' + m[1] + '</b><span>' + m[2] + '</span></div>').join('') + '</div>' +
+  '<div class="two"><div class="card" id="dToday"><h3>ตารางสอนวันนี้</h3>' +
+    [['คาบ 1', '08:30-09:25', 'ว22102 วิทยาศาสตร์ 4', 'ม.2/3', 'done'], ['คาบ 3', '10:25-11:20', 'ว22102 วิทยาศาสตร์ 4', 'ม.2/5', 'now'], ['คาบ 6', '13:30-14:25', 'ว20202 วิทยาการคำนวณ', 'ม.2/1', '']]
+      .map(r => '<div class="today' + (r[4] === 'now' ? ' now' : '') + '"><div class="tm"><b>' + r[0] + '</b>' + r[1] + '</div><div><b>' + r[2] + '</b><div class="hint">' + r[3] + '</div></div><span class="sp"></span>' +
+        (r[4] === 'done' ? '<span class="badge ok">เช็กแล้ว</span>' : '<span class="btn primary">เช็กชื่อ</span>') + '</div>').join('') + '</div>' +
+  '<div class="card"><h3>ทางลัดงานประจำ</h3><div class="hint" style="line-height:2.1">✎ กรอกคะแนน • ◷ เช็กเวลาเรียน • ◉ คะแนนกลุ่ม • ▤ สรุป ปพ.5 • ⚑ บันทึกพฤติกรรม</div></div></div>';
+
+const cursorSvg = '<div id="cursor"><svg viewBox="0 0 24 24"><path d="M4 2l15 9.5-6.6 1.4 3.9 7.3-2.8 1.5-3.9-7.3L4 19z" fill="#fff" stroke="#142033" stroke-width="1.6" stroke-linejoin="round"/></svg></div><div id="hl"></div>';
+function titleCard(n, title, text) { return '<div class="title-card"><small>บทที่ ' + n + '</small><h2>' + title + '</h2><p>' + text + '</p><div class="num">0' + n + '</div></div>'; }
+
+/* ============================================================================
+   เนื้อเรื่อง 4 บท — cap = คำบรรยายเริ่มต้นของขั้น, build = หน้าจอเริ่มต้น, run = ท่าทาง
+   ========================================================================== */
+const CH = [
+  { t: 'เข้าสู่ระบบ + หน้าภาพรวม', d: 'ทางเข้า • แถบเลือก • กระดิ่ง • ค้นหา' },
+  { t: 'เช็กชื่อ', d: 'คาบวันนี้ • ติ๊กสถานะ • คาบค้าง' },
+  { t: 'คะแนนและ ปพ.5', d: 'หัวข้อ • กรอก • สรุป • เผยแพร่ • SGS' },
+  { t: 'แลกคาบ / การลา', d: 'หาครู • ส่งคำขอ • ตอบรับ • ใบลา' }
+];
+const GW = [['TEACHER', 'ครู', '#ff3d9a', .262], ['ADMINISTRATION SCHOOL', 'ผู้บริหาร<br>สถานศึกษา', '#9b7bff', .43], ['STUDENT AFFAIRS', 'กิจการ<br>นักเรียน', '#f5c518', .60], ['STUDENT', 'นักเรียน', '#5ec8ff', .752]];
+const gatewayHtml = () => '<div class="gw"><div class="gw-top"><img src="./icons/school-logo.png" alt=""><div><b>โรงเรียนปากช่อง</b><span>KruSpace • ศูนย์จัดการงานชั้นเรียนแบบครบวงจร</span></div></div>' +
+  '<div class="gw-stage" id="gwStage">' + GW.map((g, i) => '<div class="gw-slot" id="gw' + i + '" style="--c:' + g[2] + ';--fx:' + g[3] + '"><div class="art"><img src="./icons/gateway-roles.jpg" alt=""></div>' +
+    '<div class="lab"><div class="en">' + g[0] + '</div><div class="th' + (g[1].includes('<br>') ? ' long' : '') + '">' + g[1] + '</div><span class="go">เข้าสู่ระบบ →</span></div></div>').join('') + '</div></div>';
+
+const STEPS = [
+  /* ---------------- บท 1 ---------------- */
+  { ch: 0, cap: 'บทที่ 1 • <b>เข้าสู่ระบบ และหน้าภาพรวม</b>', build: () => titleCard(1, 'เข้าสู่ระบบ + หน้าภาพรวม', 'เริ่มจากหน้าทางเข้า แล้วรู้จักแถบเลือกห้อง/วิชา กระดิ่งแจ้งเตือน และช่องค้นหา'), run: async a => { await a.wait(3200); } },
+  { ch: 0, cap: 'เปิดแอป KruSpace จะพบหน้าทางเข้า 4 ช่อง — ครูเลือกช่อง <b>“ครู”</b>', build: gatewayHtml, run: async a => {
+      await a.move('#gw2', 900); await a.wait(300); await a.move('#gw0', 700);
+      a.set('#gwStage', e => e.classList.add('picked')); a.set('#gw0', e => e.classList.add('on')); await a.wait(1400);
+      a.cap('ช่องที่เลือกจะขยายขึ้น แตะอีกครั้ง (หรือกด <b>เข้าสู่ระบบ →</b>) เพื่อเข้าใช้งาน • หัวหน้ากลุ่มสาระและผู้ดูแลระบบก็เข้าทางช่องนี้');
+      await a.wait(900); await a.click('#gw0 .go'); await a.wait(1800); } },
+  { ch: 0, cap: 'กด <b>เข้าสู่ระบบด้วย Google</b> แล้วเลือกบัญชีของโรงเรียน ระบบตรวจสิทธิ์ให้เอง', build: () => gatewayHtml(), run: async a => {
+      a.set('#gwStage', e => e.classList.add('picked')); a.set('#gw0', e => e.classList.add('on'));
+      a.modal('เข้าสู่ระบบครู', '<div class="hint" style="margin-bottom:10px">แนะนำ: กด “เข้าสู่ระบบด้วย Google” แล้วเลือกบัญชีของโรงเรียน ใช้ได้ทั้งคอม มือถือ และไอแพด</div>',
+        '<span class="btn">ยกเลิก</span><span class="btn primary" id="gBtn">เข้าสู่ระบบด้วย Google</span>');
+      await a.wait(900); await a.click('#gBtn'); await a.wait(700); a.toast('เข้าสู่ระบบในบทบาทครูแล้ว', 'ok'); await a.wait(1600); } },
+  { ch: 0, cap: 'แถบบนสุดคือ <b>ปี/ภาค • ชั้น • วิชา</b> — เลือกครั้งเดียว ทุกหน้าจะแสดงข้อมูลของห้องและวิชานี้', build: () => shell('ภาพรวม', dashPane()), run: async a => {
+      await a.wait(500); a.hl('#pPeriod', 5); await a.move('#pPeriod', 700); await a.wait(700);
+      a.hl('#pClass', 5); await a.move('#pClass', 600); await a.wait(700);
+      a.hl('#pSubject', 5); await a.click('#pSubject'); await a.wait(1200); a.hl(null);
+      a.cap('ถ้าสอนหลายห้อง ให้เปลี่ยน <b>ชั้น</b> หรือ <b>วิชา</b> ตรงนี้ก่อนเช็กชื่อหรือกรอกคะแนน'); await a.wait(2600); } },
+  { ch: 0, cap: '<b>ตารางสอนวันนี้</b> — คาบที่กำลังสอนมีกรอบสีน้ำเงิน กด <b>เช็กชื่อ</b> ได้จากหน้านี้เลย', build: () => shell('ภาพรวม', dashPane()), run: async a => {
+      await a.wait(500); a.hl('#dToday'); await a.move('#dToday .today.now .btn', 900); await a.wait(2600); a.hl(null);
+      a.cap('ตัวเลขด้านบนบอกงานค้าง: คาบค้างเช็กชื่อ • คะแนนครบทุกส่วน • คะแนนเฉลี่ย'); a.hl('#dMetrics'); await a.wait(2800); a.hl(null); } },
+  { ch: 0, cap: '<b>กระดิ่ง 🔔</b> ต่อท้ายแท็บ ตัวเลขคือเรื่องที่รอเรา เช่นนัดประชุม คำขอแลกคาบ กิจกรรมที่ใช้คาบของเรา', build: () => shell('ภาพรวม', dashPane()), run: async a => {
+      await a.wait(400); a.hl('#bell', 5); await a.move('#bell'); await a.wait(1200); await a.click('#bell'); a.hl(null);
+      a.modal('🔔 การแจ้งเตือน', '<div class="hint" style="font-weight:700;margin-bottom:6px">📣 ประกาศและนัดหมาย</div>' +
+        '<div class="res" style="border-color:#f0c9c9;background:#fff8f8"><span class="av" style="background:#fdecec">📅</span><div><span class="badge bad">พรุ่งนี้ 15:30 น.</span> <b>ประชุมครูประจำเดือน</b><div class="hint">ห้องประชุม 1</div></div><span class="sp"></span><span class="btn primary" id="ack1">รับทราบ</span></div>' +
+        '<div class="hint" style="font-weight:700;margin:12px 0 6px">งานที่รอคุณดำเนินการ</div>' +
+        '<div class="res"><span class="av">⇄</span><div><b>คำขอแลกคาบ/สอนแทนรอคุณตอบรับ 1 รายการ</b><div class="hint">จาก ครูวิไล • 30 ก.ย. 2569</div></div><span class="sp"></span><span class="btn">ไปจัดการ</span></div>', '<span class="btn">ปิด</span>');
+      await a.wait(1400); await a.click('#ack1'); a.set('#ack1', e => { e.outerHTML = '<span class="badge ok">✓ รับทราบแล้ว</span>'; }); a.set('#bellN', e => { e.textContent = '1'; });
+      a.cap('กด <b>รับทราบ</b> ได้ในหน้าต่างนี้เลย ตัวเลขลดลงทันที • นัดที่เลยเวลาแล้วจะหายไปเอง'); await a.wait(2800); } },
+  { ch: 0, cap: '<b>ช่องค้นหา</b> ที่หน้าภาพรวม พิมพ์ได้ทั้งชื่อนักเรียน ห้อง วิชา หรือชื่อเมนู', build: () => shell('ภาพรวม', dashPane()), run: async a => {
+      await a.move('#dInp'); await a.click('#dInp'); await a.type('#dInp', 'ชนิดา', 160);
+      a.html('#dRes', '<div class="card" style="padding:10px 14px"><div class="hint" style="font-weight:700">นักเรียน</div><div class="res" id="stuRow"><span class="av">ช</span><div><b>เด็กหญิงชนิดา ศรีสุข</b><div class="hint">เลขที่ 2 • 24518 • ม.2/3</div></div><span class="sp"></span><span class="badge bad">ค้างงาน 2</span> <span class="badge warn">ขาด 1 คาบ</span></div></div>');
+      a.set('#dMetrics', e => e.style.display = 'none'); await a.wait(1400);
+      a.cap('ผลค้นหาบอกทันทีว่า <b>ค้างงานกี่ชิ้น ขาดเรียนกี่คาบ</b> — กดชื่อเพื่อดูรายละเอียดรายวิชา'); await a.click('#stuRow'); await a.wait(300);
+      a.modal('ข้อมูลนักเรียน', '<div class="row"><span class="av" style="width:44px;height:44px">ช</span><div><b style="font-size:18px">เด็กหญิงชนิดา ศรีสุข</b><div class="hint">เลขประจำตัว 24518 • ม.2/3 เลขที่ 2</div></div></div>' +
+        '<div class="res" style="margin-top:12px;border-left:4px solid var(--bad)"><div style="flex:1"><span class="badge grp">วิชาที่ฉันสอน</span> <b>ว22102 วิทยาศาสตร์ 4</b><div style="margin-top:6px"><b>งานเก็บ</b> ส่งแล้ว 4/6 ชิ้น <span class="badge bad">ไม่ส่ง • ใบงานที่ 3</span> <span class="badge bad">ไม่ส่ง • รายงานการทดลอง</span></div>' +
+        '<div style="margin-top:6px"><b>เวลาเรียน</b> มา 16 • สาย 1 • ขาด 1 <span class="badge ok">ผ่าน • 94.4%</span></div></div><div style="text-align:right"><b style="font-size:26px;color:var(--brand)">62</b><div class="hint">เกรด ยังไม่ครบ</div></div></div>',
+        '<span class="btn">ปิด</span>');
+      await a.wait(1200); a.cap('ครูผู้สอนเห็นเฉพาะวิชาที่ตัวเองสอน • ครูที่ปรึกษาเห็นทุกวิชาของนักเรียนห้องที่ปรึกษา'); await a.wait(3000); } },
+  { ch: 0, cap: 'ปุ่ม <b>☰</b> รวมทุกหน้าไว้ ด้านล่างมีปุ่มตรวจเวอร์ชัน — <b>สีเขียว</b> = ล่าสุดแล้ว • <b>สีแดง</b> = กดเพื่ออัปเดต', build: () => shell('ภาพรวม', dashPane()), run: async a => {
+      await a.click('#menuBtn');
+      stage.querySelector('.scr').insertAdjacentHTML('beforeend', '<div class="menu-sheet" id="msheet"><b>ไปที่หน้า</b><div class="grid"><div>◈ ภาพรวม</div><div>◷ เช็กชื่อ</div><div>⇄ แลกคาบ</div><div>★ กิจกรรม</div><div>✎ คะแนน</div><div>☰ หัวข้อคะแนน</div><div>◉ คะแนนกลุ่ม</div><div>▤ สรุป ปพ.5</div></div>' +
+        '<div class="row" style="border-top:1px solid #e6ebf2;padding-top:10px"><span class="hint">เวอร์ชัน v142</span><span class="sp"></span><span class="vbtn" id="vbtn">✓ ล่าสุดแล้ว</span></div></div>');
+      await a.wait(700); a.hl('#vbtn', 5); await a.move('#vbtn'); await a.wait(1800);
+      a.set('#vbtn', e => { e.classList.add('old'); e.textContent = '⟳ อัปเดตเป็น v143'; }); a.cap('ถ้าปุ่มเป็นสีแดง แปลว่ามีเวอร์ชันใหม่ กดครั้งเดียวแอปจะโหลดเวอร์ชันใหม่ให้'); await a.wait(3000); a.hl(null); } },
+
+  /* ---------------- บท 2 ---------------- */
+  { ch: 1, cap: 'บทที่ 2 • <b>เช็กชื่อ</b>', build: () => titleCard(2, 'เช็กชื่อ', 'เช็กชื่อรายคาบให้เสร็จในไม่กี่วินาที ระบบคำนวณเวลาเรียนและเตือน มส ให้เอง'), run: async a => { await a.wait(3000); } },
+  { ch: 1, cap: 'ไปที่แท็บ <b>เช็กชื่อ</b> — ตารางแสดงคาบของวันนี้ ช่องสีฟ้าคือคาบที่เราสอน', build: () => shell('เช็กชื่อ', attPage()), run: async a => {
+      await a.wait(500); a.hl('[data-tab="เช็กชื่อ"]', 4); await a.wait(1200); a.hl('#slots'); await a.wait(1600); a.hl(null);
+      await a.move('#slot3'); a.cap('กดที่ช่องคาบที่สอน เพื่อเปิดหน้าเช็กชื่อของห้องนั้น'); await a.wait(900); await a.click('#slot3'); await a.wait(800); } },
+  { ch: 1, cap: 'ทุกคนตั้งเป็น <b>“มา”</b> ไว้ก่อน ติ๊กเฉพาะคนที่ <b>ขาด ลา สาย</b> หรือไปทำ <b>กิจกรรม</b>', build: () => shell('เช็กชื่อ', attPage()) , run: async a => {
+      attModal(a); await a.wait(1400);
+      await a.click('#s2-absent'); markAtt('2', 'absent'); await a.wait(700);
+      await a.click('#s4-late'); markAtt('4', 'late'); await a.wait(700);
+      await a.click('#s6-leave'); markAtt('6', 'leave'); await a.wait(900);
+      a.cap('กดที่ <b>หัวคอลัมน์</b> เพื่อตั้งสถานะทั้งห้อง • หรือแตะที่ชื่อเพื่อวนสถานะ มา → ขาด → ลา → สาย → กิจกรรม'); a.hl('#attHead', 3); await a.wait(3000); a.hl(null); } },
+  { ch: 1, cap: 'กด <b>บันทึกการเช็กชื่อ</b> — ช่องคาบในตารางจะเปลี่ยนเป็นสีเขียว “เช็กแล้ว”', build: () => shell('เช็กชื่อ', attPage()), run: async a => {
+      attModal(a); markAtt('2', 'absent'); markAtt('4', 'late'); markAtt('6', 'leave'); await a.wait(900);
+      await a.click('#attSave'); a.closeModal(); a.toast('บันทึกการเช็กชื่อแล้ว', 'ok');
+      a.set('#slot3', e => { e.classList.add('done'); e.querySelector('.st').innerHTML = '<span class="badge ok">เช็กแล้ว • ขาด 1</span>'; }); a.hl('#slot3', 4); await a.wait(2600); a.hl(null); } },
+  { ch: 1, cap: 'คาบที่ผ่านไปแล้วแต่ยังไม่เช็ก จะขึ้นใน <b>คาบค้างเช็กชื่อ</b> — กดเพื่อเช็กย้อนหลังได้ทันที', build: () => shell('เช็กชื่อ', attPage(true)), run: async a => {
+      await a.wait(500); a.hl('#missed'); await a.move('#missed .btn'); await a.wait(2600); a.hl(null);
+      a.cap('เลขสีแดงที่แท็บเช็กชื่อและบนหน้าภาพรวมจะหายไปเมื่อเช็กครบ'); await a.wait(2600); } },
+
+  /* ---------------- บท 3 ---------------- */
+  { ch: 2, cap: 'บทที่ 3 • <b>คะแนนและ ปพ.5</b>', build: () => titleCard(3, 'คะแนนและ ปพ.5', 'ตั้งหัวข้อครั้งเดียว กรอกคะแนนเร็วด้วยคีย์บอร์ด ระบบรวมคะแนน ตัดเกรด และส่งเข้า SGS ให้'), run: async a => { await a.wait(3000); } },
+  { ch: 2, cap: 'แท็บ <b>หัวข้อคะแนน</b> — กด <b>+ เพิ่มหัวข้อ</b> ตั้งชื่องาน คะแนนเต็ม และส่วนที่นับ (ก่อน/หลังกลางภาค)', build: () => shell('หัวข้อคะแนน', itemsPage()), run: async a => {
+      await a.wait(500); await a.click('#addItem');
+      a.set('#itemsBody', e => e.insertAdjacentHTML('beforeend', '<tr id="newRow" style="background:#f3f7ff"><td class="n">5</td><td><span class="cellin" id="newName" style="justify-content:start;padding:0 10px;display:flex;min-width:260px"></span></td><td class="n"><span class="cellin" id="newMax"></span></td><td>ก่อนกลางภาค</td></tr>'));
+      await a.type('#newName', 'รายงานการทดลองวงจรไฟฟ้า', 70); await a.type('#newMax', '10', 200); await a.wait(1500); } },
+  { ch: 2, cap: 'ตั้ง <b>น้ำหนักคะแนน</b> ก่อน–หลังกลางภาค สอบกลางภาค/ปลายภาค และ <b>เกณฑ์ตัดเกรด</b> ไว้ครั้งเดียวใช้ทั้งภาค', build: () => shell('หัวข้อคะแนน', itemsPage()), run: async a => {
+      await a.wait(500); a.hl('#weights'); await a.wait(2800); a.hl('#grades'); await a.wait(2600); a.hl(null); } },
+  { ch: 2, cap: 'แท็บ <b>กรอกคะแนน</b> — พิมพ์คะแนนแล้วกด Enter ช่องจะเลื่อนลงคนถัดไปเอง', build: () => shell('กรอกคะแนน', scoresPage()), run: async a => {
+      const v = ['8', '10', '7', '9', '6'];
+      for (let i = 0; i < v.length; i++) { a.set('#c' + i, e => e.classList.add('cur')); await a.move('#c' + i, 360); await a.type('#c' + i, v[i], 120); await a.wait(260); a.set('#c' + i, e => { e.classList.remove('cur', 'typing'); }); }
+      a.cap('กรอกเกินคะแนนเต็มจะขึ้นเตือนสีแดง • ใช้ <b>กรอกด้วยเสียง</b> ก็ได้ ระบบฟังตัวเลขแล้วเติมให้'); await a.wait(3000); } },
+  { ch: 2, cap: 'แท็บ <b>สรุป / ส่งออก</b> — รวมคะแนน ตัดเกรด คิดเวลาเรียน และแสดงการกระจายเกรดให้เอง', build: () => shell('สรุป / ส่งออก', summaryPage()), run: async a => {
+      await a.wait(400); const h = [8, 14, 22, 30, 38, 26, 18, 10];
+      stage.querySelectorAll('.dist div').forEach((d, i) => { d.style.height = h[i] * 3 + 'px'; });
+      await a.wait(2400); a.hl('#sumBtns'); a.cap('ส่งออก Excel • พิมพ์ปก ปพ.5 ได้จากปุ่มด้านบน'); await a.wait(2600); a.hl(null); } },
+  { ch: 2, cap: 'การ์ด <b>ให้นักเรียนดูผลจากมือถือตัวเอง</b> — ตรวจคะแนนเสร็จแล้วกด <b>เผยแพร่</b>', build: () => shell('สรุป / ส่งออก', publishPage()), run: async a => {
+      await a.wait(500); a.hl('#pubCard'); await a.wait(900); await a.click('#pubBtn'); a.toast('เผยแพร่ผลให้นักเรียน 38 คนแล้ว', 'ok');
+      a.set('#pubState', e => { e.innerHTML = '<span class="badge ok">เผยแพร่แล้ว • 27 ก.ย. 2569</span>'; }); await a.wait(1800); a.hl(null);
+      a.cap('นักเรียนเข้าทางช่อง <b>นักเรียน</b> เห็นคะแนนรายหัวข้อและเวลาเรียนของตัวเอง • แก้คะแนนแล้วกดเผยแพร่ซ้ำได้'); await a.wait(3000); } },
+  { ch: 2, cap: '<b>ส่งคะแนนเข้า SGS</b> — กดคัดลอกคะแนน เปิดหน้า SGS แล้วกดปุ่มบุ๊กมาร์ก ระบบกรอกช่องให้', build: () => shell('สรุป / ส่งออก', sgsPage()), run: async a => {
+      await a.wait(500); a.hl('#sgsCard'); await a.click('#sgsCopy'); a.toast('คัดลอกคะแนน ม.2/3 แล้ว', 'ok'); await a.wait(1600);
+      a.cap('ไม่ต้องใส่รหัสผ่าน SGS ในแอป — ครูล็อกอิน SGS เอง แล้วกดบุ๊กมาร์กบนหน้านั้น • ตรวจกับ SGS อีกครั้งก่อนยืนยัน'); await a.wait(3200); a.hl(null); } },
+
+  /* ---------------- บท 4 ---------------- */
+  { ch: 3, cap: 'บทที่ 4 • <b>แลกคาบ / การลา</b>', build: () => titleCard(4, 'แลกคาบ / การลา', 'หาครูที่ว่างให้อัตโนมัติ ส่งคำขอ รับการตอบรับ และพิมพ์บันทึกข้อความได้ในที่เดียว'), run: async a => { await a.wait(3000); } },
+  { ch: 3, cap: 'แท็บ <b>แลกคาบ / การลา</b> — เลือก <b>แลกคาบปกติ</b> แล้วเลือกคาบที่ต้องการจัดการ', build: () => shell('แลกคาบ / การลา', exPage()), run: async a => {
+      await a.wait(500); a.hl('#modeSwap', 4); await a.wait(1500); a.hl(null); await a.click('#exSrc2');
+      a.set('#exSrc2', e => { e.style.borderColor = 'var(--brand)'; e.style.background = '#f3f7ff'; }); await a.wait(700);
+      a.set('#cands', e => e.style.opacity = 1); a.cap('ระบบค้นหา <b>ครูที่ว่างในคาบนั้น</b> ให้เอง แยกเป็น สลับคาบ • แลกคาบ • สอนแทน'); a.hl('#cands'); await a.wait(2800); a.hl(null); } },
+  { ch: 3, cap: 'กด <b>ส่งคำขอ</b> ที่ครูที่เลือก — อีกฝ่ายจะเห็นในกระดิ่งแจ้งเตือนทันที', build: () => shell('แลกคาบ / การลา', exPage(true)), run: async a => {
+      await a.wait(500); await a.click('#sendC1'); a.set('#sendC1', e => { e.outerHTML = '<span class="badge warn">รอตอบรับ</span>'; }); a.toast('ส่งคำขอถึง ครูวิไล แล้ว', 'ok'); await a.wait(2400); } },
+  { ch: 3, cap: 'ฝั่ง <b>ครูผู้รับ</b>: เปิดกระดิ่ง แล้วกด <b>ตอบรับ</b> — ระบบย้ายคาบในตารางให้ทั้งสองคน', build: () => shell('ภาพรวม', dashPane(), { bell: 1 }), run: async a => {
+      await a.click('#bell');
+      a.modal('🔔 การแจ้งเตือน', '<div class="res"><span class="av">⇄</span><div><b>ครูสมใจ ขอแลกคาบกับคุณ</b><div class="hint">ศุกร์ 3 ต.ค. คาบ 3 ม.2/5 ↔ จันทร์ 6 ต.ค. คาบ 2 ม.2/1</div></div><span class="sp"></span><span class="btn">ปฏิเสธ</span><span class="btn ok" id="acc">ตอบรับ</span></div>', '<span class="btn">ปิด</span>');
+      await a.wait(1200); await a.click('#acc'); a.set('#acc', e => { e.outerHTML = '<span class="badge ok">✓ ตอบรับแล้ว</span>'; }); a.set('#bellN', e => e.textContent = '0'); await a.wait(2400); } },
+  { ch: 3, cap: 'ตอบรับแล้วกด <b>พิมพ์เอกสาร</b> ได้ <b>บันทึกข้อความ</b> ตามแบบราชการ พร้อมลงนามทันที', build: () => '<div class="scr" style="background:#5b6475;padding:40px 0"><div class="sheet" id="sheet"><div class="krut"></div><h4>บันทึกข้อความ</h4><div class="hint">ส่วนราชการ โรงเรียนปากช่อง</div><div class="l" style="width:70%"></div><div class="l"></div><div class="l" style="width:88%"></div><div class="l"></div><div class="l" style="width:62%"></div><div class="l" style="width:92%"></div><div class="l" style="width:78%"></div><div style="text-align:right;margin-top:30px" class="hint">ลงชื่อ ..................................</div><div class="l" style="width:40%;margin-left:auto"></div></div></div>', run: async a => {
+      await a.wait(3200); a.cap('รวมหลายคำขอเป็นเอกสารฉบับเดียวได้ที่ปุ่ม <b>พิมพ์เอกสารรวม</b>'); await a.wait(2400); } },
+  { ch: 3, cap: 'ถ้าจะลา เลือก <b>ลา / ไปราชการ</b> กรอกประเภทและวันที่ แล้วส่งใบลา', build: () => shell('แลกคาบ / การลา', leavePage()), run: async a => {
+      await a.wait(500); await a.click('#lvSick'); a.set('#lvSick', e => { e.style.borderColor = 'var(--brand)'; e.style.background = '#f3f7ff'; }); await a.wait(700);
+      await a.click('#lvSend'); a.toast('ส่งใบลาแล้ว • รอผู้บริหารอนุมัติ', 'ok'); await a.wait(1400);
+      a.cap('ผู้บริหารอนุมัติในระบบ • คาบที่ตรงกับวันลาขึ้นให้จัดครูสอนแทนต่อได้เลย หรือให้หัวหน้ากลุ่มสาระจัดให้'); await a.wait(3200); } },
+  { ch: 3, cap: '<b>พร้อมใช้งานแล้ว</b> — เปิดแอปได้ทั้งคอม มือถือ และไอแพด • ติดตั้งเป็นแอปบนหน้าจอหลักได้', build: () => '<div class="title-card"><small>จบการแนะนำ</small><h2>พร้อมใช้งาน KruSpace</h2><p>เช็กชื่อ • กรอกคะแนน • สรุป ปพ.5 • แลกคาบและการลา — ครบในที่เดียว<br>สงสัยตรงไหน กดเลือกบทด้านบนเพื่อดูซ้ำได้</p></div>', run: async a => { await a.wait(4000); } }
+];
+
+/* ---------------- หน้าจอย่อยของบท 2–4 ---------------- */
+function attPage(withMissed) {
+  const slots = [['คาบ 1', '08:30', 'ว22102', 'ม.2/3', 'done'], ['คาบ 2', '09:25', '', '', ''], ['คาบ 3', '10:25', 'ว22102', 'ม.2/5', 'mine'], ['คาบ 4', '11:20', '', '', ''], ['คาบ 5', '12:30', 'พักกลางวัน', '', ''], ['คาบ 6', '13:30', 'ว20202', 'ม.2/1', 'mine']];
+  return '<div class="card"><div class="row"><h3 style="margin:0">เช็กชื่อประจำวัน</h3><span class="badge">ศุกร์ 3 ตุลาคม 2569</span><span class="sp"></span><span class="btn">วันนี้</span><span class="btn">📷 สแกนหน้า</span></div>' +
+    '<div class="slotgrid" id="slots" style="margin-top:12px">' + slots.map((s, i) => '<div class="slotcell' + (s[4] === 'mine' ? ' mine' : s[4] === 'done' ? ' done' : '') + '" id="slot' + (i + 1) + '"><b>' + s[0] + '</b><span class="hint">' + s[1] + '</span><div style="margin-top:6px;font-weight:700">' + s[2] + '</div><div class="hint">' + s[3] + '</div><div class="st" style="margin-top:4px">' + (s[4] === 'done' ? '<span class="badge ok">เช็กแล้ว</span>' : s[4] === 'mine' ? '<span class="badge">ยังไม่เช็ก</span>' : '') + '</div></div>').join('') + '</div></div>' +
+    (withMissed ? '<div class="card" id="missed" style="border-left:4px solid var(--bad)"><h3>คาบค้างเช็กชื่อ <span class="badge bad">1</span></h3><div class="res"><div><b>พฤหัสบดี 2 ต.ค. • คาบ 6</b><div class="hint">ว20202 วิทยาการคำนวณ • ม.2/1</div></div><span class="sp"></span><span class="btn primary">เช็กย้อนหลัง</span></div></div>' : '');
+}
+const ATT = [['present', 'มา'], ['late', 'สาย'], ['leave', 'ลา'], ['activity', 'กิจกรรม'], ['absent', 'ขาด']];
+function attModal(a) {
+  a.modal('เช็กชื่อ • ว22102 วิทยาศาสตร์ 4 • ม.2/5 • คาบ 3',
+    '<table class="g"><thead><tr id="attHead"><th class="n">เลขที่</th><th>ชื่อ – สกุล</th>' + ATT.map(s => '<th class="n" style="color:var(--att-' + s[0] + ');border-bottom:3px solid var(--att-' + s[0] + ')">' + s[1] + '</th>').join('') + '</tr></thead><tbody>' +
+    STUDENTS.map((n, i) => '<tr id="r' + (i + 1) + '"><td class="n">' + (i + 1) + '</td><td>' + n + '</td>' + ATT.map(s => '<td class="n"><span class="chk' + (s[0] === 'present' ? ' on' : '') + '" id="s' + (i + 1) + '-' + s[0] + '" style="--c:var(--att-' + s[0] + ')"></span></td>').join('') + '</tr>').join('') + '</tbody></table>' +
+    '<div class="hint" style="margin-top:8px">ติ๊กช่องสถานะของนักเรียนได้เลย • หรือแตะที่ชื่อเพื่อวนสถานะ</div>',
+    '<span class="btn">ยกเลิก</span><span class="btn primary" id="attSave">บันทึกการเช็กชื่อ</span>');
+  stage.querySelector('.modal').style.width = '860px';
+}
+function markAtt(no, status) { ATT.forEach(s => { const c = $('#s' + no + '-' + s[0]); if (c) c.classList.toggle('on', s[0] === status); }); }
+function itemsPage() {
+  const rows = [['ใบงานที่ 1 แรงและการเคลื่อนที่', '10', 'ก่อนกลางภาค'], ['ใบงานที่ 2 งานและพลังงาน', '10', 'ก่อนกลางภาค'], ['สอบย่อยบทที่ 1', '20', 'ก่อนกลางภาค'], ['โครงงานวิทยาศาสตร์', '20', 'หลังกลางภาค']];
+  return '<div class="two" style="grid-template-columns:1.4fr 1fr"><div class="card"><div class="row"><h3 style="margin:0">หัวข้อที่ให้คะแนน</h3><span class="sp"></span><span class="btn primary" id="addItem">+ เพิ่มหัวข้อ</span><span class="btn">เพิ่มหลายหัวข้อ</span></div>' +
+    '<table class="g" style="margin-top:10px"><thead><tr><th class="n">#</th><th>ชื่อหัวข้อ</th><th class="n">เต็ม</th><th>นับใน</th></tr></thead><tbody id="itemsBody">' +
+    rows.map((r, i) => '<tr><td class="n">' + (i + 1) + '</td><td>' + r[0] + '</td><td class="n">' + r[1] + '</td><td>' + r[2] + '</td></tr>').join('') + '</tbody></table></div>' +
+    '<div><div class="card" id="weights"><h3>น้ำหนักคะแนนก่อน–หลังกลางภาคและเกณฑ์</h3><div class="row" style="gap:18px;flex-wrap:wrap"><span>ก่อนกลาง <b>30</b></span><span>กลางภาค <b>20</b></span><span>หลังกลาง <b>30</b></span><span>ปลายภาค <b>20</b></span></div><div class="hint" style="margin-top:6px">รวม 100 • เกณฑ์ผ่านรายส่วน 50%</div></div>' +
+    '<div class="card" id="grades"><h3>เกณฑ์ตัดเกรด</h3><div class="row" style="flex-wrap:wrap;gap:6px">' + [['80', '4'], ['75', '3.5'], ['70', '3'], ['65', '2.5'], ['60', '2'], ['55', '1.5'], ['50', '1'], ['0', '0']].map(g => '<span class="badge">' + g[0] + '+ → ' + g[1] + '</span>').join('') + '</div></div></div></div>';
+}
+function scoresPage() {
+  const items = ['ใบงาน 1', 'ใบงาน 2', 'สอบย่อย 1', 'รายงานการทดลอง'];
+  return '<div class="card"><div class="row"><h3 style="margin:0">กรอกคะแนน</h3><span class="badge">ม.2/3 • 38 คน</span><span class="sp"></span><span class="btn">🎙 กรอกด้วยเสียง</span></div>' +
+    '<table class="g scoregrid" style="margin-top:10px"><thead><tr><th class="n">เลขที่</th><th>ชื่อ – สกุล</th>' + items.map((t, i) => '<th class="n">' + t + '<br><span class="hint">เต็ม ' + [10, 10, 20, 10][i] + '</span></th>').join('') + '<th class="n">รวม</th></tr></thead><tbody>' +
+    STUDENTS.slice(0, 6).map((n, r) => '<tr><td class="n">' + (r + 1) + '</td><td>' + n + '</td>' + items.map((t, c) => '<td class="in n"><span class="cellin"' + (c === 3 && r < 5 ? ' id="c' + r + '"' : '') + '>' + (c < 3 ? [9, 8, 7, 10, 6, 8][r] - c : '') + '</span></td>').join('') + '<td class="n"><b>' + (60 + r * 3) + '</b></td></tr>').join('') + '</tbody></table></div>';
+}
+function summaryPage() {
+  return '<div class="card"><div class="row"><h3 style="margin:0">สรุปผล</h3><span class="sp"></span><span class="row" id="sumBtns" style="gap:6px"><span class="btn">ส่งออก Excel (.xlsx)</span><span class="btn">พิมพ์ปก ปพ.5</span></span></div></div>' +
+    '<div class="two" style="grid-template-columns:1fr 1.2fr"><div class="card"><h3>การกระจายเกรด</h3><div class="dist">' + ['0', '1', '1.5', '2', '2.5', '3', '3.5', '4'].map(g => '<div><em></em><span>' + g + '</span></div>').join('') + '</div><div style="height:26px"></div></div>' +
+    '<div class="card"><h3>ตารางสรุปรายคน</h3><table class="g"><thead><tr><th class="n">เลขที่</th><th>ชื่อ – สกุล</th><th class="n">รวม</th><th class="n">เกรด</th><th class="n">เวลาเรียน</th></tr></thead><tbody>' +
+    STUDENTS.slice(0, 6).map((n, i) => '<tr><td class="n">' + (i + 1) + '</td><td>' + n + '</td><td class="n"><b>' + [78, 62, 85, 71, 55, 90][i] + '</b></td><td class="n">' + ['3', '2', '4', '3', '1.5', '4'][i] + '</td><td class="n">' + ['100%', '94%', '100%', '97%', '76% <span class="badge warn">มส</span>', '100%'][i] + '</td></tr>').join('') + '</tbody></table></div></div>';
+}
+function publishPage() {
+  return '<div class="card" id="pubCard" style="max-width:760px"><h3>ให้นักเรียนดูผลจากมือถือตัวเอง</h3><div class="hint" style="margin-bottom:10px">นักเรียน ม.2/3 จะเห็นคะแนนรายหัวข้อ เวลาเรียน และคะแนนรวมของวิชานี้</div>' +
+    '<div class="row" style="flex-wrap:wrap;gap:8px"><span class="btn primary" id="pubBtn">เผยแพร่ผลวิชานี้</span><span class="btn">ยกเลิกการเผยแพร่วิชานี้</span><span class="btn">ออกรหัสรับสิทธิ์ให้ทั้งห้อง</span><span class="btn">พิมพ์ใบรหัสแจกนักเรียน</span></div>' +
+    '<div style="margin-top:12px" id="pubState"><span class="badge">ยังไม่เผยแพร่</span></div></div>';
+}
+function sgsPage() {
+  return '<div class="card" id="sgsCard" style="max-width:760px"><h3>ส่งคะแนนเข้า SGS</h3><div class="hint">1) คัดลอกคะแนนของวิชานี้ • 2) เปิด SGS หน้าบันทึกผลการเรียน • 3) กดปุ่มบุ๊กมาร์ก “กรอกคะแนน KruSpace”</div>' +
+    '<div class="row" style="margin-top:12px"><span class="btn primary" id="sgsCopy">คัดลอกคะแนนของวิชานี้</span><span class="btn">ลากปุ่มนี้ไปแถบบุ๊กมาร์ก</span></div></div>';
+}
+function exPage(showCands) {
+  return '<div class="mode"><div class="on" id="modeSwap">แลกคาบปกติ<span>สลับคาบ แลกคาบ หรือหาครูสอนแทน</span></div><div>ลา / ไปราชการ<span>แจ้งการลาแล้วจัดคาบที่ติดให้ครบ</span></div></div>' +
+    '<div class="two"><div class="card"><h3>1. เลือกคาบที่ต้องการจัดการ</h3>' + [['ศุกร์ 3 ต.ค. • คาบ 1', 'ว22102 • ม.2/3'], ['ศุกร์ 3 ต.ค. • คาบ 3', 'ว22102 • ม.2/5'], ['ศุกร์ 3 ต.ค. • คาบ 6', 'ว20202 • ม.2/1']]
+      .map((r, i) => '<div class="cand" id="exSrc' + (i + 1) + '"' + (showCands && i === 1 ? ' style="border-color:var(--brand);background:#f3f7ff"' : '') + '><div><b>' + r[0] + '</b><div class="hint">' + r[1] + '</div></div></div>').join('') + '</div>' +
+    '<div class="card" id="cands" style="opacity:' + (showCands ? 1 : .25) + ';transition:opacity .5s"><h3>2. ครูที่ระบบแนะนำ</h3><div class="row" style="gap:6px"><span class="badge grp">ทั้งหมด 3</span><span class="badge">สลับคาบ</span><span class="badge">แลกคาบ</span><span class="badge">สอนแทน</span></div>' +
+    [['ครูวิไล สุขใจ', 'แลกคาบ • จันทร์ 6 ต.ค. คาบ 2 ม.2/1', 'C1'], ['ครูประเสริฐ ดีงาม', 'สอนแทน • ว่างคาบ 3', 'C2'], ['ครูอรทัย แสงดี', 'สลับคาบ • ศุกร์ คาบ 5', 'C3']]
+      .map(c => '<div class="cand"><span class="av">' + c[0].slice(3, 4) + '</span><div><b>' + c[0] + '</b><div class="hint">' + c[1] + '</div></div><span class="sp"></span><span class="btn primary" id="send' + c[2] + '">ส่งคำขอ</span></div>').join('') + '</div></div>';
+}
+function leavePage() {
+  return '<div class="mode"><div>แลกคาบปกติ<span>สลับคาบ แลกคาบ หรือหาครูสอนแทน</span></div><div class="on">ลา / ไปราชการ<span>แจ้งการลาแล้วจัดคาบที่ติดให้ครบ</span></div></div>' +
+    '<div class="card" style="max-width:820px"><h3>แจ้งการลา / ขออนุญาตไปราชการ</h3><div class="row" style="gap:8px;flex-wrap:wrap">' +
+    ['ลากิจส่วนตัว', 'ลาป่วย', 'ลาป่วย (พบแพทย์ตามนัด)', 'ไปราชการ'].map((t, i) => '<span class="cand" style="margin:0;padding:8px 14px"' + (i === 1 ? ' id="lvSick"' : '') + '>' + t + '</span>').join('') + '</div>' +
+    '<div class="row" style="margin-top:12px;gap:14px"><span>ตั้งแต่ <span class="sel" style="display:inline-flex">6 ต.ค. 2569</span></span><span>ถึง <span class="sel" style="display:inline-flex">6 ต.ค. 2569</span></span><span class="hint">1 วัน • มีคาบสอน 3 คาบ</span></div>' +
+    '<div class="row" style="margin-top:14px"><span class="sp"></span><span class="btn primary" id="lvSend">ส่งใบลา</span></div></div>';
+}
+
+/* ---------------- ควบคุมการเล่น ---------------- */
+const chaps = document.getElementById('chapters');
+chaps.innerHTML = CH.map((c, i) => '<button data-ch="' + i + '"><b>' + (i + 1) + '. ' + c.t + '</b><span>' + c.d + '</span><i></i></button>').join('');
+const firstOf = ch => STEPS.findIndex(s => s.ch === ch);
+function ui() {
+  const s = STEPS[cur], inCh = STEPS.filter(x => x.ch === s.ch), k = inCh.indexOf(s);
+  document.getElementById('stepTag').textContent = 'บท ' + (s.ch + 1) + ' • ' + (k + 1) + '/' + inCh.length;
+  document.getElementById('count').textContent = (cur + 1) + '/' + STEPS.length;
+  document.getElementById('barFill').style.width = ((cur + 1) / STEPS.length * 100) + '%';
+  document.getElementById('bPlay').textContent = playing ? '⏸' : '▶';
+  chaps.querySelectorAll('button').forEach((b, i) => { b.classList.toggle('on', i === s.ch);
+    const n = STEPS.filter(x => x.ch === i).length, done = i < s.ch ? n : i === s.ch ? k + 1 : 0; b.querySelector('i').style.width = (done / n * 100) + '%'; });
+}
+async function go(i) {
+  cur = Math.max(0, Math.min(STEPS.length - 1, i)); const my = ++token;
+  if (resumeWait) { const r = resumeWait; resumeWait = null; r(); }
+  const s = STEPS[cur];
+  stage.innerHTML = s.build() + cursorSvg;
+  capEl.innerHTML = s.cap; ui();
+  try {
+    await s.run(api(my));
+    if (my !== token) return;
+    await api(my).wait(900);
+    if (cur < STEPS.length - 1) go(cur + 1); else { playing = false; ui(); }
+  } catch (e) { if (!(e instanceof Stop)) console.error(e); }
+}
+function toggle() { playing = !playing; if (playing && resumeWait) { const r = resumeWait; resumeWait = null; r(); } if (playing && cur === STEPS.length - 1 && !resumeWait) go(cur); ui(); }
+document.getElementById('bPlay').onclick = toggle;
+document.getElementById('bPrev').onclick = () => go(cur - 1);
+document.getElementById('bNext').onclick = () => go(cur + 1);
+document.getElementById('bSpeed').onclick = e => { speed = speed === 1 ? 1.5 : 1; e.target.textContent = speed + '×'; };
+chaps.onclick = e => { const b = e.target.closest('button'); if (b) { playing = true; go(firstOf(+b.dataset.ch)); } };
+document.getElementById('bar').onclick = e => { const r = e.currentTarget.getBoundingClientRect(); go(Math.floor((e.clientX - r.left) / r.width * STEPS.length)); };
+addEventListener('keydown', e => {
+  if (e.key === ' ') { e.preventDefault(); toggle(); }
+  else if (e.key === 'ArrowRight') go(cur + 1);
+  else if (e.key === 'ArrowLeft') go(cur - 1);
+});
+/* หยุดเมื่อสลับไปแท็บอื่น กลับมาค่อยเล่นต่อ ครูจะได้ไม่พลาดขั้นที่ยังไม่ได้ดู */
+document.addEventListener('visibilitychange', () => { if (document.hidden && playing) toggle(); });
+fit();
+/* ?ch=2 เปิดที่บทที่ 2 ได้ ใช้ส่งลิงก์เฉพาะบทในกลุ่มครู */
+const startCh = Math.max(1, Math.min(4, parseInt(new URLSearchParams(location.search).get('ch'), 10) || 1)) - 1;
+go(firstOf(startCh));
+</script>
+</body>
+</html>

@@ -3061,6 +3061,7 @@ function openTabSheet() {
         '</div>').join('');
     })() +
     '<div class="tabsheet-tools"><button class="sm" data-sheet-act="search">⌕ ค้นหานักเรียน</button>' +
+    '<button class="sm" data-sheet-act="guide">▶ วิธีใช้งาน</button>' +
     '<button class="sm" data-sheet-act="theme">◐ สลับโหมดสี</button>' +
     '<button class="sm" data-sheet-act="promode">ⓘ ' + (proModeOn() ? 'แสดงคำอธิบาย' : 'ซ่อนคำอธิบาย (โหมดมืออาชีพ)') + '</button>' +
     '<button class="sm" data-sheet-act="pullschool">⤓ ดึงฐานข้อมูลจากส่วนกลาง</button>' +
@@ -3076,6 +3077,8 @@ function openTabSheet() {
   $$('[data-sheet-act]', sheet).forEach(b => b.addEventListener('click', () => {
     const act = b.dataset.sheetAct; closeTabSheet();
     if (act === 'search') return openStudentSearch();
+    /* หน้าแนะนำการใช้งานแบบภาพเคลื่อนไหว (guide.html) เปิดแท็บใหม่ ไม่ทิ้งงานที่ค้างในแอป */
+    if (act === 'guide') { window.open('./guide.html', '_blank', 'noopener'); return; }
     if (act === 'theme') { const t = $('#btnTheme'); if (t) t.click(); return; }
     if (act === 'promode') { toggleProMode(); return; }
     if (act === 'pullschool') { setTab('dashboard'); setTimeout(() => { const b = $('#btnPullSchool'); if (b) { b.scrollIntoView({ block: 'center' }); b.click(); } }, 250); return; }
