@@ -3166,15 +3166,55 @@ function toggleTheme() {
    ครูทั่วไปจึงค้นแล้วไม่ได้อะไรเลย ตอนนี้แถวผลค้นหาบอกงานค้างกับการขาดเรียนทันที
    และกดแล้วเปิดกล่องข้อมูลนักเรียนที่รวมทุกวิชาไว้ในหน้าต่างเดียว */
 
+/* ใครเห็นข้อมูลนักเรียนได้แค่ไหน — ดูจากบทบาทที่ครูคนนั้นมี ไม่ใช่บทบาทที่เลือกอยู่บนแถบบน
+   เพราะเป็นเรื่องสิทธิ์ของตัวคน ครูที่เป็นผู้บริหารด้วยไม่ควรต้องสลับบทบาทก่อนถึงจะค้นเจอ
+   - ผู้ดูแลระบบ / ผู้บริหาร : ทุกคน ทุกวิชา ทั้งคะแนนและเวลาเรียน
+   - ครูที่ปรึกษา           : นักเรียนห้องที่ปรึกษาของตน ทุกวิชา ทั้งคะแนนและเวลาเรียน
+   - ครูผู้สอน              : นักเรียนในห้องที่ตนสอน เห็นเฉพาะวิชาที่ตนสอน
+   - กิจการนักเรียน          : ทุกคน ทุกวิชา แต่เห็นเฉพาะเวลาเรียน ไม่เห็นคะแนน
+   ใช้สิทธิ์ที่กว้างที่สุดที่คนนั้นมี เช่นครูที่อยู่กิจการนักเรียนด้วยยังเห็นคะแนนวิชาที่ตนสอนตามปกติ */
+function studentViewScope() {
+  const me = curTeacher(), role = r => !!(me && teacherHasRole(me, r));
+  const mine = new Set();
+  if (me) (DB.timetable.entries || []).concat(DB.timetable.exceptions || []).forEach(e => {
+    if (e.teacherId === me.id && e.periodId === DB.ui.periodId && e.classId && e.subjectId) mine.add(e.classId + '::' + e.subjectId);
+  });
+  const scope = { me: me, all: role('admin') || role('executive'), affairs: role('affairs'),
+    homeroom: (me && me.homeroomClassId) || '', mine: mine, classes: new Set() };
+  mine.forEach(k => scope.classes.add(k.split('::')[0]));
+  if (scope.homeroom) scope.classes.add(scope.homeroom);
+  return scope;
+}
+/** นักเรียนคนนี้อยู่ห้องที่ปรึกษาของเราไหม — นับทั้งห้องหลักในฐานนักเรียนและห้องที่มีชื่อเด็กอยู่ */
+function studentInHomeroom(scope, sid, master) {
+  if (!scope.homeroom) return false;
+  if (master && master.classId === scope.homeroom) return true;
+  return studentMatches(sid).some(h => h.cls.id === scope.homeroom);
+}
+/** ค้นเจอนักเรียนคนนี้ได้ไหม */
+function canFindStudent(scope, m) {
+  if (scope.all || scope.affairs) return true;
+  if (m.classId && scope.classes.has(m.classId)) return true;
+  const sid = String(m.sid || '').trim();
+  return !!sid && studentMatches(sid).some(h => scope.classes.has(h.cls.id));
+}
+/** ระดับที่เห็นของวิชาหนึ่ง: 'full' = คะแนนและเวลาเรียน • 'att' = เฉพาะเวลาเรียน • '' = ไม่เห็นวิชานี้ */
+function subjectAccess(scope, classId, subjectId, isHomeroom) {
+  if (scope.all || isHomeroom || scope.mine.has(classId + '::' + subjectId)) return 'full';
+  return scope.affairs ? 'att' : '';
+}
+
 /** สรุปงานของนักเรียนหนึ่งคนในภาคที่เลือก ใช้ทั้งป้ายในผลค้นหาและกล่องข้อมูลนักเรียน
     "ส่งงาน" = หัวข้อคะแนนเก็บที่มีคะแนนแล้ว นิยามเดียวกับ autoAssessTraits ที่คำนวณคุณลักษณะอยู่แล้ว
-    คะแนน 0 นับว่าส่งแต่ได้ 0 ส่วนสอบกลาง/ปลายภาคไม่ใช่งานที่ต้องส่ง จึงนับแยกเป็น "ยังไม่มีคะแนนสอบ" */
-function studentWorkSummary(sid, periodId) {
+    คะแนน 0 นับว่าส่งแต่ได้ 0 ส่วนสอบกลาง/ปลายภาคไม่ใช่งานที่ต้องส่ง จึงนับแยกเป็น "ยังไม่มีคะแนนสอบ"
+    นับเฉพาะวิชาที่ผู้ดูเห็นคะแนนได้ ไม่งั้นป้าย "ค้างงาน" จะบอกเรื่องของวิชาที่เขาไม่มีสิทธิ์ดู */
+function studentWorkSummary(sid, periodId, scope, isHomeroom) {
   const out = { items: 0, done: 0, missing: 0, examsMissing: 0, books: 0 };
   sid = String(sid || '').trim(); if (!sid || !periodId) return out;
   studentMatches(sid).forEach(hit => {
     Object.keys(DB.books || {}).forEach(key => {
       const p = key.split('::'); if (p[0] !== hit.cls.id || p[2] !== periodId || !DB.books[key]) return;
+      if (scope && subjectAccess(scope, p[0], p[1], isHomeroom) !== 'full') return;
       const b = normalizeBook(DB.books[key]);
       out.books++;
       b.items.forEach(it => { out.items++; if (itemScoreComplete(b, sid, it)) out.done++; else out.missing++; });
@@ -3187,51 +3227,62 @@ function studentWorkSummary(sid, periodId) {
 }
 
 /** ป้ายสั้นท้ายแถวนักเรียนในผลค้นหา — ให้ครูเห็นปัญหาได้โดยไม่ต้องกดเข้าไป
-    ข้อมูลเช็กชื่อใช้ดัชนีที่สร้างครั้งเดียวต่อการค้นหา เพราะไล่ทุกบันทึกต่อแถวช้าเกินไปตอนพิมพ์ */
-function studentSearchTags(sid, attIdx) {
-  const w = studentWorkSummary(sid, DB.ui.periodId), a = attIdx && attIdx.get(String(sid || '').trim());
+    ผู้ที่เห็นเวลาเรียนทุกวิชาใช้ดัชนีรวมที่สร้างครั้งเดียวต่อการค้นหา (ไล่ทุกบันทึกต่อแถวช้าเกินไปตอนพิมพ์)
+    ครูผู้สอนนับเฉพาะวิชาของตัวเอง ซึ่งมีไม่กี่วิชาต่อคน จึงคำนวณรายวิชาได้ */
+function studentSearchTags(m, attIdx, scope) {
+  const sid = String(m.sid || '').trim(), hr = studentInHomeroom(scope, sid, m);
+  const seeAllAtt = scope.all || scope.affairs || hr;
+  const w = studentWorkSummary(sid, DB.ui.periodId, scope, hr);
+  let absent = 0, checked = 0;
+  if (seeAllAtt) { const a = attIdx && attIdx.get(sid); if (a) { absent = a.absent; checked = a.total; } }
+  else studentMatches(sid).forEach(h => scope.mine.forEach(k => {
+    const p = k.split('::'); if (p[0] !== h.cls.id) return;
+    const r = attendanceStudentResult(p[0], p[1], h.st); absent += r.counts.absent; checked += r.checked;
+  }));
   const tags = [];
   if (w.missing) tags.push('<span class="badge bad">ค้างงาน ' + w.missing + '</span>');
   else if (w.items) tags.push('<span class="badge ok">ส่งงานครบ</span>');
-  if (a && a.absent) tags.push('<span class="badge warn">ขาด ' + a.absent + ' คาบ</span>');
-  else if (a && a.total) tags.push('<span class="badge ok">มาเรียนครบ</span>');
+  if (absent) tags.push('<span class="badge warn">ขาด ' + absent + ' คาบ</span>');
+  else if (checked) tags.push('<span class="badge ok">มาเรียนครบ</span>');
   if (!tags.length) tags.push('<span class="badge">ยังไม่มีข้อมูล</span>');
   return '<span class="gs-tags">' + tags.join('') + '</span>';
 }
 
 /** กล่องข้อมูลนักเรียน — งานที่ส่ง/ไม่ส่ง คะแนนสอบ คะแนนรวม เกรด และเวลาเรียน แยกรายวิชา
     คำนวณสดจากข้อมูลในเครื่องนี้ด้วยฟังก์ชันเดียวกับพอร์ทัลนักเรียน (studentSubjectContexts)
-    ตัวเลขจึงตรงกับที่นักเรียนเห็นเมื่อครูกดเผยแพร่ */
+    ตัวเลขจึงตรงกับที่นักเรียนเห็นเมื่อครูกดเผยแพร่ แต่ละวิชาแสดงตามสิทธิ์ของผู้ดู (studentViewScope) */
 function openStudentProfile(sid) {
   sid = String(sid || '').trim();
   const hits = studentMatches(sid);
   const master = (DB.studentMaster || []).find(m => String(m.sid || '').trim() === sid) || null;
   if (!hits.length && !master) return toast('ไม่พบนักเรียนคนนี้ในเครื่องนี้', 'bad');
+  const scope = studentViewScope();
+  if (!canFindStudent(scope, master || { sid: sid, classId: hits[0].cls.id })) return toast('คุณดูข้อมูลได้เฉพาะนักเรียนในห้องที่สอนหรือห้องที่ปรึกษา', 'bad');
   const periodId = DB.ui.periodId, period = curPeriod();
   const st = (hits[0] || {}).st || master;
   const baseCls = (master && DB.classes.find(c => c.id === master.classId)) || (hits[0] || {}).cls || null;
   const advisors = baseCls ? DB.teachers.filter(t => t.homeroomClassId === baseCls.id).map(t => t.name).filter(Boolean) : [];
-  const me = curTeacher(), isAdmin = DB.ui.staffMode === 'admin';
+  const isAdmin = DB.ui.staffMode === 'admin', isHr = studentInHomeroom(scope, sid, master);
+  const isMine = x => scope.mine.has(x.cls.id + '::' + x.subject.id);
+  const all = periodId ? studentSubjectContexts(sid, periodId) : [];
+  all.forEach(x => { x.access = subjectAccess(scope, x.cls.id, x.subject.id, isHr); });
   /* วิชาที่ครูคนนี้สอนเองขึ้นก่อน เพราะเป็นวิชาที่ครูกดเข้าไปแก้คะแนนได้ */
-  const mine = new Set();
-  (DB.timetable.entries || []).forEach(e => { if (me && e.teacherId === me.id && e.periodId === periodId) mine.add(e.classId + '::' + e.subjectId); });
-  const isMine = x => mine.has(x.cls.id + '::' + x.subject.id);
-  const ctx = periodId ? studentSubjectContexts(sid, periodId) : [];
-  ctx.sort((a, b) => (isMine(b) ? 1 : 0) - (isMine(a) ? 1 : 0));
+  const ctx = all.filter(x => x.access).sort((a, b) => (isMine(b) ? 1 : 0) - (isMine(a) ? 1 : 0));
+  const hidden = all.length - ctx.length, fullN = ctx.filter(x => x.access === 'full').length;
 
   const tot = { present: 0, late: 0, leave: 0, activity: 0, absent: 0 };
   let missingAll = 0, examMissAll = 0, riskSubjects = 0;
   const blocks = ctx.map(x => {
-    const key = x.cls.id + '::' + x.subject.id + '::' + periodId, hasBook = !!DB.books[key];
+    const key = x.cls.id + '::' + x.subject.id + '::' + periodId, full = x.access === 'full', hasBook = full && !!DB.books[key];
     const a = x.attendance, b = x.book;
     Object.keys(tot).forEach(k => { tot[k] += num(a.counts[k]); });
     if (a.pct !== null && a.pct < num(a.min || 80)) riskSubjects++;
-    const missing = b.items.filter(it => !itemScoreComplete(b, sid, it));
+    const missing = hasBook ? b.items.filter(it => !itemScoreComplete(b, sid, it)) : [];
     missingAll += missing.length;
     const ex = (b.exam || {})[sid] || {};
     const exams = [];
-    if (num(b.exams.midMax) > 0) exams.push({ label: 'กลางภาค', ok: has(ex.mid) || has(ex.retake), v: b.exams.retakeEnabled && has(ex.retake) ? ex.retake : ex.mid, max: b.exams.midMax });
-    if (num(b.exams.finalMax) > 0) exams.push({ label: 'ปลายภาค', ok: has(ex.final), v: ex.final, max: b.exams.finalMax });
+    if (hasBook && num(b.exams.midMax) > 0) exams.push({ label: 'กลางภาค', ok: has(ex.mid) || has(ex.retake), v: b.exams.retakeEnabled && has(ex.retake) ? ex.retake : ex.mid, max: b.exams.midMax });
+    if (hasBook && num(b.exams.finalMax) > 0) exams.push({ label: 'ปลายภาค', ok: has(ex.final), v: ex.final, max: b.exams.finalMax });
     examMissAll += exams.filter(e => !e.ok).length;
     const canEdit = isMine(x) || isAdmin;
     const teacher = (b.meta && b.meta.teacherName) || '';
@@ -3241,7 +3292,8 @@ function openStudentProfile(sid) {
         '<div class="hint">' + esc(x.cls.name) + (teacher ? ' • ครู' + esc(teacher) : '') + '</div></div><div class="spacer"></div>' +
         (hasBook ? '<div style="text-align:right"><b class="stu-total">' + fmt(x.score.total) + '</b><div class="hint">เกรด ' + esc(x.score.complete ? x.score.grade : 'ยังไม่ครบ') + '</div></div>' : '') +
       '</div>' +
-      (!hasBook ? '<div class="hint" style="margin-top:6px">ยังไม่มีสมุดคะแนนวิชานี้ในเครื่องนี้ — แสดงได้เฉพาะเวลาเรียน</div>' :
+      (!full ? '<div class="hint" style="margin-top:6px">สิทธิ์กิจการนักเรียน — ดูได้เฉพาะเวลาเรียน</div>' :
+       !hasBook ? '<div class="hint" style="margin-top:6px">ยังไม่มีสมุดคะแนนวิชานี้ในเครื่องนี้ — แสดงได้เฉพาะเวลาเรียน</div>' :
         '<div class="stu-line"><b>งานเก็บ</b> ส่งแล้ว ' + (b.items.length - missing.length) + '/' + b.items.length + ' ชิ้น' +
           (missing.length ? '<div class="stu-miss">' + missing.map(it => '<span class="badge bad">ไม่ส่ง • ' + esc(it.name || 'ไม่มีชื่อ') + '</span>').join('') + '</div>'
             : (b.items.length ? ' <span class="badge ok">ครบทุกชิ้น</span>' : ' <span class="hint">ยังไม่ได้ตั้งหัวข้อคะแนน</span>')) + '</div>' +
@@ -3261,20 +3313,24 @@ function openStudentProfile(sid) {
   const checked = tot.present + tot.late + tot.leave + tot.activity + tot.absent;
   const pct = checked ? (tot.present + tot.late + tot.activity) * 100 / checked : null;
   const metric = (v, label, tone) => '<div class="portal-metric"><b' + (tone ? ' style="color:var(--' + tone + ')"' : '') + '>' + v + '</b>' + label + '</div>';
+  const scopeText = scope.all ? '' : isHr ? 'ครูที่ปรึกษา • เห็นทุกวิชา' :
+    fullN ? 'เห็นเฉพาะวิชาที่คุณสอน' + (scope.affairs ? ' (วิชาอื่นเห็นเฉพาะเวลาเรียน)' : '') : scope.affairs ? 'กิจการนักเรียน • เห็นเฉพาะเวลาเรียน' : '';
   const body =
     '<div class="row stu-head"><span class="student-avatar">' + esc(String(st.name || '?').trim().slice(0, 1)) + '</span><div>' +
       '<div class="stu-name">' + esc(st.name || 'ยังไม่ระบุชื่อ') + '</div>' +
       '<div class="hint">เลขประจำตัว ' + esc(sid || '–') + ' • ' + esc(baseCls ? baseCls.name : 'ยังไม่จัดห้อง') + ' เลขที่ ' + esc(st.no || '–') +
         (advisors.length ? ' • ครูที่ปรึกษา ' + esc(advisors.join(', ')) : '') + '</div>' +
-      '<div class="hint">' + esc(period ? 'ปี ' + period.academicYear + ' ภาค ' + period.semester : 'ยังไม่ได้เลือกปี/ภาคเรียน') + ' • ' + ctx.length + ' วิชา</div></div></div>' +
+      '<div class="hint">' + esc(period ? 'ปี ' + period.academicYear + ' ภาค ' + period.semester : 'ยังไม่ได้เลือกปี/ภาคเรียน') + ' • ' + ctx.length + ' วิชา' +
+        (scopeText ? ' • <b>' + esc(scopeText) + '</b>' : '') + '</div></div></div>' +
     '<div class="portal-metrics stu-metrics">' +
-      metric(missingAll, 'งานไม่ส่ง', missingAll ? 'bad' : 'ok') +
-      metric(examMissAll, 'สอบยังไม่มีคะแนน', examMissAll ? 'warn' : '') +
+      metric(fullN ? missingAll : '–', 'งานไม่ส่ง', !fullN ? '' : missingAll ? 'bad' : 'ok') +
+      metric(fullN ? examMissAll : '–', 'สอบยังไม่มีคะแนน', fullN && examMissAll ? 'warn' : '') +
       metric(tot.absent, 'ขาดเรียน (คาบ)', tot.absent ? 'bad' : '') +
-      metric(pct === null ? '–' : fmt(pct, 1) + '%', 'เวลาเรียนรวม', pct !== null && pct < 80 ? 'bad' : '') +
+      metric(pct === null ? '–' : fmt(pct, 1) + '%', 'เวลาเรียน' + (ctx.length < all.length ? 'วิชาที่เห็น' : 'รวม'), pct !== null && pct < 80 ? 'bad' : '') +
     '</div>' +
     (riskSubjects ? '<div class="notice bad" style="margin-top:10px">เวลาเรียนต่ำกว่าเกณฑ์ ' + riskSubjects + ' วิชา — เสี่ยงไม่มีสิทธิ์สอบ (มส)</div>' : '') +
-    (blocks.length ? blocks.join('') : '<div class="empty" style="margin-top:12px">ยังไม่พบสมุดคะแนนหรือตารางเรียนของนักเรียนคนนี้ในภาคเรียนที่เลือก</div>') +
+    (blocks.length ? blocks.join('') : '<div class="empty" style="margin-top:12px">' + (hidden ? 'ไม่มีวิชาที่คุณสอนนักเรียนคนนี้ในภาคเรียนที่เลือก' : 'ยังไม่พบสมุดคะแนนหรือตารางเรียนของนักเรียนคนนี้ในภาคเรียนที่เลือก') + '</div>') +
+    (hidden ? '<div class="hint" style="margin-top:8px">ไม่แสดงอีก ' + hidden + ' วิชาที่คุณไม่ได้สอน</div>' : '') +
     '<div class="hint" style="margin-top:10px">คำนวณสดจากข้อมูลในเครื่องนี้ • วิชาของครูท่านอื่นจะแสดงเมื่อเครื่องนี้มีสมุดคะแนนเล่มนั้น • “ไม่ส่ง” หมายถึงหัวข้อที่ยังไม่มีคะแนน</div>';
   const buttons = [{ label: 'ปิด' }];
   if (canSeeTab('students', DB.ui.staffMode || 'teacher') && (master || hits.length)) buttons.unshift({ label: 'ดูในรายชื่อห้อง', act: close => {
@@ -3291,21 +3347,23 @@ function openStudentProfile(sid) {
 }
 
 function closeAllModals() { modalStack.forEach(m => m.remove()); modalStack = []; syncModalScrollLock(); }
-function activeStudentList() {
+/** นักเรียนที่ผู้ใช้คนนี้ค้นเจอได้ ตามสิทธิ์ใน studentViewScope */
+function activeStudentList(scope) {
   if (syncMasterFromClasses()) save(true);
-  return (DB.studentMaster || []).filter(m => m.active !== false);
+  scope = scope || studentViewScope();
+  return (DB.studentMaster || []).filter(m => m.active !== false && canFindStudent(scope, m));
 }
 function studentMatchesQuery(m, q) {
   const cls = DB.classes.find(c => c.id === m.classId);
   return [m.name, m.sid, m.no, cls ? cls.name : ''].some(v => String(v || '').toLowerCase().includes(q));
 }
-function studentResultRow(m, attIdx, attr) {
+function studentResultRow(m, attIdx, attr, scope) {
   const cls = DB.classes.find(c => c.id === m.classId), initial = String(m.name || '?').trim().slice(0, 1);
-  return '<button class="search-result gs-item" ' + attr + '><span class="student-avatar">' + esc(initial) + '</span><span class="gs-text"><b>' + esc(m.name || 'ยังไม่ระบุชื่อ') + '</b><span class="hint" style="display:block">เลขที่ ' + esc(m.no || '–') + ' • ' + esc(m.sid || 'ไม่มีรหัส') + ' • ' + esc(cls ? cls.name : 'ยังไม่จัดห้อง') + '</span></span><span class="spacer"></span>' + studentSearchTags(m.sid, attIdx) + '<span class="gs-go">›</span></button>';
+  return '<button class="search-result gs-item" ' + attr + '><span class="student-avatar">' + esc(initial) + '</span><span class="gs-text"><b>' + esc(m.name || 'ยังไม่ระบุชื่อ') + '</b><span class="hint" style="display:block">เลขที่ ' + esc(m.no || '–') + ' • ' + esc(m.sid || 'ไม่มีรหัส') + ' • ' + esc(cls ? cls.name : 'ยังไม่จัดห้อง') + '</span></span><span class="spacer"></span>' + studentSearchTags(m, attIdx, scope) + '<span class="gs-go">›</span></button>';
 }
 
 function openStudentSearch(initial) {
-  const all = activeStudentList();
+  const scope = studentViewScope(), all = activeStudentList(scope);
   let attIdx = null;
   const modal = openModal({ title: 'ค้นหานักเรียนทุกห้อง', wide: true,
     bodyHTML: '<div class="pick"><label>ค้นหาจากชื่อ เลขประจำตัว หรือห้อง</label><input id="globalStudentSearch" type="text" placeholder="พิมพ์อย่างน้อย 1 ตัวอักษร" style="width:100%"></div><div id="globalSearchResults" style="margin-top:12px"></div>',
@@ -3318,7 +3376,7 @@ function openStudentSearch(initial) {
         attIdx = attIdx || studentAttendanceIndex();
         const q = input.value.trim().toLowerCase();
         const found = (q ? all.filter(m => studentMatchesQuery(m, q)) : all).slice(0, 60);
-        results.innerHTML = found.length ? '<div class="search-results">' + found.map(m => studentResultRow(m, attIdx, 'data-search-sid="' + esc(m.sid || '') + '" data-search-mid="' + esc(m.id) + '"')).join('') + '</div>' : '<div class="empty">ไม่พบนักเรียนที่ค้นหา</div>';
+        results.innerHTML = found.length ? '<div class="search-results">' + found.map(m => studentResultRow(m, attIdx, 'data-search-sid="' + esc(m.sid || '') + '" data-search-mid="' + esc(m.id) + '"', scope)).join('') + '</div>' : '<div class="empty">ไม่พบนักเรียนที่ค้นหา</div>';
         $$('[data-search-mid]', results).forEach(btn => btn.addEventListener('click', () => {
           if (!btn.dataset.searchSid) return toast('นักเรียนคนนี้ยังไม่มีเลขประจำตัว จึงดึงข้อมูลคะแนนไม่ได้', 'bad');
           openStudentProfile(btn.dataset.searchSid);
@@ -3411,10 +3469,11 @@ function globalSearchHits(q, ctx) {
   if (pages.length) groups.push({ title: 'หน้าและกล่องในแอป', items: pages.map(e => ({
     html: '<span class="gs-ico">' + (e.act ? '⚑' : '▸') + '</span><span class="gs-text"><b>' + esc(e.t) + '</b><span class="hint" style="display:block">' + esc(e.act ? 'เปิดหน้าต่าง' : tabLabelOf(e.tab)) + '</span></span><span class="spacer"></span><span class="gs-go">›</span>',
     run: () => goToSearchTarget(e) })) });
-  const studs = (ctx.students = ctx.students || activeStudentList()).filter(m => studentMatchesQuery(m, q));
+  ctx.scope = ctx.scope || studentViewScope();
+  const studs = (ctx.students = ctx.students || activeStudentList(ctx.scope)).filter(m => studentMatchesQuery(m, q));
   if (studs.length) {
     ctx.attIdx = ctx.attIdx || studentAttendanceIndex();
-    const items = studs.slice(0, 8).map(m => ({ row: studentResultRow(m, ctx.attIdx, ''),
+    const items = studs.slice(0, 8).map(m => ({ row: studentResultRow(m, ctx.attIdx, '', ctx.scope),
       run: () => m.sid ? openStudentProfile(m.sid) : toast('นักเรียนคนนี้ยังไม่มีเลขประจำตัว จึงดึงข้อมูลคะแนนไม่ได้', 'bad') }));
     if (studs.length > 8) items.push({ html: '<span class="gs-ico">⌕</span><span class="gs-text"><b>ดูนักเรียนที่ตรงทั้งหมด ' + studs.length + ' คน</b></span>', run: () => openStudentSearch(q) });
     groups.push({ title: 'นักเรียน', items: items });
