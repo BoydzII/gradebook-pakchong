@@ -340,42 +340,142 @@ td.num,th.num{text-align:center}
 .level-tag{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;background:var(--brandSoft);color:var(--brand);font-size:11px;font-weight:800;white-space:nowrap}
 .student-portal{position:fixed;inset:0;z-index:90;background:var(--bg);color:var(--ink);overflow:auto}
 .student-portal[hidden]{display:none}
-.role-gateway{position:fixed;inset:0;z-index:120;overflow:auto;background:radial-gradient(circle at 15% 15%,color-mix(in srgb,var(--brand) 22%,transparent),transparent 34%),radial-gradient(circle at 85% 78%,color-mix(in srgb,var(--group) 18%,transparent),transparent 30%),var(--bg);color:var(--ink);padding:clamp(18px,4vw,52px)}
-.role-gateway[hidden]{display:none}.gateway-shell{width:min(1120px,100%);margin:auto;min-height:calc(100vh - clamp(36px,8vw,104px));display:grid;align-content:center}.gateway-head{text-align:center;margin-bottom:24px}.gateway-mark{width:70px;height:70px;border-radius:22px;margin:0 auto 14px;display:grid;place-items:center;background:linear-gradient(135deg,var(--brand),var(--brand2));color:white;font-size:34px;font-weight:900;box-shadow:0 16px 35px color-mix(in srgb,var(--brand) 30%,transparent)}
-.gateway-head h1{font-size:clamp(25px,4vw,40px);margin:0 0 7px}.gateway-head p{color:var(--muted);margin:0}.role-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.role-card{position:relative;text-align:left;padding:20px;border:1px solid var(--line);border-radius:18px;background:color-mix(in srgb,var(--panel) 94%,transparent);box-shadow:var(--shadow);min-height:190px;display:grid;align-content:start;gap:8px;transition:.18s ease}.role-card:hover{transform:translateY(-4px);border-color:var(--role-color,var(--brand));box-shadow:0 18px 40px rgba(15,35,65,.14)}
-.role-card .role-icon{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;background:color-mix(in srgb,var(--role-color,var(--brand)) 13%,var(--panel));color:var(--role-color,var(--brand));font-size:24px}.role-card b{font-size:18px}.role-card p{font-size:12px;line-height:1.55;color:var(--muted);margin:0}.role-card .enter{margin-top:auto;color:var(--role-color,var(--brand));font-weight:800;font-size:12px}.gateway-foot{margin-top:18px;display:flex;justify-content:center;gap:8px;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:11.5px}.gateway-storage{padding:7px 11px;border:1px solid var(--line);border-radius:999px;background:var(--panel)}
-@media(max-width:940px){.role-cards{grid-template-columns:1fr 1fr}}@media(max-width:540px){.role-cards{grid-template-columns:1fr}.role-card{min-height:145px}.role-gateway{padding:14px}.gateway-shell{align-content:start;padding-top:24px}}
-
-/* ---- วงล้อเลือกบทบาทหน้าแรก : กลีบกังหัน 5 สี หมุนช้า ๆ ---- */
-.gateway-brand{text-align:center;margin-bottom:clamp(8px,1.6vw,18px)}
-.gateway-brand .brand-logo{height:min(13vmin,96px);width:auto;margin:0 auto 8px;display:block;filter:drop-shadow(0 6px 14px rgba(0,0,0,.16))}
-.gateway-brand h1{font-size:clamp(22px,3.4vw,34px);margin:0 0 2px;letter-spacing:.01em}
-.gateway-brand p{margin:0;color:var(--muted);font-size:clamp(12px,1.6vw,15px);line-height:1.5}
-.role-wheel{position:relative;width:min(74vmin,460px);margin:0 auto;aspect-ratio:1}
-.role-wheel svg{width:100%;height:100%;display:block;overflow:visible}
-/* วงล้อหมุนทั้งชุด ส่วนไอคอนหมุนสวนกลับด้วยจังหวะเดียวกัน จึงตั้งตรงเสมอไม่กลับหัว */
-.wheel-rotor{transform-box:view-box;transform-origin:250px 250px;animation:wheelSpin 48s linear infinite}
-.wheel-icon{transform-box:fill-box;transform-origin:center;animation:wheelSpinBack 48s linear infinite}
-@keyframes wheelSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-@keyframes wheelSpinBack{from{transform:rotate(0deg)}to{transform:rotate(-360deg)}}
-/* หยุดหมุนเมื่อชี้หรือโฟกัส เพื่อให้กดเลือกได้ง่าย */
-.role-wheel:hover .wheel-rotor,.role-wheel:hover .wheel-icon,
-.role-wheel:focus-within .wheel-rotor,.role-wheel:focus-within .wheel-icon{animation-play-state:paused}
-.wheel-hub{fill:url(#wheelHubFill);stroke:color-mix(in srgb,var(--line) 70%,transparent);stroke-width:2;
-  filter:drop-shadow(0 4px 16px rgba(15,35,65,.10))}
-.wheel-seg{cursor:pointer;outline:none}
-.wheel-fill{stroke:var(--bg);stroke-width:13;stroke-linejoin:round;stroke-linecap:round;
-  transition:filter .22s ease,opacity .22s ease}
-.wheel-icon path{fill:#fff;fill-opacity:1;pointer-events:none;
-  filter:drop-shadow(0 3px 6px rgba(6,16,34,.42))}
-
-.wheel-seg:hover .wheel-fill,.wheel-seg:focus-visible .wheel-fill{filter:brightness(1.12) saturate(1.14) drop-shadow(0 4px 10px rgba(6,16,34,.3))}
-.wheel-seg:focus-visible .wheel-fill{stroke:var(--ink);stroke-width:5}
-.role-wheel:hover .wheel-seg:not(:hover) .wheel-fill{opacity:.75}
-.wheel-center{position:absolute;inset:0;display:grid;place-content:center;pointer-events:none;text-align:center;padding:0 22%}
-.wheel-name{font-weight:800;font-size:clamp(14px,2.1vw,19px);color:var(--ink);line-height:1.35}
-@media(prefers-reduced-motion:reduce){.wheel-rotor,.wheel-icon{animation:none}}
-@media(max-width:540px){.role-wheel{width:min(90vmin,420px)}.gateway-brand .brand-logo{height:min(16vmin,78px)}}
+/* ---- หน้าทางเข้า: เลือกช่องทางเข้าแบบเลือกตัวละคร 4 ช่อง (ครู • ผู้บริหาร • กิจการนักเรียน • นักเรียน) ----
+   ภาพเดียว (icons/gateway-roles.jpg) ตัดเป็นสี่ช่องเฉียง วางเรียงแล้วต่อเป็นภาพเดิม ช่องที่เลือกขยายและมีกรอบสีประจำบทบาท
+   ฉากนี้มืดเสมอไม่ว่าแอปจะเป็นโหมดสว่างหรือมืด จึงใช้สีของตัวเอง (--gw-*) ไม่ใช้ตัวแปรธีมของแอป
+   หัวหน้ากลุ่มสาระและผู้ดูแลระบบเข้าทางช่องครู แล้วสลับบทบาทบนแถบบนได้ */
+.role-gateway{--gw-bg:#0c0b10;--gw-ink:#f4f1f8;--gw-mute:#a59fb3;--gw-gap:10px;--gw-tan:.1;
+  position:fixed;inset:0;z-index:120;overflow:hidden;overflow:clip;background:var(--gw-bg);color:var(--gw-ink);font-weight:400;isolation:isolate;
+  display:grid;grid-template-rows:auto 1fr auto;height:100dvh}
+.role-gateway[hidden]{display:none}
+.role-gateway::before{content:'';position:absolute;inset:-40px;background:url(./icons/gateway-roles.jpg) center 70%/cover;filter:blur(28px) brightness(.28) saturate(.8);z-index:-1}
+/* env(safe-area-inset-*) เว้นขอบให้มือถือ/ไอแพดที่มีรอยบากหรือแถบโฮม */
+.gw-top{display:flex;align-items:center;gap:14px;padding:max(22px,calc(env(safe-area-inset-top) + 10px)) max(clamp(16px,4vw,56px),env(safe-area-inset-right)) 14px max(clamp(16px,4vw,56px),env(safe-area-inset-left))}
+.gw-top img{width:44px;height:44px;object-fit:contain}
+.gw-top b{font-weight:800;font-size:18px;display:block;line-height:1.3}
+.gw-top span{font-size:13px;color:var(--gw-mute)}
+/* แถวตัวละคร: ความกว้างผูกกับความสูง ภาพจะได้ต่อกันพอดีทุกขนาดจอ (ดูสัดส่วนที่ .gw-slot img)
+   1.1 = กว้างสุดที่ยังเห็นป้ายชื่อโรงเรียนเรืองแสงเหนือหัวทุกคน (อยู่ที่ 38% ของความสูงภาพ) */
+.gw-stage{--h:calc(100dvh - 150px);--L:calc(var(--h) * var(--gw-tan));display:flex;height:var(--h);margin:0 auto;
+  width:min(calc(100vw - 32px - env(safe-area-inset-left) - env(safe-area-inset-right)),calc(var(--h) * 1.1));container-type:size}
+/* ช่องเฉียงใช้ clip-path ตัดขอบในกรอบของตัวเอง แทนการเอียงทั้งช่อง (skew) ซึ่งทำให้มุมช่องแรกยื่นพ้นจอบนไอแพดแนวตั้ง
+   ช่องถัดไปเลื่อนซ้อนเข้ามา (L − gap) ให้รอยตัดของสองช่องขนานกันพอดี เหลือร่องมืดกว้าง gap */
+.gw-slot{--c:#fff;position:relative;flex:1 1 0;min-width:0;cursor:pointer;background:#1b1822;outline:none;
+  clip-path:polygon(var(--L) 0,100% 0,calc(100% - var(--L)) 100%,0 100%);
+  transition:flex-grow .45s cubic-bezier(.2,.8,.2,1),filter .35s,background .3s}
+.gw-slot + .gw-slot{margin-left:calc(var(--gw-gap) - var(--L))}
+/* ภาพอยู่ในกรอบที่หดเข้า 2px — ขอบที่เหลือคือเส้นกรอบสีประจำบทบาทตอนเลือก (clip-path ใช้ border ไม่ได้) */
+.gw-art{position:absolute;inset:0;overflow:hidden;
+  clip-path:polygon(calc(var(--L) + 2.5px) 2px,calc(100% - 2px) 2px,calc(100% - var(--L) - 2.5px) calc(100% - 2px),2px calc(100% - 2px))}
+/* ตัวละครสี่ตัวในภาพอยู่ที่ 26% 43% 60% 75% ของความกว้าง = กึ่งกลางของสี่ส่วนเท่า ๆ กันในช่วง 17–85%
+   ระยะห่างกึ่งกลางช่อง = (กว้างแถว − L + gap) ÷ 4 จึงขยายภาพให้ 17% ของภาพเท่าระยะนั้น สี่ช่องก็ต่อเป็นภาพเดิม
+   จอแคบสูง (มือถือ) ขนาดที่ต่อกันพอดีจะเล็กเกินไป จึงยอมขยายเกิน ให้ตัวละครสูงราว 70% ของช่อง */
+.gw-slot img{--ih:max(calc((100cqw - var(--L) + var(--gw-gap)) / .68),calc(100cqh * 1.3));position:absolute;height:var(--ih);width:auto;max-width:none;
+  top:calc(100cqh - var(--ih) * .955);left:50%;transform:translateX(calc(var(--fx) * -100%));
+  filter:saturate(.9);transition:transform .6s cubic-bezier(.2,.8,.2,1),filter .35s;pointer-events:none;user-select:none}
+.gw-art::after{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(8,7,12,.96) 8%,rgba(8,7,12,.2) 45%,transparent 70%);pointer-events:none}
+.gw-bar{position:absolute;left:0;right:0;bottom:0;height:5px;background:var(--c);transform:scaleX(0);transform-origin:left;
+  transition:transform .4s cubic-bezier(.2,.8,.2,1);z-index:2}
+/* ป้ายชื่ออยู่ช่วงล่างของช่อง ตรงนั้นรอยตัดเฉียงทำให้ส่วนที่มองเห็นเยื้องไปทางซ้าย
+   จึงเว้นขวามากกว่าซ้าย (ราว 85% กับ 15% ของ L) ข้อความจะได้อยู่ในส่วนที่เห็นจริง */
+.gw-label{position:absolute;left:0;right:0;bottom:0;z-index:3;padding:0 calc(var(--L) * .85 + 10px) clamp(22px,4vh,40px) calc(var(--L) * .15 + clamp(12px,1.6vw,24px))}
+.gw-en{padding-left:.7em;line-height:1.25;font-size:clamp(10px,1.3cqw,12px);font-weight:800;color:var(--c);letter-spacing:.12em;font-family:system-ui,sans-serif}
+/* อักษรตัวแรกใหญ่ 2 เท่า แบบป้ายชื่อตัวละครในเกม */
+.gw-en::first-letter{font-size:200%;line-height:1}
+/* ขนาดชื่อผูกกับความกว้างแถวตัวละคร (cqw) ไม่ใช่ความกว้างจอ ช่องแคบลงชื่อก็เล็กลงตาม ไม่ล้นช่อง */
+.gw-role{font-size:clamp(18px,4.6cqw,48px);font-weight:800;line-height:1.15;margin:4px 0 2px;text-wrap:balance}
+.gw-role.long{font-size:clamp(15px,3.6cqw,38px)}
+/* ตัดบรรทัดได้เฉพาะระหว่างคำที่กำหนด ไม่ให้ "สถานศึกษา" ถูกหักกลางคำ */
+.gw-role span{white-space:nowrap;display:inline-block}
+.gw-desc{font-size:14px;color:var(--gw-mute);line-height:1.7;max-height:0;opacity:0;overflow:hidden;transition:max-height .4s,opacity .3s}
+.gw-go{display:inline-block;white-space:nowrap;margin-top:10px;font-size:14px;font-weight:800;color:var(--gw-bg);background:var(--c);padding:7px 16px;
+  opacity:0;transform:translateY(8px);transition:opacity .3s,transform .3s}
+/* ช่องที่เลือก: กว้างขึ้น ภาพเลื่อนเข้าใกล้ เส้นแสงวิ่ง ช่องอื่นมืดลง */
+.gw-stage:has(.gw-slot.on) .gw-slot:not(.on){filter:brightness(.45) grayscale(.6)}
+/* ช่องที่ถูกบีบแคบลงตอนมีช่องอื่นถูกเลือก ชื่อต้องเล็กลงตาม ไม่งั้น "นักเรียน" ถูกตัดเหลือ "นักเรีย" */
+.gw-stage:has(.gw-slot.on) .gw-slot:not(.on) .gw-role{font-size:clamp(12px,2.6cqw,24px)}
+.gw-stage:has(.gw-slot.on) .gw-slot:not(.on) .gw-label{padding-left:calc(var(--L) * .15 + 8px);padding-right:calc(var(--L) * .85 + 4px)}
+.gw-stage:has(.gw-slot.on) .gw-slot:not(.on) .gw-en{display:none}
+.gw-slot.on{flex-grow:1.9;background:var(--c)}
+/* ช่องที่เลือกมีคำอธิบายกับปุ่มดันชื่อสูงขึ้น ยิ่งสูงรอยตัดซ้ายยิ่งเข้ามา จึงเว้นซ้ายเพิ่ม */
+.gw-stage .gw-slot.on .gw-label{padding-left:calc(var(--L) * .5 + 12px)}
+.gw-slot.on img{transform:translateX(calc(var(--fx) * -100%)) scale(1.06);filter:saturate(1.15)}
+.gw-slot.on .gw-bar{transform:scaleX(1)}
+.gw-slot.on .gw-desc{max-height:10em;opacity:1}
+.gw-slot.on .gw-go{opacity:1;transform:none}
+/* คำขวัญโรงเรียนขึ้นในช่องนักเรียนตอนเลือก เรียงวรรคละบรรทัด จุดนำหน้าสีแดงประดู่ (สีประจำโรงเรียน)
+   ถ้าเรียงบรรทัดเดียวแล้วตัดบรรทัด จุดคั่นจะค้างท้ายบรรทัด */
+.gw-motto{display:grid;font-size:clamp(15px,2.3cqw,22px);font-weight:800;color:var(--gw-ink);line-height:1.4;margin:4px 0 6px}
+.gw-motto span{white-space:nowrap}
+.gw-motto span::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:#d6202e;vertical-align:middle;margin-right:8px}
+.gw-foot{padding:16px max(clamp(16px,4vw,56px),env(safe-area-inset-right)) max(20px,calc(env(safe-area-inset-bottom) + 10px)) max(clamp(16px,4vw,56px),env(safe-area-inset-left));
+  font-size:12.5px;color:var(--gw-mute);display:flex;gap:6px 18px;flex-wrap:wrap}
+.gw-foot kbd{font-family:inherit;border:1px solid #3a3546;padding:0 6px;color:var(--gw-ink)}
+.gw-foot .touch{display:none}
+/* ท้ายหน้ามีที่แค่บรรทัดเดียว (ความสูงแถวตัวละครหักไว้ 150px) จอไม่กว้างพอก็ไม่แสดงสถานะการเก็บข้อมูล */
+@media (max-width:1279px){.gw-store{display:none}}
+/* กลีบดอกประดู่แดง (ดอกไม้ประจำโรงเรียน) ร่วงช้า ๆ ไม่กี่กลีบ */
+.gw-petals{position:absolute;inset:0;pointer-events:none;z-index:5;overflow:hidden}
+.gw-petals b{position:absolute;top:-30px;width:11px;height:15px;border-radius:60% 60% 60% 10%;background:#d6202e;opacity:.75;
+  animation:gwFall linear infinite;filter:drop-shadow(0 0 6px rgba(214,32,46,.5))}
+@keyframes gwFall{0%{transform:translate(0,0) rotate(0)}50%{transform:translate(38px,55vh) rotate(200deg)}100%{transform:translate(-20px,110vh) rotate(400deg)}}
+/* มือถือ: ยังเป็นสี่ช่องแนวตั้ง รอยตัดเฉียงน้อยลงให้มีที่วางชื่อ ช่องที่ถูกบีบใช้ชื่อย่อ */
+@media (max-width:720px){
+  .role-gateway{--gw-gap:6px;--gw-tan:.035}
+  .gw-stage{--h:calc(100dvh - 190px)}
+  .gw-label{padding:0 calc(var(--L) * .85 + 4px) 16px calc(var(--L) * .15 + 5px)}
+  .gw-slot:not(.on) .gw-en{display:none}
+  .gw-slot:not(.on) .gw-role{font-size:17px;line-height:1.35;text-align:center}
+  .gw-slot:not(.on) .gw-role.long{font-size:13.5px}
+  .gw-stage:has(.gw-slot.on) .gw-slot:not(.on) .gw-role .rest{display:none}
+  .gw-stage:has(.gw-slot.on) .gw-slot:not(.on) .gw-role{font-size:13px}
+  .gw-slot .gw-extra,.gw-store{display:none}
+  .gw-en{font-size:10px}
+  .gw-role{font-size:24px}
+  .gw-role.long{font-size:19px}
+  .gw-desc{font-size:12.5px}
+}
+/* ไอแพดแนวตั้ง: ช่องสูงมาก ลดความเฉียงลงไม่ให้กินพื้นที่แนวนอน */
+@media (min-width:721px) and (orientation:portrait){
+  .role-gateway{--gw-tan:.08}
+  .gw-stage{--h:calc(100dvh - 170px)}
+  .gw-desc{font-size:15px}
+}
+/* จอสัมผัส (มือถือ ไอแพด): แตะครั้งแรก = เลือก แตะซ้ำ = เข้า บอกวิธีแตะแทนปุ่มลูกศร และปุ่มสูงอย่างน้อย 44px ตามขนาดนิ้ว */
+@media (hover:none){
+  .gw-foot .keys{display:none}
+  .gw-foot .touch{display:inline}
+  .gw-go{min-height:44px;display:inline-flex;align-items:center;padding:0 18px;font-size:15px}
+}
+/* มือถือแนวนอน: ความสูงน้อยมาก ย่อหัวเหลือบรรทัดเดียว ซ่อนท้ายหน้า ให้ตัวละครได้พื้นที่เกือบทั้งจอ */
+@media (max-height:520px) and (orientation:landscape){
+  .role-gateway{--gw-tan:.1;grid-template-rows:auto 1fr}
+  .gw-top{padding-top:max(8px,env(safe-area-inset-top));padding-bottom:6px}
+  .gw-top img{width:28px;height:28px}
+  .gw-top b{font-size:15px}
+  .gw-top span{display:none}
+  .gw-foot{display:none}
+  .gw-stage{--h:calc(100dvh - 56px - env(safe-area-inset-bottom))}
+  .gw-slot .gw-extra{display:none}
+  .gw-motto{display:block}
+  .gw-motto span{margin-right:8px}
+  .gw-go{margin-top:6px}
+  .gw-label{padding:0 calc(var(--L) * .85 + 4px) 10px calc(var(--L) * .15 + 6px)}
+  .gw-slot:not(.on) .gw-en{display:none}
+  .gw-slot:not(.on) .gw-role{font-size:15px;line-height:1.3;text-align:center}
+  .gw-slot:not(.on) .gw-role.long{font-size:13px}
+  .gw-role{font-size:20px}
+  .gw-stage:has(.gw-slot.on) .gw-slot:not(.on) .gw-role .rest{display:none}
+  .gw-stage:has(.gw-slot.on) .gw-slot:not(.on) .gw-role{font-size:12px}
+}
+/* จอเล็ก (มือถือตั้งและนอน) ช่องที่เลือกกว้างราว 130px — ปุ่มยังสูง 44px แต่แคบลง และเว้นซ้ายน้อยลง */
+@media (max-width:720px),(max-height:520px) and (orientation:landscape){
+  .role-gateway .gw-stage .gw-slot.on .gw-label{padding-left:calc(var(--L) * .5 + 6px);padding-right:calc(var(--L) * .6 + 4px)}
+  .gw-go{padding:7px 12px;font-size:14px}
+  .gw-en{letter-spacing:.04em}
+  .gw-motto{font-size:13px}
+}
+@media (prefers-reduced-motion:reduce){.gw-petals{display:none}.gw-slot,.gw-slot img,.gw-bar,.gw-desc,.gw-go{transition:none}}
 /* เดิมตั้งพื้นหลังเป็น var(--top) ซึ่งไม่มีตัวแปรนี้อยู่จริงในธีมไหนเลย พื้นหลังจึงโปร่งใส
    เหลือตัวหนังสือสีขาว #eef4ff อยู่บนพื้นหน้าเว็บสีอ่อน อ่านไม่ออกทั้งแถบ
    รวมถึงปุ่มสองปุ่มมุมขวาที่ไม่ได้กำหนดสีตัวอักษรเอง จึงรับสีขาวมาจากแถบนี้ด้วย
@@ -1412,7 +1512,7 @@ tr.conduct-void td{opacity:.55}tr.conduct-void td b{text-decoration:line-through
 
 <div class="stickytop">
 <header class="topbar">
-  <div class="brand"><span class="dot"></span><span>KruSpace<small>ห้องทำงานของครู</small></span></div>
+  <div class="brand"><span class="dot"></span><span>KruSpace<small>ศูนย์จัดการงานชั้นเรียนแบบครบวงจร</small></span></div>
   <div class="pickers">
     <div class="pick" data-pick="period">
       <label for="selPeriod">ปี/ภาค</label>
@@ -16455,95 +16555,80 @@ function showRoleGateway() {
   const storageText = firebaseReady() && fbSignedIn() ? 'ข้อมูลปัจจุบัน: เครื่องนี้ + ฐานข้อมูลกลาง' : 'ข้อมูลปัจจุบัน: บันทึกในเบราว์เซอร์เครื่องนี้';
   gateway.hidden = false; document.body.style.overflow = 'hidden'; document.body.classList.add('gateway-open');
   const s = DB.settings, logo = s.logoData || './icons/school-logo.png';
-  gateway.innerHTML = '<div class="gateway-shell"><div class="gateway-brand">' +
-      '<img class="brand-logo" src="' + esc(logo) + '" alt="ตราโรงเรียน" onerror="this.style.display=\'none\'">' +
-      '<h1>' + esc(s.schoolName || 'KruSpace') + '</h1>' +
-      (s.schoolLocation ? '<p>' + esc(s.schoolLocation) + '</p>' : '') +
-      (s.educationOffice ? '<p>สังกัดสำนักงานเขตพื้นที่การศึกษา' + esc(s.educationOffice) + '</p>' : '') + '</div>' +
-    roleWheelHtml() +
-    '<div class="gateway-foot"><span class="gateway-storage">KruSpace • ' + esc(storageText) + '</span><span>ข้อมูลนักเรียนเป็นข้อมูลส่วนบุคคล ควรเข้าใช้ด้วยบัญชีของตนเองและออกจากระบบทุกครั้ง</span></div></div>';
-  const nameBox = $('#wheelName', gateway);
-  $$('[data-gateway-role]', gateway).forEach(g => {
-    const role = g.dataset.gatewayRole, label = g.getAttribute('aria-label');
-    const enter = () => { if (nameBox) nameBox.textContent = label; };
-    const leave = () => { if (nameBox) nameBox.textContent = ''; };
-    // เรียกฟังก์ชันตรง ๆ ทั้งคลิกและคีย์บอร์ด เพราะ <g> ของ SVG ไม่มีเมท็อด click()
-    const open = () => role === 'student' ? openStudentLogin() : openStaffRoleLogin(role);
-    g.addEventListener('click', open);
-    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
-    g.addEventListener('mouseenter', enter); g.addEventListener('focus', enter);
-    g.addEventListener('mouseleave', leave); g.addEventListener('blur', leave);
-  });
+  gateway.innerHTML = '<header class="gw-top"><img src="' + esc(logo) + '" alt="ตราโรงเรียน" onerror="this.style.display=\'none\'">' +
+      '<div><b>' + esc(s.schoolName || 'KruSpace') + '</b><span>KruSpace • ศูนย์จัดการงานชั้นเรียนแบบครบวงจร</span></div></header>' +
+    gatewayStageHtml() +
+    '<footer class="gw-foot"><span class="keys"><kbd>←</kbd> <kbd>→</kbd> เลือก • <kbd>Enter</kbd> เข้าสู่ระบบ</span>' +
+      '<span class="touch">แตะช่องเพื่อเลือก • แตะอีกครั้งเพื่อเข้าสู่ระบบ</span>' +
+      '<span>ข้อมูลนักเรียนเป็นข้อมูลส่วนบุคคล ควรเข้าใช้ด้วยบัญชีของตนเองและออกจากระบบทุกครั้ง</span>' +
+      '<span class="gw-store">KruSpace • ' + esc(storageText) + '</span></footer>';
+  bindGatewayStage(gateway);
 }
 
-/* ---- วงล้อเลือกบทบาทหน้าแรก ----------------------------------------------
-   วงกลมแบ่ง 5 ส่วนเท่ากัน ส่วนละสี มีเฉพาะไอคอน ไม่มีคำอธิบาย
-   ชื่อบทบาทจะขึ้นใต้ตราโรงเรียนเมื่อชี้หรือโฟกัสที่ส่วนนั้น */
-const GATEWAY_ROLES = [
-  { role: 'student', label: 'นักเรียน', color: '#0ea5e9',
-    icon: 'M12 2.6 1.6 8.2 12 13.8l10.4-5.6L12 2.6z M5.6 11.9v4.2c0 .62.34 1.19.9 1.47C8.6 18.66 10.3 19.1 12 19.1s3.5-.44 5.5-1.54c.56-.28.9-.85.9-1.47v-4.2L12 15.3 5.6 11.9z' },
-  { role: 'teacher', label: 'ครู', color: '#2563eb',
-    icon: 'M3 4.8h6.2a3 3 0 0 1 3 3v11.4a3 3 0 0 0-3-3H3V4.8z M21 4.8h-6.2a3 3 0 0 0-3 3v11.4a3 3 0 0 1 3-3H21V4.8z' },
-  { role: 'head', label: 'หัวหน้ากลุ่มสาระฯ', color: '#0d9488',
-    icon: 'M9.2 11.4a3.4 3.4 0 1 0 0-6.8 3.4 3.4 0 0 0 0 6.8z M9.2 13.1c-3.4 0-6.2 1.75-6.2 3.9V19.4h12.4v-2.4c0-2.15-2.8-3.9-6.2-3.9z M17.4 11.2a2.8 2.8 0 1 0 0-5.6 2.8 2.8 0 0 0 0 5.6z M17.4 12.9c-.9 0-1.75.14-2.5.4 1.3 1.05 2.1 2.4 2.1 3.7v2.4H22v-2.6c0-1.9-2.1-3.9-4.6-3.9z' },
-  { role: 'executive', label: 'ผู้บริหาร', color: '#7c3aed',
-    icon: 'M9.4 3.4h5.2a2.4 2.4 0 0 1 2.4 2.4v1.8h3.4A1.6 1.6 0 0 1 22 9.2v9.4a1.6 1.6 0 0 1-1.6 1.6H3.6A1.6 1.6 0 0 1 2 18.6V9.2a1.6 1.6 0 0 1 1.6-1.6H7V5.8a2.4 2.4 0 0 1 2.4-2.4zm0 4.2h5.2V5.8H9.4v1.8z' },
-  { role: 'affairs', label: 'ฝ่ายกิจการนักเรียน', color: '#db2777',
-    icon: 'M12 2.2 3.6 5.4v6.1c0 5.1 3.6 9.3 8.4 10.3 4.8-1 8.4-5.2 8.4-10.3V5.4L12 2.2zm0 4.4 1.45 2.95 3.25.47-2.35 2.3.55 3.24L12 14.03l-2.9 1.53.55-3.24-2.35-2.3 3.25-.47L12 6.6z' },
-  { role: 'admin', label: 'ผู้ดูแลระบบ', color: '#ea580c',
-    icon: 'M19.22 8.33L22.50 8.71A11 11 0 0 1 22.50 15.29L19.22 15.67A8.1 8.1 0 0 1 18.79 16.42L18.79 16.42L20.10 19.45A11 11 0 0 1 14.40 22.74L12.43 20.09A8.1 8.1 0 0 1 11.57 20.09L11.57 20.09L9.60 22.74A11 11 0 0 1 3.90 19.45L5.21 16.42A8.1 8.1 0 0 1 4.78 15.67L4.78 15.67L1.50 15.29A11 11 0 0 1 1.50 8.71L4.78 8.33A8.1 8.1 0 0 1 5.21 7.58L5.21 7.58L3.90 4.55A11 11 0 0 1 9.60 1.26L11.57 3.91A8.1 8.1 0 0 1 12.43 3.91L12.43 3.91L14.40 1.26A11 11 0 0 1 20.10 4.55L18.79 7.58A8.1 8.1 0 0 1 19.22 8.33Z M15.9 12 A3.9 3.9 0 1 0 8.1 12 A3.9 3.9 0 1 0 15.9 12 Z' }
+/* ---- หน้าทางเข้า: เลือกช่องทางเข้าแบบเลือกตัวละคร ----------------------------
+   เหลือ 4 ช่องทาง ครู • ผู้บริหารสถานศึกษา • กิจการนักเรียน • นักเรียน
+   หัวหน้ากลุ่มสาระและผู้ดูแลระบบเข้าทางช่องครู (ดู gatewayModeOf) แล้วสลับบทบาทบนแถบบนได้เหมือนเดิม
+   fx = ตำแหน่งตัวละครของช่องนั้นในภาพ (สัดส่วนความกว้าง) ใช้เลื่อนภาพให้ตัวละครอยู่กลางช่อง */
+const GATEWAY_SLOTS = [
+  { role: 'teacher', en: 'TEACHER', label: 'ครู', color: '#ff3d9a', fx: .262,
+    desc: 'เช็กชื่อ กรอกคะแนน แลกคาบ<br>ผู้ดูแลระบบเข้าทางนี้แล้วเลือกบทบาทได้' },
+  { role: 'executive', en: 'ADMINISTRATION SCHOOL', label: '<span>ผู้บริหาร</span> <span class="rest">สถานศึกษา</span>', long: true, color: '#9b7bff', fx: .43,
+    desc: 'ภาพรวมโรงเรียน อนุมัติการลา<br>นักเรียนที่ต้องติดตาม' },
+  { role: 'affairs', en: 'STUDENT AFFAIRS', label: '<span>กิจการ</span> <span class="rest">นักเรียน</span>', long: true, color: '#f5c518', fx: .60,
+    desc: 'มาสาย พฤติกรรม แถวเช้า<br>เวลาเรียนของนักเรียนทุกคน' },
+  { role: 'student', en: 'STUDENT', label: 'นักเรียน', color: '#5ec8ff', fx: .752, motto: true,
+    desc: 'ดูคะแนน เวลาเรียน และคะแนนพฤติกรรมของตัวเอง' }
 ];
+const GATEWAY_MOTTO = 'ประพฤติดี มีวินัย ตั้งใจเรียน';
 
-/** ปรับสีให้อ่อนลง (amt > 0) หรือเข้มขึ้น (amt < 0) สำหรับไล่เฉดในกลีบ */
-function shadeHex(hex, amt) {
-  const n = parseInt(hex.slice(1), 16), ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-  return '#' + ch.map(v => Math.max(0, Math.min(255, Math.round(v + (amt > 0 ? (255 - v) * amt : v * amt))))
-    .toString(16).padStart(2, '0')).join('');
+/** บทบาทที่จะเข้าใช้จริงเมื่อเข้าทางช่องนี้ — ช่องครูรับทุกบัญชีบุคลากร (ครู หัวหน้ากลุ่มสาระ ผู้ดูแลระบบ ฯลฯ)
+    เข้าเป็นครูถ้ามีสิทธิ์ครู ไม่งั้นเข้าบทบาทแรกที่มี ช่องอื่นต้องมีสิทธิ์ตรงบทบาทนั้น */
+function gatewayModeOf(teacher, role) {
+  if (!teacher) return '';
+  if (role !== 'teacher') return teacherHasRole(teacher, role) ? role : '';
+  if (teacherHasRole(teacher, 'teacher')) return 'teacher';
+  return STAFF_ROLES.find(r => teacherHasRole(teacher, r)) || '';
 }
 
-function roleWheelHtml() {
-  const C = 250, R_OUT = 234, R_IN = 118, STEP = 360 / GATEWAY_ROLES.length;
-  const BOW = 34;            // องศาที่เส้นแบ่งโค้งไปด้านข้าง ทำให้กลีบเป็นทรงกังหัน
-  const n = v => Math.round(v * 100) / 100;
-  const polar = (r, deg) => { const a = (deg - 90) * Math.PI / 180; return [C + r * Math.cos(a), C + r * Math.sin(a)]; };
-  const pt = (r, deg) => { const [x, y] = polar(r, deg); return n(x) + ' ' + n(y); };
-  const thick = R_OUT - R_IN;
-  // เส้นแบ่งระหว่างกลีบ ใช้เส้นโค้งชุดเดียวกันทั้งสองข้างเพื่อให้กลีบประกบกันพอดี
-  const dividerOut = a => 'C' + pt(R_IN + thick * 0.34, a - BOW * 0.62) + ' ' + pt(R_OUT - thick * 0.30, a - BOW * 0.30) + ' ' + pt(R_OUT, a);
-  const dividerIn = a => 'C' + pt(R_OUT - thick * 0.30, a - BOW * 0.30) + ' ' + pt(R_IN + thick * 0.34, a - BOW * 0.62) + ' ' + pt(R_IN, a);
-  const petal = (a0, a1) => 'M' + pt(R_IN, a0) + dividerOut(a0) +
-    'A' + R_OUT + ' ' + R_OUT + ' 0 0 1 ' + pt(R_OUT, a1) + dividerIn(a1) +
-    'A' + R_IN + ' ' + R_IN + ' 0 0 0 ' + pt(R_IN, a0) + 'Z';
-
-  const defs = GATEWAY_ROLES.map((r, i) => '<linearGradient id="wgrad' + i + '" x1="0" y1="0" x2="0.85" y2="1">' +
-    '<stop offset="0" stop-color="' + shadeHex(r.color, 0.42) + '"></stop>' +
-    '<stop offset="1" stop-color="' + shadeHex(r.color, -0.16) + '"></stop></linearGradient>').join('');
-
-  const petals = GATEWAY_ROLES.map((r, i) => {
-    const a0 = i * STEP, a1 = (i + 1) * STEP, mid = a0 + STEP / 2 - BOW * 0.34;
-    const [ix, iy] = polar((R_OUT + R_IN) / 2, mid), s = 2.75;
-    return '<g class="wheel-seg" data-gateway-role="' + r.role + '" role="button" tabindex="0" aria-label="' + esc(r.label) + '" style="--seg:' + r.color + '">' +
-      '<title>' + esc(r.label) + '</title>' +
-      '<path class="wheel-fill" fill="url(#wgrad' + i + ')" d="' + petal(a0, a1) + '"></path>' +
-      '<g transform="translate(' + n(ix) + ' ' + n(iy) + ')">' +
-      '<g class="wheel-icon"><g transform="scale(' + s + ') translate(-12 -12)"><path fill-rule="evenodd" d="' + r.icon + '"></path></g></g>' +
-      '</g></g>';
-  }).join('');
-
-  return '<div class="role-wheel"><svg viewBox="0 0 500 500" role="group" aria-label="เลือกบทบาทเพื่อเข้าสู่ระบบ">' +
-    '<defs>' + defs +
-      '<radialGradient id="wheelHubFill" cx="0.5" cy="0.42" r="0.62">' +
-      '<stop offset="0" stop-color="var(--panel)"></stop><stop offset="1" stop-color="var(--panel2)"></stop></radialGradient>' +
-      '<filter id="wheelShadow" x="-20%" y="-20%" width="140%" height="140%">' +
-      '<feDropShadow dx="0" dy="6" stdDeviation="9" flood-color="#0f2341" flood-opacity="0.16"></feDropShadow></filter>' +
-    '</defs>' +
-    '<g class="wheel-rotor" filter="url(#wheelShadow)">' + petals + '</g>' +
-    '<circle class="wheel-hub" cx="250" cy="250" r="' + (R_IN - 8) + '"></circle></svg>' +
-    '<div class="wheel-center"><div class="wheel-name" id="wheelName"></div></div></div>';
+function gatewayStageHtml() {
+  const motto = String(DB.settings.schoolMotto || GATEWAY_MOTTO).split(/\s+/).filter(Boolean);
+  const petals = [[6, 19, 3], [18, 24, 11], [33, 21, 6], [47, 27, 15], [61, 22, 2], [74, 26, 9], [86, 20, 14], [94, 25, 5]]
+    .map(p => '<b style="left:' + p[0] + '%;animation-duration:' + p[1] + 's;animation-delay:-' + p[2] + 's"></b>').join('');
+  /* ใช้ div ไม่ใช้ main — แอปมีสไตล์ของ main (ระยะขอบ/ระยะเผื่อแถบล่าง) ที่จะบีบช่องให้เตี้ยลง */
+  return '<div class="gw-stage" role="group" aria-label="เลือกช่องทางเข้าใช้งาน">' + GATEWAY_SLOTS.map((x, i) =>
+    '<div class="gw-slot" tabindex="0" role="button" data-gw="' + i + '" aria-label="เข้าสู่ระบบ ' + esc(x.label.replace(/<[^>]+>/g, '')) + '" style="--c:' + x.color + ';--fx:' + x.fx + '">' +
+      '<div class="gw-art"><img src="./icons/gateway-roles.jpg" alt="" draggable="false"></div><span class="gw-bar"></span>' +
+      '<div class="gw-label"><div class="gw-en">' + x.en + '</div><div class="gw-role' + (x.long ? ' long' : '') + '">' + x.label + '</div>' +
+        '<div class="gw-desc">' + (x.motto ? '<span class="gw-motto">' + motto.map(w => '<span>' + esc(w) + '</span>').join('') + '</span><span class="gw-extra">' + x.desc + '</span>' : x.desc) + '</div>' +
+        '<span class="gw-go">เข้าสู่ระบบ →</span></div></div>').join('') + '</div>' +
+    '<div class="gw-petals" aria-hidden="true">' + petals + '</div>';
 }
 
-function completeStaffLogin(teacher, role) {
-  if (!teacher || !teacherHasRole(teacher, role)) return toast('บัญชีนี้ไม่มีสิทธิ์ ' + roleLabel(role), 'bad');
+/* ชี้/แตะครั้งแรก = เลือก (ช่องขยาย) • กดช่องที่เลือกอยู่ หรือ Enter = เข้าสู่ระบบ
+   บนจอสัมผัสไม่มี hover จึงต้องแตะสองจังหวะ ไม่งั้นแตะพลาดช่องเดียวก็เข้าผิดบทบาททันที */
+function bindGatewayStage(gateway) {
+  const slots = $$('.gw-slot', gateway), canHover = () => matchMedia('(hover:hover)').matches;
+  let cur = -1;
+  const pick = i => { cur = i; slots.forEach((s, k) => s.classList.toggle('on', k === i)); if (i >= 0) slots[i].focus({ preventScroll: true }); };
+  const enter = i => { const role = GATEWAY_SLOTS[i].role; role === 'student' ? openStudentLogin() : openStaffRoleLogin(role); };
+  slots.forEach((s, i) => {
+    s.addEventListener('mouseenter', () => { if (canHover()) pick(i); });
+    s.addEventListener('click', () => cur === i ? enter(i) : pick(i));
+  });
+  $('.gw-stage', gateway).addEventListener('mouseleave', () => { if (canHover()) pick(-1); });
+  gateway.gwKeys = e => {
+    if (gateway.hidden || modalStack.length) return;
+    if (e.key === 'ArrowRight') { e.preventDefault(); pick((cur + 1) % slots.length); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); pick((cur + slots.length - 1) % slots.length); }
+    else if ((e.key === 'Enter' || e.key === ' ') && cur >= 0) { e.preventDefault(); enter(cur); }
+  };
+  /* ผูกกับ document ครั้งเดียว แล้วเรียกตัวจัดการล่าสุดของหน้าทางเข้า ไม่ให้ซ้อนกันเมื่อเปิดหน้าทางเข้าหลายรอบ */
+  if (!document.gwKeysBound) { document.gwKeysBound = true; document.addEventListener('keydown', e => { const g = $('#roleGateway'); if (g && g.gwKeys) g.gwKeys(e); }); }
+}
+
+function completeStaffLogin(teacher, gateRole) {
+  const role = gatewayModeOf(teacher, gateRole);   // ช่องครูอาจได้บทบาทอื่น เช่นผู้ดูแลระบบที่ไม่มีสิทธิ์ครู
+  if (!teacher || !role) return toast('บัญชีนี้ไม่มีสิทธิ์ ' + roleLabel(gateRole), 'bad');
   DB.ui.teacherId = teacher.id; DB.ui.staffMode = role;
   sessionStorage.setItem(STAFF_SESSION_KEY, role); save(true); hideRoleGateway();
   setStaffMode(role); toast('เข้าสู่ระบบในบทบาท' + roleLabel(role) + 'แล้ว', 'ok');
@@ -16554,15 +16639,16 @@ function openBootstrapAdmin() {
 }
 
 function openStaffRoleLogin(role) {
-  const profiles = DB.teachers.filter(t => teacherHasRole(t, role));
-  if (!profiles.length && role === 'admin' && !DB.teachers.length) return openBootstrapAdmin();
+  const profiles = DB.teachers.filter(t => gatewayModeOf(t, role));
+  /* ยังไม่มีบุคลากรเลย ให้สร้างผู้ดูแลระบบคนแรก — ไม่มีช่องผู้ดูแลระบบแยกแล้ว จึงเริ่มจากช่องครู */
+  if (!profiles.length && (role === 'admin' || role === 'teacher') && !DB.teachers.length) return openBootstrapAdmin();
   const profileOptions = profiles.map(t => '<option value="' + t.id + '">' + esc(t.name || t.email || 'ไม่ระบุชื่อ') + (t.email ? ' • ' + esc(t.email) : '') + '</option>').join('');
   const buttons = [{ label: 'ยกเลิก' }];
   if (firebaseConfigured()) buttons.push({ label: 'เข้าสู่ระบบด้วย Google', cls: 'primary', async act(close) {
     try {
       const r = await firebaseSignIn();
       if (!r.teacher) return toast('จับคู่โปรไฟล์ไม่สำเร็จ', 'bad');
-      if (!teacherHasRole(r.teacher, role)) {
+      if (!gatewayModeOf(r.teacher, role)) {
         const have = (r.teacher.roles || []).map(roleLabel).join(', ') || 'ไม่มีบทบาทใดเลย';
         await firebaseSignOut();
         return toast('บัญชีนี้ไม่มีสิทธิ์' + roleLabel(role) + ' • สิทธิ์ที่มีคือ ' + have +
@@ -16575,11 +16661,11 @@ function openStaffRoleLogin(role) {
   if (staffApiUrl()) buttons.push({ label: 'เข้าสู่ระบบด้วยบัญชีโรงเรียน (Apps Script)', async act(close) {
     try {
       const r = await loginWithCentralStaff(role);
-      if (!teacherHasRole(r.teacher, role)) return toast('บัญชีนี้ไม่มีสิทธิ์ ' + roleLabel(role), 'bad');
+      if (!gatewayModeOf(r.teacher, role)) return toast('บัญชีนี้ไม่มีสิทธิ์ ' + roleLabel(role), 'bad');
       close(); completeStaffLogin(r.teacher, role);
     } catch (e) { toast(e.message, 'bad'); }
   } });
-  if (DB.cloud && DB.cloud.clientId) buttons.push({ label: 'เข้าสู่ระบบด้วย Google (เฉพาะเครื่องนี้)', async act(close) { try { await googleLogin(); const email = String(DB.cloud.accountEmail || '').toLowerCase(), matched = DB.teachers.find(t => String(t.email || '').toLowerCase() === email); if (!matched) return toast('อีเมลนี้ยังไม่มีในฐานข้อมูลบุคลากร', 'bad'); if (!teacherHasRole(matched, role)) return toast('บัญชีนี้ไม่มีสิทธิ์ ' + roleLabel(role), 'bad'); close(); completeStaffLogin(matched, role); } catch (e) { toast('เข้าสู่ระบบ Google ไม่สำเร็จ: ' + e.message, 'bad'); } } });
+  if (DB.cloud && DB.cloud.clientId) buttons.push({ label: 'เข้าสู่ระบบด้วย Google (เฉพาะเครื่องนี้)', async act(close) { try { await googleLogin(); const email = String(DB.cloud.accountEmail || '').toLowerCase(), matched = DB.teachers.find(t => String(t.email || '').toLowerCase() === email); if (!matched) return toast('อีเมลนี้ยังไม่มีในฐานข้อมูลบุคลากร', 'bad'); if (!gatewayModeOf(matched, role)) return toast('บัญชีนี้ไม่มีสิทธิ์ ' + roleLabel(role), 'bad'); close(); completeStaffLogin(matched, role); } catch (e) { toast('เข้าสู่ระบบ Google ไม่สำเร็จ: ' + e.message, 'bad'); } } });
   if (profiles.length) buttons.push({ label: 'เข้าใช้บนเครื่องนี้', act(close, root) { const teacher = DB.teachers.find(t => t.id === $('#staffLocalProfile', root).value); if (!teacher) return toast('กรุณาเลือกโปรไฟล์', 'bad'); close(); completeStaffLogin(teacher, role); } });
   openModal({ title: 'เข้าสู่ระบบ' + roleLabel(role), bodyHTML: (profiles.length ? '<div class="pick"><label>โปรไฟล์บุคลากรในเครื่องนี้</label><select id="staffLocalProfile" style="width:100%">' + profileOptions + '</select></div>' : '<div class="notice bad">ยังไม่มีบุคลากรที่ได้รับสิทธิ์ ' + esc(roleLabel(role)) + ' กรุณาให้ผู้ดูแลระบบกำหนดสิทธิ์ก่อน</div>') +
     '<div class="portal-login-note" style="margin-top:12px">' + (firebaseConfigured()

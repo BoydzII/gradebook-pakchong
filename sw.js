@@ -5,7 +5,7 @@
    วิธีอัปเดตแอปหลังแก้โค้ด: เปลี่ยนเลขเวอร์ชันที่ CACHE_VERSION แล้วอัปโหลดใหม่
    ผู้ใช้จะเห็นแถบแจ้ง "มีเวอร์ชันใหม่" ให้กดอัปเดต */
 
-const CACHE_VERSION = 'v141';
+const CACHE_VERSION = 'v142';
 const CACHE_NAME = 'gradebook-' + CACHE_VERSION;
 
 /* ไฟล์แกนของแอป โหลดไว้ล่วงหน้าให้เปิดออฟไลน์ได้ */
@@ -19,6 +19,7 @@ const APP_SHELL = [
   './icons/icon-maskable-512.png',
   './icons/apple-touch-icon.png',
   './icons/school-logo.png',
+  './icons/gateway-roles.jpg',   /* ภาพหน้าทางเข้า — ต้องเปิดได้ตอนออฟไลน์ด้วย */
   './vendor/firebase-app-compat.js',
   './vendor/firebase-auth-compat.js',
   './vendor/firebase-firestore-compat.js',
