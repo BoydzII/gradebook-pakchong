@@ -1163,6 +1163,15 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 @keyframes tin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 /* PWA: ป้ายออฟไลน์ และแถบแจ้งเวอร์ชันใหม่ */
 .offline-chip{background:var(--warn);color:#1e2732;font-weight:700;font-size:12px;padding:4px 10px;border-radius:999px;align-self:center}
+/* ปุ่มลัดดึง/อัปข้อมูล — ขอบหนาสีแดง (ดึงลงมาทับเครื่องนี้) กับฟ้า (ส่งขึ้นระบบ) แยกกันให้เห็นชัดว่าเป็นคนละทิศ */
+.sync-btn{border-width:2px;font-weight:800}
+.sync-btn .ico{margin-right:4px}
+.sync-btn.pull{border-color:#dc2626;color:#dc2626}
+.sync-btn.push{border-color:#0ea5e9;color:#0284c7}
+.sync-btn.pull:hover{background:color-mix(in srgb,#dc2626 10%,var(--panel))}
+.sync-btn.push:hover{background:color-mix(in srgb,#0ea5e9 10%,var(--panel))}
+:root[data-theme="dark"] .sync-btn.pull{color:#ff8a8a;border-color:#ff8a8a}:root[data-theme="dark"] .sync-btn.push{color:#7dd3fc;border-color:#38bdf8}
+.sync-btn[aria-busy="true"]{opacity:.6;pointer-events:none}
 .sync-chip{font-size:11.5px;font-weight:700;padding:4px 11px;border-radius:999px;align-self:center;white-space:nowrap;
   border:1px solid var(--line);background:var(--panel2);color:var(--muted);min-height:0}
 .sync-chip.ok{background:var(--ok-bg);color:var(--ok);border-color:color-mix(in srgb,var(--ok) 30%,transparent)}
@@ -1542,6 +1551,8 @@ tr.conduct-void td{opacity:.55}tr.conduct-void td b{text-decoration:line-through
   </div>
   <div class="spacer"></div>
   <span class="who-chip" id="whoChip" hidden></span>
+  <button class="sm icon-btn sync-btn pull" id="btnTopPull" title="ดึงข้อมูลจากส่วนกลางลงเครื่องนี้"><span class="ico">⤓</span><span class="lbl">ดึงข้อมูล</span></button>
+  <button class="sm icon-btn sync-btn push" id="btnTopPush" title="อัปคะแนนและการเช็กชื่อของคุณขึ้นส่วนกลาง"><span class="ico">⤒</span><span class="lbl">อัปข้อมูล</span></button>
   <button class="sm icon-btn alert-bell" id="btnAlerts" hidden title="งานที่รอคุณดำเนินการ">🔔<span id="alertCount"></span></button>
   <button class="sm icon-btn" id="btnSearch" title="ค้นหานักเรียน ห้อง วิชา และเมนู (Ctrl+K)"><span class="ico">⌕</span><span class="lbl">ค้นหา</span></button>
   <button class="sm icon-btn" id="btnTheme" title="สลับโหมดสี">◐</button>
@@ -3087,7 +3098,7 @@ function openTabSheet() {
     if (act === 'guide') { window.open('./guide.html' + (DB.ui.staffMode === 'executive' ? '?mode=exec' : ''), '_blank', 'noopener'); return; }
     if (act === 'theme') { const t = $('#btnTheme'); if (t) t.click(); return; }
     if (act === 'promode') { toggleProMode(); return; }
-    if (act === 'pullschool') { setTab('dashboard'); setTimeout(() => { const b = $('#btnPullSchool'); if (b) { b.scrollIntoView({ block: 'center' }); b.click(); } }, 250); return; }
+    if (act === 'pullschool') return openTopPull();
     if (act === 'logout') { const t = $('#btnStaffLogout'); if (t) t.click(); }
   }));
   const refresh = $('#sheetRefresh', sheet);
@@ -4150,7 +4161,7 @@ function renderDashboard() {
       '<div class="card"><h3>ทางลัดงานประจำ</h3><div class="quick-grid"><button class="quick-action" data-go-tab="scores">✎<b>กรอกคะแนน</b><span>คะแนนเก็บ สอบ และซ่อม</span></button><button class="quick-action" data-go-tab="attendance">◷<b>เช็กเวลาเรียน</b><span>คาบประจำ แลกคาบ สอนแทน และชดเชย</span></button><button class="quick-action" data-go-tab="groups">◉<b>คะแนนกลุ่ม</b><span>จัดกลุ่ม ให้คะแนน และผู้นำเสนอ</span></button><button class="quick-action" data-go-tab="summary">▤<b>สรุป ปพ.5</b><span>เกรด เวลาเรียน และส่งออก</span></button>' +
       '<button class="quick-action" data-conduct-open>⚑<b>บันทึกพฤติกรรม</b><span>ความดี • ผิดระเบียบ</span></button></div></div></div>' +
       '<div><div class="card"><h3>ผู้ช่วยแนะนำงาน</h3><div class="insight-list">' + insights.map(i => '<button class="insight-item" data-go-tab="' + i.tab + '" style="text-align:left;width:100%"><span class="insight-dot" style="--insight:' + i.color + '"></span><span>' + esc(i.text) + '</span><span class="spacer"></span><span>›</span></button>').join('') + '</div></div>' +
-      '<div class="card"><div class="row"><h3 style="margin:0">ความพร้อมของระบบ</h3><div class="spacer"></div><b>' + setupPct + '%</b></div><div class="setup-progress"><i style="width:' + setupPct + '%"></i></div><div class="hint tip">สถานศึกษา • ห้อง • วิชา • รายชื่อ • ตารางสอน • ปฏิทิน • หัวข้อคะแนน • ฐานข้อมูลกลาง</div><button class="sm" data-go-tab="settings" style="margin-top:9px">ตรวจสอบการตั้งค่า</button></div></div></div>' + exchangeRequestCard() + leaveHistoryCard(5, true) + '<div class="card" id="pendingBox"></div>' + (schoolDataMissing() ? '' : schoolDataCard());
+      '<div class="card"><div class="row"><h3 style="margin:0">ความพร้อมของระบบ</h3><div class="spacer"></div><b>' + setupPct + '%</b></div><div class="setup-progress"><i style="width:' + setupPct + '%"></i></div><div class="hint tip">สถานศึกษา • ห้อง • วิชา • รายชื่อ • ตารางสอน • ปฏิทิน • หัวข้อคะแนน • ฐานข้อมูลกลาง</div><button class="sm" data-go-tab="settings" style="margin-top:9px">ตรวจสอบการตั้งค่า</button></div></div></div>' + exchangeRequestCard() + leaveHistoryCard(5, true) + '<div class="card" id="pendingBox"></div>';
 
   bindApprovalCard(pane); bindNoticeCard(pane);
   $$('[data-conduct-open]', pane).forEach(btn => btn.addEventListener('click', () => openConductModal({})));
@@ -15947,41 +15958,87 @@ function quickSig(str) {
 /** ส่งสมุดคะแนนและการเช็กชื่อของฉันขึ้นส่วนกลาง
     onlyChanged = true จะส่งเฉพาะเล่ม/เดือนที่แก้ไปจริง ใช้กับการส่งอัตโนมัติ
     เพื่อไม่ให้ยิงเขียนทั้งหมดทุกครั้งที่พิมพ์คะแนนช่องเดียว */
+/* ---------- กันข้อมูลว่างหรือข้อมูลที่น้อยกว่าไปทับของบนระบบ ----------------------
+   การส่งขึ้นเขียนทับทั้งเล่ม/ทั้งเดือน (set) ถ้าเครื่องใหม่มีสมุดเปล่าที่สร้างตอนเปิดหน้ากรอกคะแนน
+   หรือมีเช็กชื่อแค่บางคาบของเดือน กดอัปแล้วคะแนน/เช็กชื่อบนระบบจะหายไปทั้งก้อน
+   กติกา: (1) สมุดที่ไม่มีข้อมูลเลยไม่ส่งเด็ดขาด
+          (2) เล่ม/เดือนที่เครื่องนี้ยังไม่เคยส่งหรือดึง จะอ่านของบนระบบมาเทียบก่อน
+              บนระบบมีคะแนนมากกว่า หรือมีคาบที่เครื่องนี้ไม่มี = ไม่ส่งทับ แล้วแจ้งให้ดึงก่อน
+          (3) เล่ม/เดือนที่เคยส่งหรือดึงจากเครื่องนี้แล้ว ส่งทับได้ตามปกติ การลบในเครื่องจึงยังตามขึ้นไปได้
+   ไม่ใช้การรวม (merge) เพราะคาบที่ครูลบออกแล้วจะถูกของเก่าบนระบบดึงกลับมา */
+function bookContentCount(b) {
+  if (!b) return 0;
+  const filled = o => Object.values(o || {}).filter(v => v !== '' && v !== null && v !== undefined).length;
+  let n = (b.items || []).length;
+  [b.scores, b.exam, b.itemRetakes].forEach(m => Object.values(m || {}).forEach(row => { n += filled(row); }));
+  Object.values(b.componentScores || {}).forEach(st => Object.values(st || {}).forEach(it => { n += filled(it); }));
+  const as = b.assessments || {};
+  ['traits', 'reading'].forEach(k => Object.values(as[k] || {}).forEach(arr => { n += (arr || []).filter(Boolean).length; }));
+  return n;
+}
+const bookLabelOf = key => { const p = String(key).split('::'), c = DB.classes.find(x => x.id === p[0]), sj = DB.subjects.find(x => x.id === p[1]);
+  return (sj ? (sj.code ? sj.code + ' ' : '') + sj.name : 'วิชา') + ' • ' + (c ? c.name : 'ห้อง'); };
+let bookSyncSkipped = [];
+
 async function pushMyBooks(onlyChanged) {
   const root = myBookRoot();
   if (!root) throw new Error('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียน และมีอีเมลในโปรไฟล์ครูก่อน');
-  const stamp = new Date().toISOString(), jobs = [];
+  const stamp = new Date().toISOString(), jobs = [], skipped = [];
   const sigs = DB.cloud.syncSigs = DB.cloud.syncSigs || {}, fresh = {};
+  const base = DB.cloud.syncBase = DB.cloud.syncBase || {};   // เล่ม/เดือนที่เครื่องนี้เคยดึงจากระบบแล้ว
+  const seenCentral = id => sigs[id] !== undefined || !!base[id];
+  let written = 0;
   Object.keys(DB.books || {}).forEach(key => {
-    const sig = quickSig(JSON.stringify(DB.books[key])), id = 'b:' + key;
+    const book = DB.books[key], sig = quickSig(JSON.stringify(book)), id = 'b:' + key;
     fresh[id] = sig;
     if (onlyChanged && sigs[id] === sig) return;
-    jobs.push(fbSetDoc(root.collection('items').doc(bookDocId(key)),
-      { key: key, book: fbPlain(DB.books[key]), updatedAt: stamp }, 'สมุดคะแนน ' + key).then(() => { sigs[id] = sig; }));
+    if (!bookContentCount(book)) return;                       // (1) สมุดเปล่า ไม่ส่ง
+    const ref = root.collection('items').doc(bookDocId(key));
+    jobs.push((async () => {
+      if (!seenCentral(id)) {                                    // (2) ยังไม่เคยเห็นฉบับบนระบบ
+        let remote = null;
+        try { const snap = await ref.get({ source: 'server' }); remote = snap.exists ? fbDecodeNested((snap.data() || {}).book || {}) : null; }
+        catch (e) { skipped.push('สมุดคะแนน ' + bookLabelOf(key) + ' — ตรวจกับระบบไม่ได้'); return; }
+        if (remote && bookContentCount(normalizeBook(remote)) > bookContentCount(book)) { skipped.push('สมุดคะแนน ' + bookLabelOf(key)); return; }
+      }
+      await fbSetDoc(ref, { key: key, book: fbPlain(book), updatedAt: stamp }, 'สมุดคะแนน ' + key);
+      sigs[id] = sig; written++;
+    })());
   });
   const months = myAttendanceByMonth();
   Object.keys(months).forEach(month => {
-    const sig = quickSig(JSON.stringify(months[month])), id = 'a:' + month;
+    const recs = months[month], sig = quickSig(JSON.stringify(recs)), id = 'a:' + month;
     fresh[id] = sig;
     if (onlyChanged && sigs[id] === sig) return;
-    jobs.push(fbSetDoc(root.collection('attendance').doc(month),
-      { month: month, records: fbPlain(months[month]), updatedAt: stamp }, 'การเช็กชื่อเดือน ' + month).then(() => { sigs[id] = sig; }));
+    const ref = root.collection('attendance').doc(month);
+    jobs.push((async () => {
+      if (!seenCentral(id)) {
+        let remote = {};
+        try { const snap = await ref.get({ source: 'server' }); remote = snap.exists ? fbDecodeNested((snap.data() || {}).records || {}) : {}; }
+        catch (e) { skipped.push('การเช็กชื่อเดือน ' + month + ' — ตรวจกับระบบไม่ได้'); return; }
+        const missing = Object.keys(remote).filter(k => !recs[k]).length;
+        if (missing) { skipped.push('การเช็กชื่อเดือน ' + month + ' (บนระบบมีอีก ' + missing + ' คาบที่เครื่องนี้ไม่มี)'); return; }
+      }
+      await fbSetDoc(ref, { month: month, records: fbPlain(recs), updatedAt: stamp }, 'การเช็กชื่อเดือน ' + month);
+      sigs[id] = sig; written++;
+    })());
   });
-  if (!onlyChanged || jobs.length)
-    jobs.push(root.set({ email: myEmailForSync(), name: (curTeacher() || {}).name || '', updatedAt: stamp }, { merge: true }));
+  bookSyncSkipped = skipped;
   if (!jobs.length) return 0;             // ไม่มีอะไรเปลี่ยน ไม่ต้องยิงเลย
   await Promise.all(jobs);
+  if (written) await root.set({ email: myEmailForSync(), name: (curTeacher() || {}).name || '', updatedAt: stamp }, { merge: true });
   // เล่มที่ถูกลบไปแล้ว ไม่ต้องเก็บลายเซ็นไว้ให้รก
   Object.keys(sigs).forEach(k => { if (fresh[k] === undefined) delete sigs[k]; });
-  DB.cloud.lastBookSync = stamp; save(true);
-  return jobs.length;
+  if (written) DB.cloud.lastBookSync = stamp;
+  save(true);
+  return written;
 }
 
 /** ยังมีอะไรที่แก้แล้วแต่ยังไม่ได้ส่งขึ้นไหม */
 function unsyncedBookCount() {
   const sigs = (DB.cloud || {}).syncSigs || {};
   let n = 0;
-  Object.keys(DB.books || {}).forEach(key => { if (sigs['b:' + key] !== quickSig(JSON.stringify(DB.books[key]))) n++; });
+  Object.keys(DB.books || {}).forEach(key => { if (bookContentCount(DB.books[key]) && sigs['b:' + key] !== quickSig(JSON.stringify(DB.books[key]))) n++; });
   const months = myAttendanceByMonth();
   Object.keys(months).forEach(m => { if (sigs['a:' + m] !== quickSig(JSON.stringify(months[m]))) n++; });
   return n;
@@ -15994,12 +16051,14 @@ async function pullMyBooks() {
   let books = 0, records = 0;
   items.docs.forEach(doc => {
     const data = doc.data() || {};
-    if (data.key && data.book) { DB.books[data.key] = normalizeBook(fbDecodeNested(data.book)); books++; }
+    if (data.key && data.book) { DB.books[data.key] = normalizeBook(fbDecodeNested(data.book)); books++;
+      (DB.cloud.syncBase = DB.cloud.syncBase || {})['b:' + data.key] = true; }
   });
   const months = await root.collection('attendance').get({ source: 'server' });
   months.docs.forEach(doc => {
     const recs = fbDecodeNested((doc.data() || {}).records || {});
     Object.keys(recs).forEach(k => { DB.timetable.attendance[k] = recs[k]; records++; });
+    (DB.cloud.syncBase = DB.cloud.syncBase || {})['a:' + doc.id] = true;
   });
   DB.cloud.lastBookSync = new Date().toISOString();
   save(true); render();
@@ -16221,6 +16280,61 @@ function bindPullSchoolButton(root) {
     }
     const b2 = $('#btnPullSchool'); if (b2) { b2.disabled = false; b2.textContent = old; }
   });
+}
+
+/* ---------- ปุ่มลัดบนแถบบน: ดึงข้อมูล (แดง) • อัปข้อมูล (ฟ้า) -----------------------
+   เดิมอยู่ในการ์ดท้ายหน้าภาพรวมและในเมนู ครูหาไม่เจอ ย้ายมาไว้แถบบนให้กดได้ทุกหน้า
+   ทั้งสองปุ่มถามยืนยันก่อนเสมอ และบอกผลหลังทำเสร็จ */
+function syncBusy(id, on) { const b = $(id); if (b) b.setAttribute('aria-busy', on ? 'true' : 'false'); }
+function syncNeedsLogin() {
+  if (firebaseReady() && fbSignedIn()) return false;
+  toast('ต้องเข้าสู่ระบบด้วยบัญชี Google ของโรงเรียนก่อน จึงจะดึงหรืออัปข้อมูลได้', 'bad'); return true;
+}
+function openTopPull() {
+  if (syncNeedsLogin()) return;
+  const pending = myBookRoot() ? unsyncedBookCount() : 0;
+  const run = async (withBooks, close) => {
+    close(); syncBusy('#btnTopPull', true);
+    try {
+      const r = await pullSchoolData();
+      let msg = 'ดึงข้อมูลลงเครื่องแล้ว • ห้อง ' + r.summary.classes + ' • วิชา ' + r.summary.subjects + ' • คาบ ' + r.summary.entries;
+      if (withBooks && myBookRoot()) msg += ' • คะแนน/เช็กชื่อ ' + (await pullMyBooks()) + ' รายการ';
+      toast(msg, 'ok');
+      if (r.failed.length) toast('ดึงไม่ได้ ' + r.failed.length + ' รายการ • ' + r.failed.join(' • '), 'bad');
+    } catch (e) { toast(fbErrorMessage(e), 'bad'); }
+    syncBusy('#btnTopPull', false); render();
+  };
+  openModal({ title: '⤓ ดึงข้อมูลจากส่วนกลาง',
+    bodyHTML: '<div class="notice">โหลดจากส่วนกลางมาทับข้อมูลในเครื่องนี้<br>• <b>ข้อมูลโรงเรียน</b> ครู ห้อง วิชา ปี/ภาคเรียน ตารางสอน ใบลา คำขอแลกคาบ<br>' +
+      '• <b>สมุดคะแนนและการเช็กชื่อของคุณ</b></div>' +
+      (pending ? '<div class="notice bad" style="margin-top:10px">เครื่องนี้มีคะแนน/การเช็กชื่อที่<b>ยังไม่ได้อัป ' + pending + ' รายการ</b> ' +
+        'ถ้าดึงสมุดคะแนนตอนนี้ ของที่ยังไม่อัปจะถูกทับ<br>แนะนำกด <b>อัปข้อมูล</b> ก่อน หรือเลือกดึงเฉพาะข้อมูลโรงเรียน</div>' : ''),
+    buttons: pending
+      ? [{ label: 'ยกเลิก' }, { label: 'ดึงเฉพาะข้อมูลโรงเรียน', act: c => run(false, c) }, { label: 'ดึงทั้งหมด (ทับของที่ยังไม่อัป)', cls: 'danger', act: c => run(true, c) }]
+      : [{ label: 'ยกเลิก' }, { label: 'ดึงข้อมูล', cls: 'primary', act: c => run(true, c) }] });
+}
+function openTopPush() {
+  if (syncNeedsLogin()) return;
+  if (!myBookRoot()) return toast('โปรไฟล์ครูของคุณยังไม่มีอีเมล ให้ผู้ดูแลระบบเพิ่มอีเมลก่อน จึงจะอัปข้อมูลได้', 'bad');
+  const keys = Object.keys(DB.books || {}), full = keys.filter(k => bookContentCount(DB.books[k]));
+  const empty = keys.length - full.length, months = Object.keys(myAttendanceByMonth()).length;
+  if (!full.length && !months) return openModal({ title: '⤒ อัปข้อมูลขึ้นส่วนกลาง', buttons: [{ label: 'ปิด', cls: 'primary' }],
+    bodyHTML: '<div class="notice warn">เครื่องนี้ยังไม่มีคะแนนหรือการเช็กชื่อของคุณ จึงไม่มีอะไรให้อัป<br><b>ข้อมูลบนระบบไม่ถูกแตะต้อง</b></div>' });
+  openModal({ title: '⤒ อัปข้อมูลขึ้นส่วนกลาง',
+    bodyHTML: '<div class="notice">ส่งข้อมูลของคุณจากเครื่องนี้ขึ้นส่วนกลาง<br>• สมุดคะแนน <b>' + full.length + ' เล่ม</b><br>• การเช็กชื่อ <b>' + months + ' เดือน</b></div>' +
+      (empty ? '<div class="hint" style="margin-top:8px">สมุดที่ยังว่าง ' + empty + ' เล่มจะไม่ถูกส่ง</div>' : '') +
+      '<div class="notice ok" style="margin-top:10px">ข้อมูลที่ว่าง หรือมีน้อยกว่าที่อยู่บนระบบ จะ<b>ไม่ถูกส่งไปทับ</b>ของบนระบบ</div>',
+    buttons: [{ label: 'ยกเลิก' }, { label: 'อัปข้อมูล', cls: 'primary', async act(close) {
+      close(); syncBusy('#btnTopPush', true);
+      try {
+        const n = await pushMyBooks(false), sk = bookSyncSkipped;
+        toast(n ? 'อัปขึ้นส่วนกลางแล้ว ' + n + ' รายการ' : 'ไม่มีรายการที่ต้องอัป', n ? 'ok' : '');
+        if (sk.length) openModal({ title: 'บางรายการไม่ได้อัป ' + sk.length + ' รายการ', buttons: [{ label: 'ปิด' }, { label: 'ดึงข้อมูลก่อน', cls: 'primary', act: c => { c(); openTopPull(); } }],
+          bodyHTML: '<div class="notice warn">บนระบบมีข้อมูลที่เครื่องนี้ยังไม่มี จึง<b>ไม่ส่งไปทับ</b> เพื่อไม่ให้คะแนนหรือการเช็กชื่อหาย<br>กด <b>ดึงข้อมูล</b> ก่อน แล้วค่อยอัปใหม่</div>' +
+            '<ul style="margin:10px 0 0 18px;line-height:1.8">' + sk.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' });
+      } catch (e) { toast(fbErrorMessage(e), 'bad'); }
+      syncBusy('#btnTopPush', false); renderSyncChip();
+    } }] });
 }
 
 /* ---------- ดึงฐานข้อมูลโรงเรียนลงเครื่องนี้ --------------------------------
@@ -17401,6 +17515,8 @@ $('#btnSubjects').addEventListener('click', manageSubjects);
 $('#tabsMore').addEventListener('click', e => { e.stopPropagation(); toggleMoreMenu(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTabSheet(); });
 $('#btnAlerts').addEventListener('click', () => openAlertCenter());
+$('#btnTopPull').addEventListener('click', openTopPull);
+$('#btnTopPush').addEventListener('click', openTopPush);
 $('#tabsBell').addEventListener('click', () => openAlertCenter());
 /* ประกาศกับกิจกรรมต้องหายเองเมื่อพ้นเวลา แม้ครูเปิดหน้าค้างไว้ทั้งวันโดยไม่ได้กดอะไร
    วาดหน้าภาพรวมใหม่เฉพาะเมื่อรายการเปลี่ยนจริง และไม่วาดทับตอนครูกำลังพิมพ์หรือเปิดหน้าต่างอยู่ */
