@@ -4118,6 +4118,7 @@ function mountNoticeCard(pane) {
 }
 
 function renderDashboard() {
+  ensureHomeroomShareListener();   // วันเปลี่ยน/ตารางสอนเพิ่งมาถึง → ฟังสรุปแถวเช้าของห้องที่สอนวันนี้ใหม่
   const dashSearchHadFocus = !!(document.activeElement && document.activeElement.id === 'dashGlobalSearch');
   const pane = $('#pane-dashboard'), period = curPeriod(), cls = curClass(), sub = curSubject(), teacher = curTeacher(), homeroom = teacher ? DB.classes.find(c => c.id === teacher.homeroomClassId) : null;
   const students = cls ? (cls.students || []).slice().sort((a, b) => num(a.no) - num(b.no)) : [];
@@ -4575,17 +4576,32 @@ function homeroomSharedNotice(d) {
     ' • แสดงผลตามที่เช็กไว้ ถ้าต้องแก้ ให้แก้แล้วกดบันทึก</div>';
 }
 
+/** คาบแรกหลังเข้าแถวที่ครูคนอื่นสอน: ผลเช็กแถวเช้าอยู่ในสมุดของครูที่ปรึกษา สมุดครูประจำวิชาไม่มี
+    จึงรับช่วงจากสรุปแถวเช้าส่วนกลาง (homeroomDaily) — ขาดแถว/ลา ส่งต่อให้ตรวจ ส่วนมาสายถือว่ามาถึงแล้ว
+    ถ้าครูคนนี้เช็กคาบก่อนหน้าในสมุดตัวเองไว้ ใช้ของตัวเองก่อน เพราะใหม่กว่า */
+function homeroomCarryOver(entry, date, students) {
+  if (!entry || String(entry.slotId) === 'assembly') return null;
+  const d = ensureAffairs().homeroomDaily[date + '_' + conductSidKey(entry.classId)];
+  if (!d || d.date !== date) return null;
+  const st = {}; students.forEach(x => { st[x.sid] = 'present'; });
+  ['absent', 'leave'].forEach(k => (d[k] || []).forEach(sid => { if (sid in st) st[sid] = k; }));
+  return { statuses: st, entryId: '', slotId: 'assembly', subjectId: '', teacherName: d.teacherName || '', checkedAt: d.checkedAt || '',
+    morningLate: (d.late || []).filter(sid => sid in st).length };
+}
 /** ฟังสรุปแถวเช้าของห้องที่ปรึกษาย้อนหลัง 14 วัน — ใช้ชื่อเอกสารตรง ๆ อ่านไม่เกิน 14 เอกสาร
     ไม่ฟังทั้งคอลเลกชัน เพราะครูที่ปรึกษาหลายสิบคนเปิดแอปทุกวันจะกินโควตาอ่านฟรี */
 let homeroomShareKey = '', homeroomShareUnsub = [];
 function ensureHomeroomShareListener() {
   if (!firebaseReady() || !fbSignedIn() || !fbUnsub.length) return;
-  const me = curTeacher(), cid = me && me.homeroomClassId, today = todayISO(), key = cid ? cid + '@' + today : '';
+  const me = curTeacher(), cid = me && me.homeroomClassId, today = todayISO();
+  /* ห้องที่ฉันสอน — คาบแรกหลังเข้าแถวรับช่วงผลเช็กแถวเช้าของวันนี้จากครูที่ปรึกษา (ดู homeroomCarryOver) */
+  const taught = me ? [...new Set(scheduleEntries(false).filter(e => String(e.slotId) !== 'assembly' && e.classId && e.classId !== cid).map(e => e.classId))].sort() : [];
+  const key = cid || taught.length ? (cid || '') + '@' + today + '|' + taught.join(',') : '';
   if (key === homeroomShareKey) return;
   homeroomShareUnsub.forEach(f => f()); homeroomShareUnsub = []; homeroomShareKey = key;
-  if (!cid) return;
-  const ids = [];
-  for (let i = 0; i < HOMEROOM_SHARE_DAYS; i++) ids.push(isoDate(new Date(Date.now() - i * 86400000)) + '_' + conductSidKey(cid));
+  if (!key) return;
+  const ids = taught.map(c => today + '_' + conductSidKey(c));
+  if (cid) for (let i = 0; i < HOMEROOM_SHARE_DAYS; i++) ids.push(isoDate(new Date(Date.now() - i * 86400000)) + '_' + conductSidKey(cid));
   const a = ensureAffairs(), docId = firebase.firestore.FieldPath.documentId();
   for (let i = 0; i < ids.length; i += 10) {   // เงื่อนไข in รับได้ครั้งละ 10 รายการ
     homeroomShareUnsub.push(fbDb.collection('homeroomDaily').where(docId, 'in', ids.slice(i, i + 10)).onSnapshot(snap => {
@@ -4880,6 +4896,7 @@ function inheritNoticeHtml(inherited, students) {
         '<span class="hint">— นักเรียนอาจมาหลังคาบก่อนหน้า กดเลขที่เพื่อไปที่แถวนั้น</span>' +
         '<div class="need-list">' + chips + '</div></div>'
       : '<div style="margin-top:7px" class="hint">คาบก่อนหน้ามาเรียนครบทุกคน ตรวจแล้วกดบันทึกได้เลย</div>') +
+    (inherited.morningLate ? '<div style="margin-top:5px" class="hint">มาสายตอนเข้าแถว ' + inherited.morningLate + ' คน — ถึงโรงเรียนแล้ว จึงตั้งเป็น “มา”</div>' : '') +
     '</div>';
 }
 
@@ -4892,7 +4909,7 @@ function openAttendance(entry, date, singleMode, slotOverride) {
   if (!cls) return toast('ไม่พบชั้นเรียนของคาบนี้', 'bad');
   const groupedEntries = singleMode ? [entry] : adjacentAttendanceEntries(entry);
   const students = (cls.students || []).slice().sort((a, b) => num(a.no) - num(b.no));
-  const key = attendanceKey(entry.id, date), old = DB.timetable.attendance[key], shared = old ? null : homeroomSharedCheck(entry, date), inherited = old ? null : shared ? homeroomSharedStatuses(shared, students) : previousAttendanceSnapshot(entry, date), statusSource = old || inherited;
+  const key = attendanceKey(entry.id, date), old = DB.timetable.attendance[key], shared = old ? null : homeroomSharedCheck(entry, date), inherited = old ? null : shared ? homeroomSharedStatuses(shared, students) : (previousAttendanceSnapshot(entry, date) || homeroomCarryOver(entry, date, students)), statusSource = old || inherited;
   openModal({
     title: 'เช็กชื่อ' + (groupedEntries.length > 1 ? 'พร้อมกัน ' + groupedEntries.length + ' คาบ' : '') + ' • ' + (subject ? (subject.code ? subject.code + ' ' : '') + subject.name : 'วิชา') + ' • ' + cls.name,
     wide: true, full: true, buttonsTop: true,
@@ -6718,6 +6735,7 @@ function bindMissedCard(pane) {
 }
 
 function renderAttendancePage() {
+  ensureHomeroomShareListener();   // วันเปลี่ยน/ตารางสอนเพิ่งมาถึง → ฟังสรุปแถวเช้าของห้องที่สอนวันนี้ใหม่
   const pane = $('#pane-attendance');
   if (!curPeriod()) { pane.innerHTML = '<div class="card"><div class="empty">กรุณาเลือกปี/ภาคเรียนก่อน</div></div>'; return; }
   const date = DB.ui.attendanceDate || todayISO(), d = parseISODate(date) || new Date(), day = d.getDay();
@@ -14512,26 +14530,40 @@ function ensureAffairsListeners(hrDate) {
   /* แอปสแกนใบหน้าเขียนเหตุการณ์เข้าประตูไว้ เครื่องฝ่ายกิจการฯ แปลงเป็นรายการมาสายให้
      รหัสรายการกำหนดตายตัว สองเครื่องแปลงซ้ำกันก็ได้ผลเดียวกัน ไม่หักซ้ำ */
   const today = todayISO();
+  const applyGate = docs => {
+    let added = 0;
+    docs.forEach(doc => {
+      const ev = doc.data() || {}, at = ev.at ? new Date(ev.at) : null;
+      if (!ev.sid || !at || isNaN(at) || !ev.date) return;
+      const time = pad2(at.getHours()) + ':' + pad2(at.getMinutes());
+      const day = a.arrivals[ev.date] = a.arrivals[ev.date] || {};
+      if (!day[ev.sid] || day[ev.sid] > time) day[ev.sid] = time;
+      const r = recordLateArrival(ev.sid, { date: ev.date, time: time, method: ev.method || 'face' });
+      if (r.status === 'added') added++;
+    });
+    save(true);
+    if (added && DB.ui.tab === 'affairs') render();
+    return added;
+  };
   if (isAffairsStaff() && affairsListen.gateDate !== today) {
     if (affairsListen.gateUnsub) affairsListen.gateUnsub();
     affairsListen.gateDate = today;
     const unsub = fbDb.collection('gateEvents').where('date', '==', today).onSnapshot(snap => {
-      let added = 0;
-      snap.docChanges().forEach(ch => {
-        if (ch.type === 'removed') return;
-        const ev = ch.doc.data() || {}, at = ev.at ? new Date(ev.at) : null;
-        if (!ev.sid || !at || isNaN(at)) return;
-        const time = pad2(at.getHours()) + ':' + pad2(at.getMinutes());
-        const day = a.arrivals[ev.date || today] = a.arrivals[ev.date || today] || {};
-        if (!day[ev.sid] || day[ev.sid] > time) day[ev.sid] = time;
-        const r = recordLateArrival(ev.sid, { date: ev.date || today, time: time, method: ev.method || 'face' });
-        if (r.status === 'added') added++;
-      });
-      save(true);
-      if (added && DB.ui.tab === 'affairs') render();
+      applyGate(snap.docChanges().filter(ch => ch.type !== 'removed').map(ch => ch.doc));
     }, quiet);
     affairsListen.gateUnsub = unsub;
     fbUnsub.push(() => { unsub(); affairsListen.gateDate = ''; affairsListen.gateUnsub = null; });
+    /* วันที่ไม่มีเครื่องฝ่ายกิจการฯ เปิดค้างไว้ (หรือปิดเครื่องก่อนนักเรียนที่มาสายสแกน) รายการมาสายจากประตูจะตกหล่น
+       จึงตามเก็บย้อนหลัง 7 วัน วันละครั้งต่อเครื่อง — วันที่ผ่านไปแล้วไม่มีเหตุการณ์ใหม่ อ่านครบครั้งเดียวก็ปิดวันนั้นได้ */
+    const done = a.sync.gateClosed = a.sync.gateClosed && typeof a.sync.gateClosed === 'object' ? a.sync.gateClosed : {};
+    const since = shiftISODate(today, -7);
+    Object.keys(done).forEach(d => { if (d < since) delete done[d]; });
+    const pending = [];
+    for (let i = 1; i <= 7; i++) { const d = shiftISODate(today, -i); if (!done[d]) pending.push(d); }
+    pending.reduce((chain, d) => chain.then(() => fbDb.collection('gateEvents').where('date', '==', d).get().then(snap => {
+      const n = applyGate(snap.docs); done[d] = true; save(true);
+      if (n) toast('ตามเก็บมาสายจากประตูโรงเรียนย้อนหลัง ' + thaiDate(d) + ' ' + n + ' คน', 'ok');
+    })), Promise.resolve()).catch(() => { /* ออฟไลน์ — เปิดครั้งหน้าค่อยตามเก็บต่อ */ });
   }
 }
 /* ---- สแกนหน้าด้วยกล้องมือถือ (แอปเช็คชื่อด้วยใบหน้าของโรงเรียน) --------------------
