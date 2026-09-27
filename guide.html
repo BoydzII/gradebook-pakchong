@@ -292,7 +292,7 @@ function api(my) {
   return {
     wait,
     /* เปลี่ยนคำบรรยายกลางขั้น: รอเสียงพากย์ประโยคก่อนหน้าจบก่อน ภาพกับเสียงจะได้ไปด้วยกัน */
-    async cap(html) { while (Voice.on && !Voice.blocked && (speechSynthesis.speaking || speechSynthesis.pending)) await wait(150);
+    async cap(html) { while (Voice.on && !Voice.blocked && voiceBusy()) await wait(150);
       capEl.classList.add('fade'); setTimeout(() => { capEl.innerHTML = html; capEl.classList.remove('fade'); }, reduce ? 0 : 180); speak(html); },
     async move(sel, ms = 800) { const c = center(sel); if (!c) return; cursor().style.transitionDuration = (reduce ? 0 : ms / speed) + 'ms';
       cursor().style.transform = 'translate(' + (c.x - 6) + 'px,' + (c.y - 4) + 'px)'; await wait(ms); },
@@ -311,29 +311,58 @@ function api(my) {
   };
 }
 
-/* ---------------- เสียงบรรยาย (Web Speech API) ----------------
-   ใช้เสียงภาษาไทยที่มีในเครื่อง ไม่ต้องมีไฟล์เสียง คุณภาพขึ้นกับอุปกรณ์:
-   Edge มีเสียง Premwadee/Niwat (ธรรมชาติที่สุด) • Android/iPhone มีเสียงไทยในตัว • Windows มี Pattara
+/* ---------------- เสียงบรรยาย ----------------
+   หลัก: ไฟล์เสียงที่อัดไว้ล่วงหน้าด้วยเสียง neural ภาษาไทย (guide-audio/*.mp3 จาก tools/make_guide_audio.py)
+   ทุกเครื่องได้เสียงเดียวกัน ลื่นเหมือนคนพูด ไม่ขึ้นกับว่าเครื่องมีเสียงไทยหรือไม่
+   สำรอง: คำบรรยายที่ยังไม่มีไฟล์ (เพิ่งแก้ข้อความ) ใช้เสียงไทยของเครื่องผ่าน Web Speech API
+   ชื่อไฟล์ = แฮชของข้อความที่พูด แก้คำบรรยายเมื่อไหร่ ไฟล์เดิมไม่ตรงอีก จึงไม่มีทางเล่นเสียงผิดประโยค
    เบราว์เซอร์ไม่ยอมให้เว็บเปิดเสียงเองก่อนผู้ใช้แตะหน้า จึงต้องกดปุ่มเปิดเสียงครั้งแรก แล้วจำค่าไว้ */
 const Voice = { on: false, voice: null, blocked: false, ok: 'speechSynthesis' in window };
+const Clips = { map: {}, audio: new Audio(), playing: false };
+Clips.audio.preload = 'auto';
+Clips.audio.onended = () => { Clips.playing = false; };
+Clips.audio.onerror = () => { const was = Clips.playing; Clips.playing = false; if (was && Clips.html) webSpeak(Clips.html); };
 const VOICE_KEY = 'kruspace.guide.voice';
 function pickThaiVoice() {
   if (!Voice.ok) return null;
   const rank = v => /natural|premwadee|niwat/i.test(v.name) ? 3 : /google/i.test(v.name) ? 2 : 1;
   return speechSynthesis.getVoices().filter(v => /^th/i.test(v.lang)).sort((a, b) => rank(b) - rank(a))[0] || null;
 }
-/* คำบรรยายเขียนให้คนอ่าน มีตัวย่อและสัญลักษณ์ที่เครื่องอ่านออกเสียงผิด จึงแปลงก่อนพูด */
+/* คำบรรยายเขียนให้คนอ่าน มีตัวย่อและสัญลักษณ์ที่อ่านออกเสียงผิด จึงแปลงเป็นคำพูดก่อน
+   เว้นวรรคในภาษาไทยคือจุดหยุดหายใจของเครื่องอ่าน จึงแทนสัญลักษณ์คั่นด้วยเว้นวรรคเดียว ไม่ใส่จุลภาคซ้อน */
 const SAY = [[/ปี\/ภาค(เรียน)?/g, 'ปีการศึกษาและภาคเรียน'], [/KruSpace/g, 'ครูสเปซ'], [/ปพ\.\s?5/g, 'ปอพอห้า'], [/SGS/g, 'เอสจีเอส'], [/CSV/g, 'ซีเอสวี'], [/Google/g, 'กูเกิล'], [/Excel/g, 'เอ็กเซล'],
   [/ม\.(\d)\/(\d+)/g, 'มอ$1 ทับ $2'], [/ม\.(\d)/g, 'มอ$1'], [/(\d+)\/(\d+)/g, '$1 จาก $2'], [/(\d+(?:\.\d+)?)\s*%/g, '$1 เปอร์เซ็นต์'],
-  [/\bมส\b|มส(?=[\s,])/g, 'มอสอ'], [/มผ/g, 'มอผอ'], [/ ร /g, ' ร. '], [/(\d{1,2}):(\d{2}) น\./g, '$1 นาฬิกา $2 นาที'],
-  [/☰/g, 'เมนู'], [/[•·]/g, ', '], [/→/g, ' แล้ว '], [/\s*\/\s*/g, ' หรือ '], [/–/g, ' และ '], [/\+/g, ' และ '], [/[“”"()]/g, ' '],
+  [/ ร /g, ' ร. '], [/(\d{1,2}):(\d{2}) น\./g, '$1 นาฬิกา $2 นาที'], [/(\d+)×/g, '$1 เท่า'],
+  [/☰/g, 'เมนู'], [/[•·—]/g, ' '], [/→/g, ' '], [/\s*\/\s*/g, ' หรือ '], [/–/g, ' ถึง '], [/\+/g, ' และ '], [/[“”"()]/g, ''],
   [/[\u{1F300}-\u{1FAFF}\u2600-\u27BF\uFE0F]/gu, ' ']];
 function speakable(html) {
-  let t = html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&[a-z]+;/g, ' ');
+  let t = html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&[a-z]+;/g, ' ');
   SAY.forEach(([re, to]) => { t = t.replace(re, to); });
   return t.replace(/\s+/g, ' ').trim();
 }
+/* แฮช FNV-1a 32 บิตของข้อความที่พูด — ต้องตรงกับที่สคริปต์อัดเสียงใช้ตั้งชื่อไฟล์ */
+function sayKey(text) { let h = 0x811c9dc5; for (const ch of text) { h ^= ch.codePointAt(0); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, '0'); }
+/* ไฟล์เสียงผูกกับ "ข้อความคำบรรยายดิบ" (ไม่ใช่ข้อความที่แปลงแล้ว) — บทพากย์เขียนด้วยมือแยกไว้ใน tools/guide_voice/script.json
+   index.json = { แฮชข้อความดิบ: ชื่อไฟล์ } • ชื่อไฟล์ = แฮชของบทพากย์ อัดใหม่เมื่อไหร่ชื่อไฟล์เปลี่ยน แคชเก่าไม่ค้าง */
+const plainOf = html => html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+const clipOf = html => Clips.map[sayKey(plainOf(html))];
+const clipUrl = file => './guide-audio/' + file;
+fetch('./guide-audio/index.json').then(r => r.ok ? r.json() : {}).then(m => { Clips.map = m || {}; voiceUi(); }).catch(() => {});
+function voiceBusy() { return Clips.playing || (Voice.ok && (speechSynthesis.speaking || speechSynthesis.pending)); }
+function stopVoice() { Clips.audio.pause(); Clips.playing = false; if (Voice.ok) speechSynthesis.cancel(); }
 function speak(html) {
+  if (!Voice.on) return;
+  const file = clipOf(html);
+  if (file) {
+    const a = Clips.audio; a.src = clipUrl(file); a.playbackRate = speed === 1 ? 1 : 1.25; Clips.playing = true;
+    Clips.html = html;   // เผื่อไฟล์เปิดไม่ได้ (ออฟไลน์/ไฟล์หาย) จะได้ให้เสียงของเครื่องพูดประโยคเดิมแทน ไม่เงียบไปเฉย ๆ
+    a.play().then(() => { if (Voice.blocked) { Voice.blocked = false; voiceUi(); } })
+      .catch(e => { if (e && e.name === 'NotAllowedError') { Clips.playing = false; Voice.blocked = true; voiceUi(); } });   // ไฟล์เสีย → onerror พูดแทนให้ (ที่เดียว ไม่ซ้ำ)
+    return;
+  }
+  webSpeak(html);
+}
+function webSpeak(html) {
   if (!Voice.on || !Voice.voice) return;
   const u = new SpeechSynthesisUtterance(speakable(html));
   u.voice = Voice.voice; u.lang = Voice.voice.lang || 'th-TH'; u.rate = speed === 1 ? 1 : 1.3;
@@ -341,27 +370,32 @@ function speak(html) {
   u.onstart = () => { if (Voice.blocked) { Voice.blocked = false; voiceUi(); } };
   speechSynthesis.speak(u);
 }
+/* โหลดเสียงของขั้นถัดไปไว้ก่อน ระหว่างขั้นจะได้ไม่เงียบรอโหลด (service worker เก็บไว้ในแคชให้ด้วย) */
+function prefetchVoice(html) { if (!Voice.on || !html) return; const f = clipOf(html); if (f) fetch(clipUrl(f)).catch(() => {}); }
+function pauseVoice(on) { if (Clips.playing) { if (on) Clips.audio.play().catch(() => {}); else Clips.audio.pause(); } if (Voice.ok) { if (on) speechSynthesis.resume(); else speechSynthesis.pause(); } }
 function voiceUi() {
   const b = document.getElementById('bVoice'), note = document.getElementById('voiceNote');
-  if (!Voice.ok) { b.hidden = true; return; }
+  const hasClips = Object.keys(Clips.map).length > 0;
+  if (!Voice.ok && !hasClips) { b.hidden = true; return; }
+  b.hidden = false;
   b.classList.toggle('on', Voice.on && !Voice.blocked); b.classList.toggle('blocked', Voice.on && Voice.blocked);
   b.setAttribute('aria-pressed', String(Voice.on));
   b.textContent = !Voice.on ? '🔇 เปิดเสียงบรรยาย' : Voice.blocked ? '🔊 แตะเพื่อเริ่มเสียง' : '🔊 เสียงบรรยาย';
-  const noThai = Voice.on && !Voice.voice;
-  note.hidden = !noThai; if (noThai) note.textContent = 'เครื่องนี้ยังไม่มีเสียงภาษาไทย ลองเปิดด้วย Microsoft Edge หรือมือถือ หรือติดตั้งเสียงภาษาไทยในการตั้งค่าเครื่อง';
+  const noVoice = Voice.on && !hasClips && !Voice.voice;
+  note.hidden = !noVoice; if (noVoice) note.textContent = 'โหลดไฟล์เสียงไม่ได้ และเครื่องนี้ไม่มีเสียงภาษาไทย ลองต่ออินเทอร์เน็ตแล้วเปิดใหม่';
 }
 function setVoice(on) {
   Voice.on = on; Voice.blocked = false; Voice.voice = Voice.voice || pickThaiVoice();
   try { localStorage.setItem(VOICE_KEY, on ? '1' : '0'); } catch (e) { /* โหมดส่วนตัว — ไม่จำค่า */ }
-  if (Voice.ok) speechSynthesis.cancel();
+  stopVoice();
   if (on) speak(capEl.innerHTML);
   voiceUi();
 }
 if (Voice.ok) {
   Voice.voice = pickThaiVoice();
   speechSynthesis.onvoiceschanged = () => { Voice.voice = Voice.voice || pickThaiVoice(); voiceUi(); };
-  try { Voice.on = localStorage.getItem(VOICE_KEY) === '1'; } catch (e) { Voice.on = false; }
 }
+try { Voice.on = localStorage.getItem(VOICE_KEY) === '1'; } catch (e) { Voice.on = false; }
 
 /* ---------------- ชิ้นส่วนหน้าจอแอป ---------------- */
 const TABS = ['ภาพรวม', 'เช็กชื่อ', 'แลกคาบ / การลา', 'กรอกคะแนน', 'หัวข้อคะแนน', 'สรุป / ส่งออก'];
@@ -399,6 +433,7 @@ const CH_T = [
   { t: 'เข้าสู่ระบบ + หน้าภาพรวม', d: 'ทางเข้า • แถบเลือก • กระดิ่ง • ค้นหา' },
   { t: 'เช็กชื่อ', d: 'คาบวันนี้ • ติ๊กสถานะ • คาบค้าง' },
   { t: 'คะแนนและ ปพ.5', d: 'หัวข้อ • กรอก • สรุป • เผยแพร่ • SGS' },
+  { t: 'ตัวชี้วัด / ผลการเรียนรู้', d: 'หลักสูตร • วางจาก Excel • คัดลอก • แชร์' },
   { t: 'แลกคาบ / การลา', d: 'หาครู • ส่งคำขอ • ตอบรับ • ใบลา' }
 ];
 const GW = [['TEACHER', 'ครู', '#ff3d9a', .262], ['ADMINISTRATION SCHOOL', 'ผู้บริหาร<br>สถานศึกษา', '#9b7bff', .43], ['STUDENT AFFAIRS', 'กิจการ<br>นักเรียน', '#f5c518', .60], ['STUDENT', 'นักเรียน', '#5ec8ff', .752]];
@@ -495,25 +530,54 @@ const STEPS_T = [
       await a.wait(500); a.hl('#sgsCard'); await a.click('#sgsCopy'); a.toast('คัดลอกคะแนน ม.2/3 แล้ว', 'ok'); await a.wait(1600);
       await a.cap('ไม่ต้องใส่รหัสผ่าน SGS ในแอป — ครูล็อกอิน SGS เอง แล้วกดบุ๊กมาร์กบนหน้านั้น • ตรวจกับ SGS อีกครั้งก่อนยืนยัน'); await a.wait(3200); a.hl(null); } },
 
-  /* ---------------- บท 4 ---------------- */
-  { ch: 3, cap: 'บทที่ 4 • <b>แลกคาบ / การลา</b>', build: () => titleCard(4, 'แลกคาบ / การลา', 'หาครูที่ว่างให้อัตโนมัติ ส่งคำขอ รับการตอบรับ และพิมพ์บันทึกข้อความได้ในที่เดียว'), run: async a => { await a.wait(3000); } },
-  { ch: 3, cap: 'แท็บ <b>แลกคาบ / การลา</b> — เลือก <b>แลกคาบปกติ</b> แล้วเลือกคาบที่ต้องการจัดการ', build: () => shell('แลกคาบ / การลา', exPage()), run: async a => {
+
+  /* ---------------- บท 4 ตัวชี้วัด / ผลการเรียนรู้ ---------------- */
+  { ch: 3, cap: 'บทที่ 4 • <b>ตัวชี้วัดและผลการเรียนรู้</b>', build: () => titleCard(4, 'ตัวชี้วัด / ผลการเรียนรู้', 'ใส่ตัวชี้วัดของวิชาครั้งเดียว ใช้ต่อได้ทั้งภาค คัดลอกไปห้องอื่น และแบ่งปันให้เพื่อนครูได้'), run: async a => { await a.wait(3000); } },
+  { ch: 3, cap: 'เปิดเมนู <b>☰</b> แล้วเลือก <b>ตัวชี้วัด</b> — หรือกดปุ่ม <b>เปิดหน้าตัวชี้วัด</b> ในหน้าหัวข้อคะแนนก็ได้', build: () => shell('', indPage(false)), run: async a => {
+      await a.click('#menuBtn');
+      stage.querySelector('.scr').insertAdjacentHTML('beforeend', '<div class="menu-sheet"><b>ไปที่หน้า</b><div class="grid"><div>✎ คะแนน</div><div>☰ หัวข้อคะแนน</div><div id="mInd" style="border-color:var(--brand);color:var(--brand)">◇ ตัวชี้วัด</div><div>◉ คะแนนกลุ่ม</div></div></div>');
+      await a.wait(600); await a.click('#mInd'); stage.querySelector('.menu-sheet').remove(); await a.wait(600);
+      await a.cap('หน้าตัวชี้วัดแสดงของ <b>วิชาและห้องที่เลือกไว้ที่แถบบน</b> มีทางเพิ่มตัวชี้วัด 5 แบบ'); a.hl('#indActions'); await a.wait(3200); a.hl(null); } },
+  { ch: 3, cap: 'วิชาพื้นฐาน กด <b>เลือกจากหลักสูตร</b> แล้วติ๊กตัวชี้วัดจากฐานข้อมูลของโรงเรียน', build: () => shell('', indPage(false)), run: async a => {
+      await a.click('#indCore');
+      a.modal('เลือกตัวชี้วัดจากหลักสูตร', '<div class="row" style="gap:8px;margin-bottom:10px"><span class="sel">วิทยาศาสตร์และเทคโนโลยี</span><span class="sel">ม.2</span><span class="cellin" style="flex:1;justify-content:start;padding:0 10px;display:flex;color:var(--mute)">ค้นหาตัวชี้วัด</span></div>' +
+        IND.map((r, i) => '<div class="res" style="margin-top:6px"><span class="chk" id="ic' + i + '" style="--c:var(--brand)"></span><div><b>' + r[0] + '</b> <span class="badge ' + (r[2] === 'S' ? 'grp' : '') + '">' + (r[2] === 'S' ? 'ปลายทาง' : 'กลางทาง') + '</span><div class="hint">' + r[1] + '</div></div></div>').join(''),
+        '<span class="btn">ยกเลิก</span><span class="btn primary" id="icAdd">เพิ่มที่เลือก</span>');
+      for (const i of [0, 1, 2, 3]) { await a.click('#ic' + i); a.set('#ic' + i, e => e.classList.add('on')); await a.wait(250); }
+      a.set('#icAdd', e => e.textContent = 'เพิ่มที่เลือก 4 ข้อ'); await a.wait(500); await a.click('#icAdd'); a.closeModal(); a.html('#pane', indPage(true)); a.toast('เพิ่มตัวชี้วัด 4 ข้อแล้ว', 'ok'); await a.wait(1800); } },
+  { ch: 3, cap: 'ตาราง <b>ชุดตัวชี้วัดของวิชานี้</b> — แก้รหัส ข้อความ ประเภท เวลา และคะแนนได้ในตาราง ระบบบันทึกให้อัตโนมัติ', build: () => shell('', indPage(true)), run: async a => {
+      await a.wait(400); a.hl('#indTable'); await a.wait(1400); a.set('#k2', e => { e.textContent = 'ปลายทาง'; e.className = 'badge grp'; }); await a.click('#k2'); await a.wait(1200); a.hl(null);
+      await a.cap('แถบสรุปบอก <b>จำนวนกลางทาง ปลายทาง รวมเวลา และรวมคะแนน</b> ใช้ตรวจว่าครบตามโครงสร้างรายวิชา'); a.hl('#indSum'); await a.wait(3000); a.hl(null); } },
+  { ch: 3, cap: 'วิชาเพิ่มเติม กด <b>พิมพ์เอง / วางจาก Excel</b> คัดลอกตารางผลการเรียนรู้มาวางได้ทีเดียวทั้งชุด', build: () => shell('', indPage(true)), run: async a => {
+      await a.click('#indPaste');
+      a.modal('พิมพ์เอง / วางจาก Excel', '<div class="hint" style="margin-bottom:8px">วางทีละบรรทัด: รหัส • ผลการเรียนรู้ • เวลา • คะแนน</div><div class="cellin" id="pasteBox" style="height:150px;align-items:start;justify-content:start;padding:10px;display:flex;white-space:pre-line;font-weight:400;text-align:left"></div>',
+        '<span class="btn">ยกเลิก</span><span class="btn primary" id="pasteOk">เพิ่มเข้าวิชานี้</span>');
+      await a.type('#pasteBox', 'ผล 1\tอธิบายหลักการทำงานของวงจรไฟฟ้าอย่างง่าย\t4\t10\nผล 2\tออกแบบและทดลองต่อวงจรไฟฟ้า\t6\t15', 18);
+      await a.wait(500); await a.click('#pasteOk'); a.closeModal(); a.toast('เพิ่มผลการเรียนรู้ 2 ข้อแล้ว', 'ok'); await a.wait(1400);
+      await a.cap('ม.ปลาย วิชาฟิสิกส์ เคมี ชีววิทยา โลกฯ และคณิตศาสตร์เพิ่มเติม มีปุ่ม <b>เลือกผลการเรียนรู้ สสวท.</b> ให้เลือกได้เลย'); a.hl('#indIpst', 5); await a.wait(3000); a.hl(null); } },
+  { ch: 3, cap: 'สอนหลายห้อง กด <b>คัดลอกไปห้องอื่น</b> • ใช้ชุดของเพื่อนครู กด <b>ขอจากครูท่านอื่น</b> • ส่งชุดของเราให้คนอื่นใช้ กด <b>แชร์ให้เพื่อนครู</b>', build: () => shell('', indPage(true)), run: async a => {
+      await a.wait(400); a.hl('#indCopy', 5); await a.move('#indCopy'); await a.wait(1600); a.hl('#indFrom', 5); await a.move('#indFrom'); await a.wait(1600); a.hl('#indShare', 5); await a.move('#indShare'); await a.wait(1600); a.hl(null);
+      await a.cap('ชุดตัวชี้วัด<b>เก็บไว้กับสมุดคะแนนของวิชานี้</b> กดอัปข้อมูลแล้วใช้ได้ทุกเครื่องที่เข้าสู่ระบบ'); await a.wait(2600); } },
+
+  /* ---------------- บท 5 ---------------- */
+  { ch: 4, cap: 'บทที่ 5 • <b>แลกคาบ / การลา</b>', build: () => titleCard(5, 'แลกคาบ / การลา', 'หาครูที่ว่างให้อัตโนมัติ ส่งคำขอ รับการตอบรับ และพิมพ์บันทึกข้อความได้ในที่เดียว'), run: async a => { await a.wait(3000); } },
+  { ch: 4, cap: 'แท็บ <b>แลกคาบ / การลา</b> — เลือก <b>แลกคาบปกติ</b> แล้วเลือกคาบที่ต้องการจัดการ', build: () => shell('แลกคาบ / การลา', exPage()), run: async a => {
       await a.wait(500); a.hl('#modeSwap', 4); await a.wait(1500); a.hl(null); await a.click('#exSrc2');
       a.set('#exSrc2', e => { e.style.borderColor = 'var(--brand)'; e.style.background = '#f3f7ff'; }); await a.wait(700);
       a.set('#cands', e => e.style.opacity = 1); await a.cap('ระบบค้นหา <b>ครูที่ว่างในคาบนั้น</b> ให้เอง แยกเป็น สลับคาบ • แลกคาบ • สอนแทน'); a.hl('#cands'); await a.wait(2800); a.hl(null); } },
-  { ch: 3, cap: 'กด <b>ส่งคำขอ</b> ที่ครูที่เลือก — อีกฝ่ายจะเห็นในกระดิ่งแจ้งเตือนทันที', build: () => shell('แลกคาบ / การลา', exPage(true)), run: async a => {
+  { ch: 4, cap: 'กด <b>ส่งคำขอ</b> ที่ครูที่เลือก — อีกฝ่ายจะเห็นในกระดิ่งแจ้งเตือนทันที', build: () => shell('แลกคาบ / การลา', exPage(true)), run: async a => {
       await a.wait(500); await a.click('#sendC1'); a.set('#sendC1', e => { e.outerHTML = '<span class="badge warn">รอตอบรับ</span>'; }); a.toast('ส่งคำขอถึง ครูวิไล แล้ว', 'ok'); await a.wait(2400); } },
-  { ch: 3, cap: 'ฝั่ง <b>ครูผู้รับ</b>: เปิดกระดิ่ง แล้วกด <b>ตอบรับ</b> — ระบบย้ายคาบในตารางให้ทั้งสองคน', build: () => shell('ภาพรวม', dashPane(), { bell: 1 }), run: async a => {
+  { ch: 4, cap: 'ฝั่ง <b>ครูผู้รับ</b>: เปิดกระดิ่ง แล้วกด <b>ตอบรับ</b> — ระบบย้ายคาบในตารางให้ทั้งสองคน', build: () => shell('ภาพรวม', dashPane(), { bell: 1 }), run: async a => {
       await a.click('#bell');
       a.modal('🔔 การแจ้งเตือน', '<div class="res"><span class="av">⇄</span><div><b>ครูสมใจ ขอแลกคาบกับคุณ</b><div class="hint">ศุกร์ 3 ต.ค. คาบ 3 ม.2/5 ↔ จันทร์ 6 ต.ค. คาบ 2 ม.2/1</div></div><span class="sp"></span><span class="btn">ปฏิเสธ</span><span class="btn ok" id="acc">ตอบรับ</span></div>', '<span class="btn">ปิด</span>');
       await a.wait(1200); await a.click('#acc'); a.set('#acc', e => { e.outerHTML = '<span class="badge ok">✓ ตอบรับแล้ว</span>'; }); a.set('#bellN', e => e.textContent = '0'); await a.wait(2400); } },
-  { ch: 3, cap: 'ตอบรับแล้วกด <b>พิมพ์เอกสาร</b> ได้ <b>บันทึกข้อความ</b> ตามแบบราชการ พร้อมลงนามทันที', build: () => '<div class="scr" style="background:#5b6475;padding:40px 0"><div class="sheet" id="sheet"><div class="krut"></div><h4>บันทึกข้อความ</h4><div class="hint">ส่วนราชการ โรงเรียนปากช่อง</div><div class="l" style="width:70%"></div><div class="l"></div><div class="l" style="width:88%"></div><div class="l"></div><div class="l" style="width:62%"></div><div class="l" style="width:92%"></div><div class="l" style="width:78%"></div><div style="text-align:right;margin-top:30px" class="hint">ลงชื่อ ..................................</div><div class="l" style="width:40%;margin-left:auto"></div></div></div>', run: async a => {
+  { ch: 4, cap: 'ตอบรับแล้วกด <b>พิมพ์เอกสาร</b> ได้ <b>บันทึกข้อความ</b> ตามแบบราชการ พร้อมลงนามทันที', build: () => '<div class="scr" style="background:#5b6475;padding:40px 0"><div class="sheet" id="sheet"><div class="krut"></div><h4>บันทึกข้อความ</h4><div class="hint">ส่วนราชการ โรงเรียนปากช่อง</div><div class="l" style="width:70%"></div><div class="l"></div><div class="l" style="width:88%"></div><div class="l"></div><div class="l" style="width:62%"></div><div class="l" style="width:92%"></div><div class="l" style="width:78%"></div><div style="text-align:right;margin-top:30px" class="hint">ลงชื่อ ..................................</div><div class="l" style="width:40%;margin-left:auto"></div></div></div>', run: async a => {
       await a.wait(3200); await a.cap('รวมหลายคำขอเป็นเอกสารฉบับเดียวได้ที่ปุ่ม <b>พิมพ์เอกสารรวม</b>'); await a.wait(2400); } },
-  { ch: 3, cap: 'ถ้าจะลา เลือก <b>ลา / ไปราชการ</b> กรอกประเภทและวันที่ แล้วส่งใบลา', build: () => shell('แลกคาบ / การลา', leavePage()), run: async a => {
+  { ch: 4, cap: 'ถ้าจะลา เลือก <b>ลา / ไปราชการ</b> กรอกประเภทและวันที่ แล้วส่งใบลา', build: () => shell('แลกคาบ / การลา', leavePage()), run: async a => {
       await a.wait(500); await a.click('#lvSick'); a.set('#lvSick', e => { e.style.borderColor = 'var(--brand)'; e.style.background = '#f3f7ff'; }); await a.wait(700);
       await a.click('#lvSend'); a.toast('ส่งใบลาแล้ว • รอผู้บริหารอนุมัติ', 'ok'); await a.wait(1400);
       await a.cap('ผู้บริหารอนุมัติในระบบ • คาบที่ตรงกับวันลาขึ้นให้จัดครูสอนแทนต่อได้เลย หรือให้หัวหน้ากลุ่มสาระจัดให้'); await a.wait(3200); } },
-  { ch: 3, cap: '<b>พร้อมใช้งานแล้ว</b> — เปิดแอปได้ทั้งคอม มือถือ และไอแพด • ติดตั้งเป็นแอปบนหน้าจอหลักได้', build: () => '<div class="title-card"><small>จบการแนะนำ</small><h2>พร้อมใช้งาน KruSpace</h2><p>เช็กชื่อ • กรอกคะแนน • สรุป ปพ.5 • แลกคาบและการลา — ครบในที่เดียว<br>สงสัยตรงไหน กดเลือกบทด้านบนเพื่อดูซ้ำได้</p></div>', run: async a => { await a.wait(4000); } }
+  { ch: 4, cap: '<b>พร้อมใช้งานแล้ว</b> — เปิดแอปได้ทั้งคอม มือถือ และไอแพด • ติดตั้งเป็นแอปบนหน้าจอหลักได้', build: () => '<div class="title-card"><small>จบการแนะนำ</small><h2>พร้อมใช้งาน KruSpace</h2><p>เช็กชื่อ • กรอกคะแนน • สรุป ปพ.5 • แลกคาบและการลา — ครบในที่เดียว<br>สงสัยตรงไหน กดเลือกบทด้านบนเพื่อดูซ้ำได้</p></div>', run: async a => { await a.wait(4000); } }
 ];
 
 
@@ -705,6 +769,19 @@ function exPage(showCands) {
     [['ครูวิไล สุขใจ', 'แลกคาบ • จันทร์ 6 ต.ค. คาบ 2 ม.2/1', 'C1'], ['ครูประเสริฐ ดีงาม', 'สอนแทน • ว่างคาบ 3', 'C2'], ['ครูอรทัย แสงดี', 'สลับคาบ • ศุกร์ คาบ 5', 'C3']]
       .map(c => '<div class="cand"><span class="av">' + c[0].slice(3, 4) + '</span><div><b>' + c[0] + '</b><div class="hint">' + c[1] + '</div></div><span class="sp"></span><span class="btn primary" id="send' + c[2] + '">ส่งคำขอ</span></div>').join('') + '</div></div>';
 }
+const IND = [['ว 2.1 ม.2/1', 'อธิบายองค์ประกอบของวงจรไฟฟ้าอย่างง่ายจากหลักฐานเชิงประจักษ์', 'F'], ['ว 2.1 ม.2/2', 'ใช้โวลต์มิเตอร์และแอมมิเตอร์วัดปริมาณทางไฟฟ้า', 'F'],
+  ['ว 2.3 ม.2/3', 'คำนวณพลังงานไฟฟ้าของเครื่องใช้ไฟฟ้า', 'F'], ['ว 2.3 ม.2/4', 'ออกแบบการใช้เครื่องใช้ไฟฟ้าอย่างประหยัดและปลอดภัย', 'S']];
+function indPage(withRows) {
+  const acts = [['indCore', 'เลือกจากหลักสูตร', 'วิชาพื้นฐาน • ติ๊กเลือกจากฐานตัวชี้วัดของโรงเรียน'], ['indIpst', 'เลือกผลการเรียนรู้ สสวท.', 'วิชาเพิ่มเติม ม.ปลาย'], ['indPaste', 'พิมพ์เอง / วางจาก Excel', 'วิชาเพิ่มเติม • วางทีเดียวทั้งตาราง'],
+    ['indFrom', 'ขอจากครูท่านอื่น', 'หยิบชุดของครูที่สอนวิชาเดียวกัน'], ['indCopy', 'คัดลอกไปห้องอื่น', 'ใช้ชุดเดียวกันกับห้องอื่น']];
+  return '<div class="hero" style="padding:14px 22px"><p>LEARNING INDICATORS</p><h1>ตัวชี้วัด / ผลการเรียนรู้</h1><p>ว22102 วิทยาศาสตร์ 4 • ม.2/3</p></div>' +
+    '<div class="card"><h3>เพิ่มตัวชี้วัดเข้าวิชานี้</h3><div class="tiles" id="indActions">' + acts.map(x => '<div class="tile" id="' + x[0] + '"><b style="font-size:16px">' + x[1] + '</b><span class="hint">' + x[2] + '</span></div>').join('') + '</div></div>' +
+    '<div class="card"><div class="row"><h3 style="margin:0">ชุดตัวชี้วัดของวิชานี้</h3><span class="sp"></span><span class="btn" id="indShare">แชร์ให้เพื่อนครู</span></div>' +
+    (withRows ? '<div class="row" id="indSum" style="gap:14px;margin:8px 0;flex-wrap:wrap"><span class="badge">รวม 4 ข้อ</span><span class="badge">กลางทาง 3</span><span class="badge grp">ปลายทาง 1</span><span class="badge">รวมเวลา 14 ชม.</span><span class="badge">รวมคะแนน 40</span></div>' +
+      '<table class="g" id="indTable"><thead><tr><th class="n">ที่</th><th>รหัส</th><th>ตัวชี้วัด / ผลการเรียนรู้</th><th>ประเภท</th><th class="n">เวลา</th><th class="n">คะแนน</th></tr></thead><tbody>' +
+      IND.map((r, i) => '<tr><td class="n">' + (i + 1) + '</td><td>' + r[0] + '</td><td>' + r[1] + '</td><td><span class="badge ' + (r[2] === 'S' ? 'grp' : '') + '" id="k' + i + '">' + (r[2] === 'S' ? 'ปลายทาง' : 'กลางทาง') + '</span></td><td class="n">' + [3, 3, 4, 4][i] + '</td><td class="n">' + [10, 10, 10, 10][i] + '</td></tr>').join('') + '</tbody></table>'
+      : '<div class="hint" style="padding:14px 0">ยังไม่มีตัวชี้วัดในวิชานี้ — เลือกจากหลักสูตรถ้าเป็นวิชาพื้นฐาน หรือพิมพ์เองถ้าเป็นวิชาเพิ่มเติม</div>') + '</div>';
+}
 function leavePage() {
   return '<div class="mode"><div>แลกคาบปกติ<span>สลับคาบ แลกคาบ หรือหาครูสอนแทน</span></div><div class="on">ลา / ไปราชการ<span>แจ้งการลาแล้วจัดคาบที่ติดให้ครบ</span></div></div>' +
     '<div class="card" style="max-width:820px"><h3>แจ้งการลา / ขออนุญาตไปราชการ</h3><div class="row" style="gap:8px;flex-wrap:wrap">' +
@@ -715,6 +792,7 @@ function leavePage() {
 
 /* ---------------- ควบคุมการเล่น ---------------- */
 const chaps = document.getElementById('chapters');
+chaps.style.gridTemplateColumns = matchMedia('(max-width:640px)').matches ? '' : 'repeat(' + CH.length + ',1fr)';
 chaps.innerHTML = CH.map((c, i) => '<button data-ch="' + i + '"><b>' + (i + 1) + '. ' + c.t + '</b><span>' + c.d + '</span><i></i></button>').join('');
 const firstOf = ch => STEPS.findIndex(s => s.ch === ch);
 function ui() {
@@ -731,18 +809,19 @@ async function go(i) {
   if (resumeWait) { const r = resumeWait; resumeWait = null; r(); }
   const s = STEPS[cur];
   stage.innerHTML = s.build() + cursorSvg;
-  if (Voice.ok) speechSynthesis.cancel();
+  stopVoice();
   capEl.innerHTML = s.cap; ui(); speak(s.cap);
+  if (STEPS[cur + 1]) prefetchVoice(STEPS[cur + 1].cap);
   try {
     const A = api(my);
     await s.run(A);
-    while (Voice.on && !Voice.blocked && (speechSynthesis.speaking || speechSynthesis.pending)) await A.wait(150);   // พูดให้จบก่อนไปขั้นถัดไป
+    while (Voice.on && !Voice.blocked && voiceBusy()) await A.wait(150);   // พูดให้จบก่อนไปขั้นถัดไป
     if (my !== token) return;
     await api(my).wait(900);
     if (cur < STEPS.length - 1) go(cur + 1); else { playing = false; ui(); }
   } catch (e) { if (!(e instanceof Stop)) console.error(e); }
 }
-function toggle() { playing = !playing; if (Voice.ok && Voice.on) { if (playing) speechSynthesis.resume(); else speechSynthesis.pause(); }
+function toggle() { playing = !playing; if (Voice.on) pauseVoice(playing);
   if (playing && resumeWait) { const r = resumeWait; resumeWait = null; r(); } if (playing && cur === STEPS.length - 1 && !resumeWait) go(cur); ui(); }
 document.getElementById('bPlay').onclick = toggle;
 document.getElementById('bPrev').onclick = () => go(cur - 1);

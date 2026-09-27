@@ -5,7 +5,7 @@
    วิธีอัปเดตแอปหลังแก้โค้ด: เปลี่ยนเลขเวอร์ชันที่ CACHE_VERSION แล้วอัปโหลดใหม่
    ผู้ใช้จะเห็นแถบแจ้ง "มีเวอร์ชันใหม่" ให้กดอัปเดต */
 
-const CACHE_VERSION = 'v148';
+const CACHE_VERSION = 'v149';
 const CACHE_NAME = 'gradebook-' + CACHE_VERSION;
 
 /* ไฟล์แกนของแอป โหลดไว้ล่วงหน้าให้เปิดออฟไลน์ได้ */
@@ -71,6 +71,15 @@ self.addEventListener('fetch', event => {
   if (url.origin !== self.location.origin) return;
   // sw.js ปล่อยวิ่งตรงไปเน็ตเสมอ หน้าเว็บอ่านเลขเวอร์ชันล่าสุดจากไฟล์นี้ ถ้าตอบจากแคชจะได้เลขเก่าของตัวเอง
   if (url.pathname.endsWith('/sw.js')) return;
+  // รายชื่อไฟล์เสียงคู่มือ: เอาของใหม่จากเน็ตก่อน ออฟไลน์ค่อยใช้ในแคช
+  // ถ้าตอบจากแคชก่อน อัดเสียงใหม่แล้วเครื่องผู้ใช้จะยังชี้ไปไฟล์ชุดเก่าที่ลบไปแล้ว
+  if (url.pathname.endsWith('/guide-audio/index.json')) {
+    event.respondWith(fetch(req).then(res => {
+      if (res && res.ok) { const copy = res.clone(); caches.open(CACHE_NAME).then(c => c.put(req, copy)); }
+      return res;
+    }).catch(() => caches.match(req).then(r => r || new Response('{}', { headers: { 'Content-Type': 'application/json' } }))));
+    return;
+  }
 
   // การเปิดหน้าเว็บ: เอาของใหม่จากเน็ตก่อน ถ้าเน็ตล่มค่อยใช้ของในเครื่อง
   if (req.mode === 'navigate') {
