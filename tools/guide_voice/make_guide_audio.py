@@ -52,12 +52,14 @@ async def main():
         for gender, voice in VOICES.items():
             file = say_key(voice + '|' + RATE + '|' + row['say']) + '.mp3'
             path = os.path.join(OUT, file)
-            if FORCE or not os.path.exists(path):
+            # ไฟล์ว่างจากรอบที่เน็ตหลุดกลางทาง ถือว่ายังไม่มี ไม่งั้นจะค้างเป็นเสียงเงียบตลอดไป
+            if FORCE or not os.path.exists(path) or os.path.getsize(path) < 1024:
                 for attempt in range(3):
                     try:
                         await edge_tts.Communicate(row['say'], voice, rate=RATE).save(path)
                         break
                     except Exception as e:
+                        if os.path.exists(path): os.remove(path)
                         if attempt == 2: raise
                         await asyncio.sleep(2)
                 made += 1

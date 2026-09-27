@@ -142,6 +142,14 @@ table.g th{font-size:12.5px;color:var(--mute);font-weight:700;background:#f7f9fc
 table.g td.n,table.g th.n{text-align:center;font-variant-numeric:tabular-nums}
 .chk{width:20px;height:20px;border-radius:6px;border:2px solid #c9d3e0;display:inline-block;vertical-align:middle;position:relative;background:#fff}
 .chk.on{background:var(--c);border-color:var(--c)}
+.grpcard{border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin-top:8px;background:#fff}
+.grpcard .ghead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.gchips{display:flex;flex-wrap:wrap;gap:3px;margin-top:6px}
+.gchip{width:24px;height:22px;border-radius:6px;border:1px solid var(--line);display:grid;place-items:center;font-size:11px;font-weight:700;background:#fff;color:var(--mute)}
+.gchip.on{background:var(--group);border-color:var(--group);color:#fff}.gchip.taken{opacity:.3}
+.gassess{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
+.prchip{min-width:26px;height:26px;border-radius:999px;border:1px solid var(--line);display:grid;place-items:center;font-size:12px;font-weight:700;background:#fff}
+.prchip.on{background:var(--ok);border-color:var(--ok);color:#fff}
 .chk.on:after{content:'✓';color:#fff;position:absolute;inset:0;display:grid;place-items:center;font-size:13px;font-weight:800;line-height:1}
 .slotgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
 .slotcell{border:1px solid #e1e7f0;border-radius:12px;padding:10px;min-height:94px;background:#fff;font-size:13px}
@@ -449,7 +457,7 @@ function titleCard(n, title, text) { return '<div class="title-card"><small>บ�
 const CH_T = [
   { t: 'เข้าสู่ระบบ + หน้าภาพรวม', d: 'ทางเข้า • แถบเลือก • กระดิ่ง • ค้นหา' },
   { t: 'เช็กชื่อ', d: 'คาบวันนี้ • ติ๊กสถานะ • คาบค้าง' },
-  { t: 'คะแนนและ ปพ.5', d: 'หัวข้อ • กรอก • สรุป • เผยแพร่ • SGS' },
+  { t: 'คะแนนและ ปพ.5', d: 'หัวข้อ • กรอก • กลุ่ม • สรุป • SGS' },
   { t: 'ตัวชี้วัด / ผลการเรียนรู้', d: 'หลักสูตร • วางจาก Excel • คัดลอก • แชร์' },
   { t: 'แลกคาบ / การลา', d: 'หาครู • ส่งคำขอ • ตอบรับ • ใบลา' }
 ];
@@ -524,7 +532,7 @@ const STEPS_T = [
       await a.cap('เลขสีแดงที่แท็บเช็กชื่อและบนหน้าภาพรวมจะหายไปเมื่อเช็กครบ'); await a.wait(2600); } },
 
   /* ---------------- บท 3 ---------------- */
-  { ch: 2, cap: 'บทที่ 3 • <b>คะแนนและ ปพ.5</b>', build: () => titleCard(3, 'คะแนนและ ปพ.5', 'ตั้งหัวข้อครั้งเดียว กรอกคะแนนเร็วด้วยคีย์บอร์ด ระบบรวมคะแนน ตัดเกรด และส่งเข้า SGS ให้'), run: async a => { await a.wait(3000); } },
+  { ch: 2, cap: 'บทที่ 3 • <b>คะแนนและ ปพ.5</b>', build: () => titleCard(3, 'คะแนนและ ปพ.5', 'ตั้งหัวข้อครั้งเดียว กรอกคะแนนเร็วด้วยคีย์บอร์ด ให้คะแนนงานกลุ่มทีเดียวทั้งกลุ่ม ระบบรวมคะแนน ตัดเกรด และส่งเข้า SGS ให้'), run: async a => { await a.wait(3000); } },
   { ch: 2, cap: 'แท็บ <b>หัวข้อคะแนน</b> — กด <b>+ เพิ่มหัวข้อ</b> ตั้งชื่องาน คะแนนเต็ม และส่วนที่นับ (ก่อน/หลังกลางภาค)', build: () => shell('หัวข้อคะแนน', itemsPage()), run: async a => {
       await a.wait(500); await a.click('#addItem');
       a.set('#itemsBody', e => e.insertAdjacentHTML('beforeend', '<tr id="newRow" style="background:#f3f7ff"><td class="n">5</td><td><span class="cellin" id="newName" style="justify-content:start;padding:0 10px;display:flex;min-width:260px"></span></td><td class="n"><span class="cellin" id="newMax"></span></td><td>ก่อนกลางภาค</td></tr>'));
@@ -535,6 +543,24 @@ const STEPS_T = [
       const v = ['8', '10', '7', '9', '6'];
       for (let i = 0; i < v.length; i++) { a.set('#c' + i, e => e.classList.add('cur')); await a.move('#c' + i, 360); await a.type('#c' + i, v[i], 120); await a.wait(260); a.set('#c' + i, e => { e.classList.remove('cur', 'typing'); }); }
       await a.cap('กรอกเกินคะแนนเต็มจะขึ้นเตือนสีแดง • ใช้ <b>กรอกด้วยเสียง</b> ก็ได้ ระบบฟังตัวเลขแล้วเติมให้'); await a.wait(3000); } },
+  { ch: 2, cap: 'งานกลุ่มใช้แท็บ <b>คะแนนกลุ่ม</b> — กด <b>+ สร้างชุดกลุ่มใหม่</b> แล้วกด <b>แบ่งอัตโนมัติ</b>', build: () => shell('คะแนนกลุ่ม', groupsPage(0), { tabs: GTABS }), run: async a => {
+      await a.wait(500); await a.click('#gsNew'); a.html('#pane', groupsPage(1)); await a.wait(700);
+      await a.click('#gsAuto');
+      a.modal('แบ่งกลุ่มอัตโนมัติ — กลุ่มการทดลอง', '<div class="row" style="gap:10px;margin-bottom:10px"><span class="chk on" style="--c:var(--brand);border-radius:999px"></span> กำหนดจำนวนกลุ่ม <span class="cellin" id="autoN" style="width:60px"></span></div>' +
+        '<div class="row" style="gap:10px"><span class="chk" style="border-radius:999px"></span> กำหนดจำนวนคนต่อกลุ่ม</div>', '<span class="btn">ยกเลิก</span><span class="btn primary" id="autoOk">แบ่งกลุ่ม</span>');
+      await a.type('#autoN', '8', 200); await a.wait(500); await a.click('#autoOk'); a.closeModal(); a.html('#pane', groupsPage(2)); a.toast('แบ่ง 38 คนเป็น 8 กลุ่มแล้ว', 'ok'); await a.wait(1500);
+      await a.cap('ปรับสมาชิกได้ แตะเลขที่เพื่อย้ายเข้าหรือออก หรือพิมพ์ช่วงเลขที่ เช่น <b>1-5, 8</b> • ใครยังไม่มีกลุ่มหรืออยู่ซ้ำสองกลุ่ม ระบบจะเตือน');
+      a.hl('#gr1'); await a.move('#gr1'); await a.wait(3200); a.hl(null); } },
+  { ch: 2, cap: 'ที่แท็บ <b>หัวข้อคะแนน</b> ตั้ง <b>ประเภท</b> ของงานเป็น <b>กลุ่ม</b> แล้วเลือกชุดกลุ่มที่ใช้', build: () => shell('หัวข้อคะแนน', groupItemPage(), { tabs: GTABS }), run: async a => {
+      await a.wait(500); await a.click('#gKind'); a.set('#gKind', e => { e.textContent = 'กลุ่ม'; e.style.color = 'var(--group)'; e.style.fontWeight = '800'; }); await a.wait(700);
+      a.set('#gSet', e => { e.style.opacity = 1; }); await a.click('#gSet'); a.set('#gSet', e => { e.textContent = 'กลุ่มการทดลอง'; }); await a.wait(1800); } },
+  { ch: 2, cap: 'กลับมาที่แท็บ <b>คะแนนกลุ่ม</b> — ลงคะแนนครั้งเดียวต่อกลุ่ม ระบบลงให้สมาชิกทุกคนเอง', build: () => shell('คะแนนกลุ่ม', groupsPage(3), { tabs: GTABS }), run: async a => {
+      await a.wait(500); await a.type('#gs1', '9', 200); await a.wait(300); a.toast('ลง 9 คะแนนให้ กลุ่ม 1 จำนวน 5 คน', 'ok'); await a.wait(1400);
+      await a.type('#gs2', '8', 200); await a.wait(300); a.toast('ลง 8 คะแนนให้ กลุ่ม 2 จำนวน 5 คน', 'ok'); await a.wait(1300);
+      await a.cap('แตะเลขที่ <b>ผู้นำเสนอ</b> ของแต่ละกลุ่ม ระบบนับสถิติว่าใครนำเสนอไปกี่ครั้ง จะได้หมุนเวียนให้ทั่วถึง');
+      for (const n of [2, 4]) { await a.click('#pr1_' + n); a.set('#pr1_' + n, e => e.classList.add('on')); await a.wait(400); }
+      await a.click('#gAll2'); for (let n = 6; n <= 10; n++) a.set('#pr2_' + n, e => e.classList.add('on')); a.set('#gAll2', e => { e.textContent = 'ทั้งกลุ่ม ✓'; e.classList.add('primary'); });
+      await a.wait(2600); } },
   { ch: 2, cap: 'แท็บ <b>สรุป / ส่งออก</b> — รวมคะแนน ตัดเกรด คิดเวลาเรียน และแสดงการกระจายเกรดให้เอง', build: () => shell('สรุป / ส่งออก', summaryPage()), run: async a => {
       await a.wait(400); const h = [8, 14, 22, 30, 38, 26, 18, 10];
       stage.querySelectorAll('.dist div').forEach((d, i) => { d.style.height = h[i] * 3 + 'px'; });
@@ -762,6 +788,34 @@ function scoresPage() {
   return '<div class="card"><div class="row"><h3 style="margin:0">กรอกคะแนน</h3><span class="badge">ม.2/3 • 38 คน</span><span class="sp"></span><span class="btn">🎙 กรอกด้วยเสียง</span></div>' +
     '<table class="g scoregrid" style="margin-top:10px"><thead><tr><th class="n">เลขที่</th><th>ชื่อ – สกุล</th>' + items.map((t, i) => '<th class="n">' + t + '<br><span class="hint">เต็ม ' + [10, 10, 20, 10][i] + '</span></th>').join('') + '<th class="n">รวม</th></tr></thead><tbody>' +
     STUDENTS.slice(0, 6).map((n, r) => '<tr><td class="n">' + (r + 1) + '</td><td>' + n + '</td>' + items.map((t, c) => '<td class="in n"><span class="cellin"' + (c === 3 && r < 5 ? ' id="c' + r + '"' : '') + '>' + (c < 3 ? [9, 8, 7, 10, 6, 8][r] - c : '') + '</span></td>').join('') + '<td class="n"><b>' + (60 + r * 3) + '</b></td></tr>').join('') + '</tbody></table></div>';
+}
+/* แท็บคะแนนกลุ่มของแอปจริง (renderGroups): ชุดกลุ่ม → กลุ่ม (แตะเลขที่/พิมพ์ช่วง) → ช่องคะแนนของหัวข้อประเภทกลุ่ม + ผู้นำเสนอ
+   st: 0 ยังไม่มีชุด • 1 มีชุดแต่ยังไม่มีกลุ่ม • 2 แบ่งกลุ่มแล้ว • 3 ผูกหัวข้อแล้ว มีช่องคะแนน */
+const GTABS = ['ภาพรวม', 'เช็กชื่อ', 'กรอกคะแนน', 'หัวข้อคะแนน', 'คะแนนกลุ่ม', 'สรุป / ส่งออก'];
+function groupsPage(st) {
+  const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
+  const grp = (gi, from, to) => '<div class="grpcard" id="g' + gi + '"><div class="ghead"><span class="sel" style="min-width:90px">กลุ่ม ' + gi + '</span><span class="badge">' + (to - from + 1) + ' คน</span>' +
+      '<span class="cellin" id="gr' + gi + '" style="flex:1;min-width:150px;justify-content:start;padding:0 10px;display:flex">' + from + '-' + to + '</span></div>' +
+    '<div class="gchips">' + range(1, 38).map(n => '<span class="gchip' + (n >= from && n <= to ? ' on' : n <= 10 ? ' taken' : '') + '">' + n + '</span>').join('') + '</div>' +
+    (gi === 1 ? '<div class="hint" style="margin-top:4px">' + STUDENTS.slice(0, 5).join(' • ') + '</div>' : '') +
+    (st >= 3 ? '<div class="gassess"><b style="font-size:13px">รายงานการทดลองกลุ่ม (เต็ม 10)</b><span class="cellin" id="gs' + gi + '" style="width:54px"></span>' +
+      '<span class="hint">ผู้นำเสนอ:</span><span class="btn" id="gAll' + gi + '" style="padding:4px 10px">ทั้งกลุ่ม</span>' +
+      range(from, to).map(n => '<span class="prchip" id="pr' + gi + '_' + n + '">' + n + '</span>').join('') + '</div>' : '') + '</div>';
+  return '<div class="card"><div class="row"><h3 style="margin:0">การจัดกลุ่ม <span class="hint">ว22102 • ม.2/3</span></h3><span class="sp"></span>' +
+      '<span class="btn primary" id="gsNew">+ สร้างชุดกลุ่มใหม่</span><span class="btn">คัดลอกจากชุดเดิม</span></div></div>' +
+    (st === 0 ? '<div class="card"><div class="hint" style="text-align:center;padding:26px 0">ยังไม่มีชุดกลุ่ม — กด “+ สร้างชุดกลุ่มใหม่” เพื่อเริ่ม</div></div>' :
+    '<div class="card" id="gsCard"><div class="row" style="gap:8px"><span class="sel" style="min-width:170px;font-weight:800">กลุ่มการทดลอง</span>' +
+      '<span class="badge grp">' + (st >= 2 ? 8 : 0) + ' กลุ่ม</span>' + (st >= 3 ? '<span class="badge">ใช้กับ 1 หัวข้อ</span>' : '<span class="badge warn">ยังไม่มีหัวข้อคะแนนที่ใช้ชุดนี้</span>') +
+      '<span class="sp"></span><span class="btn">+ เพิ่มกลุ่ม</span><span class="btn" id="gsAuto">แบ่งอัตโนมัติ</span><span class="btn">ทำสำเนา</span></div>' +
+      (st >= 2 ? grp(1, 1, 5) + grp(2, 6, 10) + '<div class="hint" style="margin-top:6px">… กลุ่ม 3–8</div>'
+        : '<div class="hint" style="text-align:center;padding:18px 0">ยังไม่มีกลุ่มในชุดนี้ — กด “+ เพิ่มกลุ่ม” หรือ “แบ่งอัตโนมัติ”</div>') + '</div>');
+}
+/* หัวข้อคะแนนประเภท "กลุ่ม" ต้องเลือกชุดกลุ่ม — ตรงกับตารางหัวข้อคะแนนของแอปจริง */
+function groupItemPage() {
+  const rows = [['ใบงานที่ 1 แรงและการเคลื่อนที่', '10', 'รายบุคคล', '—'], ['สอบย่อยบทที่ 1', '20', 'รายบุคคล', '—']];
+  return '<div class="card" style="max-width:900px"><h3>หัวข้อที่ให้คะแนน</h3><table class="g"><thead><tr><th class="n">#</th><th>ชื่อหัวข้อ</th><th class="n">เต็ม</th><th>ประเภท</th><th>ชุดกลุ่ม</th></tr></thead><tbody>' +
+    rows.map((r, i) => '<tr><td class="n">' + (i + 1) + '</td><td>' + r[0] + '</td><td class="n">' + r[1] + '</td><td>' + r[2] + '</td><td class="hint">' + r[3] + '</td></tr>').join('') +
+    '<tr id="gItemRow" style="background:#f3f7ff"><td class="n">3</td><td>รายงานการทดลองกลุ่ม</td><td class="n">10</td><td><span class="sel" id="gKind">รายบุคคล</span></td><td><span class="sel" id="gSet" style="opacity:.35">—</span></td></tr></tbody></table></div>';
 }
 function summaryPage() {
   return '<div class="card"><div class="row"><h3 style="margin:0">สรุปผล</h3><span class="sp"></span><span class="row" id="sumBtns" style="gap:6px"><span class="btn">ส่งออก Excel (.xlsx)</span><span class="btn">พิมพ์ปก ปพ.5</span></span></div></div>' +
