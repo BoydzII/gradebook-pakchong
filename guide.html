@@ -54,6 +54,10 @@ body{min-height:100dvh;display:flex;flex-direction:column;align-items:center;pad
 .controls{width:min(1180px,100%);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .controls button{font:inherit;border:1px solid var(--line);background:var(--panel);border-radius:10px;min-width:44px;min-height:40px;padding:0 12px;cursor:pointer;color:var(--ink);font-weight:700}
 .controls button.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+#bVoice.on{background:var(--ok-bg);border-color:#bde5cd;color:var(--ok)}
+#bVoice.blocked{animation:pulse 1.4s ease-in-out infinite;border-color:var(--brand);color:var(--brand)}
+@keyframes pulse{50%{box-shadow:0 0 0 6px rgba(31,111,235,.18)}}
+.voice-note{width:min(1180px,100%);font-size:13px;color:var(--warn);margin-top:6px}
 .bar{flex:1;min-width:140px;height:8px;border-radius:99px;background:#dbe3ef;position:relative;cursor:pointer}
 .bar i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:var(--brand);width:0}
 .bar s{position:absolute;top:-3px;bottom:-3px;width:2px;background:#fff;text-decoration:none}
@@ -244,7 +248,9 @@ table.g td.n,table.g th.n{text-align:center;font-variant-numeric:tabular-nums}
   <div class="bar" id="bar"><i id="barFill"></i></div>
   <span class="count" id="count"></span>
   <button id="bSpeed" title="ความเร็ว">1×</button>
+  <button id="bVoice" title="เสียงบรรยายภาษาไทย" aria-pressed="false">🔇 เปิดเสียงบรรยาย</button>
 </div>
+<p class="voice-note" id="voiceNote" hidden></p>
 <p class="rotate">📱 หมุนมือถือเป็นแนวนอนเพื่อดูภาพใหญ่ขึ้น</p>
 <p class="kbd-hint">แป้นลัด: เว้นวรรค = เล่น/หยุด • ← → = ย้อน/ถัดไปทีละขั้น • ข้อมูลในภาพเป็นข้อมูลสมมติ</p>
 
@@ -285,7 +291,9 @@ function api(my) {
   const cursor = () => document.getElementById('cursor');
   return {
     wait,
-    cap(html) { capEl.classList.add('fade'); setTimeout(() => { capEl.innerHTML = html; capEl.classList.remove('fade'); }, reduce ? 0 : 180); },
+    /* เปลี่ยนคำบรรยายกลางขั้น: รอเสียงพากย์ประโยคก่อนหน้าจบก่อน ภาพกับเสียงจะได้ไปด้วยกัน */
+    async cap(html) { while (Voice.on && !Voice.blocked && (speechSynthesis.speaking || speechSynthesis.pending)) await wait(150);
+      capEl.classList.add('fade'); setTimeout(() => { capEl.innerHTML = html; capEl.classList.remove('fade'); }, reduce ? 0 : 180); speak(html); },
     async move(sel, ms = 800) { const c = center(sel); if (!c) return; cursor().style.transitionDuration = (reduce ? 0 : ms / speed) + 'ms';
       cursor().style.transform = 'translate(' + (c.x - 6) + 'px,' + (c.y - 4) + 'px)'; await wait(ms); },
     async click(sel) { if (sel) await this.move(sel); const c = center(sel || cursor()); const cs = cursor().style.transform.match(/-?[\d.]+/g) || [0, 0];
@@ -301,6 +309,58 @@ function api(my) {
       d.innerHTML = '<div class="modal"><header>' + title + '</header><div class="body">' + body + '</div>' + (foot ? '<footer>' + foot + '</footer>' : '') + '</div>'; stage.appendChild(d); },
     closeModal() { const m = $('#mbg'); if (m) m.remove(); }
   };
+}
+
+/* ---------------- เสียงบรรยาย (Web Speech API) ----------------
+   ใช้เสียงภาษาไทยที่มีในเครื่อง ไม่ต้องมีไฟล์เสียง คุณภาพขึ้นกับอุปกรณ์:
+   Edge มีเสียง Premwadee/Niwat (ธรรมชาติที่สุด) • Android/iPhone มีเสียงไทยในตัว • Windows มี Pattara
+   เบราว์เซอร์ไม่ยอมให้เว็บเปิดเสียงเองก่อนผู้ใช้แตะหน้า จึงต้องกดปุ่มเปิดเสียงครั้งแรก แล้วจำค่าไว้ */
+const Voice = { on: false, voice: null, blocked: false, ok: 'speechSynthesis' in window };
+const VOICE_KEY = 'kruspace.guide.voice';
+function pickThaiVoice() {
+  if (!Voice.ok) return null;
+  const rank = v => /natural|premwadee|niwat/i.test(v.name) ? 3 : /google/i.test(v.name) ? 2 : 1;
+  return speechSynthesis.getVoices().filter(v => /^th/i.test(v.lang)).sort((a, b) => rank(b) - rank(a))[0] || null;
+}
+/* คำบรรยายเขียนให้คนอ่าน มีตัวย่อและสัญลักษณ์ที่เครื่องอ่านออกเสียงผิด จึงแปลงก่อนพูด */
+const SAY = [[/ปี\/ภาค(เรียน)?/g, 'ปีการศึกษาและภาคเรียน'], [/KruSpace/g, 'ครูสเปซ'], [/ปพ\.\s?5/g, 'ปอพอห้า'], [/SGS/g, 'เอสจีเอส'], [/CSV/g, 'ซีเอสวี'], [/Google/g, 'กูเกิล'], [/Excel/g, 'เอ็กเซล'],
+  [/ม\.(\d)\/(\d+)/g, 'มอ$1 ทับ $2'], [/ม\.(\d)/g, 'มอ$1'], [/(\d+)\/(\d+)/g, '$1 จาก $2'], [/(\d+(?:\.\d+)?)\s*%/g, '$1 เปอร์เซ็นต์'],
+  [/\bมส\b|มส(?=[\s,])/g, 'มอสอ'], [/มผ/g, 'มอผอ'], [/ ร /g, ' ร. '], [/(\d{1,2}):(\d{2}) น\./g, '$1 นาฬิกา $2 นาที'],
+  [/☰/g, 'เมนู'], [/[•·]/g, ', '], [/→/g, ' แล้ว '], [/\s*\/\s*/g, ' หรือ '], [/–/g, ' และ '], [/\+/g, ' และ '], [/[“”"()]/g, ' '],
+  [/[\u{1F300}-\u{1FAFF}\u2600-\u27BF\uFE0F]/gu, ' ']];
+function speakable(html) {
+  let t = html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&[a-z]+;/g, ' ');
+  SAY.forEach(([re, to]) => { t = t.replace(re, to); });
+  return t.replace(/\s+/g, ' ').trim();
+}
+function speak(html) {
+  if (!Voice.on || !Voice.voice) return;
+  const u = new SpeechSynthesisUtterance(speakable(html));
+  u.voice = Voice.voice; u.lang = Voice.voice.lang || 'th-TH'; u.rate = speed === 1 ? 1 : 1.3;
+  u.onerror = e => { if (e.error === 'not-allowed') { Voice.blocked = true; voiceUi(); } };
+  u.onstart = () => { if (Voice.blocked) { Voice.blocked = false; voiceUi(); } };
+  speechSynthesis.speak(u);
+}
+function voiceUi() {
+  const b = document.getElementById('bVoice'), note = document.getElementById('voiceNote');
+  if (!Voice.ok) { b.hidden = true; return; }
+  b.classList.toggle('on', Voice.on && !Voice.blocked); b.classList.toggle('blocked', Voice.on && Voice.blocked);
+  b.setAttribute('aria-pressed', String(Voice.on));
+  b.textContent = !Voice.on ? '🔇 เปิดเสียงบรรยาย' : Voice.blocked ? '🔊 แตะเพื่อเริ่มเสียง' : '🔊 เสียงบรรยาย';
+  const noThai = Voice.on && !Voice.voice;
+  note.hidden = !noThai; if (noThai) note.textContent = 'เครื่องนี้ยังไม่มีเสียงภาษาไทย ลองเปิดด้วย Microsoft Edge หรือมือถือ หรือติดตั้งเสียงภาษาไทยในการตั้งค่าเครื่อง';
+}
+function setVoice(on) {
+  Voice.on = on; Voice.blocked = false; Voice.voice = Voice.voice || pickThaiVoice();
+  try { localStorage.setItem(VOICE_KEY, on ? '1' : '0'); } catch (e) { /* โหมดส่วนตัว — ไม่จำค่า */ }
+  if (Voice.ok) speechSynthesis.cancel();
+  if (on) speak(capEl.innerHTML);
+  voiceUi();
+}
+if (Voice.ok) {
+  Voice.voice = pickThaiVoice();
+  speechSynthesis.onvoiceschanged = () => { Voice.voice = Voice.voice || pickThaiVoice(); voiceUi(); };
+  try { Voice.on = localStorage.getItem(VOICE_KEY) === '1'; } catch (e) { Voice.on = false; }
 }
 
 /* ---------------- ชิ้นส่วนหน้าจอแอป ---------------- */
@@ -352,7 +412,7 @@ const STEPS_T = [
   { ch: 0, cap: 'เปิดแอป KruSpace จะพบหน้าทางเข้า 4 ช่อง — ครูเลือกช่อง <b>“ครู”</b>', build: gatewayHtml, run: async a => {
       await a.move('#gw2', 900); await a.wait(300); await a.move('#gw0', 700);
       a.set('#gwStage', e => e.classList.add('picked')); a.set('#gw0', e => e.classList.add('on')); await a.wait(1400);
-      a.cap('ช่องที่เลือกจะขยายขึ้น แตะอีกครั้ง (หรือกด <b>เข้าสู่ระบบ →</b>) เพื่อเข้าใช้งาน • หัวหน้ากลุ่มสาระและผู้ดูแลระบบก็เข้าทางช่องนี้');
+      await a.cap('ช่องที่เลือกจะขยายขึ้น แตะอีกครั้ง (หรือกด <b>เข้าสู่ระบบ →</b>) เพื่อเข้าใช้งาน • หัวหน้ากลุ่มสาระและผู้ดูแลระบบก็เข้าทางช่องนี้');
       await a.wait(900); await a.click('#gw0 .go'); await a.wait(1800); } },
   { ch: 0, cap: 'กด <b>เข้าสู่ระบบด้วย Google</b> แล้วเลือกบัญชีของโรงเรียน ระบบตรวจสิทธิ์ให้เอง', build: () => gatewayHtml(), run: async a => {
       a.set('#gwStage', e => e.classList.add('picked')); a.set('#gw0', e => e.classList.add('on'));
@@ -363,10 +423,10 @@ const STEPS_T = [
       await a.wait(500); a.hl('#pPeriod', 5); await a.move('#pPeriod', 700); await a.wait(700);
       a.hl('#pClass', 5); await a.move('#pClass', 600); await a.wait(700);
       a.hl('#pSubject', 5); await a.click('#pSubject'); await a.wait(1200); a.hl(null);
-      a.cap('ถ้าสอนหลายห้อง ให้เปลี่ยน <b>ชั้น</b> หรือ <b>วิชา</b> ตรงนี้ก่อนเช็กชื่อหรือกรอกคะแนน'); await a.wait(2600); } },
+      await a.cap('ถ้าสอนหลายห้อง ให้เปลี่ยน <b>ชั้น</b> หรือ <b>วิชา</b> ตรงนี้ก่อนเช็กชื่อหรือกรอกคะแนน'); await a.wait(2600); } },
   { ch: 0, cap: '<b>ตารางสอนวันนี้</b> — คาบที่กำลังสอนมีกรอบสีน้ำเงิน กด <b>เช็กชื่อ</b> ได้จากหน้านี้เลย', build: () => shell('ภาพรวม', dashPane()), run: async a => {
       await a.wait(500); a.hl('#dToday'); await a.move('#dToday .today.now .btn', 900); await a.wait(2600); a.hl(null);
-      a.cap('ตัวเลขด้านบนบอกงานค้าง: คาบค้างเช็กชื่อ • คะแนนครบทุกส่วน • คะแนนเฉลี่ย'); a.hl('#dMetrics'); await a.wait(2800); a.hl(null); } },
+      await a.cap('ตัวเลขด้านบนบอกงานค้าง: คาบค้างเช็กชื่อ • คะแนนครบทุกส่วน • คะแนนเฉลี่ย'); a.hl('#dMetrics'); await a.wait(2800); a.hl(null); } },
   { ch: 0, cap: '<b>กระดิ่ง 🔔</b> ต่อท้ายแท็บ ตัวเลขคือเรื่องที่รอเรา เช่นนัดประชุม คำขอแลกคาบ กิจกรรมที่ใช้คาบของเรา', build: () => shell('ภาพรวม', dashPane()), run: async a => {
       await a.wait(400); a.hl('#bell', 5); await a.move('#bell'); await a.wait(1200); await a.click('#bell'); a.hl(null);
       a.modal('🔔 การแจ้งเตือน', '<div class="hint" style="font-weight:700;margin-bottom:6px">📣 ประกาศและนัดหมาย</div>' +
@@ -374,42 +434,42 @@ const STEPS_T = [
         '<div class="hint" style="font-weight:700;margin:12px 0 6px">งานที่รอคุณดำเนินการ</div>' +
         '<div class="res"><span class="av">⇄</span><div><b>คำขอแลกคาบ/สอนแทนรอคุณตอบรับ 1 รายการ</b><div class="hint">จาก ครูวิไล • 30 ก.ย. 2569</div></div><span class="sp"></span><span class="btn">ไปจัดการ</span></div>', '<span class="btn">ปิด</span>');
       await a.wait(1400); await a.click('#ack1'); a.set('#ack1', e => { e.outerHTML = '<span class="badge ok">✓ รับทราบแล้ว</span>'; }); a.set('#bellN', e => { e.textContent = '1'; });
-      a.cap('กด <b>รับทราบ</b> ได้ในหน้าต่างนี้เลย ตัวเลขลดลงทันที • นัดที่เลยเวลาแล้วจะหายไปเอง'); await a.wait(2800); } },
+      await a.cap('กด <b>รับทราบ</b> ได้ในหน้าต่างนี้เลย ตัวเลขลดลงทันที • นัดที่เลยเวลาแล้วจะหายไปเอง'); await a.wait(2800); } },
   { ch: 0, cap: '<b>ช่องค้นหา</b> ที่หน้าภาพรวม พิมพ์ได้ทั้งชื่อนักเรียน ห้อง วิชา หรือชื่อเมนู', build: () => shell('ภาพรวม', dashPane()), run: async a => {
       await a.move('#dInp'); await a.click('#dInp'); await a.type('#dInp', 'ชนิดา', 160);
       a.html('#dRes', '<div class="card" style="padding:10px 14px"><div class="hint" style="font-weight:700">นักเรียน</div><div class="res" id="stuRow"><span class="av">ช</span><div><b>เด็กหญิงชนิดา ศรีสุข</b><div class="hint">เลขที่ 2 • 24518 • ม.2/3</div></div><span class="sp"></span><span class="badge bad">ค้างงาน 2</span> <span class="badge warn">ขาด 1 คาบ</span></div></div>');
       a.set('#dMetrics', e => e.style.display = 'none'); await a.wait(1400);
-      a.cap('ผลค้นหาบอกทันทีว่า <b>ค้างงานกี่ชิ้น ขาดเรียนกี่คาบ</b> — กดชื่อเพื่อดูรายละเอียดรายวิชา'); await a.click('#stuRow'); await a.wait(300);
+      await a.cap('ผลค้นหาบอกทันทีว่า <b>ค้างงานกี่ชิ้น ขาดเรียนกี่คาบ</b> — กดชื่อเพื่อดูรายละเอียดรายวิชา'); await a.click('#stuRow'); await a.wait(300);
       a.modal('ข้อมูลนักเรียน', '<div class="row"><span class="av" style="width:44px;height:44px">ช</span><div><b style="font-size:18px">เด็กหญิงชนิดา ศรีสุข</b><div class="hint">เลขประจำตัว 24518 • ม.2/3 เลขที่ 2</div></div></div>' +
         '<div class="res" style="margin-top:12px;border-left:4px solid var(--bad)"><div style="flex:1"><span class="badge grp">วิชาที่ฉันสอน</span> <b>ว22102 วิทยาศาสตร์ 4</b><div style="margin-top:6px"><b>งานเก็บ</b> ส่งแล้ว 4/6 ชิ้น <span class="badge bad">ไม่ส่ง • ใบงานที่ 3</span> <span class="badge bad">ไม่ส่ง • รายงานการทดลอง</span></div>' +
         '<div style="margin-top:6px"><b>เวลาเรียน</b> มา 16 • สาย 1 • ขาด 1 <span class="badge ok">ผ่าน • 94.4%</span></div></div><div style="text-align:right"><b style="font-size:26px;color:var(--brand)">62</b><div class="hint">เกรด ยังไม่ครบ</div></div></div>',
         '<span class="btn">ปิด</span>');
-      await a.wait(1200); a.cap('ครูผู้สอนเห็นเฉพาะวิชาที่ตัวเองสอน • ครูที่ปรึกษาเห็นทุกวิชาของนักเรียนห้องที่ปรึกษา'); await a.wait(3000); } },
+      await a.wait(1200); await a.cap('ครูผู้สอนเห็นเฉพาะวิชาที่ตัวเองสอน • ครูที่ปรึกษาเห็นทุกวิชาของนักเรียนห้องที่ปรึกษา'); await a.wait(3000); } },
   { ch: 0, cap: 'ปุ่ม <b>☰</b> รวมทุกหน้าไว้ ด้านล่างมีปุ่มตรวจเวอร์ชัน — <b>สีเขียว</b> = ล่าสุดแล้ว • <b>สีแดง</b> = กดเพื่ออัปเดต', build: () => shell('ภาพรวม', dashPane()), run: async a => {
       await a.click('#menuBtn');
       stage.querySelector('.scr').insertAdjacentHTML('beforeend', '<div class="menu-sheet" id="msheet"><b>ไปที่หน้า</b><div class="grid"><div>◈ ภาพรวม</div><div>◷ เช็กชื่อ</div><div>⇄ แลกคาบ</div><div>★ กิจกรรม</div><div>✎ คะแนน</div><div>☰ หัวข้อคะแนน</div><div>◉ คะแนนกลุ่ม</div><div>▤ สรุป ปพ.5</div></div>' +
         '<div class="row" style="border-top:1px solid #e6ebf2;padding-top:10px"><span class="hint">เวอร์ชัน v142</span><span class="sp"></span><span class="vbtn" id="vbtn">✓ ล่าสุดแล้ว</span></div></div>');
       await a.wait(700); a.hl('#vbtn', 5); await a.move('#vbtn'); await a.wait(1800);
-      a.set('#vbtn', e => { e.classList.add('old'); e.textContent = '⟳ อัปเดตเป็น v143'; }); a.cap('ถ้าปุ่มเป็นสีแดง แปลว่ามีเวอร์ชันใหม่ กดครั้งเดียวแอปจะโหลดเวอร์ชันใหม่ให้'); await a.wait(3000); a.hl(null); } },
+      a.set('#vbtn', e => { e.classList.add('old'); e.textContent = '⟳ อัปเดตเป็น v143'; }); await a.cap('ถ้าปุ่มเป็นสีแดง แปลว่ามีเวอร์ชันใหม่ กดครั้งเดียวแอปจะโหลดเวอร์ชันใหม่ให้'); await a.wait(3000); a.hl(null); } },
 
   /* ---------------- บท 2 ---------------- */
   { ch: 1, cap: 'บทที่ 2 • <b>เช็กชื่อ</b>', build: () => titleCard(2, 'เช็กชื่อ', 'เช็กชื่อรายคาบให้เสร็จในไม่กี่วินาที ระบบคำนวณเวลาเรียนและเตือน มส ให้เอง'), run: async a => { await a.wait(3000); } },
   { ch: 1, cap: 'ไปที่แท็บ <b>เช็กชื่อ</b> — ตารางแสดงคาบของวันนี้ ช่องสีฟ้าคือคาบที่เราสอน', build: () => shell('เช็กชื่อ', attPage()), run: async a => {
       await a.wait(500); a.hl('[data-tab="เช็กชื่อ"]', 4); await a.wait(1200); a.hl('#slots'); await a.wait(1600); a.hl(null);
-      await a.move('#slot3'); a.cap('กดที่ช่องคาบที่สอน เพื่อเปิดหน้าเช็กชื่อของห้องนั้น'); await a.wait(900); await a.click('#slot3'); await a.wait(800); } },
+      await a.move('#slot3'); await a.cap('กดที่ช่องคาบที่สอน เพื่อเปิดหน้าเช็กชื่อของห้องนั้น'); await a.wait(900); await a.click('#slot3'); await a.wait(800); } },
   { ch: 1, cap: 'ทุกคนตั้งเป็น <b>“มา”</b> ไว้ก่อน ติ๊กเฉพาะคนที่ <b>ขาด ลา สาย</b> หรือไปทำ <b>กิจกรรม</b>', build: () => shell('เช็กชื่อ', attPage()) , run: async a => {
       attModal(a); await a.wait(1400);
       await a.click('#s2-absent'); markAtt('2', 'absent'); await a.wait(700);
       await a.click('#s4-late'); markAtt('4', 'late'); await a.wait(700);
       await a.click('#s6-leave'); markAtt('6', 'leave'); await a.wait(900);
-      a.cap('กดที่ <b>หัวคอลัมน์</b> เพื่อตั้งสถานะทั้งห้อง • หรือแตะที่ชื่อเพื่อวนสถานะ มา → ขาด → ลา → สาย → กิจกรรม'); a.hl('#attHead', 3); await a.wait(3000); a.hl(null); } },
+      await a.cap('กดที่ <b>หัวคอลัมน์</b> เพื่อตั้งสถานะทั้งห้อง • หรือแตะที่ชื่อเพื่อวนสถานะ มา → ขาด → ลา → สาย → กิจกรรม'); a.hl('#attHead', 3); await a.wait(3000); a.hl(null); } },
   { ch: 1, cap: 'กด <b>บันทึกการเช็กชื่อ</b> — ช่องคาบในตารางจะเปลี่ยนเป็นสีเขียว “เช็กแล้ว”', build: () => shell('เช็กชื่อ', attPage()), run: async a => {
       attModal(a); markAtt('2', 'absent'); markAtt('4', 'late'); markAtt('6', 'leave'); await a.wait(900);
       await a.click('#attSave'); a.closeModal(); a.toast('บันทึกการเช็กชื่อแล้ว', 'ok');
       a.set('#slot3', e => { e.classList.add('done'); e.querySelector('.st').innerHTML = '<span class="badge ok">เช็กแล้ว • ขาด 1</span>'; }); a.hl('#slot3', 4); await a.wait(2600); a.hl(null); } },
   { ch: 1, cap: 'คาบที่ผ่านไปแล้วแต่ยังไม่เช็ก จะขึ้นใน <b>คาบค้างเช็กชื่อ</b> — กดเพื่อเช็กย้อนหลังได้ทันที', build: () => shell('เช็กชื่อ', attPage(true)), run: async a => {
       await a.wait(500); a.hl('#missed'); await a.move('#missed .btn'); await a.wait(2600); a.hl(null);
-      a.cap('เลขสีแดงที่แท็บเช็กชื่อและบนหน้าภาพรวมจะหายไปเมื่อเช็กครบ'); await a.wait(2600); } },
+      await a.cap('เลขสีแดงที่แท็บเช็กชื่อและบนหน้าภาพรวมจะหายไปเมื่อเช็กครบ'); await a.wait(2600); } },
 
   /* ---------------- บท 3 ---------------- */
   { ch: 2, cap: 'บทที่ 3 • <b>คะแนนและ ปพ.5</b>', build: () => titleCard(3, 'คะแนนและ ปพ.5', 'ตั้งหัวข้อครั้งเดียว กรอกคะแนนเร็วด้วยคีย์บอร์ด ระบบรวมคะแนน ตัดเกรด และส่งเข้า SGS ให้'), run: async a => { await a.wait(3000); } },
@@ -422,25 +482,25 @@ const STEPS_T = [
   { ch: 2, cap: 'แท็บ <b>กรอกคะแนน</b> — พิมพ์คะแนนแล้วกด Enter ช่องจะเลื่อนลงคนถัดไปเอง', build: () => shell('กรอกคะแนน', scoresPage()), run: async a => {
       const v = ['8', '10', '7', '9', '6'];
       for (let i = 0; i < v.length; i++) { a.set('#c' + i, e => e.classList.add('cur')); await a.move('#c' + i, 360); await a.type('#c' + i, v[i], 120); await a.wait(260); a.set('#c' + i, e => { e.classList.remove('cur', 'typing'); }); }
-      a.cap('กรอกเกินคะแนนเต็มจะขึ้นเตือนสีแดง • ใช้ <b>กรอกด้วยเสียง</b> ก็ได้ ระบบฟังตัวเลขแล้วเติมให้'); await a.wait(3000); } },
+      await a.cap('กรอกเกินคะแนนเต็มจะขึ้นเตือนสีแดง • ใช้ <b>กรอกด้วยเสียง</b> ก็ได้ ระบบฟังตัวเลขแล้วเติมให้'); await a.wait(3000); } },
   { ch: 2, cap: 'แท็บ <b>สรุป / ส่งออก</b> — รวมคะแนน ตัดเกรด คิดเวลาเรียน และแสดงการกระจายเกรดให้เอง', build: () => shell('สรุป / ส่งออก', summaryPage()), run: async a => {
       await a.wait(400); const h = [8, 14, 22, 30, 38, 26, 18, 10];
       stage.querySelectorAll('.dist div').forEach((d, i) => { d.style.height = h[i] * 3 + 'px'; });
-      await a.wait(2400); a.hl('#sumBtns'); a.cap('ส่งออก Excel • พิมพ์ปก ปพ.5 ได้จากปุ่มด้านบน'); await a.wait(2600); a.hl(null); } },
+      await a.wait(2400); a.hl('#sumBtns'); await a.cap('ส่งออก Excel • พิมพ์ปก ปพ.5 ได้จากปุ่มด้านบน'); await a.wait(2600); a.hl(null); } },
   { ch: 2, cap: 'การ์ด <b>ให้นักเรียนดูผลจากมือถือตัวเอง</b> — ตรวจคะแนนเสร็จแล้วกด <b>เผยแพร่</b>', build: () => shell('สรุป / ส่งออก', publishPage()), run: async a => {
       await a.wait(500); a.hl('#pubCard'); await a.wait(900); await a.click('#pubBtn'); a.toast('เผยแพร่ผลให้นักเรียน 38 คนแล้ว', 'ok');
       a.set('#pubState', e => { e.innerHTML = '<span class="badge ok">เผยแพร่แล้ว • 27 ก.ย. 2569</span>'; }); await a.wait(1800); a.hl(null);
-      a.cap('นักเรียนเข้าทางช่อง <b>นักเรียน</b> เห็นคะแนนรายหัวข้อและเวลาเรียนของตัวเอง • แก้คะแนนแล้วกดเผยแพร่ซ้ำได้'); await a.wait(3000); } },
+      await a.cap('นักเรียนเข้าทางช่อง <b>นักเรียน</b> เห็นคะแนนรายหัวข้อและเวลาเรียนของตัวเอง • แก้คะแนนแล้วกดเผยแพร่ซ้ำได้'); await a.wait(3000); } },
   { ch: 2, cap: '<b>ส่งคะแนนเข้า SGS</b> — กดคัดลอกคะแนน เปิดหน้า SGS แล้วกดปุ่มบุ๊กมาร์ก ระบบกรอกช่องให้', build: () => shell('สรุป / ส่งออก', sgsPage()), run: async a => {
       await a.wait(500); a.hl('#sgsCard'); await a.click('#sgsCopy'); a.toast('คัดลอกคะแนน ม.2/3 แล้ว', 'ok'); await a.wait(1600);
-      a.cap('ไม่ต้องใส่รหัสผ่าน SGS ในแอป — ครูล็อกอิน SGS เอง แล้วกดบุ๊กมาร์กบนหน้านั้น • ตรวจกับ SGS อีกครั้งก่อนยืนยัน'); await a.wait(3200); a.hl(null); } },
+      await a.cap('ไม่ต้องใส่รหัสผ่าน SGS ในแอป — ครูล็อกอิน SGS เอง แล้วกดบุ๊กมาร์กบนหน้านั้น • ตรวจกับ SGS อีกครั้งก่อนยืนยัน'); await a.wait(3200); a.hl(null); } },
 
   /* ---------------- บท 4 ---------------- */
   { ch: 3, cap: 'บทที่ 4 • <b>แลกคาบ / การลา</b>', build: () => titleCard(4, 'แลกคาบ / การลา', 'หาครูที่ว่างให้อัตโนมัติ ส่งคำขอ รับการตอบรับ และพิมพ์บันทึกข้อความได้ในที่เดียว'), run: async a => { await a.wait(3000); } },
   { ch: 3, cap: 'แท็บ <b>แลกคาบ / การลา</b> — เลือก <b>แลกคาบปกติ</b> แล้วเลือกคาบที่ต้องการจัดการ', build: () => shell('แลกคาบ / การลา', exPage()), run: async a => {
       await a.wait(500); a.hl('#modeSwap', 4); await a.wait(1500); a.hl(null); await a.click('#exSrc2');
       a.set('#exSrc2', e => { e.style.borderColor = 'var(--brand)'; e.style.background = '#f3f7ff'; }); await a.wait(700);
-      a.set('#cands', e => e.style.opacity = 1); a.cap('ระบบค้นหา <b>ครูที่ว่างในคาบนั้น</b> ให้เอง แยกเป็น สลับคาบ • แลกคาบ • สอนแทน'); a.hl('#cands'); await a.wait(2800); a.hl(null); } },
+      a.set('#cands', e => e.style.opacity = 1); await a.cap('ระบบค้นหา <b>ครูที่ว่างในคาบนั้น</b> ให้เอง แยกเป็น สลับคาบ • แลกคาบ • สอนแทน'); a.hl('#cands'); await a.wait(2800); a.hl(null); } },
   { ch: 3, cap: 'กด <b>ส่งคำขอ</b> ที่ครูที่เลือก — อีกฝ่ายจะเห็นในกระดิ่งแจ้งเตือนทันที', build: () => shell('แลกคาบ / การลา', exPage(true)), run: async a => {
       await a.wait(500); await a.click('#sendC1'); a.set('#sendC1', e => { e.outerHTML = '<span class="badge warn">รอตอบรับ</span>'; }); a.toast('ส่งคำขอถึง ครูวิไล แล้ว', 'ok'); await a.wait(2400); } },
   { ch: 3, cap: 'ฝั่ง <b>ครูผู้รับ</b>: เปิดกระดิ่ง แล้วกด <b>ตอบรับ</b> — ระบบย้ายคาบในตารางให้ทั้งสองคน', build: () => shell('ภาพรวม', dashPane(), { bell: 1 }), run: async a => {
@@ -448,11 +508,11 @@ const STEPS_T = [
       a.modal('🔔 การแจ้งเตือน', '<div class="res"><span class="av">⇄</span><div><b>ครูสมใจ ขอแลกคาบกับคุณ</b><div class="hint">ศุกร์ 3 ต.ค. คาบ 3 ม.2/5 ↔ จันทร์ 6 ต.ค. คาบ 2 ม.2/1</div></div><span class="sp"></span><span class="btn">ปฏิเสธ</span><span class="btn ok" id="acc">ตอบรับ</span></div>', '<span class="btn">ปิด</span>');
       await a.wait(1200); await a.click('#acc'); a.set('#acc', e => { e.outerHTML = '<span class="badge ok">✓ ตอบรับแล้ว</span>'; }); a.set('#bellN', e => e.textContent = '0'); await a.wait(2400); } },
   { ch: 3, cap: 'ตอบรับแล้วกด <b>พิมพ์เอกสาร</b> ได้ <b>บันทึกข้อความ</b> ตามแบบราชการ พร้อมลงนามทันที', build: () => '<div class="scr" style="background:#5b6475;padding:40px 0"><div class="sheet" id="sheet"><div class="krut"></div><h4>บันทึกข้อความ</h4><div class="hint">ส่วนราชการ โรงเรียนปากช่อง</div><div class="l" style="width:70%"></div><div class="l"></div><div class="l" style="width:88%"></div><div class="l"></div><div class="l" style="width:62%"></div><div class="l" style="width:92%"></div><div class="l" style="width:78%"></div><div style="text-align:right;margin-top:30px" class="hint">ลงชื่อ ..................................</div><div class="l" style="width:40%;margin-left:auto"></div></div></div>', run: async a => {
-      await a.wait(3200); a.cap('รวมหลายคำขอเป็นเอกสารฉบับเดียวได้ที่ปุ่ม <b>พิมพ์เอกสารรวม</b>'); await a.wait(2400); } },
+      await a.wait(3200); await a.cap('รวมหลายคำขอเป็นเอกสารฉบับเดียวได้ที่ปุ่ม <b>พิมพ์เอกสารรวม</b>'); await a.wait(2400); } },
   { ch: 3, cap: 'ถ้าจะลา เลือก <b>ลา / ไปราชการ</b> กรอกประเภทและวันที่ แล้วส่งใบลา', build: () => shell('แลกคาบ / การลา', leavePage()), run: async a => {
       await a.wait(500); await a.click('#lvSick'); a.set('#lvSick', e => { e.style.borderColor = 'var(--brand)'; e.style.background = '#f3f7ff'; }); await a.wait(700);
       await a.click('#lvSend'); a.toast('ส่งใบลาแล้ว • รอผู้บริหารอนุมัติ', 'ok'); await a.wait(1400);
-      a.cap('ผู้บริหารอนุมัติในระบบ • คาบที่ตรงกับวันลาขึ้นให้จัดครูสอนแทนต่อได้เลย หรือให้หัวหน้ากลุ่มสาระจัดให้'); await a.wait(3200); } },
+      await a.cap('ผู้บริหารอนุมัติในระบบ • คาบที่ตรงกับวันลาขึ้นให้จัดครูสอนแทนต่อได้เลย หรือให้หัวหน้ากลุ่มสาระจัดให้'); await a.wait(3200); } },
   { ch: 3, cap: '<b>พร้อมใช้งานแล้ว</b> — เปิดแอปได้ทั้งคอม มือถือ และไอแพด • ติดตั้งเป็นแอปบนหน้าจอหลักได้', build: () => '<div class="title-card"><small>จบการแนะนำ</small><h2>พร้อมใช้งาน KruSpace</h2><p>เช็กชื่อ • กรอกคะแนน • สรุป ปพ.5 • แลกคาบและการลา — ครบในที่เดียว<br>สงสัยตรงไหน กดเลือกบทด้านบนเพื่อดูซ้ำได้</p></div>', run: async a => { await a.wait(4000); } }
 ];
 
@@ -517,20 +577,20 @@ const STEPS_E = [
       await a.wait(900); await a.click('#gBtn'); a.toast('เข้าสู่ระบบในบทบาทผู้บริหารแล้ว', 'ok'); await a.wait(1600); } },
   { ch: 0, cap: 'หน้า <b>ภาพรวมผู้บริหาร</b> แบ่งเป็น 6 หมวด — ภาพรวม • การเข้าเรียน • นักเรียน • ผลการเรียน • กิจการนักเรียน • ครูและการลา', build: () => eshell('ภาพรวมผู้บริหาร', execSection('overview')), run: async a => {
       await a.wait(500); a.hl('#console', 6); await a.wait(3200); a.hl(null);
-      a.cap('เลือก <b>ปี/ภาคเรียน</b> ที่แถบบน ตัวเลขทุกหมวดจะคำนวณใหม่ตามภาคนั้น'); a.hl('#pPeriod', 5); await a.move('#pPeriod'); await a.wait(2400); a.hl(null); } },
+      await a.cap('เลือก <b>ปี/ภาคเรียน</b> ที่แถบบน ตัวเลขทุกหมวดจะคำนวณใหม่ตามภาคนั้น'); a.hl('#pPeriod', 5); await a.move('#pPeriod'); await a.wait(2400); a.hl(null); } },
   { ch: 0, cap: '<b>เรื่องที่ควรดูวันนี้</b> — ตัวเลขสำคัญของแต่ละหมวด กล่องสีแดงคือเรื่องที่ควรจัดการ', build: () => eshell('ภาพรวมผู้บริหาร', execSection('overview')), run: async a => {
       await a.wait(400); a.hl('#tilesCard'); await a.wait(2600); a.hl(null);
-      a.cap('กดกล่องไหน ก็ไปที่หมวดนั้นทันที เช่นกด <b>ขาดเรียนติดต่อกัน</b>'); await a.click('#tile-students'); await a.wait(300);
+      await a.cap('กดกล่องไหน ก็ไปที่หมวดนั้นทันที เช่นกด <b>ขาดเรียนติดต่อกัน</b>'); await a.click('#tile-students'); await a.wait(300);
       a.html('#pane', execSection('students')); await a.wait(2600); } },
 
   /* ---------------- บท 2 ---------------- */
   { ch: 1, cap: 'บทที่ 2 • <b>ติดตามนักเรียนและผลการเรียน</b>', build: () => titleCard(2, 'ติดตามนักเรียนและผลการเรียน', 'ดูอัตราเข้าเรียน นักเรียนที่ขาดติดต่อกัน และนักเรียนคงค้างผลการเรียน โดยไม่ต้องรอรายงานจากครู'), run: async a => { await a.wait(3000); } },
   { ch: 1, cap: 'หมวด <b>การเข้าเรียน</b> — สัดส่วน มา สาย ลา กิจกรรม ขาด ของทั้งโรงเรียน และแยกตามกลุ่มสาระ', build: () => eshell('ภาพรวมผู้บริหาร', execSection('attendance')), run: async a => {
       await a.wait(300); stage.querySelectorAll('.stack i, .hbar b').forEach(e => e.classList.add('grow')); await a.wait(1600);
-      a.hl('#stackBar', 8); await a.wait(2200); a.hl(null); a.cap('ใช้ข้อมูลเช็กชื่อจริงที่ครูบันทึกทุกคาบ ไม่ต้องรวบรวมเอง'); await a.wait(2400); } },
+      a.hl('#stackBar', 8); await a.wait(2200); a.hl(null); await a.cap('ใช้ข้อมูลเช็กชื่อจริงที่ครูบันทึกทุกคาบ ไม่ต้องรวบรวมเอง'); await a.wait(2400); } },
   { ch: 1, cap: 'หมวด <b>นักเรียน</b> — รายชื่อนักเรียนที่ <b>ขาดเรียนติดต่อกัน</b> พร้อมห้องและครูที่ปรึกษา', build: () => eshell('ภาพรวมผู้บริหาร', execSection('students')), run: async a => {
       await a.wait(400); a.hl('#streakCard'); await a.wait(2600); a.hl(null);
-      a.cap('กด <b>ส่งออก CSV</b> เพื่อส่งต่อฝ่ายกิจการนักเรียนหรือครูที่ปรึกษาติดตาม'); await a.click('#csvBtn'); a.toast('ดาวน์โหลดไฟล์ CSV แล้ว', 'ok'); await a.wait(2200); } },
+      await a.cap('กด <b>ส่งออก CSV</b> เพื่อส่งต่อฝ่ายกิจการนักเรียนหรือครูที่ปรึกษาติดตาม'); await a.click('#csvBtn'); a.toast('ดาวน์โหลดไฟล์ CSV แล้ว', 'ok'); await a.wait(2200); } },
   { ch: 1, cap: 'หมวด <b>ผลการเรียน</b> — นักเรียนคงค้าง 0 ร มส มผ ของทั้งโรงเรียน และแยกตามระดับชั้น', build: () => eshell('ภาพรวมผู้บริหาร', execSection('academic')), run: async a => {
       await a.wait(300); stage.querySelectorAll('.hbar b').forEach(e => e.classList.add('grow')); await a.wait(3400); } },
   { ch: 1, cap: '<b>ค้นหานักเรียน</b> ได้ทุกคน ทุกวิชา — ผู้บริหารเห็นทั้งงานที่ส่ง คะแนน และเวลาเรียน', build: () => eshell('ภาพรวม', '<div class="card search"><span style="color:var(--brand);font-weight:800;font-size:20px">⌕</span><div class="inp" id="dInp">ค้นหาอะไรก็ได้ — ชื่อนักเรียน ห้อง วิชา หรือเมนู</div></div><div id="dRes"></div>'), run: async a => {
@@ -546,7 +606,7 @@ const STEPS_E = [
   { ch: 2, cap: 'บทที่ 3 • <b>อนุมัติการลา</b>', build: () => titleCard(3, 'อนุมัติการลา', 'ใบลาของครูส่งถึงผู้บริหารในระบบ ดูใบลา ดูว่าจัดคาบสอนแทนครบหรือยัง แล้วอนุมัติได้ในคลิกเดียว'), run: async a => { await a.wait(3000); } },
   { ch: 2, cap: 'มีใบลาใหม่ <b>กระดิ่ง 🔔</b> จะขึ้นตัวเลข — แท็บ <b>การลาและการอนุมัติ</b> รวมใบลาที่รออนุมัติทั้งหมด', build: () => eshell('การลาและการอนุมัติ', leavesPage(), { bell: 2 }), run: async a => {
       await a.wait(400); a.hl('#bell', 5); await a.wait(1500); a.hl('[data-tab="การลาและการอนุมัติ"]', 4); await a.wait(1500); a.hl('#approveCard'); await a.wait(2400); a.hl(null);
-      a.cap('แต่ละใบบอกประเภทการลา วันที่ และ<b>คาบที่ติดว่าจัดครูสอนแทนครบหรือยัง</b>'); await a.wait(2600); } },
+      await a.cap('แต่ละใบบอกประเภทการลา วันที่ และ<b>คาบที่ติดว่าจัดครูสอนแทนครบหรือยัง</b>'); await a.wait(2600); } },
   { ch: 2, cap: 'กด <b>ดู/พิมพ์ใบลา</b> เพื่อดูแบบฟอร์มใบลาตามระเบียบ ก่อนตัดสินใจ', build: () => eshell('การลาและการอนุมัติ', leavesPage(), { bell: 2 }), run: async a => {
       await a.click('#doc0');
       stage.insertAdjacentHTML('beforeend', '<div class="modal-bg" id="mbg"><div class="sheet" style="height:560px"><div style="text-align:right" class="hint">เขียนที่ โรงเรียนปากช่อง</div><h4>ใบลาป่วย ลาคลอดบุตร ลากิจส่วนตัว</h4>' +
@@ -555,7 +615,7 @@ const STEPS_E = [
       await a.wait(3400); a.closeModal(); await a.wait(400); } },
   { ch: 2, cap: 'กด <b>อนุมัติ</b> — ครูผู้ลาได้รับแจ้งทันที และเอกสารลงสถานะอนุมัติให้เอง', build: () => eshell('การลาและการอนุมัติ', leavesPage(), { bell: 2 }), run: async a => {
       await a.wait(400); await a.click('#ok0'); a.html('#pane', leavesPage(true)); a.set('#bellN', e => e.textContent = '1'); a.toast('อนุมัติใบลาของ ครูวิไล สุขใจ แล้ว', 'ok'); a.hl('#lv0', 4); await a.wait(2600); a.hl(null);
-      a.cap('ใบที่ยังจัดคาบสอนแทนไม่ครบ ให้หัวหน้ากลุ่มสาระจัดครูก่อน หรือกด <b>บันทึกแลกคาบ</b> ดูว่าคาบไหนยังว่าง'); await a.wait(3000); } },
+      await a.cap('ใบที่ยังจัดคาบสอนแทนไม่ครบ ให้หัวหน้ากลุ่มสาระจัดครูก่อน หรือกด <b>บันทึกแลกคาบ</b> ดูว่าคาบไหนยังว่าง'); await a.wait(3000); } },
   { ch: 2, cap: '<b>สรุปการลารายครู</b> และ <b>ครูที่รับสอนแทนมากที่สุด</b> — ใช้ประกอบการพิจารณาความดีความชอบ', build: () => eshell('การลาและการอนุมัติ', leavesPage(true), { bell: 1 }), run: async a => {
       await a.wait(300); stage.querySelectorAll('.hbar b').forEach(e => e.classList.add('grow')); a.hl('#leaveSum'); await a.wait(2600); a.hl('#coverTop'); await a.wait(2600); a.hl(null); } },
 
@@ -574,10 +634,10 @@ const STEPS_E = [
       a.hl('#noticeList', 6); for (const n of [12, 37, 58, 71]) { a.set('#ackN', e => e.textContent = n + '/86'); await a.wait(700); } a.hl(null);
       await a.click('#whoBtn');
       a.modal('ยังไม่รับทราบ 15 คน • ประชุมครูประจำเดือนตุลาคม', ['ครูกัญญา ใจดี • ภาษาไทย', 'ครูชาญชัย สมบูรณ์ • คณิตศาสตร์', 'ครูนภา ศรีสวัสดิ์ • ภาษาต่างประเทศ', 'ครูพงศ์ศักดิ์ ทองคำ • สุขศึกษาฯ'].map(t => '<div class="res">' + t + '</div>').join(''), '<span class="btn">ปิด</span>');
-      await a.wait(2600); a.closeModal(); a.cap('นัดที่เลยเวลาแล้วจะหายจากหน้าจอและกระดิ่งของทุกคนเอง ไม่ต้องตามลบ'); await a.wait(2600); } },
+      await a.wait(2600); a.closeModal(); await a.cap('นัดที่เลยเวลาแล้วจะหายจากหน้าจอและกระดิ่งของทุกคนเอง ไม่ต้องตามลบ'); await a.wait(2600); } },
   { ch: 3, cap: 'หมวด <b>ครูและการลา</b> — สรุปการลา สอนแทน และ <b>ภาระงานสอนรายครู</b> แยกตามกลุ่มสาระ', build: () => eshell('ภาพรวมผู้บริหาร', execSection('staff')), run: async a => {
       await a.wait(400); a.hl('#loadCard'); await a.wait(3000); a.hl(null);
-      a.cap('ใช้ดูความสมดุลของภาระงานก่อนจัดตารางสอนภาคถัดไป'); await a.wait(2600); } },
+      await a.cap('ใช้ดูความสมดุลของภาระงานก่อนจัดตารางสอนภาคถัดไป'); await a.wait(2600); } },
   { ch: 3, cap: '<b>พร้อมใช้งานแล้ว</b> — ผู้บริหารเปิดได้ทั้งคอม มือถือ และไอแพด • สลับไปโหมดครูได้ที่แถบบนถ้ามีสิทธิ์', build: () => '<div class="title-card"><small>จบการแนะนำ</small><h2>ผู้บริหารพร้อมใช้งาน</h2><p>ภาพรวมโรงเรียน • ติดตามนักเรียน • อนุมัติการลา • ประกาศถึงครูทุกคน<br>สงสัยตรงไหน กดเลือกบทด้านบนเพื่อดูซ้ำได้</p></div>', run: async a => { await a.wait(4000); } }
 ];
 
@@ -671,19 +731,25 @@ async function go(i) {
   if (resumeWait) { const r = resumeWait; resumeWait = null; r(); }
   const s = STEPS[cur];
   stage.innerHTML = s.build() + cursorSvg;
-  capEl.innerHTML = s.cap; ui();
+  if (Voice.ok) speechSynthesis.cancel();
+  capEl.innerHTML = s.cap; ui(); speak(s.cap);
   try {
-    await s.run(api(my));
+    const A = api(my);
+    await s.run(A);
+    while (Voice.on && !Voice.blocked && (speechSynthesis.speaking || speechSynthesis.pending)) await A.wait(150);   // พูดให้จบก่อนไปขั้นถัดไป
     if (my !== token) return;
     await api(my).wait(900);
     if (cur < STEPS.length - 1) go(cur + 1); else { playing = false; ui(); }
   } catch (e) { if (!(e instanceof Stop)) console.error(e); }
 }
-function toggle() { playing = !playing; if (playing && resumeWait) { const r = resumeWait; resumeWait = null; r(); } if (playing && cur === STEPS.length - 1 && !resumeWait) go(cur); ui(); }
+function toggle() { playing = !playing; if (Voice.ok && Voice.on) { if (playing) speechSynthesis.resume(); else speechSynthesis.pause(); }
+  if (playing && resumeWait) { const r = resumeWait; resumeWait = null; r(); } if (playing && cur === STEPS.length - 1 && !resumeWait) go(cur); ui(); }
 document.getElementById('bPlay').onclick = toggle;
 document.getElementById('bPrev').onclick = () => go(cur - 1);
 document.getElementById('bNext').onclick = () => go(cur + 1);
 document.getElementById('bSpeed').onclick = e => { speed = speed === 1 ? 1.5 : 1; e.target.textContent = speed + '×'; };
+document.getElementById('bVoice').onclick = () => setVoice(!(Voice.on && !Voice.blocked));
+voiceUi();
 chaps.onclick = e => { const b = e.target.closest('button'); if (b) { playing = true; go(firstOf(+b.dataset.ch)); } };
 document.getElementById('bar').onclick = e => { const r = e.currentTarget.getBoundingClientRect(); go(Math.floor((e.clientX - r.left) / r.width * STEPS.length)); };
 addEventListener('keydown', e => {
