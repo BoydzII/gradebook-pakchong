@@ -10701,30 +10701,85 @@ function sgsFillerMain() {
   }
 
   /* ---- กรอกจริง -----------------------------------------------------------
-     ทีละช่อง หาช่องใหม่จากหน้าเว็บทุกครั้ง เพราะการบันทึกอัตโนมัติของ ASP.NET อาจวาดตาราง
-     ใหม่หลังกรอกแต่ละช่อง ถ้าจำช่องเก่าไว้จะเขียนลงช่องที่หลุดออกจากหน้าแล้วโดยไม่รู้ตัว
-     และรอให้การบันทึกของช่องก่อนหน้าจบก่อน จะได้ไม่ถูกผลตอบกลับเขียนทับค่าที่เพิ่งกรอก */
+     ของเดิมเดินช้าคงที่ทุกช่อง: อ่านตารางทั้งใบใหม่ + หน่วง 200 ms ก่อนกรอกทุกช่อง
+     ห้องละ 40 คน 8 ข้อ = อ่านตาราง 320 รอบและหน่วงรวมกว่านาที ทั้งที่หน้าประเมิน
+     ไม่ได้บันทึกทีละช่องด้วยซ้ำ ที่นี่จึงวัดเอาจากหน้าจริงแทนการเหมาว่าทุกหน้าเหมือนกัน
+
+     - หาช่องจากดัชนีที่อ่านไว้ แล้วเช็ก isConnected ถ้าช่องยังอยู่ในหน้าแปลว่าตารางยัง
+       ไม่ถูกวาดใหม่ ใช้ช่องเดิมได้เลย อ่านตารางใหม่เฉพาะตอนช่องหลุดจริง
+     - เริ่มเดินแบบระวังเสมอ (รอการบันทึกให้จบก่อนทุกช่อง) ถ้ากรอกครบ CALIBRATE ช่องแล้ว
+       ยังไม่เจอการบันทึกเลยและค่าติดครบทุกช่อง จึงเร่งเป็นแบบไม่หน่วง
+     - เจอการบันทึก หรือค่าไม่ติด หรือช่องหลุด เมื่อไร กลับไปเดินแบบระวังทันที
+       และไม่เร่งอีกเลยในรอบนั้น เพราะแปลว่าหน้านี้คุยกับเซิร์ฟเวอร์ทีละช่องจริง
+
+     ตาข่ายกันพลาดยังครบเหมือนเดิม: ไม่เขียนลงช่องที่ล็อก อ่านค่ากลับทุกช่องทันทีที่เขียน
+     และตอนจบอ่านตารางใหม่ทั้งใบอีกครั้งเพื่อตรวจทุกช่องที่กรอกไป */
+  /* นับคำขอที่หน้าเว็บยิงออกไปเอง ทั้ง XHR และ fetch
+     จำเป็นเพราะการตัดสินใจ 'เร่งได้' ตั้งอยู่บนว่าหน้านี้ไม่ได้บันทึกทีละช่อง
+     ถ้าหน้าไหนบันทึกด้วย XHR ตรง ๆ โดยไม่ผ่าน PageRequestManager แล้วเรามองไม่เห็น
+     เราจะเร่งใส่จนคำขอซ้อนกัน ของบางช่องหายที่เซิร์ฟเวอร์ แต่หน้าจอยังครบ
+     (เพราะเราเป็นคนใส่ค่าเอง) การตรวจตอนจบซึ่งอ่านจากหน้าจอจึงจับไม่ได้
+     ดักไว้เฉพาะช่วงที่กำลังกรอก แล้วคืนของเดิมให้หน้าเว็บทันทีที่เสร็จ */
+  var netPending = 0, netRestore = null;
+  function watchNetwork() {
+    if (netRestore) return;
+    var oldSend = XMLHttpRequest.prototype.send, oldFetch = window.fetch;
+    XMLHttpRequest.prototype.send = function () {
+      netPending++;
+      var done = function () { netPending = Math.max(0, netPending - 1); };
+      this.addEventListener('loadend', done);
+      try { return oldSend.apply(this, arguments); } catch (e) { done(); throw e; }
+    };
+    if (typeof oldFetch === 'function') window.fetch = function () {
+      netPending++;
+      var done = function () { netPending = Math.max(0, netPending - 1); };
+      return oldFetch.apply(this, arguments).then(function (r) { done(); return r; },
+        function (e) { done(); throw e; });
+    };
+    netRestore = function () {
+      XMLHttpRequest.prototype.send = oldSend;
+      if (typeof oldFetch === 'function') window.fetch = oldFetch;
+      netRestore = null; netPending = 0;
+    };
+  }
+  /** หน้ากำลังส่งข้อมูลกลับเซิร์ฟเวอร์อยู่ไหม — ทั้ง ASP.NET AJAX และคำขออื่น */
+  function isPageBusy() {
+    if (netPending > 0) return true;
+    try {
+      var prm = window.Sys && Sys.WebForms && Sys.WebForms.PageRequestManager && Sys.WebForms.PageRequestManager.getInstance();
+      return !!(prm && prm.get_isInAsyncPostBack());
+    } catch (e) { return false; }
+  }
   function waitIdle() {
     return new Promise(function (resolve) {
       var start = Date.now();
       (function poll() {
-        var busy = false;
-        try {
-          var prm = window.Sys && Sys.WebForms && Sys.WebForms.PageRequestManager && Sys.WebForms.PageRequestManager.getInstance();
-          busy = !!(prm && prm.get_isInAsyncPostBack());
-        } catch (e) { busy = false; }
-        if (!busy || Date.now() - start > 10000) return resolve();
+        if (!isPageBusy() || Date.now() - start > 10000) return resolve();
         setTimeout(poll, 120);
       })();
     });
   }
-  function liveInput(sid, key) {
-    /* หาช่องใหม่จากหน้าเว็บทุกครั้ง ใช้ร่วมกันทั้งหน้าคะแนนและหน้าประเมิน
-       ตัวกรอกจริงจึงเป็นชุดเดียว ไม่ต้องมีสองทางให้พลาดต่างกัน */
+  /** เฝ้าดูตลอดช่วงเวลาที่กำหนดว่าการกรอกช่องที่เพิ่งทำไป ทำให้หน้าส่งข้อมูล
+      กลับเซิร์ฟเวอร์หรือไม่ — ต้องเฝ้าทันทีหลังกรอก ไม่ใช่ไปดูทีหลัง เพราะการบันทึก
+      อาจจบไปแล้วก่อนเราดู แล้วจะสรุปผิดว่าหน้านี้ไม่ได้บันทึกทีละช่อง
+      และต้องเฝ้าจนครบเวลาเสมอ ไม่หยุดกลางคัน เพราะช่วงนี้ทำหน้าที่เป็นจังหวะหน่วงไปด้วย
+      การบันทึกของหน้าเว็บจึงเดินคู่ขนานไปกับการหน่วง ไม่ใช่ต่อคิวกันจนช้าเป็นสองเท่า */
+  async function watchBusy(ms) {
+    var seen = false, start = Date.now();
+    while (Date.now() - start < ms) {
+      if (isPageBusy()) seen = true;
+      await sleep(10);
+    }
+    return seen;
+  }
+  /** อ่านตารางทั้งใบครั้งเดียว แล้วทำดัชนี เลขประจำตัว -> ช่องกรอก
+      ใช้ร่วมกันทั้งหน้าคะแนนและหน้าประเมิน ตัวกรอกจริงจึงเป็นชุดเดียว */
+  function readIndex() {
     var g = state.kind ? readAssess(state.kind) : readSgs();
     if (g.error) return null;
-    var st = g.students.filter(function (x) { return x.sid === sid; })[0];
-    return st ? st.inputs[key] : null;
+    var m = {};
+    g.students.forEach(function (st) { m[st.sid] = st.inputs; });
+    return m;
   }
   function setValue(inp, text) {
     inp.focus();
@@ -10761,29 +10816,68 @@ function sgsFillerMain() {
 
   function fill(changes) {
     state.busy = true;
-    shell('<div class="n">กำลังกรอก… อย่าปิดหรือเปลี่ยนหน้า SGS จนกว่าจะเสร็จ</div><div data-prog style="font-size:16px;font-weight:700">0 / ' + changes.length + '</div>', '');
+    shell('<div class="n">กำลังกรอก… อย่าปิดหรือเปลี่ยนหน้า SGS จนกว่าจะเสร็จ</div>' +
+      '<div data-prog style="font-size:16px;font-weight:700">0 / ' + changes.length + '</div>' +
+      '<div data-pace style="font-size:12px;color:#67748a;margin-top:4px"></div>', '');
     var prog = box.querySelector('[data-prog]');
+    var pace = box.querySelector('[data-pace]');
+    watchNetwork();
     (async function () {
-      var lost = [], locked = [];
+      var lost = [], locked = [], idx = null;
+      var careful = true, clean = 0, sawSave = false;
+      var CALIBRATE = 6;
+      var showPace = function () {
+        if (!pace) return;
+        pace.textContent = careful
+          ? 'เดินแบบระวัง — หน้านี้บันทึกทีละช่อง ต้องรอให้แต่ละช่องบันทึกจบก่อน'
+          : 'เร่งได้ — ตรวจแล้วว่าหน้านี้ไม่ได้บันทึกทีละช่อง';
+      };
+      var inputFor = function (sid, key) {
+        if (idx) {
+          var cached = (idx[sid] || {})[key];
+          if (cached && cached.isConnected) return cached;
+        }
+        idx = readIndex();
+        return idx ? (idx[sid] || {})[key] : null;
+      };
+      showPace();
       for (var i = 0; i < changes.length; i++) {
         var ch = changes[i];
-        await waitIdle();
-        var inp = liveInput(ch.sid, ch.key);
+        var inp = inputFor(ch.sid, ch.key);
         if (!inp) { lost.push(ch); continue; }
         /* ครูอาจติ๊กคอลัมน์ออกระหว่างนั้น หรือ SGS ปิดรอบไปแล้ว ห้ามเขียนลงช่องที่ล็อก */
         if (inp.disabled || inp.readOnly) { locked.push(ch); continue; }
         setValue(inp, ch.text);
+        /* อ่านค่ากลับทันทีจากช่องเดิม ไม่ต้องสแกนตาราง ถ้าค่าไม่ติดหรือช่องหลุดออกจากหน้า
+           แปลว่าหน้ากำลังทำอะไรของมันอยู่ ต้องกลับไปเดินแบบระวัง */
+        var stuck = inp.isConnected && String(inp.value || '').trim() === ch.text;
+        if (!stuck) { sawSave = true; careful = true; clean = 0; }
+        if (careful) {
+          /* หน่วง 200 ms พร้อมกับเฝ้าดูว่ามีการบันทึกโผล่มาไหม สองอย่างนี้ทับกันได้
+             เสร็จแล้วถ้ายังบันทึกไม่จบก็รอต่อ จะได้ไม่เขียนช่องถัดไปทับคิวเดิม */
+          if (await watchBusy(200)) { sawSave = true; clean = 0; await waitIdle(); }
+          else if (stuck && !sawSave && ++clean >= CALIBRATE) careful = false;
+        } else if (i % 25 === 24) {
+          /* เร่งอยู่ก็ยังต้องคืนจังหวะให้เบราว์เซอร์ได้วาดหน้าและให้หน้าเว็บได้ทำงานของตัวเอง
+             พร้อมกับสอดส่องว่ามีการบันทึกโผล่มาทีหลังหรือเปล่า */
+          await sleep(0);
+          if (isPageBusy()) { sawSave = true; careful = true; clean = 0; await waitIdle(); }
+        }
         prog.textContent = (i + 1) + ' / ' + changes.length;
-        await sleep(200);
+        showPace();
       }
       await waitIdle();
       await sleep(600);
+      /* ตรวจตอนจบด้วยการอ่านตารางใหม่ทั้งใบ *ครั้งเดียว* แทนที่จะอ่านใหม่ทีละช่อง
+         ได้ผลเท่ากันเป๊ะ เพราะทุกอย่างนิ่งแล้ว แต่เร็วกว่ากันหลายสิบเท่า */
+      var after = readIndex() || {};
       var wrong = [];
       changes.forEach(function (ch) {
         if (lost.indexOf(ch) >= 0 || locked.indexOf(ch) >= 0) return;
-        var inp = liveInput(ch.sid, ch.key), v = readNum(inp);
+        var v = readNum((after[ch.sid] || {})[ch.key]);
         if (v == null || Math.abs(v - ch.value) > 1e-6) wrong.push(ch);
       });
+      if (netRestore) netRestore();      // คืน XHR/fetch ของหน้าเว็บให้เหมือนเดิม
       state.busy = false;
       var ok = changes.length - lost.length - locked.length - wrong.length;
       shell(
@@ -10792,8 +10886,11 @@ function sgsFillerMain() {
           (lost.length ? '<br>หาช่องไม่เจอ ' + lost.length + ' ช่อง (' + esc(lost.slice(0, 8).map(function (x) { return x.sid; }).join(', ')) + ')' : '') +
           (wrong.length ? '<br>ค่าในช่องไม่ตรงกับที่กรอก ' + wrong.length + ' ช่อง (' + esc(wrong.slice(0, 8).map(function (x) { return x.sid; }).join(', ')) + ')' : '') +
         '</div>' +
-        '<div class="n"><b>ขั้นสุดท้ายที่ต้องทำ:</b> กด <b>F5</b> รีเฟรชหน้า SGS แล้วดูว่าตัวเลขยังอยู่ครบ<br>' +
-          'ถ้าตัวเลขหายไปหลังรีเฟรช แปลว่า SGS ไม่รับการกรอกด้วยวิธีนี้ — ให้แจ้งผู้ดูแล KruSpace และกรอกเองไปก่อน</div>',
+        '<div class="n"><b>ขั้นสุดท้ายที่ต้องทำ:</b> ' +
+          'ถ้าหน้านี้มีปุ่ม <b>บันทึก</b> (รูปแผ่นดิสก์เหนือตาราง) <b>ให้กดบันทึกก่อน</b> ' +
+          'แล้วค่อยกด <b>F5</b> รีเฟรชดูว่าตัวเลขยังอยู่ครบ<br>' +
+          'ถ้ากด F5 ก่อนกดบันทึก ตัวเลขที่เพิ่งกรอกจะหายทั้งหมด<br>' +
+          'ถ้าตัวเลขหายไปทั้งที่กดบันทึกแล้ว แปลว่า SGS ไม่รับการกรอกด้วยวิธีนี้ — แจ้งผู้ดูแล KruSpace และกรอกเองไปก่อน</div>',
         '<button class="p" data-close2>ปิด</button>');
       box.querySelector('[data-close2]').onclick = function () { box.remove(); };
     })();
