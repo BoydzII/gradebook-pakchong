@@ -10008,6 +10008,135 @@ function sgsFillerMain() {
     { key: 'final', label: 'ปลายภาค', slots: ['ปลายภาค'] }
   ];
 
+  /* หน้าคะแนนของ SGS เรียกคอลัมน์นี้ว่า 'เลขประจำตัว' แต่หน้าการอ่าน คิดวิเคราะห์ฯ
+     เรียกว่า 'รหัสนักเรียน' ถ้าจับแค่คำเดียวจะหาตารางของอีกหน้าไม่เจอเลย */
+  var SID_HEAD = /เลขประจำตัว|รหัสนักเรียน/;
+
+  /* ---- สองหน้าประเมินของ SGS ----------------------------------------------
+     ทั้งสองหน้าเป็นตารางให้คะแนนรายข้อ 0–3 แล้วมีช่อง 'รวม' กับ 'ผลการประเมิน' ต่อท้าย
+     KruSpace เก็บค่ารายข้อไว้ในชุดเดียวกัน ลำดับข้อตรงกับหลักสูตรแกนกลาง คือ
+     ข้อที่ i ของ KruSpace = คอลัมน์เลข i ของ SGS จึงจับคู่ด้วยเลขคอลัมน์ตรง ๆ
+     ไม่จับคู่ด้วยลำดับที่เจอ เพราะบางโรงเรียนเปิดใช้ข้อ 9–10 เพิ่มด้วย */
+  var ASSESS_KINDS = [
+    { type: 'reading', title: 'การอ่าน คิดวิเคราะห์ และเขียน', count: 5,
+      valKey: 'reading', lvKey: 'readingLevel' },
+    { type: 'traits', title: 'คุณลักษณะอันพึงประสงค์', count: 8,
+      valKey: 'traits', lvKey: 'traitsLevel' }
+  ];
+
+  /** หน้านี้เป็นหน้าอะไร — ดูจาก *โครงตาราง* ไม่ใช่ข้อความบนหน้า เพราะเมนูซ้ายของ SGS
+      มีคำว่า 'คุณลักษณะอันพึงประสงค์' กับ 'การอ่าน คิดวิเคราะห์ฯ' อยู่ทุกหน้า
+      ดูจากคำจึงทายผิดเป็นหน้าประเมินได้แม้กำลังเปิดหน้าคะแนนอยู่
+      มีคอลัมน์กลางภาค/ปลายภาค = หน้าคะแนน • มีคอลัมน์ผลการประเมิน = หน้าประเมิน
+      แยกการอ่านฯ (5 ข้อ) กับคุณลักษณะฯ (10 ข้อ) ด้วยจำนวนคอลัมน์เลขข้อที่หน้านั้นมี
+      คืน null = ให้ไปทางหน้าคะแนนแบบเดิม ซึ่งเป็นทางที่ใช้ได้อยู่แล้ว */
+  function detectKind() {
+    var probe = readAssess(null);
+    if (probe.error || probe.hasExam || probe.levelCol < 0) return null;
+    var nums = Object.keys(probe.itemCol).map(Number);
+    if (!nums.length) return null;
+    return Math.max.apply(null, nums) <= 5 ? ASSESS_KINDS[0] : ASSESS_KINDS[1];
+  }
+
+  /* ---- อ่านตารางหน้าประเมิน ------------------------------------------------
+     ใช้วิธีเดียวกับตารางคะแนน แต่คอลัมน์ที่สนใจคือหัวคอลัมน์ที่เป็นตัวเลขล้วน ('1'..'10')
+     กับช่อง 'ผลการประเมิน' ส่วนช่อง 'รวม' อ่านไว้โชว์อย่างเดียว ไม่เขียนทับ
+     เพราะบางหน้า SGS คำนวณให้เอง การเขียนลงไปเองจึงเสี่ยงทับค่าที่ระบบคิดไว้ */
+  function readAssess(kind) {
+    var isHead = function (c, re) { var t = txt(c.textContent); return re.test(t) && t.length <= 24; };
+    var tables = Array.prototype.slice.call(document.querySelectorAll('table')).filter(function (t) {
+      return Array.prototype.some.call(t.rows, function (tr) {
+        return Array.prototype.some.call(tr.cells, function (c) { return isHead(c, SID_HEAD); });
+      });
+    });
+    tables.sort(function (a, b) { return b.rows.length - a.rows.length; });
+    var table = tables[0];
+    if (!table) return { error: 'ไม่พบตารางในหน้านี้ — เลือกรายวิชาและกลุ่มของ SGS ก่อน' };
+
+    var rows = Array.prototype.slice.call(table.rows);
+    var grid = expand(rows);
+    var headRow = rows.findIndex(function (tr) {
+      return Array.prototype.some.call(tr.cells, function (c) { return isHead(c, SID_HEAD); });
+    });
+    var sidCol = -1, nameCol = -1, subjCol = -1;
+    (grid[headRow] || []).forEach(function (cell, c) {
+      if (sidCol < 0 && isHead(cell, SID_HEAD)) sidCol = c;
+      if (nameCol < 0 && isHead(cell, /ชื่อ/) && !SID_HEAD.test(cell.textContent)) nameCol = c;
+      if (subjCol < 0 && isHead(cell, /^วิชา$/)) subjCol = c;
+    });
+    if (sidCol < 0) return { error: 'หาคอลัมน์เลขประจำตัวไม่เจอ' };
+
+    var dataStart = -1;
+    for (var r = headRow + 1; r < rows.length; r++) {
+      var cell = (grid[r] || [])[sidCol];
+      if (cell && /^\d{3,}$/.test(txt(cell.textContent))) { dataStart = r; break; }
+    }
+    if (dataStart < 0) return { error: 'ไม่พบแถวนักเรียนในตาราง — เลือกรายวิชาและกลุ่มให้ครบก่อน' };
+
+    var width = Math.max.apply(null, grid.slice(headRow, dataStart + 1).map(function (g) { return (g || []).length; }));
+    var itemCol = {}, levelCol = -1, sumCol = -1, examCount = 0;
+    for (var c2 = 0; c2 < width; c2++) {
+      var seen = [], parts = [];
+      for (var hr = headRow; hr < dataStart; hr++) {
+        var hc = (grid[hr] || [])[c2];
+        if (hc && seen.indexOf(hc) < 0) { seen.push(hc); parts.push(txt(hc.innerText != null ? hc.innerText : hc.textContent)); }
+      }
+      /* ดูทีละชิ้น ไม่ใช่ทั้งก้อนที่ต่อกัน เพราะเลขข้ออาจมีแถบครอบอยู่ข้างบน
+         เช่น 'ผลการประเมินรายข้อ' ทำให้ก้อนรวมกลายเป็น 'ผลการประเมินรายข้อ 1' */
+      var itemNo = null, isLevel = false, isSum = false;
+      parts.forEach(function (t2) {
+        if (/^\d{1,2}$/.test(t2)) itemNo = Number(t2);
+        else if (/^ผลการประเมิน$/.test(t2)) isLevel = true;
+        else if (/^รวม$/.test(t2)) isSum = true;
+        else if (/^(กลางภาค|ปลายภาค)$/.test(t2)) examCount++;
+      });
+      if (itemNo != null) { if (itemCol[itemNo] == null) itemCol[itemNo] = c2; }
+      else if (isLevel && levelCol < 0) levelCol = c2;
+      else if (isSum && sumCol < 0) sumCol = c2;
+    }
+    if (levelCol < 0 && !Object.keys(itemCol).length) return { error: 'หน้านี้ไม่มีคอลัมน์ให้กรอกผลการประเมิน — เปิดหน้า "' + (kind ? kind.title : 'ประเมิน') + '" ของ SGS ก่อน' };
+
+    var pick = function (holder) { return holder ? holder.querySelector('input[type=text], input:not([type]), select, textarea') : null; };
+    var students = [], subjects = [];
+    for (var dr = dataStart; dr < rows.length; dr++) {
+      var sc = (grid[dr] || [])[sidCol];
+      var sid = sc ? txt(sc.textContent) : '';
+      if (!/^\d{3,}$/.test(sid)) continue;
+      var st = { sid: sid, name: nameCol >= 0 && grid[dr][nameCol] ? txt(grid[dr][nameCol].textContent) : '', inputs: {}, sumText: '' };
+      for (var k = 1; k <= 12; k++) {
+        if (itemCol[k] == null) continue;
+        st.inputs[String(k)] = pick(grid[dr][itemCol[k]]);
+      }
+      st.inputs.level = levelCol >= 0 ? pick(grid[dr][levelCol]) : null;
+      if (sumCol >= 0 && grid[dr][sumCol]) {
+        var si = pick(grid[dr][sumCol]);
+        st.sumText = si ? txt(si.value) : txt(grid[dr][sumCol].textContent);
+      }
+      if (subjCol >= 0 && grid[dr][subjCol]) { var sj = txt(grid[dr][subjCol].textContent); if (sj && subjects.indexOf(sj) < 0) subjects.push(sj); }
+      students.push(st);
+    }
+
+    /* คอลัมน์ไหนกรอกได้จริงบ้าง — SGS ปิดข้อที่โรงเรียนไม่ได้เปิดใช้ไว้
+       ดูจากช่องของนักเรียนจริง ไม่ดูจากช่องติ๊ก 'หัวข้อ' ด้านบน เพราะนั่นเป็นการตั้งค่า
+       ของงานวัดผล ปุ่มนี้ไม่ควรไปเปลี่ยนให้ */
+    var editable = function (inp) { return !!inp && !inp.disabled && !inp.readOnly; };
+    var openItems = [], lockedItems = [], extraItems = [], missingItems = [];
+    /* ตอนยังไม่รู้ว่าเป็นหน้าไหน (เรียกมาเพื่อตรวจชนิดหน้า) ยังแยกข้อที่ต้องใช้ไม่ได้
+       จึงข้ามส่วนนี้ไปก่อน ผู้เรียกที่ส่ง kind มาเท่านั้นที่ได้รายการนี้ */
+    if (kind) {
+      Object.keys(itemCol).map(Number).sort(function (a, b) { return a - b; }).forEach(function (n) {
+        var any = students.some(function (st2) { return editable(st2.inputs[String(n)]); });
+        if (n > kind.count) { if (any) extraItems.push(n); return; }
+        (any ? openItems : lockedItems).push(n);
+      });
+      for (var q = 1; q <= kind.count; q++) if (itemCol[q] == null) missingItems.push(q);
+    }
+    return { kind: kind, students: students, itemCol: itemCol, levelCol: levelCol, sumCol: sumCol, hasExam: examCount > 0,
+      openItems: openItems, lockedItems: lockedItems, extraItems: extraItems, missingItems: missingItems,
+      levelOpen: levelCol >= 0 && students.some(function (st3) { return editable(st3.inputs.level); }),
+      subjectText: subjects.join(' | ') };
+  }
+
   /* ---- อ่านตารางกรอกคะแนนของ SGS -------------------------------------------
      ตารางของ ASP.NET มักซ้อนตารางจัดหน้าไว้หลายชั้น จึงเลือกตารางที่ "แถวของตัวเอง"
      มีหัวคอลัมน์เลขประจำตัว และขยาย rowspan/colspan ให้เป็นตารางช่องจริงก่อนอ่าน
@@ -10037,7 +10166,7 @@ function sgsFillerMain() {
     var isHead = function (c, re) { var t = txt(c.textContent); return re.test(t) && t.length <= 24; };
     var tables = Array.prototype.slice.call(document.querySelectorAll('table')).filter(function (t) {
       return Array.prototype.some.call(t.rows, function (tr) {
-        return Array.prototype.some.call(tr.cells, function (c) { return isHead(c, /เลขประจำตัว/); });
+        return Array.prototype.some.call(tr.cells, function (c) { return isHead(c, SID_HEAD); });
       });
     });
     tables.sort(function (a, b) { return b.rows.length - a.rows.length; });
@@ -10047,12 +10176,12 @@ function sgsFillerMain() {
     var rows = Array.prototype.slice.call(table.rows);
     var grid = expand(rows);
     var headRow = rows.findIndex(function (tr) {
-      return Array.prototype.some.call(tr.cells, function (c) { return isHead(c, /เลขประจำตัว/); });
+      return Array.prototype.some.call(tr.cells, function (c) { return isHead(c, SID_HEAD); });
     });
     var sidCol = -1, nameCol = -1;
     (grid[headRow] || []).forEach(function (cell, c) {
-      if (sidCol < 0 && isHead(cell, /เลขประจำตัว/)) sidCol = c;
-      if (nameCol < 0 && isHead(cell, /ชื่อ/) && !/เลขประจำตัว/.test(cell.textContent)) nameCol = c;
+      if (sidCol < 0 && isHead(cell, SID_HEAD)) sidCol = c;
+      if (nameCol < 0 && isHead(cell, /ชื่อ/) && !SID_HEAD.test(cell.textContent)) nameCol = c;
     });
     if (sidCol < 0) return { error: 'หาคอลัมน์เลขประจำตัวไม่เจอ' };
 
@@ -10181,10 +10310,12 @@ function sgsFillerMain() {
     '#' + BOX_ID + ' .x{margin-left:auto;background:transparent;border:none;color:#fff;font-size:20px;padding:0 6px}' +
     '</style>';
 
-  var state = { payload: null, sgs: null, mode: 'half', keep: false, scale: {}, subjectOk: false, busy: false };
+  var state = { payload: null, sgs: null, assess: null, kind: detectKind(), fillLevel: false,
+    mode: 'half', keep: false, scale: {}, subjectOk: false, busy: false };
 
   function shell(body, foot) {
-    box.innerHTML = CSS + '<div class="h">📥 กรอกคะแนนจาก KruSpace ลง SGS<button class="x" data-close title="ปิด">×</button></div>' +
+    box.innerHTML = CSS + '<div class="h">📥 KruSpace → SGS' + (state.kind ? ' • ' + esc(state.kind.title) : ' • คะแนนรายภาค') +
+      '<button class="x" data-close title="ปิด">×</button></div>' +
       '<div class="b">' + body + '</div><div class="f">' + (foot || '') + '</div>';
     box.querySelector('[data-close]').onclick = function () { if (!state.busy) box.remove(); };
   }
@@ -10196,7 +10327,9 @@ function sgsFillerMain() {
       '<ol style="margin:0 0 10px 18px;padding:0">' +
         '<li>เลือก<b>รายวิชา</b>และ<b>กลุ่ม</b>ของ SGS ให้ตรงกับที่คัดลอกมา</li>' +
         '<li>ตั้งช่อง <b>/หน้า</b> ของ SGS เท่ากับจำนวนนักเรียนในห้อง (ไม่เกิน 40) ให้เห็นครบทุกคน ระบบกรอกได้เฉพาะแถวที่อยู่บนหน้าจอ</li>' +
-        '<li>ติ๊ก ☐ ที่หัวคอลัมน์ที่จะกรอกให้เรียบร้อย หรือให้ปุ่มนี้ติ๊กให้ในขั้นถัดไปก็ได้</li>' +
+        (state.kind
+          ? '<li>ติ๊ก <b>หัวข้อ</b> ด้านบนให้ครบข้อ 1–' + state.kind.count + ' (ปุ่มนี้ไม่ติ๊กให้ เพราะเป็นการตั้งค่าของงานวัดผล)</li>'
+          : '<li>ติ๊ก ☐ ที่หัวคอลัมน์ที่จะกรอกให้เรียบร้อย หรือให้ปุ่มนี้ติ๊กให้ในขั้นถัดไปก็ได้</li>') +
         '<li>ใน KruSpace กดปุ่ม "คัดลอกคะแนน" แล้วกลับมาวางในช่องนี้ (Ctrl+V)</li>' +
       '</ol>' +
       '<textarea data-paste placeholder="วางข้อความที่คัดลอกจาก KruSpace ที่นี่"></textarea>',
@@ -10255,6 +10388,15 @@ function sgsFillerMain() {
       }
       if (!state.payload) return stepPaste('ข้อความนี้ไม่ใช่คะแนนที่คัดลอกจาก KruSpace — กดปุ่ม "คัดลอกคะแนน" ใน KruSpace ใหม่อีกครั้ง');
       if (state.payload && state.payload.roundMode) state.mode = state.payload.roundMode;
+      /* ตรวจชนิดหน้าอีกครั้งตรงนี้ ตอนเปิดกล่องครูอาจยังไม่ได้เลือกรายวิชา
+         ตารางจึงยังว่างจนดูไม่ออกว่าเป็นหน้าไหน */
+      state.kind = detectKind();
+      /* หน้าประเมินกับหน้าคะแนนใช้ข้อมูลชุดเดียวกันที่คัดลอกมา แยกกันแค่ตอนอ่านตารางกับตอนวาด */
+      if (state.kind) {
+        state.assess = readAssess(state.kind);
+        if (state.assess.error) return stepPaste(state.assess.error);
+        return stepAssessPreview();
+      }
       state.sgs = readSgs();
       if (state.sgs.error) return stepPaste(state.sgs.error);
       stepPreview();
@@ -10310,6 +10452,139 @@ function sgsFillerMain() {
     g.students.forEach(function (st) { pageSids[st.sid] = 1; });
     var missing = (p.students || []).filter(function (s) { return !pageSids[String(s.sid)]; });
     return { cols: cols, blocked: blocked, rows: rows, changes: changes, overwrite: overwrite, matched: matched, missing: missing };
+  }
+
+  /* ---- ตรวจและกรอกหน้าประเมิน ---------------------------------------------
+     ค่าที่กรอกคือ 0–3 รายข้อ ไม่ต้องปัดเศษและไม่ต้องแปลงสัดส่วน จึงไม่ใช้ตัวเลือกเดียวกับ
+     หน้าคะแนน ส่วนช่อง 'รวม' ไม่แตะเลย และช่อง 'ผลการประเมิน' ต้องติ๊กเปิดเองก่อน
+     เพราะยังไม่ยืนยันว่า SGS คำนวณช่องนี้ให้เองหรือไม่ — เดาแล้วผิดคือเขียนผิดลงทะเบียนจริง */
+  function assessPlan() {
+    var p = state.payload, a = state.assess, kind = state.kind;
+    var bySid = {};
+    (p.students || []).forEach(function (s) { bySid[String(s.sid)] = s; });
+    /* อ่านค่าเดิมเป็นข้อความดิบ ไม่แปลงเป็นตัวเลขก่อน เพราะช่องผลการประเมินของ SGS
+       บางแบบเก็บเป็นคำ ถ้าแปลงแล้วได้ null ตารางเปรียบเทียบจะบอกว่าช่องว่าง
+       ครูจะกดยืนยันโดยไม่รู้ว่ากำลังเขียนทับของเดิม */
+    var rawVal = function (inp) { return inp ? String(inp.value == null ? '' : inp.value).trim() : ''; };
+    var rows = [], changes = [], overwrite = 0, matched = 0;
+    a.students.forEach(function (st) {
+      var src = bySid[st.sid];
+      var row = { sid: st.sid, name: st.name, found: !!src, cells: {}, sumText: st.sumText };
+      if (src) matched++;
+      var vals = src ? (src[kind.valKey] || []) : [];
+      for (var i = 1; i <= kind.count; i++) {
+        var key = String(i), inp = st.inputs[key], oldT = rawVal(inp);
+        var cell = { old: oldT, next: oldT, state: '' };
+        var v = vals[i - 1];
+        var usable = !!inp && !inp.disabled && !inp.readOnly;
+        if (src && usable && (v === 0 || v === 1 || v === 2 || v === 3)) {
+          if (oldT !== '' && Number(oldT) === v) cell.state = 'same';
+          else if (oldT !== '' && state.keep) cell.state = 'kept';
+          else {
+            cell.next = String(v); cell.state = oldT === '' ? 'chg' : 'ovr';
+            if (oldT !== '') overwrite++;
+            changes.push({ sid: st.sid, key: key, text: String(v), value: v });
+          }
+        }
+        row.cells[key] = cell;
+      }
+      var lvInp = st.inputs.level, lvOldT = rawVal(lvInp);
+      var lvCell = { old: lvOldT, next: lvOldT, state: '' };
+      var lvNew = src ? src[kind.lvKey] : null;
+      if (state.fillLevel && src && lvInp && !lvInp.disabled && !lvInp.readOnly &&
+          (lvNew === 0 || lvNew === 1 || lvNew === 2 || lvNew === 3)) {
+        if (lvOldT !== '' && lvOldT === String(lvNew)) lvCell.state = 'same';
+        else if (lvOldT !== '' && state.keep) lvCell.state = 'kept';
+        else {
+          lvCell.next = String(lvNew); lvCell.state = lvOldT === '' ? 'chg' : 'ovr';
+          if (lvOldT !== '') overwrite++;
+          changes.push({ sid: st.sid, key: 'level', text: String(lvNew), value: lvNew });
+        }
+      }
+      row.cells.level = lvCell;
+      row.kLevel = lvNew;
+      rows.push(row);
+    });
+    var pageSids = {};
+    a.students.forEach(function (st) { pageSids[st.sid] = 1; });
+    var missing = (p.students || []).filter(function (s) { return !pageSids[String(s.sid)]; });
+    return { rows: rows, changes: changes, overwrite: overwrite, matched: matched, missing: missing };
+  }
+
+  function stepAssessPreview() {
+    var p = state.payload, a = state.assess, kind = state.kind, pl = assessPlan();
+    var subjectFound = !p.subject || !a.subjectText || a.subjectText.indexOf(p.subject) >= 0;
+    var ratio = a.students.length ? pl.matched / a.students.length : 0;
+    var stop = ratio < 0.5;
+    var needSubject = !subjectFound && !state.subjectOk;
+
+    var notes = '<div class="n">ข้อมูลจาก KruSpace: <b>' + esc((p.subject ? p.subject + ' ' : '') + (p.subjectName || '')) + '</b> • ' +
+      esc(p.cls || '') + ' • ' + esc(p.period || '') + ' • ' + (p.students || []).length + ' คน</div>';
+    if (stop) notes += '<div class="n bad"><b>หยุดไว้ก่อน</b> นักเรียนบนหน้านี้ตรงกับข้อมูลที่คัดลอกมาเพียง ' + pl.matched + ' จาก ' +
+      a.students.length + ' คน น่าจะเลือกรายวิชาหรือกลุ่มใน SGS ไม่ตรงกับที่คัดลอกมา</div>';
+    if (!subjectFound) notes += '<div class="n bad">รายวิชาในตารางของ SGS ไม่มีรหัส <b>' + esc(p.subject) + '</b> ' +
+      '<label><input type="checkbox" data-subject-ok' + (state.subjectOk ? ' checked' : '') + '> ตรวจแล้ว เป็นวิชาเดียวกันจริง</label></div>';
+    if (a.missingItems.length) notes += '<div class="n bad">หน้านี้ไม่มีคอลัมน์ข้อ ' + a.missingItems.join(', ') +
+      ' ซึ่ง KruSpace มีผลอยู่ จึงข้ามข้อนั้นไป</div>';
+    if (a.lockedItems.length) notes += '<div class="n bad">ข้อ ' + a.lockedItems.join(', ') + ' ยังกรอกไม่ได้ — ไปติ๊ก <b>หัวข้อ</b> ' +
+      'ด้านบนของหน้า SGS ให้ครบข้อ 1–' + kind.count + ' แล้วกด "ตรวจใหม่"</div>';
+    if (a.extraItems.length) notes += '<div class="n">หน้านี้เปิดข้อ ' + a.extraItems.join(', ') + ' ไว้ด้วย แต่ KruSpace ประเมินเฉพาะข้อ 1–' +
+      kind.count + ' ตามหลักสูตรแกนกลาง จึงไม่แตะข้อเหล่านั้น</div>';
+    if (pl.missing.length) notes += '<div class="n">ไม่พบบนหน้านี้ ' + pl.missing.length + ' คน (' +
+      esc(pl.missing.slice(0, 6).map(function (s) { return s.sid; }).join(', ')) + (pl.missing.length > 6 ? ' …' : '') +
+      ') — ถ้าอยู่หน้าถัดไป ให้ตั้ง /หน้า ของ SGS ให้มากขึ้นแล้วเปิดใหม่</div>';
+    notes += '<div class="n">ช่อง <b>รวม</b> และ <b>หมายเหตุ</b> ปุ่มนี้ไม่แตะเลย' +
+      (a.levelCol < 0 ? ' • หน้านี้ไม่มีคอลัมน์ผลการประเมิน' : !a.levelOpen ? ' • ช่องผลการประเมินยังกรอกไม่ได้' : '') + '</div>';
+
+    var opts = '<div class="opt">' +
+      '<label><input type="checkbox" data-keep' + (state.keep ? ' checked' : '') + '> ไม่แตะช่องที่ SGS มีค่าอยู่แล้ว</label>' +
+      (a.levelOpen ? '<label><input type="checkbox" data-fill-level' + (state.fillLevel ? ' checked' : '') + '> ' +
+        'กรอกช่อง <b>ผลการประเมิน</b> ด้วย (0–3 จาก KruSpace)</label>' : '') + '</div>' +
+      (a.levelOpen && !state.fillLevel ? '<div style="margin:-4px 0 10px;color:#67748a;font-size:12px">' +
+        'ปกติ SGS คำนวณช่องนี้ให้เองหลังกรอกครบทุกข้อ ติ๊กเฉพาะตอนกดรีเฟรชแล้วเห็นว่าช่องนี้ยังว่าง</div>' : '');
+
+    var head = '<tr><th>เลขประจำตัว</th><th>ชื่อ</th>';
+    for (var h = 1; h <= kind.count; h++) head += '<th>' + h + '</th>';
+    head += '<th>รวมใน SGS</th><th>ผลการประเมิน</th></tr>';
+
+    var cellHtml = function (c) {
+      if (!c) return '<td>—</td>';
+      var show = esc(c.old == null ? '' : String(c.old)), next = esc(c.next == null ? '' : String(c.next));
+      if (c.state === 'chg') return '<td class="chg">' + next + '</td>';
+      if (c.state === 'ovr') return '<td class="ovr">' + show + ' → ' + next + '</td>';
+      return '<td>' + (show || '—') + '</td>';
+    };
+    var body = pl.rows.map(function (r) {
+      if (!r.found) return '<tr><td>' + esc(r.sid) + '</td><td class="nm">' + esc(r.name) + '</td><td colspan="' + (kind.count + 2) +
+        '" style="color:#a61b1b">ไม่มีในข้อมูลที่คัดลอกมา — ไม่แตะแถวนี้</td></tr>';
+      var tds = '';
+      for (var i = 1; i <= kind.count; i++) tds += cellHtml(r.cells[String(i)]);
+      return '<tr><td>' + esc(r.sid) + '</td><td class="nm" title="' + esc(r.name) + '">' + esc(r.name) + '</td>' + tds +
+        '<td>' + esc(r.sumText || '—') + '</td>' + cellHtml(r.cells.level) + '</tr>';
+    }).join('');
+
+    var canFill = !stop && !needSubject && pl.changes.length > 0;
+    shell(notes + opts +
+      '<div style="margin:0 0 8px;color:#67748a;font-size:12px">' +
+        '<span style="background:#e6f6ee;padding:1px 6px;border-radius:4px">เขียว</span> = ช่องว่างที่จะกรอกใหม่ • ' +
+        '<span style="background:#fff0d6;padding:1px 6px;border-radius:4px">ส้ม</span> = จะเขียนทับค่าเดิม • 0=ไม่ผ่าน 1=ผ่าน 2=ดี 3=ดีเยี่ยม</div>' +
+      '<div style="overflow:auto;max-height:52vh"><table>' + head + body + '</table></div>',
+      '<button class="p" data-fill' + (canFill ? '' : ' disabled') + '>กรอกลง SGS ' + pl.changes.length + ' ช่อง</button>' +
+      (pl.overwrite ? '<span style="color:#7a4700">ในนั้นเขียนทับค่าเดิม ' + pl.overwrite + ' ช่อง</span>' : '') +
+      (pl.changes.length ? '' : '<span style="color:#67748a">ไม่มีช่องที่ต้องเปลี่ยน</span>') +
+      '<button data-recheck style="margin-left:auto">ตรวจใหม่</button><button data-back>วางข้อมูลใหม่</button>');
+
+    var q = function (sel) { return box.querySelector(sel); };
+    q('[data-keep]').onchange = function (e) { state.keep = e.target.checked; stepAssessPreview(); };
+    if (q('[data-fill-level]')) q('[data-fill-level]').onchange = function (e) { state.fillLevel = e.target.checked; stepAssessPreview(); };
+    if (q('[data-subject-ok]')) q('[data-subject-ok]').onchange = function (e) { state.subjectOk = e.target.checked; stepAssessPreview(); };
+    q('[data-back]').onclick = function () { stepPaste(''); };
+    q('[data-recheck]').onclick = function () {
+      state.assess = readAssess(state.kind);
+      if (state.assess.error) return stepPaste(state.assess.error);
+      stepAssessPreview();
+    };
+    q('[data-fill]').onclick = function () { if (canFill) fill(pl.changes); };
   }
 
   function stepPreview() {
@@ -10428,7 +10703,9 @@ function sgsFillerMain() {
     });
   }
   function liveInput(sid, key) {
-    var g = readSgs();
+    /* หาช่องใหม่จากหน้าเว็บทุกครั้ง ใช้ร่วมกันทั้งหน้าคะแนนและหน้าประเมิน
+       ตัวกรอกจริงจึงเป็นชุดเดียว ไม่ต้องมีสองทางให้พลาดต่างกัน */
+    var g = state.kind ? readAssess(state.kind) : readSgs();
     if (g.error) return null;
     var st = g.students.filter(function (x) { return x.sid === sid; })[0];
     return st ? st.inputs[key] : null;
@@ -10573,6 +10850,9 @@ function sgsExportCard() {
       '<li>กดปุ่มบนแถบบุ๊กมาร์ก → วาง (Ctrl+V) → <b>ตรวจตารางเปรียบเทียบ</b> → กด “กรอกลง SGS”</li>' +
       '<li>กด <b>F5</b> รีเฟรชหน้า SGS เพื่อยืนยันว่าบันทึกจริง</li>' +
     '</ol>' +
+    '<div class="notice" style="margin-top:10px">ปุ่มเดียวกันนี้ใช้กับหน้า <b>บันทึกการอ่าน คิดวิเคราะห์ และเขียน</b> (5 ข้อ) ' +
+      'และ <b>บันทึกคุณลักษณะอันพึงประสงค์</b> (8 ข้อ) ของ SGS ได้ด้วย — คัดลอกชุดเดิมนี้แล้วกดปุ่มบนหน้านั้นได้เลย ' +
+      'ระบบดูจากหน้าที่เปิดอยู่ว่าจะกรอกอะไร</div>' +
     '<div class="notice warn" style="margin-top:10px">หน้านี้ของ SGS <b>บันทึกทันทีที่ช่องเปลี่ยน</b> ไม่มีปุ่มยกเลิก ' +
       'ปุ่มจะกรอกเฉพาะคอลัมน์ที่ติ๊กเปิดและอยู่ในรอบที่ SGS เปิดให้กรอกเท่านั้น ' +
       'ตรวจตารางเปรียบเทียบให้ดีก่อนกดกรอกทุกครั้ง ช่องสีส้มคือช่องที่จะเขียนทับค่าเดิมใน SGS</div></div>';
