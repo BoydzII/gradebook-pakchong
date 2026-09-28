@@ -10533,19 +10533,26 @@ function sgsFillerMain() {
     if (pl.missing.length) notes += '<div class="n">ไม่พบบนหน้านี้ ' + pl.missing.length + ' คน (' +
       esc(pl.missing.slice(0, 6).map(function (s) { return s.sid; }).join(', ')) + (pl.missing.length > 6 ? ' …' : '') +
       ') — ถ้าอยู่หน้าถัดไป ให้ตั้ง /หน้า ของ SGS ให้มากขึ้นแล้วเปิดใหม่</div>';
-    notes += '<div class="n">ช่อง <b>รวม</b> และ <b>หมายเหตุ</b> ปุ่มนี้ไม่แตะเลย' +
-      (a.levelCol < 0 ? ' • หน้านี้ไม่มีคอลัมน์ผลการประเมิน' : !a.levelOpen ? ' • ช่องผลการประเมินยังกรอกไม่ได้' : '') + '</div>';
+    notes += '<div class="n">ช่อง <b>รวม</b> <b>ผลการประเมิน</b> และ <b>หมายเหตุ</b> ปุ่มนี้ไม่แตะเลย — ' +
+      'SGS คำนวณสองช่องแรกให้เองหลังกรอกครบทุกข้อ กรอกเสร็จให้กด F5 แล้วดูได้' +
+      (a.levelCol < 0 ? ' • หน้านี้ไม่มีคอลัมน์ผลการประเมิน' : '') + '</div>';
 
+    /* ช่องติ๊กนี้เหลือไว้เป็นทางออกสุดท้ายเท่านั้น ไม่ใช่ทางปกติ จึงซ่อนไว้ใน <details>
+       ถ้าเปิดค้างไว้ให้เห็นง่าย จะมีคนติ๊กโดยไม่ได้อ่านว่าเกณฑ์สองฝั่งคิดคนละแบบ */
     var opts = '<div class="opt">' +
-      '<label><input type="checkbox" data-keep' + (state.keep ? ' checked' : '') + '> ไม่แตะช่องที่ SGS มีค่าอยู่แล้ว</label>' +
-      (a.levelOpen ? '<label><input type="checkbox" data-fill-level' + (state.fillLevel ? ' checked' : '') + '> ' +
-        'กรอกช่อง <b>ผลการประเมิน</b> ด้วย (0–3 จาก KruSpace)</label>' : '') + '</div>' +
-      (a.levelOpen && !state.fillLevel ? '<div style="margin:-4px 0 10px;color:#67748a;font-size:12px">' +
-        'ปกติ SGS คำนวณช่องนี้ให้เองหลังกรอกครบทุกข้อ ติ๊กเฉพาะตอนกดรีเฟรชแล้วเห็นว่าช่องนี้ยังว่าง</div>' : '');
+      '<label><input type="checkbox" data-keep' + (state.keep ? ' checked' : '') + '> ไม่แตะช่องที่ SGS มีค่าอยู่แล้ว</label></div>' +
+      (a.levelOpen ? '<details' + (state.fillLevel ? ' open' : '') + ' style="margin:0 0 10px">' +
+        '<summary style="cursor:pointer;color:#67748a;font-size:12px">ช่องผลการประเมินยังว่างหลังกด F5?</summary>' +
+        '<div class="n bad" style="margin-top:6px"><label><input type="checkbox" data-fill-level' + (state.fillLevel ? ' checked' : '') + '> ' +
+        'กรอกช่อง <b>ผลการประเมิน</b> ด้วยค่าของ KruSpace</label>' +
+        '<div style="font-size:12px;margin-top:4px">ปกติ <b>ไม่ต้องติ๊ก</b> เพราะ SGS คำนวณช่องนี้ให้เองหลังกรอกครบทุกข้อ<br>' +
+        'และเกณฑ์สองฝั่งคิดคนละแบบ — KruSpace นับจำนวนระดับ (ไม่ผ่านข้อเดียวก็ไม่ผ่านทั้งชุด) ' +
+        'ส่วน SGS คิดจากคะแนนรวม ตัวเลขจึงต่างกันได้โดยไม่มีฝั่งไหนผิด ' +
+        'ติ๊กแล้วเท่ากับเขียนทับผลที่ SGS คิดด้วยเกณฑ์ของตัวเอง</div></div></details>' : '');
 
     var head = '<tr><th>เลขประจำตัว</th><th>ชื่อ</th>';
     for (var h = 1; h <= kind.count; h++) head += '<th>' + h + '</th>';
-    head += '<th>รวมใน SGS</th><th>ผลการประเมิน</th></tr>';
+    head += '<th>รวมใน SGS</th><th>ผลการประเมิน<br><small>SGS • KruSpace</small></th></tr>';
 
     var cellHtml = function (c) {
       if (!c) return '<td>—</td>';
@@ -10559,8 +10566,17 @@ function sgsFillerMain() {
         '" style="color:#a61b1b">ไม่มีในข้อมูลที่คัดลอกมา — ไม่แตะแถวนี้</td></tr>';
       var tds = '';
       for (var i = 1; i <= kind.count; i++) tds += cellHtml(r.cells[String(i)]);
+      /* โชว์ผลของ SGS คู่กับของ KruSpace เสมอ ถึงจะไม่กรอกช่องนี้ก็ตาม
+         ครูจะได้เห็นเองว่าสองฝั่งตรงกันไหม โดยไม่ต้องเปิดสองหน้าเทียบ */
+      var lvCell = state.fillLevel ? cellHtml(r.cells.level) : (function () {
+        var sgsLv = r.cells.level ? String(r.cells.level.old || '') : '';
+        var kLv = r.kLevel == null ? '' : String(r.kLevel);
+        var differ = sgsLv !== '' && kLv !== '' && sgsLv !== kLv;
+        return '<td' + (differ ? ' class="ovr" title="เกณฑ์สองฝั่งคิดคนละแบบ ต่างกันได้"' : '') + '>' +
+          esc(sgsLv || '—') + ' • ' + esc(kLv || '—') + '</td>';
+      })();
       return '<tr><td>' + esc(r.sid) + '</td><td class="nm" title="' + esc(r.name) + '">' + esc(r.name) + '</td>' + tds +
-        '<td>' + esc(r.sumText || '—') + '</td>' + cellHtml(r.cells.level) + '</tr>';
+        '<td>' + esc(r.sumText || '—') + '</td>' + lvCell + '</tr>';
     }).join('');
 
     var canFill = !stop && !needSubject && pl.changes.length > 0;
@@ -10852,7 +10868,8 @@ function sgsExportCard() {
     '</ol>' +
     '<div class="notice" style="margin-top:10px">ปุ่มเดียวกันนี้ใช้กับหน้า <b>บันทึกการอ่าน คิดวิเคราะห์ และเขียน</b> (5 ข้อ) ' +
       'และ <b>บันทึกคุณลักษณะอันพึงประสงค์</b> (8 ข้อ) ของ SGS ได้ด้วย — คัดลอกชุดเดิมนี้แล้วกดปุ่มบนหน้านั้นได้เลย ' +
-      'ระบบดูจากหน้าที่เปิดอยู่ว่าจะกรอกอะไร</div>' +
+      'ระบบดูจากหน้าที่เปิดอยู่ว่าจะกรอกอะไร<br>ปุ่มกรอกให้เฉพาะช่องคะแนนรายข้อ ' +
+      'ส่วนช่อง <b>รวม</b> กับ <b>ผลการประเมิน</b> ไม่ต้องกรอก SGS คำนวณให้เองหลังกรอกครบทุกข้อ</div>' +
     '<div class="notice warn" style="margin-top:10px">หน้านี้ของ SGS <b>บันทึกทันทีที่ช่องเปลี่ยน</b> ไม่มีปุ่มยกเลิก ' +
       'ปุ่มจะกรอกเฉพาะคอลัมน์ที่ติ๊กเปิดและอยู่ในรอบที่ SGS เปิดให้กรอกเท่านั้น ' +
       'ตรวจตารางเปรียบเทียบให้ดีก่อนกดกรอกทุกครั้ง ช่องสีส้มคือช่องที่จะเขียนทับค่าเดิมใน SGS</div></div>';
