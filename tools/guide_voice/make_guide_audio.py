@@ -8,7 +8,7 @@
 
 อัดสองเสียงจากบทเดียวกัน (ชาย = Niwat, หญิง = Premwadee) ผู้ชมเลือกเสียงได้ในหน้าคู่มือ
 บทพากย์ไม่มีคำลงท้าย ค่ะ/ครับ เพราะเสียง neural ออกเสียงหางเสียงเพี้ยน และจะได้ใช้บทเดียวกันทั้งสองเสียง
-index.json = { "male": {คีย์: ไฟล์}, "female": {คีย์: ไฟล์} }
+index.json = { "male": {คีย์: ไฟล์}, "female": {คีย์: ไฟล์} } + เสียงชุดอื่นที่มีอยู่แล้ว (เช่น "self" จากห้องอัดเสียงครู) เก็บไว้ตามเดิม
 
 ทำไมแยกบทพากย์ (script.json) ออกจากคำบรรยายบนจอ:
 คำบรรยายเขียนให้ตาอ่าน มีตัวย่อ ลูกศร จุดคั่น (ปพ.5 • ☰ →) ถ้าให้เครื่องอ่านตรง ๆ จะอ่านผิดและหยุดเป็นช่วง ๆ
@@ -64,12 +64,19 @@ async def main():
                         await asyncio.sleep(2)
                 made += 1
             index[gender][key] = file
-    # ไฟล์ที่ไม่มีบทไหนใช้แล้ว ลบทิ้ง ไม่ให้โฟลเดอร์บวม
+    # เสียงชุดอื่นที่ไม่ได้มาจากสคริปต์นี้ (เช่นเสียงครูจากห้องอัดเสียง = "self" และชื่อปุ่ม "_voices") ต้องเก็บไว้ตามเดิม
+    try:
+        old = json.load(io.open(os.path.join(OUT, 'index.json'), encoding='utf-8'))
+    except Exception:
+        old = {}
+    others = {k: v for k, v in old.items() if k not in VOICES}
+    # ไฟล์ที่ไม่มีบทไหนใช้แล้ว ลบทิ้ง ไม่ให้โฟลเดอร์บวม (ไฟล์ของเสียงชุดอื่นไม่แตะ)
     used = set(f for m in index.values() for f in m.values())
-    removed = [f for f in os.listdir(OUT) if f.endswith('.mp3') and f not in used]
+    keep = set(f for k, m in others.items() if not k.startswith('_') and isinstance(m, dict) for f in m.values())
+    removed = [f for f in os.listdir(OUT) if f.endswith('.mp3') and f not in used and f not in keep and not f.startswith('self-')]
     for f in removed:
         os.remove(os.path.join(OUT, f))
-    io.open(os.path.join(OUT, 'index.json'), 'w', encoding='utf-8').write(json.dumps(index, ensure_ascii=False, indent=0))
+    io.open(os.path.join(OUT, 'index.json'), 'w', encoding='utf-8').write(json.dumps(dict(index, **others), ensure_ascii=False, indent=0))
     size = sum(os.path.getsize(os.path.join(OUT, f)) for f in used)
     print('เสียง %s • %d บรรทัด • อัดใหม่ %d • ลบไฟล์เก่า %d • รวม %.1f MB' % ('/'.join(VOICES.values()), len(index['male']), made, len(removed), size / 1048576))
     if bad:

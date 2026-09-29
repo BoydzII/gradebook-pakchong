@@ -328,19 +328,29 @@ function api(my) {
    ชื่อไฟล์ = แฮชของข้อความที่พูด แก้คำบรรยายเมื่อไหร่ ไฟล์เดิมไม่ตรงอีก จึงไม่มีทางเล่นเสียงผิดประโยค
    เบราว์เซอร์ไม่ยอมให้เว็บเปิดเสียงเองก่อนผู้ใช้แตะหน้า จึงต้องกดปุ่มเปิดเสียงครั้งแรก แล้วจำค่าไว้ */
 const Voice = { on: false, voice: null, blocked: false, ok: 'speechSynthesis' in window };
-/* อัดไว้สองเสียงจากบทเดียวกัน (ชาย/หญิง) บทไม่มีคำลงท้าย ค่ะ/ครับ เพราะเสียงสังเคราะห์ออกเสียงหางเสียงเพี้ยน
-   index.json = { male: {…}, female: {…} } • ถ้าเป็นแบบเก่า (แบนชั้นเดียว) ก็ใช้ได้ แต่ไม่มีปุ่มสลับเสียง */
-const Clips = { all: {}, map: {}, gender: 'male', audio: new Audio(), playing: false };
+/* อัดไว้หลายเสียงจากบทเดียวกัน บทไม่มีคำลงท้าย ค่ะ/ครับ เพราะเสียงสังเคราะห์ออกเสียงหางเสียงเพี้ยน
+   index.json = { male: {…}, female: {…}, self: {…}, _voices: { self: { label } } }
+   self = เสียงครูที่โคลนจากห้องอัดเสียง (tools/voice_studio) — มีเมื่อไหร่เป็นค่าเริ่มต้น และประโยคที่ยังไม่มีใช้เสียงชายแทน
+   ถ้าเป็นแบบเก่า (แบนชั้นเดียว) ก็ใช้ได้ แต่ไม่มีปุ่มสลับเสียง */
+const Clips = { all: {}, map: {}, gender: '', audio: new Audio(), playing: false };
 Clips.audio.preload = 'auto';
 Clips.audio.onended = () => { Clips.playing = false; };
 Clips.audio.onerror = () => { const was = Clips.playing; Clips.playing = false; if (was && Clips.html) webSpeak(Clips.html); };
 const VOICE_KEY = 'kruspace.guide.voice', GENDER_KEY = 'kruspace.guide.voiceGender';
-try { if (localStorage.getItem(GENDER_KEY) === 'female') Clips.gender = 'female'; } catch (e) { /* ใช้เสียงชาย */ }
-const hasGenders = () => !!(Clips.all.male && Clips.all.female);
-function useGender(g) { Clips.gender = g; Clips.map = (hasGenders() ? Clips.all[g] : Clips.all) || {}; }
+try { Clips.gender = localStorage.getItem(GENDER_KEY) || ''; } catch (e) { /* ใช้ค่าเริ่มต้น */ }
+const VOICE_ORDER = ['self', 'male', 'female'];
+const voiceKeys = () => VOICE_ORDER.filter(k => Clips.all[k] && typeof Clips.all[k] === 'object' && Object.keys(Clips.all[k]).length);
+const hasGenders = () => voiceKeys().length > 1;
+const voiceLabel = k => (((Clips.all._voices || {})[k] || {}).label) || { self: 'เสียงครู', male: 'เสียงชาย', female: 'เสียงหญิง' }[k] || k;
+function useGender(g) {
+  const keys = voiceKeys();
+  if (!keys.length) { Clips.gender = g || 'male'; Clips.map = Clips.all || {}; return; }   // index แบบเก่า (แบนชั้นเดียว)
+  Clips.gender = keys.indexOf(g) >= 0 ? g : keys[0];
+  Clips.map = Clips.all[Clips.gender];
+}
 function pickThaiVoice() {
   if (!Voice.ok) return null;
-  const same = Clips.gender === 'female' ? /premwadee|achara/i : /niwat/i;
+  const same = Clips.gender === 'female' ? /premwadee|achara/i : /niwat/i;   // เสียงครูโคลนไม่มีในเครื่อง ใช้เสียงชายแทน
   const rank = v => (same.test(v.name) ? 4 : /natural|premwadee|niwat/i.test(v.name) ? 3 : /google/i.test(v.name) ? 2 : 1);
   return speechSynthesis.getVoices().filter(v => /^th/i.test(v.lang)).sort((a, b) => rank(b) - rank(a))[0] || null;
 }
@@ -361,7 +371,8 @@ function sayKey(text) { let h = 0x811c9dc5; for (const ch of text) { h ^= ch.cod
 /* ไฟล์เสียงผูกกับ "ข้อความคำบรรยายดิบ" (ไม่ใช่ข้อความที่แปลงแล้ว) — บทพากย์เขียนด้วยมือแยกไว้ใน tools/guide_voice/script.json
    index.json = { แฮชข้อความดิบ: ชื่อไฟล์ } • ชื่อไฟล์ = แฮชของบทพากย์ อัดใหม่เมื่อไหร่ชื่อไฟล์เปลี่ยน แคชเก่าไม่ค้าง */
 const plainOf = html => html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
-const clipOf = html => Clips.map[sayKey(plainOf(html))];
+/* ประโยคที่เสียงครูยังไม่มี (เพิ่งเพิ่มบท/ยังไม่ผ่าน) ใช้เสียงชายแทน ดีกว่าตกไปเสียงหุ่นยนต์ของเครื่อง */
+const clipOf = html => { const k = sayKey(plainOf(html)); return Clips.map[k] || (Clips.gender === 'self' && Clips.all.male ? Clips.all.male[k] : undefined); };
 const clipUrl = file => './guide-audio/' + file;
 fetch('./guide-audio/index.json').then(r => r.ok ? r.json() : {}).then(m => { Clips.all = m || {}; useGender(Clips.gender); voiceUi(); }).catch(() => {});
 function voiceBusy() { return Clips.playing || (Voice.ok && (speechSynthesis.speaking || speechSynthesis.pending)); }
@@ -399,7 +410,8 @@ function voiceUi() {
   b.textContent = !Voice.on ? '🔇 เปิดเสียงบรรยาย' : Voice.blocked ? '🔊 แตะเพื่อเริ่มเสียง' : '🔊 เสียงบรรยาย';
   const noVoice = Voice.on && !hasClips && !Voice.voice;
   const g = document.getElementById('bGender');
-  g.hidden = !hasGenders(); g.textContent = Clips.gender === 'female' ? '👩 เสียงหญิง' : '👨 เสียงชาย';
+  g.hidden = !hasGenders(); g.textContent = { self: '🎙 ', female: '👩 ', male: '👨 ' }[Clips.gender] + voiceLabel(Clips.gender);
+  g.title = 'สลับเสียงผู้บรรยาย: ' + voiceKeys().map(voiceLabel).join(' / ');
   note.hidden = !noVoice; if (noVoice) note.textContent = 'โหลดไฟล์เสียงไม่ได้ และเครื่องนี้ไม่มีเสียงภาษาไทย ลองต่ออินเทอร์เน็ตแล้วเปิดใหม่';
 }
 function setVoice(on) {
@@ -899,7 +911,7 @@ document.getElementById('bPrev').onclick = () => go(cur - 1);
 document.getElementById('bNext').onclick = () => go(cur + 1);
 document.getElementById('bSpeed').onclick = e => { speed = speed === 1 ? 1.5 : 1; e.target.textContent = speed + '×'; };
 document.getElementById('bVoice').onclick = () => setVoice(!(Voice.on && !Voice.blocked));
-document.getElementById('bGender').onclick = () => setGender(Clips.gender === 'female' ? 'male' : 'female');
+document.getElementById('bGender').onclick = () => { const k = voiceKeys(); setGender(k[(k.indexOf(Clips.gender) + 1) % k.length]); };
 voiceUi();
 chaps.onclick = e => { const b = e.target.closest('button'); if (b) { playing = true; go(firstOf(+b.dataset.ch)); } };
 document.getElementById('bar').onclick = e => { const r = e.currentTarget.getBoundingClientRect(); go(Math.floor((e.clientX - r.left) / r.width * STEPS.length)); };

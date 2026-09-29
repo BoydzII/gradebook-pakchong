@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ห้องอัดเสียงครู</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;700&family=IBM+Plex+Sans+Thai+Looped:wght@400;700&display=swap">
+<style>
+:root{--bg:#f2f4f6;--card:#fff;--sunk:#e8ecf0;--ink:#14202c;--ink2:#4a5866;--ink3:#7c8793;--line:#d8dfe6;
+  --rec:#d0342c;--rec-soft:#fdecea;--ok:#15784a;--ok-soft:#e5f5ec;--warn:#9a5a00;--warn-soft:#fff3dc;--blue:#1f5fbf;--blue-soft:#e8f0fc;
+  --f:"IBM Plex Sans Thai Looped","IBM Plex Sans Thai","Leelawadee UI","Segoe UI",sans-serif;--fd:"IBM Plex Sans Thai","Leelawadee UI","Segoe UI",sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f);font-size:16px;line-height:1.7}
+h1,h2,h3{font-family:var(--fd);margin:0}
+.top{background:var(--ink);color:#fff;padding:14px 20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.top h1{font-size:1.25rem;font-weight:700}
+.top .eng{margin-left:auto;font-size:.88rem;display:flex;gap:8px;align-items:center}
+.dot{width:10px;height:10px;border-radius:50%;background:#888;display:inline-block}
+.dot.ok{background:#3ecf8e}.dot.warn{background:#f0b429}.dot.bad{background:#ff6b5e}
+nav{display:flex;gap:4px;padding:0 20px;background:var(--card);border-bottom:1px solid var(--line);overflow-x:auto}
+nav button{font:inherit;font-family:var(--fd);border:0;background:none;padding:14px 16px;cursor:pointer;color:var(--ink2);border-bottom:3px solid transparent;white-space:nowrap}
+nav button.on{color:var(--ink);font-weight:700;border-bottom-color:var(--rec)}
+nav button b{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--sunk);font-size:.8rem;margin-right:6px}
+nav button.on b{background:var(--rec);color:#fff}
+main{max-width:1060px;margin:0 auto;padding:24px 16px 80px}
+section{display:none}section.on{display:grid;gap:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+.card h2{font-size:1.15rem;margin-bottom:6px}
+.hint{color:var(--ink3);font-size:.9rem}
+.banner{border-radius:10px;padding:12px 16px;font-size:.95rem}
+.banner.warn{background:var(--warn-soft);color:var(--warn)}.banner.ok{background:var(--ok-soft);color:var(--ok)}.banner.bad{background:var(--rec-soft);color:var(--rec)}
+.banner code{background:rgba(0,0,0,.06);padding:1px 6px;border-radius:5px}
+.btn{font:inherit;font-family:var(--fd);font-weight:700;font-size:.92rem;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:9px;padding:8px 14px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--ink3)}.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.rec{background:var(--rec);border-color:var(--rec);color:#fff}.btn.pri{background:var(--ink);border-color:var(--ink);color:#fff}
+.btn.sm{padding:4px 10px;font-size:.84rem}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.prompt{font-family:var(--fd);font-size:clamp(1.3rem,3vw,1.75rem);line-height:1.6;font-weight:400;padding:18px 20px;background:var(--sunk);border-radius:10px;margin:10px 0}
+.meter{height:12px;background:var(--sunk);border-radius:99px;overflow:hidden;flex:1;min-width:160px}
+.meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,#3ecf8e 0 70%,#f0b429 70% 90%,#ff6b5e 90%)}
+.timer{font-variant-numeric:tabular-nums;font-family:var(--fd);font-weight:700;min-width:4.5em}
+.checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-top:10px}
+.chk{border-radius:8px;padding:8px 10px;font-size:.88rem;background:var(--sunk)}
+.chk b{display:block;font-family:var(--fd)}
+.chk.good{background:var(--ok-soft);color:var(--ok)}.chk.fair{background:var(--warn-soft);color:var(--warn)}.chk.poor{background:var(--rec-soft);color:var(--rec)}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+td,th{padding:9px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+th{font-family:var(--fd);color:var(--ink2);font-weight:700;font-size:.85rem}
+tr.sel{background:var(--blue-soft)}
+.pill{display:inline-block;border-radius:99px;padding:1px 10px;font-size:.8rem;font-weight:700;font-family:var(--fd);white-space:nowrap}
+.pill.none{background:var(--sunk);color:var(--ink3)}.pill.draft{background:var(--warn-soft);color:var(--warn)}.pill.approved{background:var(--ok-soft);color:var(--ok)}
+.pill.recorded{background:var(--blue-soft);color:var(--blue)}.pill.rejected{background:var(--rec-soft);color:var(--rec)}.pill.stale{background:var(--rec-soft);color:var(--rec)}
+label.f{display:grid;gap:4px;font-size:.88rem;color:var(--ink2)}
+input[type=text],input[type=number],textarea,select{font:inherit;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff;color:var(--ink)}
+textarea{width:100%;min-height:90px;resize:vertical}
+.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.lines{max-height:62vh;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.lines td.say{min-width:280px}.lines td.say small{display:block;color:var(--ink3)}
+.bar{height:8px;background:var(--sunk);border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;background:var(--rec);width:0}
+.tag{font-size:.8rem;color:var(--ink3)}
+.recdot{width:12px;height:12px;border-radius:50%;background:var(--rec);display:inline-block;animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.25}}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:10px;font-family:var(--fd);z-index:9;max-width:90vw}
+.toast.bad{background:var(--rec)}
+audio{height:34px;max-width:100%}
+</style>
+</head>
+<body>
+<div class="top"><h1>ห้องอัดเสียงครู</h1><span class="hint" style="color:#b9c4cf">โคลนเสียงของคุณมาพากย์คู่มือ • ทำงานในเครื่องนี้ทั้งหมด</span>
+  <div class="eng"><span class="dot" id="engDot"></span><span id="engText">กำลังตรวจเครื่องยนต์เสียง…</span></div></div>
+<nav id="nav">
+  <button data-go="ref" class="on"><b>1</b>อัดตัวอย่างเสียง</button>
+  <button data-go="try"><b>2</b>ทดลองโคลน</button>
+  <button data-go="lines"><b>3</b>อัดคู่มือทั้งชุด</button>
+  <button data-go="pub"><b>4</b>เผยแพร่</button>
+</nav>
+<main>
+  <div id="engBanner"></div>
+
+  <!-- 1 ตัวอย่างเสียง -->
+  <section id="s-ref" class="on">
+    <div class="card">
+      <h2>อ่านประโยคนี้ด้วยน้ำเสียงเหมือนตอนสอน</h2>
+      <div class="hint">ห้องเงียบ ปิดพัดลม ห่างไมค์ประมาณหนึ่งฝ่ามือ กดเริ่มอัดแล้ว<b>รอ 1 วินาทีก่อนพูด</b> (ระบบใช้วัดเสียงรบกวน) อ่านให้ตรงตามตัวอักษร (ถ้าอ่านต่างไป แก้ข้อความในช่องให้ตรงกับที่อ่านจริงก่อนบันทึก) — ความยาวที่ดีคือ 5–8 วินาที</div>
+      <div class="prompt" id="prompt"></div>
+      <div class="row">
+        <button class="btn sm" id="prevPrompt">‹ ประโยคก่อน</button><button class="btn sm" id="nextPrompt">ประโยคถัดไป ›</button>
+        <span class="sp" style="flex:1"></span>
+        <span class="timer" id="timer">0.0 วิ</span>
+        <div class="meter"><i id="meter"></i></div>
+        <button class="btn rec" id="recBtn">● เริ่มอัด</button>
+      </div>
+      <div id="takeBox" hidden style="margin-top:14px">
+        <div class="row"><audio id="takeAudio" controls></audio><span class="sp" style="flex:1"></span>
+          <button class="btn" id="discardTake">อัดใหม่</button><button class="btn pri" id="keepTake">เก็บตัวอย่างนี้</button></div>
+        <label class="f" style="margin-top:10px">ข้อความที่อ่านจริง (โมเดลต้องรู้ว่าตัวอย่างพูดว่าอะไร ต้องตรงทุกคำ)<input type="text" id="takeText"></label>
+        <div class="checks" id="takeChecks"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>ตัวอย่างเสียงที่เก็บไว้</h2>
+      <div class="hint">เลือกอันที่เสียงชัดและเป็นธรรมชาติที่สุดเป็น "ตัวหลัก" แล้วไปทดลองในขั้นที่ 2 — ลองสลับตัวอย่างดู เสียงโคลนต่างกันได้มาก</div>
+      <table style="margin-top:8px"><thead><tr><th></th><th>ข้อความ</th><th>ยาว</th><th>คุณภาพ</th><th></th></tr></thead><tbody id="refList"></tbody></table>
+    </div>
+  </section>
+
+  <!-- 2 ทดลอง -->
+  <section id="s-try">
+    <div class="card">
+      <h2>ทดลองโคลน</h2>
+      <div class="hint">พิมพ์ประโยคอะไรก็ได้ แล้วฟังว่าเหมือนเสียงคุณไหม ออกเสียงถูกไหม — เขียนตัวเลขและภาษาอังกฤษเป็นคำอ่านภาษาไทย (เช่น “ปอพอห้า” “เอสจีเอส”)</div>
+      <textarea id="tryText" style="margin-top:10px">ที่แท็บเช็กชื่อ เลือกคาบของวันนี้ แล้วแตะสถานะของนักเรียนแต่ละคน ระบบจะบันทึกให้ทันที</textarea>
+      <div class="grid4" style="margin-top:10px">
+        <label class="f">ตัวอย่างเสียงที่ใช้<select id="refPick"></select></label>
+        <label class="f">เครื่องยนต์<select id="engPick"><option value="f5">โคลนเสียง (F5-TTS-THAI)</option><option value="preview">เสียงทดสอบ (Edge — ไม่ใช่เสียงคุณ)</option></select></label>
+        <label class="f">ความเร็ว <span id="speedV"></span><input type="range" id="speed" min="0.7" max="1.3" step="0.05"></label>
+        <label class="f">ความตามต้นแบบ (cfg) <span id="cfgV"></span><input type="range" id="cfg" min="1" max="3.5" step="0.1"></label>
+        <label class="f">ความละเอียด (step)<select id="step"><option>16</option><option>32</option><option>48</option><option>64</option></select></label>
+        <label class="f">เลขสุ่ม (seed)<input type="number" id="seed" min="0" max="999999"></label>
+      </div>
+      <div class="row" style="margin-top:12px"><button class="btn pri" id="tryBtn">▶ สร้างเสียง</button><button class="btn" id="tryRnd">ลองเลขสุ่มใหม่</button><span class="tag" id="tryState"></span></div>
+    </div>
+    <div class="card"><h2>ที่ลองแล้ว</h2><div class="hint">ฟังเทียบกัน ชอบอันไหน กด “ใช้ค่านี้” ค่าจะถูกใช้ตอนอัดคู่มือทั้งชุด</div><div id="tryList" style="display:grid;gap:10px;margin-top:10px"></div></div>
+  </section>
+
+  <!-- 3 ทั้งชุด -->
+  <section id="s-lines">
+    <div class="card">
+      <div class="row"><h2 style="margin:0">บทพากย์คู่มือ</h2><span class="tag" id="lineSum"></span><span style="flex:1"></span>
+        <button class="btn pri" id="batchBtn">สร้างทุกประโยคที่ยังไม่มี</button><button class="btn" id="stopBtn" hidden>หยุด</button></div>
+      <div id="batchBox" hidden style="margin-top:12px"><div class="bar"><i id="batchBar"></i></div><div class="tag" id="batchText"></div></div>
+      <div class="hint" style="margin-top:8px">ฟังทีละประโยค: ✓ ผ่าน • ↻ สร้างใหม่ด้วยเลขสุ่มอื่น • ● อัดด้วยเสียงจริงของคุณแทน (ใช้กับประโยคที่ AI ออกเสียงไม่ถูก) • ▷ชาย ฟังเสียงชายเดิมเทียบ</div>
+      <div class="row" style="margin-top:10px">
+        <select id="lineFilter"><option value="all">ทุกประโยค</option><option value="todo">ยังไม่มีเสียง / บทเปลี่ยน</option><option value="draft">รอฟัง</option><option value="done">ผ่านแล้ว</option></select>
+        <button class="btn sm" id="approveAll" title="ใช้เมื่อฟังครบแล้วเท่านั้น">✓ ผ่านทุกประโยคที่รอฟัง</button>
+      </div>
+    </div>
+    <div class="lines"><table><thead><tr><th>#</th><th>ประโยค</th><th>สถานะ</th><th>ฟัง</th><th></th></tr></thead><tbody id="lineRows"></tbody></table></div>
+  </section>
+
+  <!-- 4 เผยแพร่ -->
+  <section id="s-pub">
+    <div class="card">
+      <h2>เผยแพร่ไปที่คู่มือ</h2>
+      <p>ประโยคที่ <b>ผ่านแล้ว</b> หรือ <b>อัดด้วยเสียงจริง</b> จะถูกคัดลอกไปที่ <code>guide-audio/</code> เป็นเสียงชุดใหม่ในคู่มือ ประโยคที่ยังไม่ผ่าน คู่มือจะใช้เสียงชายเดิมแทน ไม่เงียบ</p>
+      <label class="f" style="max-width:420px">ชื่อที่แสดงบนปุ่มเลือกเสียงในคู่มือ<input type="text" id="label" placeholder="เช่น เสียงครูบอย (AI)"></label>
+      <div class="hint" style="margin-top:4px">แนะนำให้มีคำว่า (AI) เพื่อบอกผู้ฟังตรง ๆ ว่าเป็นเสียงสังเคราะห์จากเสียงของคุณ</div>
+      <div class="row" style="margin-top:14px"><button class="btn pri" id="pubBtn">เผยแพร่ไปที่คู่มือ</button><span class="tag" id="pubState"></span></div>
+      <div class="banner warn" style="margin-top:14px">ขั้นนี้เปลี่ยนไฟล์ในรีโพเท่านั้น ยังไม่ขึ้นเว็บ — บอก Claude ว่า “commit เสียงครูแล้ว push” เพื่อขึ้นเว็บจริง<br>
+        ตัวอย่างเสียงต้นฉบับอยู่ที่ <code id="dataDir"></code> ซึ่งอยู่นอกรีโพ จะไม่ขึ้น GitHub</div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+let S = null, promptIdx = 0, take = null, tries = [];
+const toast = (t, bad) => { const d = document.createElement('div'); d.className = 'toast' + (bad ? ' bad' : ''); d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), bad ? 5000 : 2600); };
+async function api(p, body) {
+  const r = await fetch(p, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ('ผิดพลาด ' + r.status));
+  return j;
+}
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* ---------- แท็บ ---------- */
+$('#nav').onclick = e => { const b = e.target.closest('button'); if (!b) return;
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('section').forEach(s => s.classList.toggle('on', s.id === 's-' + b.dataset.go)); };
+
+/* ---------- สถานะ ---------- */
+async function refresh() { S = await api('/api/state'); render(); }
+function render() {
+  const e = S.engine || {}, st = S.settings;
+  const f5 = !!e.f5, cuda = !!e.cuda;
+  $('#engDot').className = 'dot ' + (f5 && cuda ? 'ok' : f5 ? 'warn' : e.ok === undefined ? '' : 'bad');
+  $('#engText').textContent = e.ok === undefined ? 'กำลังตรวจเครื่องยนต์เสียง…' : f5 ? ('พร้อมโคลนเสียง • ' + (cuda ? e.gpu : 'ไม่มี GPU — ช้ามาก')) : 'ยังไม่ติดตั้งเครื่องยนต์โคลนเสียง';
+  $('#engBanner').innerHTML = e.ok !== undefined && !f5 ? '<div class="banner warn"><b>ยังโคลนเสียงไม่ได้</b> — ติดตั้งครั้งเดียวด้วย <code>python tools/voice_studio/setup_engine.py</code> (ใช้เน็ตราว 4–5 GB) แล้วเปิดห้องอัดเสียงใหม่ ระหว่างนี้อัดตัวอย่างเสียงไว้ก่อนได้ และทดสอบระบบด้วย "เสียงทดสอบ (Edge)"</div>' : '';
+  $('#prompt').textContent = S.reading[promptIdx % S.reading.length];
+  // ตัวอย่างเสียง
+  $('#refList').innerHTML = S.refs.length ? S.refs.map(r => '<tr class="' + (r.id === st.ref_id ? 'sel' : '') + '"><td><input type="radio" name="refsel" value="' + r.id + '"' + (r.id === st.ref_id ? ' checked' : '') + ' title="ใช้เป็นตัวหลัก"></td>' +
+    '<td>' + esc(r.text) + '<br><audio controls preload="none" src="/media/refs/' + r.file + '"></audio></td><td>' + (r.dur ? (+r.dur).toFixed(1) + ' วิ' : '') + '</td><td>' + qualPill(r.checks) + '</td>' +
+    '<td><button class="btn sm" data-delref="' + r.id + '">ลบ</button></td></tr>').join('') : '<tr><td colspan="5" class="hint">ยังไม่มี — อัดอย่างน้อย 3 ประโยค แล้วเลือกอันที่ดีที่สุด</td></tr>';
+  $('#refPick').innerHTML = S.refs.map(r => '<option value="' + r.id + '"' + (r.id === st.ref_id ? ' selected' : '') + '>' + esc(r.text.slice(0, 40)) + '…</option>').join('') || '<option value="">— ยังไม่มีตัวอย่างเสียง —</option>';
+  $('#engPick').value = st.engine; $('#speed').value = st.speed; $('#speedV').textContent = (+st.speed).toFixed(2) + '×';
+  $('#cfg').value = st.cfg; $('#cfgV').textContent = (+st.cfg).toFixed(1); $('#step').value = String(st.step); $('#seed').value = st.seed;
+  if (document.activeElement !== $('#label')) $('#label').value = st.label;
+  $('#dataDir').textContent = S.data;
+  renderLines(); renderBatch();
+  const pub = S.published || {};
+  $('#pubState').textContent = pub.at ? 'เผยแพร่ล่าสุด ' + pub.at + ' • ' + pub.count + ' ประโยค' : 'ยังไม่เคยเผยแพร่';
+}
+function qualPill(c) {
+  if (!c || !c.grade) return '';
+  return '<span class="pill ' + ({ good: 'approved', fair: 'draft', poor: 'rejected' }[c.grade]) + '">' + ({ good: 'ดี', fair: 'พอใช้', poor: 'ควรอัดใหม่' }[c.grade]) + '</span>';
+}
+function lineStatus(l) {
+  if (l.file && !l.fresh) return ['stale', 'บทเปลี่ยน ต้องสร้างใหม่'];
+  if (!l.file) return ['none', 'ยังไม่มี'];
+  return [l.status, { draft: 'รอฟัง', approved: 'ผ่าน', recorded: 'เสียงจริง', rejected: 'ไม่ผ่าน' }[l.status] || l.status];
+}
+function renderLines() {
+  const f = $('#lineFilter').value;
+  const rows = S.lines.map((l, i) => ({ l, i, st: lineStatus(l) })).filter(({ l, st }) =>
+    f === 'all' || (f === 'todo' && (st[0] === 'none' || st[0] === 'stale' || st[0] === 'rejected')) || (f === 'draft' && st[0] === 'draft') || (f === 'done' && (st[0] === 'approved' || st[0] === 'recorded')));
+  const n = k => S.lines.filter(l => lineStatus(l)[0] === k).length;
+  $('#lineSum').textContent = 'ผ่าน ' + (n('approved') + n('recorded')) + ' • รอฟัง ' + n('draft') + ' • ยังไม่มี ' + (n('none') + n('stale')) + ' จาก ' + S.lines.length;
+  $('#lineRows').innerHTML = rows.map(({ l, i, st }) => '<tr data-key="' + l.key + '"><td class="tag">' + (i + 1) + '</td>' +
+    '<td class="say">' + esc(l.say) + '<small>' + esc(l.plain) + '</small></td><td><span class="pill ' + st[0] + '">' + st[1] + '</span></td>' +
+    '<td>' + (l.file && l.fresh ? '<audio controls preload="none" src="/media/lines/' + l.file + '"></audio>' : '') + '</td>' +
+    '<td><div class="row" style="gap:6px;flex-wrap:nowrap">' +
+      (l.file && l.fresh && l.status === 'draft' ? '<button class="btn sm" data-act="ok" title="ผ่าน">✓</button>' : '') +
+      '<button class="btn sm" data-act="gen" title="สร้างใหม่">↻</button>' +
+      '<button class="btn sm" data-act="rec" title="อัดด้วยเสียงจริงของคุณ">●</button>' +
+      (l.male ? '<button class="btn sm" data-act="male" title="ฟังเสียงชายเดิม">▷ชาย</button>' : '') +
+      (l.file && l.fresh && l.status !== 'rejected' ? '<button class="btn sm" data-act="no" title="ไม่ผ่าน">✕</button>' : '') +
+    '</div></td></tr>').join('');
+}
+function renderBatch() {
+  const b = S.batch; $('#batchBox').hidden = !b.running && !b.total; $('#stopBtn').hidden = !b.running; $('#batchBtn').disabled = b.running;
+  $('#batchBar').style.width = (b.total ? b.done / b.total * 100 : 0) + '%';
+  $('#batchText').textContent = b.running ? 'กำลังสร้าง ' + b.done + '/' + b.total + ' • ' + b.current : (b.total ? 'เสร็จ ' + b.done + '/' + b.total + (b.errors.length ? ' • ผิดพลาด ' + b.errors.length + ': ' + b.errors[0] : '') : '');
+}
+
+/* ---------- อัดเสียง: บันทึกดิบ → แปลงเป็น WAV 24 kHz โมโนในเบราว์เซอร์ (ไม่ต้องมี ffmpeg) ---------- */
+const Rec = { stream: null, rec: null, chunks: [], t0: 0, raf: 0, onDone: null };
+async function startRec(onDone, btn) {
+  try {
+    // ปิดตัวกรองของเบราว์เซอร์ — ตัดเสียงรบกวน/ปรับระดับอัตโนมัติทำให้เสียงต้นแบบเพี้ยน โมเดลจะเลียนแบบความเพี้ยนนั้นไปด้วย
+    Rec.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 } });
+  } catch (e) { toast('เปิดไมโครโฟนไม่ได้: ' + e.message + ' — อนุญาตไมค์ให้หน้านี้ก่อน', true); return false; }
+  const ctx = new AudioContext(), src = ctx.createMediaStreamSource(Rec.stream), an = ctx.createAnalyser();
+  an.fftSize = 1024; src.connect(an); const buf = new Float32Array(an.fftSize);
+  Rec.chunks = []; Rec.rec = new MediaRecorder(Rec.stream); Rec.onDone = onDone;
+  Rec.rec.ondataavailable = e => e.data.size && Rec.chunks.push(e.data);
+  Rec.rec.onstop = async () => { cancelAnimationFrame(Rec.raf); Rec.stream.getTracks().forEach(t => t.stop()); ctx.close();
+    $('#meter').style.width = '0'; const blob = new Blob(Rec.chunks); Rec.onDone(await toWav(blob)); };
+  Rec.rec.start(); Rec.t0 = performance.now();
+  const tick = () => { an.getFloatTimeDomainData(buf); let pk = 0; for (const v of buf) pk = Math.max(pk, Math.abs(v));
+    $('#meter').style.width = Math.min(100, pk * 100) + '%'; $('#timer').textContent = ((performance.now() - Rec.t0) / 1000).toFixed(1) + ' วิ';
+    Rec.raf = requestAnimationFrame(tick); };
+  tick(); return true;
+}
+function stopRec() { if (Rec.rec && Rec.rec.state === 'recording') Rec.rec.stop(); }
+async function toWav(blob) {
+  const ac = new AudioContext(); const dec = await ac.decodeAudioData(await blob.arrayBuffer()); ac.close();
+  const SR = 24000, off = new OfflineAudioContext(1, Math.ceil(dec.duration * SR), SR);
+  const s = off.createBufferSource(); s.buffer = dec; s.connect(off.destination); s.start();
+  let x = (await off.startRendering()).getChannelData(0);
+  const full = x;
+  x = trim(x, SR);
+  const checks = analyse(x, SR, full);
+  const b = new ArrayBuffer(44 + x.length * 2), v = new DataView(b), w = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + x.length * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, SR, true); v.setUint32(28, SR * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, x.length * 2, true);
+  for (let i = 0; i < x.length; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, x[i])) * 32767, true);
+  const wavBlob = new Blob([b], { type: 'audio/wav' });
+  const b64 = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(wavBlob); });
+  return { b64, url: URL.createObjectURL(wavBlob), dur: x.length / SR, checks };
+}
+/* ตัดเงียบหัวท้าย เหลือขอบ 0.2 วินาที — ช่วงเงียบยาวในตัวอย่างทำให้เสียงโคลนมีช่วงเงียบแปลก ๆ */
+function trim(x, sr) {
+  const win = Math.round(sr * 0.02), n = Math.floor(x.length / win), rms = [];
+  for (let i = 0; i < n; i++) { let s = 0; for (let j = i * win; j < (i + 1) * win; j++) s += x[j] * x[j]; rms.push(Math.sqrt(s / win)); }
+  const top = Math.max(...rms, 1e-6), on = rms.map(r => r > top * 0.08);
+  const a = on.indexOf(true), b = on.lastIndexOf(true);
+  if (a < 0) return x;
+  const pad = Math.round(sr * 0.2);
+  return x.slice(Math.max(0, a * win - pad), Math.min(x.length, (b + 1) * win + pad));
+}
+/* วัดคุณภาพ: ความยาว เสียงแตก ระดับเสียงพูด และเสียงรบกวนพื้นหลัง
+   เสียงรบกวนวัดจากไฟล์ก่อนตัดเงียบ (ช่วงเงียบที่สุด 5%) — หลังตัดแล้วแทบไม่เหลือช่วงเงียบให้วัด จะได้ค่าผิด */
+function frameRms(x, win) { const out = []; for (let i = 0; i + win <= x.length; i += win) { let s = 0; for (let j = i; j < i + win; j++) s += x[j] * x[j]; out.push(Math.sqrt(s / win)); } return out; }
+function analyse(x, sr, full) {
+  const win = Math.round(sr * 0.02); let clip = 0, pk = 0;
+  for (let i = 0; i < x.length; i++) { const a = Math.abs(x[i]); if (a > pk) pk = a; if (a > 0.985) clip++; }
+  const db = v => 20 * Math.log10(Math.max(v, 1e-6));
+  const sorted = frameRms(x, win).sort((a, b) => a - b), quiet = frameRms(full || x, win).sort((a, b) => a - b);
+  const noise = db(quiet[Math.floor(quiet.length * 0.05)] || 0), speech = db(sorted[Math.floor(sorted.length * 0.9)] || 0);
+  const dur = x.length / sr, snr = speech - noise, clipPct = clip / x.length * 100;
+  const g = { dur: dur >= 4 && dur <= 10 ? 'good' : dur >= 2.5 && dur <= 13 ? 'fair' : 'poor',
+    clip: clipPct < 0.01 ? 'good' : clipPct < 0.1 ? 'fair' : 'poor',
+    level: speech > -28 && speech < -8 ? 'good' : speech > -36 ? 'fair' : 'poor',
+    snr: snr >= 35 ? 'good' : snr >= 25 ? 'fair' : 'poor' };
+  const vals = Object.values(g), grade = vals.includes('poor') ? 'poor' : vals.includes('fair') ? 'fair' : 'good';
+  return { dur: +dur.toFixed(2), peak: +db(pk).toFixed(1), clipPct: +clipPct.toFixed(3), speech: +speech.toFixed(1), noise: +noise.toFixed(1), snr: +snr.toFixed(1), g, grade };
+}
+function checksHtml(c) {
+  const t = { good: 'ดี', fair: 'พอใช้', poor: 'ควรแก้' };
+  return [['ความยาว', c.dur + ' วิ', c.g.dur, 'ดีที่สุด 5–8 วิ'], ['เสียงแตก', c.clipPct + '%', c.g.clip, 'ถ้าแตก ถอยห่างไมค์หรือลดความดัง'],
+    ['ระดับเสียงพูด', c.speech + ' dB', c.g.level, 'ควรอยู่ราว −25 ถึง −10 dB'], ['เสียงรบกวน', 'ห่างจากเสียงพูด ' + c.snr + ' dB', c.g.snr, 'ยิ่งมากยิ่งดี ควรเกิน 35 dB']]
+    .map(([k, v, g, h]) => '<div class="chk ' + g + '"><b>' + k + ' • ' + t[g] + '</b>' + v + '<br><span style="opacity:.8">' + h + '</span></div>').join('');
+}
+$('#recBtn').onclick = async e => {
+  const b = e.currentTarget;
+  if (Rec.rec && Rec.rec.state === 'recording') { stopRec(); b.innerHTML = '● เริ่มอัด'; return; }
+  const ok = await startRec(t => { take = t; $('#takeBox').hidden = false; $('#takeAudio').src = t.url; $('#takeText').value = $('#prompt').textContent; $('#takeChecks').innerHTML = checksHtml(t.checks); }, b);
+  if (ok) { b.innerHTML = '<span class="recdot"></span> หยุด'; $('#takeBox').hidden = true; }
+};
+$('#discardTake').onclick = () => { take = null; $('#takeBox').hidden = true; };
+$('#keepTake').onclick = async () => {
+  if (!take) return;
+  try { await api('/api/ref', { wav: take.b64, text: $('#takeText').value, dur: take.dur, checks: take.checks });
+    take = null; $('#takeBox').hidden = true; promptIdx++; toast('เก็บตัวอย่างเสียงแล้ว'); refresh(); } catch (err) { toast(err.message, true); }
+};
+$('#prevPrompt').onclick = () => { promptIdx = (promptIdx + S.reading.length - 1) % S.reading.length; render(); };
+$('#nextPrompt').onclick = () => { promptIdx++; render(); };
+$('#refList').onclick = async e => {
+  const d = e.target.closest('[data-delref]'); if (d) { if (confirm('ลบตัวอย่างเสียงนี้?')) { await api('/api/ref/delete', { id: d.dataset.delref }); refresh(); } return; }
+};
+$('#refList').onchange = async e => { if (e.target.name === 'refsel') { await api('/api/settings', { ref_id: e.target.value }); refresh(); } };
+
+/* ---------- ทดลอง ---------- */
+const setS = async o => { await api('/api/settings', o); await refresh(); };
+$('#refPick').onchange = e => setS({ ref_id: e.target.value });
+$('#engPick').onchange = e => setS({ engine: e.target.value });
+$('#speed').oninput = e => { $('#speedV').textContent = (+e.target.value).toFixed(2) + '×'; }; $('#speed').onchange = e => setS({ speed: +e.target.value });
+$('#cfg').oninput = e => { $('#cfgV').textContent = (+e.target.value).toFixed(1); }; $('#cfg').onchange = e => setS({ cfg: +e.target.value });
+$('#step').onchange = e => setS({ step: +e.target.value }); $('#seed').onchange = e => setS({ seed: +e.target.value });
+async function doTry(seed) {
+  const st = S.settings; $('#tryBtn').disabled = true; $('#tryState').textContent = 'กำลังสร้าง… (ครั้งแรกโหลดโมเดลนานราว 1 นาที)';
+  try { const r = await api('/api/try', { text: $('#tryText').value, seed });
+    tries.unshift({ url: r.url, text: $('#tryText').value, set: { ref_id: st.ref_id, engine: st.engine, speed: st.speed, cfg: st.cfg, step: st.step, seed: seed } });
+    renderTries(); const a = $('#tryList audio'); if (a) a.play().catch(() => {}); $('#tryState').textContent = '';
+  } catch (err) { $('#tryState').textContent = ''; toast(err.message, true); }
+  $('#tryBtn').disabled = false;
+}
+function renderTries() {
+  $('#tryList').innerHTML = tries.slice(0, 12).map((t, i) => '<div class="row" style="border-bottom:1px solid var(--line);padding-bottom:8px"><audio controls src="' + t.url + '"></audio>' +
+    '<span class="tag" style="flex:1">' + esc(t.text.slice(0, 50)) + ' • ' + (t.set.engine === 'f5' ? 'โคลน' : 'ทดสอบ') + ' • ความเร็ว ' + t.set.speed + ' • cfg ' + t.set.cfg + ' • seed ' + t.set.seed + '</span>' +
+    '<button class="btn sm" data-use="' + i + '">ใช้ค่านี้</button></div>').join('') || '<div class="hint">ยังไม่ได้ลอง</div>';
+}
+$('#tryBtn').onclick = () => doTry(S.settings.seed);
+$('#tryRnd').onclick = () => doTry(Math.floor(Math.random() * 99999));
+$('#tryList').onclick = e => { const b = e.target.closest('[data-use]'); if (b) { setS(tries[+b.dataset.use].set); toast('ใช้ค่านี้สำหรับอัดทั้งชุดแล้ว'); } };
+
+/* ---------- ทั้งชุด ---------- */
+$('#lineFilter').onchange = renderLines;
+$('#batchBtn').onclick = async () => { try { await api('/api/batch', { only_missing: true }); poll(); } catch (err) { toast(err.message, true); } };
+$('#stopBtn').onclick = () => api('/api/batch/stop', {});
+$('#approveAll').onclick = async () => { if (!confirm('ให้ผ่านทุกประโยคที่รอฟัง? ใช้เมื่อฟังครบแล้วเท่านั้น')) return; const r = await api('/api/approve-all', {}); toast('ผ่าน ' + r.count + ' ประโยค'); refresh(); };
+let recKey = null;
+$('#lineRows').onclick = async e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const key = b.closest('tr').dataset.key, act = b.dataset.act, l = S.lines.find(x => x.key === key);
+  try {
+    if (act === 'ok') await api('/api/line/status', { key, status: 'approved' });
+    else if (act === 'no') await api('/api/line/status', { key, status: 'rejected' });
+    else if (act === 'male') { new Audio('/guide-audio/' + l.male).play(); return; }
+    else if (act === 'gen') { b.disabled = true; b.textContent = '…'; await api('/api/line/gen', { key, seed: l.file ? Math.floor(Math.random() * 99999) : undefined }); }
+    else if (act === 'rec') {
+      if (recKey === key) { stopRec(); return; }
+      if (recKey) return toast('กำลังอัดประโยคอื่นอยู่', true);
+      recKey = key;
+      const ok = await startRec(async t => { recKey = null;
+        try { await api('/api/line/record', { key, wav: t.b64 }); toast('บันทึกเสียงจริงแล้ว'); } catch (err) { toast(err.message, true); }
+        refresh(); }, b);
+      if (ok) { b.innerHTML = '<span class="recdot"></span> หยุด'; toast('กำลังอัด — อ่านประโยคนี้แล้วกดหยุด'); } else recKey = null;
+      return;
+    }
+    await refresh();
+    const a = document.querySelector('tr[data-key="' + key + '"] audio'); if (a && act === 'gen') a.play().catch(() => {});
+  } catch (err) { toast(err.message, true); refresh(); }
+};
+let polling = false;
+async function poll() { if (polling) return; polling = true;
+  while (true) { await refresh(); if (!S.batch.running) break; await new Promise(r => setTimeout(r, 1500)); }
+  polling = false; }
+
+/* ---------- เผยแพร่ ---------- */
+$('#label').onchange = e => setS({ label: e.target.value.trim() || 'เสียงครู (AI)' });
+$('#pubBtn').onclick = async () => { try { const r = await api('/api/publish', {}); toast('เผยแพร่แล้ว ' + r.count + '/' + r.total + ' ประโยค'); refresh(); } catch (err) { toast(err.message, true); } };
+
+renderTries();
+refresh().then(async () => { if (S.engine.ok === undefined) { await api('/api/ping', {}).catch(() => {}); refresh(); } if (S.batch.running) poll(); });
+</script>
+</body>
+</html>
