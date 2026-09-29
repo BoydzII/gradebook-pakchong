@@ -8,7 +8,8 @@
   1. ติดตั้ง uv (ตัวจัดการ Python) ให้ Python ที่ใช้อยู่
   2. สร้าง venv Python 3.11 ที่ D:\\KruSpace\\voice-engine\\.venv (นอกรีโพ — ไฟล์ใหญ่ห้ามขึ้น GitHub)
      เหตุที่ต้องเป็น 3.11: torch/numpy ที่ F5-TTS-THAI ต้องใช้ ยังไม่มีสำหรับ Python 3.14 ที่เครื่องใช้อยู่
-  3. torch 2.4 + CUDA 12.4 (~2.5 GB) แล้ว f5-tts-th lameenc edge-tts
+  3. torch 2.4.1 + CUDA 12.4 (~2.5 GB) แล้ว f5-tts-th lameenc edge-tts
+     (ไม่ใช้ 2.4.0 — บน Windows ขาด libomp140 ทำให้ import torch ไม่ได้: fbgemm.dll WinError 126)
   4. น้ำหนักโมเดล (~1.3 GB) จะโหลดจาก Hugging Face เองตอนสร้างเสียงครั้งแรก
 """
 import json, os, subprocess, sys
@@ -52,7 +53,7 @@ def main():
     uv = [sys.executable, '-m', 'uv']
     if not os.path.exists(VPY):
         run(uv + ['venv', '--python', '3.11', VENV])
-    run(uv + ['pip', 'install', '--python', VPY, 'torch==2.4.0', 'torchaudio==2.4.0',
+    run(uv + ['pip', 'install', '--python', VPY, 'torch==2.4.1', 'torchaudio==2.4.1',
               '--index-url', 'https://download.pytorch.org/whl/cu124'])
     run(uv + ['pip', 'install', '--python', VPY, 'f5-tts-th', 'lameenc', 'edge-tts', 'numpy<=1.26.4'])
     print('\nตรวจหลังติดตั้ง')

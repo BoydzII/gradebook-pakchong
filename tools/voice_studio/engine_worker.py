@@ -64,8 +64,24 @@ def trim_silence(x, sr, pad=0.12):
     return x[a:b]
 
 
+def stub_matplotlib():
+    """f5_tts_th import matplotlib ไว้วาดสเปกโตรแกรมเท่านั้น (ห้องอัดเสียงไม่ได้ใช้)
+    แต่ Smart App Control ของ Windows บล็อก DLL ของ kiwisolver ที่ matplotlib ต้องโหลด ทำให้ import ล้มทั้งโมเดล
+    จึงใส่โมดูลเปล่าแทนเฉพาะในโปรเซสนี้ — ไม่ได้ปลดการบล็อก DLL นั้น แค่ไม่เรียกใช้มัน"""
+    import types
+    if 'matplotlib' in sys.modules and hasattr(sys.modules['matplotlib'], 'get_data_path'):
+        return
+    mpl = types.ModuleType('matplotlib'); mpl.use = lambda *a, **k: None
+    pylab = types.ModuleType('matplotlib.pylab')
+    for name in ('figure', 'imshow', 'colorbar', 'savefig', 'close'):
+        setattr(pylab, name, lambda *a, **k: None)
+    mpl.pylab = pylab
+    sys.modules['matplotlib'] = mpl; sys.modules['matplotlib.pylab'] = pylab
+
+
 def f5(req):
     import numpy as np, torch
+    stub_matplotlib()
     from f5_tts_th.tts import TTS
     model = req.get('model', 'v1')
     if model not in _tts:
