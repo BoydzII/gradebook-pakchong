@@ -373,7 +373,16 @@ $('#label').onchange = e => setS({ label: e.target.value.trim() || 'เสีย
 $('#pubBtn').onclick = async () => { try { const r = await api('/api/publish', {}); toast('เผยแพร่แล้ว ' + r.count + '/' + r.total + ' ประโยค'); refresh(); } catch (err) { toast(err.message, true); } };
 
 renderTries();
-refresh().then(async () => { if (S.engine.ok === undefined) { await api('/api/ping', {}).catch(() => {}); refresh(); } if (S.batch.running) poll(); });
+/* เปิดไฟล์นี้ตรง ๆ (file://) หรือโปรแกรมหลังบ้านไม่ได้เปิดอยู่ = โหลดประโยคและสั่งงานอะไรไม่ได้เลย ต้องบอกให้ชัด */
+function noServer() {
+  $('#engText').textContent = 'ยังไม่ได้เปิดโปรแกรมห้องอัดเสียง';
+  $('#engDot').className = 'dot bad';
+  $('#engBanner').innerHTML = '<div class="banner bad"><b>หน้านี้ต้องเปิดผ่านโปรแกรมห้องอัดเสียง</b> — ดับเบิลคลิกไฟล์ <code>เปิดห้องอัดเสียงครู.bat</code> ในโฟลเดอร์ <code>D:\KruSpace\app\tools\voice_studio</code> ' +
+    '(หรือรัน <code>python tools/voice_studio/studio.py</code>) แล้วหน้าเว็บจะเปิดให้เองที่ <code>http://127.0.0.1:8765</code> — ปิดหน้าต่างดำของโปรแกรมเมื่อไหร่ ห้องอัดเสียงจะหยุดทำงาน</div>';
+  $('#prompt').textContent = '— เปิดโปรแกรมห้องอัดเสียงก่อน ประโยคให้อ่านจะขึ้นตรงนี้ —';
+}
+if (location.protocol === 'file:') noServer();
+else refresh().catch(noServer).then(async () => { if (!S) return; if (S.engine.ok === undefined) { await api('/api/ping', {}).catch(() => {}); refresh(); } if (S.batch.running) poll(); });
 </script>
 </body>
 </html>
