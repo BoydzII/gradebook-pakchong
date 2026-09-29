@@ -766,6 +766,8 @@ tr.pr-done{opacity:.62}
   display:none;align-items:center;gap:11px;background:none;border:0;padding:0;cursor:pointer}
 .sync-fab.show{display:inline-flex}
 body.gateway-open .sync-fab,body:has(#studentPortal:not([hidden])) .sync-fab{display:none}
+/* ปุ่มลอยสองตัวนี้ z-index สูงกว่าหน้าจอเต็มจอ ถ้าไม่ซ่อนจะลอยทับหน้าโหมดทดลอง */
+body:has(#sgsQuick:not([hidden])) .sync-fab,body:has(#sgsQuick:not([hidden])) .install-fab{display:none!important}
 .sync-label{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:999px;
   padding:9px 15px;font-size:12.5px;font-weight:700;box-shadow:var(--shadow);white-space:nowrap;
   opacity:0;transform:translateX(10px);transition:opacity .2s ease,transform .2s ease;pointer-events:none}
@@ -1616,6 +1618,7 @@ tr.conduct-void td{opacity:.55}tr.conduct-void td b{text-decoration:line-through
 <div id="docSheet" class="doc-sheet" hidden></div>
 
 <div id="studentPortal" class="student-portal" hidden></div>
+<div id="sgsQuick" class="student-portal" hidden></div>
 <div id="modal-root"></div>
 <div id="toast"></div>
 
@@ -10899,6 +10902,362 @@ function sgsFillerMain() {
   stepPaste('');
 }
 
+/* ============================================================================
+   โหมดทดลองใช้งาน — ตัวช่วยกรอกคะแนนลง SGS อย่างเดียว
+   ครูจำนวนมากรวมคะแนนไว้ใน Excel อยู่แล้ว และอยากได้แค่ตัวกรอก SGS ไม่อยากย้าย
+   ทั้งระบบมาลงสมุดคะแนนก่อน ทางนี้จึงเปิดให้ใช้เฉพาะส่วนนี้โดยไม่ต้องเข้าสู่ระบบ
+   วางรายชื่อกับคะแนนสี่ส่วน แล้วคัดลอกไปให้ปุ่มบุ๊กมาร์กกรอกลง SGS ของจริงได้เลย
+
+   เก็บของตัวเองไว้ที่คีย์ kruspace.sgsquick แยกจาก gradebook.v1 ของจริง
+   คนที่เข้ามาลองจึงไม่มีทางเขียนทับสมุดคะแนนของครูที่ใช้งานอยู่บนเครื่องเดียวกัน
+   ========================================================================== */
+const SGSQ_KEY = 'kruspace.sgsquick';
+const SGSQ_PARTS = [
+  { key: 'before', label: 'ก่อนกลางภาค' }, { key: 'mid', label: 'กลางภาค' },
+  { key: 'after', label: 'หลังกลางภาค' }, { key: 'final', label: 'ปลายภาค' }
+];
+const SGSQ_GRADES = [[80, '4'], [75, '3.5'], [70, '3'], [65, '2.5'], [60, '2'], [55, '1.5'], [50, '1'], [0, '0']];
+let sgsQuick = null;
+
+const sgsQuickDefault = () => ({ subject: '', subjectName: '', cls: '', period: '',
+  weights: { before: 30, mid: 20, after: 30, final: 20 }, roundMode: 'half', rows: [] });
+
+function sgsQuickRow(x) {
+  x = x || {};
+  const v = k => (x[k] === 0 || x[k] ? String(x[k]) : '');
+  return { id: x.id || uid('sq'), no: v('no'), sid: String(x.sid || '').trim(), name: String(x.name || '').trim(),
+    before: v('before'), mid: v('mid'), after: v('after'), final: v('final') };
+}
+function sgsQuickLoad() {
+  try {
+    const raw = localStorage.getItem(SGSQ_KEY);
+    if (raw) {
+      const got = JSON.parse(raw), base = sgsQuickDefault();
+      return Object.assign(base, got, { weights: Object.assign(base.weights, got.weights || {}),
+        rows: (got.rows || []).map(sgsQuickRow) });
+    }
+  } catch (e) {}
+  return sgsQuickDefault();
+}
+function sgsQuickStore() { try { localStorage.setItem(SGSQ_KEY, JSON.stringify(sgsQuick)); } catch (e) {} }
+
+/** รวมคะแนนและเกรดของหนึ่งแถว — เกรดขึ้นต่อเมื่อกรอกครบทุกส่วนที่ตั้งคะแนนเต็มไว้
+    ส่วนที่ยังไม่สอบจึงไม่ถูกคิดเป็นเกรด 0 ไปก่อน */
+function sgsQuickCalc(r) {
+  let sum = 0, missing = 0, used = 0;
+  SGSQ_PARTS.forEach(p => {
+    if (num(sgsQuick.weights[p.key]) <= 0) return;
+    used++;
+    const raw = String(r[p.key] == null ? '' : r[p.key]).trim();
+    if (raw === '' || !isFinite(Number(raw))) { missing++; return; }
+    sum += Number(raw);
+  });
+  const total = Math.round(sum * 100) / 100;
+  let grade = '–';
+  if (used > 0 && missing === 0) {
+    for (const g of SGSQ_GRADES) if (total >= g[0]) { grade = g[1]; break; }
+  }
+  return { total: total, grade: grade, complete: used > 0 && missing === 0, filled: used - missing };
+}
+
+/* ---- อ่านข้อมูลที่ครูวางมา ------------------------------------------------
+   คัดลอกจาก Excel มาจะคั่นด้วยแท็บเสมอ จึงลองแท็บก่อน แล้วค่อยลองจุลภาคกับเว้นวรรคซ้อน
+   ไม่ตัดด้วยเว้นวรรคเดี่ยว เพราะชื่อกับนามสกุลมีเว้นวรรคคั่นอยู่แล้ว ตัดแล้วชื่อขาด */
+function sgsQuickCells(line) {
+  if (line.indexOf('\t') >= 0) return line.split('\t');
+  if (line.split(',').length >= 3) return line.split(',');
+  if (/\s{2,}/.test(line)) return line.split(/\s{2,}/);
+  return [line];
+}
+const SGSQ_HEADS = [
+  { key: 'no', re: /^(เลขที่|ที่|no)$/i },
+  { key: 'sid', re: /^(เลขประจำตัว|รหัสนักเรียน|รหัสประจำตัว|รหัส|sid|id)$/i },
+  { key: 'name', re: /^(ชื่อ|ชื่อสกุล|ชื่อ-สกุล|ชื่อ นามสกุล|ชื่อ-นามสกุล|ชื่อนักเรียน|name)$/i },
+  { key: 'before', re: /^(ก่อนกลาง|ก่อนกลางภาค|before)$/i },
+  { key: 'mid', re: /^(กลางภาค|กลาง|mid|midterm)$/i },
+  { key: 'after', re: /^(หลังกลาง|หลังกลางภาค|after)$/i },
+  { key: 'final', re: /^(ปลายภาค|ปลาย|final)$/i }
+];
+
+/** ไม่มีหัวตารางก็เดาจากเนื้อในคอลัมน์ ซึ่งแม่นกว่าเดาจากตำแหน่ง เพราะแต่ละโรงเรียน
+    เรียงคอลัมน์ไม่เหมือนกัน และผลที่เดาได้จะถูกเอาไปโชว์ให้ครูตรวจในตารางอยู่แล้ว
+
+    แยกสามอย่างนี้ด้วย *รูปร่างของค่า* ไม่ใช่ด้วยการไล่เรียงของตัวเลข
+    เพราะเลขประจำตัวในห้องมักเรียงติดกัน (35065 35066 35067 …) ถ้าใช้กติกา
+    'เลขไล่เรียงคือเลขที่' คอลัมน์เลขประจำตัวจะถูกตัดทิ้งไปทั้งคอลัมน์
+      เลขที่        อยู่คอลัมน์แรก เป็นจำนวนเต็มไม่เกินสองหลัก และไล่เพิ่มขึ้น
+      เลขประจำตัว   ตัวเลขล้วนยาวสี่หลักขึ้นไป (คะแนนไม่มีทางถึงสี่หลัก)
+      ชื่อ          มีตัวอักษร ไม่มีตัวเลขล้วน
+    ที่เหลือซึ่งเป็นตัวเลข เรียงซ้ายไปขวา คือคะแนนสี่ส่วน */
+function sgsQuickGuess(rows) {
+  const width = Math.max.apply(null, rows.map(r => r.length));
+  const stat = [];
+  for (let c = 0; c < width; c++) {
+    let filled = 0, id4 = 0, textLike = 0, numLike = 0, smallInt = 0, maxLen = 0, asc = true, prev = null;
+    rows.forEach(r => {
+      const v = String(r[c] == null ? '' : r[c]).trim();
+      if (!v) return;
+      filled++;
+      if (/^\d{4,}$/.test(v)) id4++;
+      if (/[ก-๙a-z]/i.test(v)) textLike++;
+      if (/^-?\d+(\.\d+)?$/.test(v)) {
+        numLike++;
+        const n = Number(v);
+        if (Number.isInteger(n) && n >= 0 && n <= 99) smallInt++;
+        if (prev != null && n <= prev) asc = false;
+        prev = n;
+      }
+      maxLen = Math.max(maxLen, v.length);
+    });
+    stat.push({ c: c, filled: filled, id4: id4, textLike: textLike, numLike: numLike,
+      smallInt: smallInt, maxLen: maxLen, asc: asc });
+  }
+  const map = {}, taken = [];
+  const claim = (key, col) => { if (col == null || taken.indexOf(col) >= 0) return; map[key] = col; taken.push(col); };
+  const free = x => taken.indexOf(x.c) < 0;
+  const noCol = stat.filter(x => x.c === 0 && x.filled >= 2 && x.numLike === x.filled && x.smallInt === x.filled && x.asc)[0];
+  claim('no', noCol ? noCol.c : null);
+  const idCol = stat.filter(x => free(x) && x.filled && x.id4 / x.filled >= 0.7)[0];
+  claim('sid', idCol ? idCol.c : null);
+  const nameCol = stat.filter(x => free(x) && x.filled && x.textLike / x.filled >= 0.7 && x.numLike === 0)
+    .sort((a, b) => b.maxLen - a.maxLen)[0];
+  claim('name', nameCol ? nameCol.c : null);
+  const scoreCols = stat.filter(x => free(x) && x.filled && x.numLike / x.filled >= 0.7);
+  ['before', 'mid', 'after', 'final'].forEach((k, i) => { if (scoreCols[i]) claim(k, scoreCols[i].c); });
+  return map;
+}
+
+function sgsQuickParse(text) {
+  const lines = String(text || '').split(/\r?\n/).filter(l => l.trim());
+  if (!lines.length) return { rows: [], note: 'ยังไม่มีข้อมูล' };
+  let grid = lines.map(sgsQuickCells).map(cells => cells.map(x => String(x == null ? '' : x).trim()));
+  /* หัวตารางมีเมื่อบรรทัดแรกจับคู่ชื่อคอลัมน์ได้ตั้งแต่สองช่องขึ้นไป */
+  const head = {}; let hits = 0;
+  grid[0].forEach((cell, c) => {
+    const m = SGSQ_HEADS.filter(h => h.re.test(cell))[0];
+    if (m && head[m.key] == null) { head[m.key] = c; hits++; }
+  });
+  let map, note;
+  if (hits >= 2) { map = head; grid = grid.slice(1); note = 'อ่านจากหัวตาราง'; }
+  else { map = sgsQuickGuess(grid); note = 'ไม่มีหัวตาราง จึงเดาจากเนื้อข้อมูล'; }
+  const rows = [];
+  grid.forEach(cells => {
+    const pick = k => (map[k] == null ? '' : String(cells[map[k]] == null ? '' : cells[map[k]]).trim());
+    const r = sgsQuickRow({ no: pick('no'), sid: pick('sid'), name: pick('name'),
+      before: pick('before'), mid: pick('mid'), after: pick('after'), final: pick('final') });
+    if (!r.sid && !r.name) return;
+    rows.push(r);
+  });
+  const got = ['no', 'sid', 'name'].concat(SGSQ_PARTS.map(p => p.key)).filter(k => map[k] != null);
+  const LABEL = { no: 'เลขที่', sid: 'เลขประจำตัว', name: 'ชื่อ', before: 'ก่อนกลาง', mid: 'กลางภาค', after: 'หลังกลาง', final: 'ปลายภาค' };
+  return { rows: rows, note: note + ' • ใช้คอลัมน์ ' + got.map(k => LABEL[k]).join(', ') };
+}
+
+/* ---- ข้อมูลที่ส่งต่อให้ปุ่มบุ๊กมาร์ก ----------------------------------------
+   รูปแบบเดียวกับที่สมุดคะแนนตัวเต็มส่งออก ปุ่มบุ๊กมาร์กจึงใช้ตัวเดิมได้ทันที
+   ไม่ส่งผลการอ่านฯ กับคุณลักษณะฯ ไปด้วย เพราะโหมดนี้ไม่ได้เก็บสองอย่างนั้น */
+function sgsQuickPayload() {
+  const W = sgsQuick.weights;
+  const students = sgsQuick.rows.filter(r => String(r.sid || '').trim()).map((r, i) => {
+    const c = sgsQuickCalc(r);
+    const val = k => { const v = String(r[k] == null ? '' : r[k]).trim();
+      return v === '' || !isFinite(Number(v)) ? null : Number(v); };
+    return { sid: String(r.sid).trim(), no: num(r.no) || (i + 1), name: r.name || '',
+      before: val('before'), mid: val('mid'), after: val('after'), final: val('final'),
+      total: c.total, grade: c.grade };
+  });
+  const payload = { v: 1, app: 'KruSpace', at: new Date().toISOString(), roundMode: sgsQuick.roundMode,
+    subject: sgsQuick.subject || '', subjectName: sgsQuick.subjectName || '',
+    cls: sgsQuick.cls || '', period: sgsQuick.period || '',
+    weights: { before: num(W.before), mid: num(W.mid), after: num(W.after), final: num(W.final) },
+    students: students };
+  return { text: 'KRUSPACE-SGS:v1:' + JSON.stringify(payload), count: students.length };
+}
+
+/* ---- หน้าจอ --------------------------------------------------------------- */
+function openSgsQuick() {
+  sgsQuick = sgsQuickLoad();
+  hideRoleGateway();
+  const host = $('#sgsQuick');
+  host.hidden = false;
+  document.body.style.overflow = 'hidden';
+  renderSgsQuick();
+}
+function closeSgsQuick() {
+  const host = $('#sgsQuick');
+  host.hidden = true; host.innerHTML = '';
+  document.body.style.overflow = '';
+  showRoleGateway();
+}
+
+function renderSgsQuick() {
+  const host = $('#sgsQuick');
+  if (!host || host.hidden) return;
+  const W = sgsQuick.weights, rows = sgsQuick.rows;
+  const wSum = SGSQ_PARTS.reduce((a, p) => a + num(W[p.key]), 0);
+  const withSid = rows.filter(r => String(r.sid || '').trim()).length;
+  const done = rows.filter(r => sgsQuickCalc(r).complete).length;
+  host.innerHTML =
+    '<div class="portal-top"><div class="brand"><span class="dot"></span><span>ส่งคะแนนเข้า SGS' +
+      '<small>โหมดทดลองใช้งาน • ไม่ต้องเข้าสู่ระบบ ไม่ยุ่งกับข้อมูลกลาง</small></span></div>' +
+      '<div class="spacer"></div><span class="badge">' + rows.length + ' คน</span>' +
+      '<button id="sqExit">ออกจากโหมดทดลอง</button></div>' +
+    '<div class="portal-main">' +
+      '<div class="card"><div class="row"><div><h3 style="margin:0">วิชาและคะแนนเต็มแต่ละส่วน</h3>' +
+        '<div class="hint tip">คะแนนเต็มต้องตรงกับที่ตั้งไว้ใน SGS ไม่งั้นปุ่มจะไม่ยอมกรอกให้จนกว่าจะสั่งแปลงสัดส่วน</div></div></div>' +
+        '<div class="grid2" style="margin-top:12px">' +
+          '<div class="pick"><label>รหัสวิชา</label><input data-sq-meta="subject" value="' + esc(sgsQuick.subject) + '" placeholder="เช่น ว31201"></div>' +
+          '<div class="pick"><label>ชื่อวิชา</label><input data-sq-meta="subjectName" value="' + esc(sgsQuick.subjectName) + '" placeholder="เช่น ฟิสิกส์ 1"></div>' +
+          '<div class="pick"><label>ห้อง</label><input data-sq-meta="cls" value="' + esc(sgsQuick.cls) + '" placeholder="เช่น ม.4/4"></div>' +
+          '<div class="pick"><label>ปี/ภาคเรียน</label><input data-sq-meta="period" value="' + esc(sgsQuick.period) + '" placeholder="เช่น ปี 2569 ภาค 1"></div>' +
+        '</div>' +
+        '<div class="hint" style="margin-top:14px;font-weight:700">คะแนนเต็มแต่ละส่วน</div>' +
+        '<div class="row" style="margin-top:6px;flex-wrap:wrap;gap:14px">' +
+          SGSQ_PARTS.map(p => '<div class="pick"><label>' + p.label + '</label>' +
+            '<input data-sq-w="' + p.key + '" class="numcell" value="' + esc(W[p.key]) + '" style="width:74px"></div>').join('') +
+          '<div class="pick"><label>ปัดเศษ</label><select data-sq-mode>' +
+            '<option value="half"' + (sgsQuick.roundMode === 'half' ? ' selected' : '') + '>ทีละ 0.5</option>' +
+            '<option value="one"' + (sgsQuick.roundMode === 'one' ? ' selected' : '') + '>ทศนิยม 1 ตำแหน่ง</option>' +
+            '<option value="int"' + (sgsQuick.roundMode === 'int' ? ' selected' : '') + '>จำนวนเต็ม</option></select></div></div>' +
+        (Math.abs(wSum - 100) > 1e-6 ? '<div class="notice warn" style="margin-top:10px">คะแนนเต็มรวมกันได้ <b>' + fmt(wSum, 2) +
+          '</b> ไม่ใช่ 100 — ตรวจอีกครั้งว่าตรงกับที่ตั้งไว้ใน SGS</div>' : '') + '</div>' +
+
+      '<div class="card"><h3 style="margin:0">วางรายชื่อและคะแนน</h3>' +
+        '<div class="hint tip" style="margin-top:6px">คัดลอกจาก Excel มาวางได้เลย • มีหัวตารางก็อ่านจากหัวตาราง ไม่มีก็เดาให้จากเนื้อข้อมูล ' +
+        'แล้วตรวจในตารางข้างล่างได้ • คอลัมน์ที่ใช้คือ เลขที่ เลขประจำตัว ชื่อ ก่อนกลาง กลางภาค หลังกลาง ปลายภาค</div>' +
+        '<textarea id="sqPaste" rows="6" style="width:100%;margin-top:10px;font-family:inherit" ' +
+        'placeholder="เลขที่&#9;เลขประจำตัว&#9;ชื่อ นามสกุล&#9;ก่อนกลาง&#9;กลางภาค&#9;หลังกลาง&#9;ปลายภาค"></textarea>' +
+        '<div class="row" style="margin-top:10px;flex-wrap:wrap">' +
+          '<div class="pick"><label>วิธีนำเข้า</label><select id="sqPasteMode">' +
+            '<option value="replace">แทนที่รายชื่อเดิมทั้งหมด</option><option value="append">เพิ่มต่อท้าย</option></select></div>' +
+          '<div class="spacer"></div><button class="primary" id="sqRead">อ่านข้อมูลที่วาง</button></div></div>' +
+
+      '<div class="card"><div class="row"><div><h3 style="margin:0">ตารางคะแนน</h3>' +
+        '<div class="hint tip">แก้ในตารางได้เลย ระบบคิดคะแนนรวมกับเกรดให้ทันที • เกรดจะขึ้นเมื่อกรอกครบทุกส่วน</div></div>' +
+        '<div class="spacer"></div>' + (rows.length ? '<span class="badge' + (done === rows.length ? ' ok' : '') + '">ครบทุกส่วน ' + done + '/' + rows.length + '</span>' +
+          '<button class="sm danger" id="sqClear">ล้างทั้งหมด</button>' : '') + '</div>' +
+        (rows.length ? '<div class="tablewrap tall" style="margin-top:10px"><table><thead><tr>' +
+          '<th style="width:54px">เลขที่</th><th style="width:120px">เลขประจำตัว</th><th>ชื่อ นามสกุล</th>' +
+          SGSQ_PARTS.map(p => '<th style="width:92px">' + p.label + '<br><small>เต็ม ' + esc(W[p.key]) + '</small></th>').join('') +
+          '<th style="width:80px">รวม</th><th style="width:64px">เกรด</th><th style="width:46px"></th></tr></thead><tbody data-sq-body>' +
+          rows.map((r, i) => { const c = sgsQuickCalc(r);
+            return '<tr><td><input class="numcell" data-sq="' + esc(r.id) + '" data-f="no" value="' + esc(r.no) + '" style="width:100%"></td>' +
+              '<td><input data-sq="' + esc(r.id) + '" data-f="sid" value="' + esc(r.sid) + '" style="width:100%"></td>' +
+              '<td><input data-sq="' + esc(r.id) + '" data-f="name" value="' + esc(r.name) + '" style="width:100%"></td>' +
+              SGSQ_PARTS.map(p => '<td><input class="numcell" data-sq="' + esc(r.id) + '" data-f="' + p.key + '" value="' + esc(r[p.key]) + '" style="width:100%"></td>').join('') +
+              '<td class="numcell" data-sq-total><b>' + (c.filled ? fmt(c.total, 2) : '') + '</b></td>' +
+              '<td class="numcell" data-sq-grade>' + esc(c.grade) + '</td>' +
+              '<td><button class="sm danger" data-sq-del="' + esc(r.id) + '" title="ลบแถวนี้">ลบ</button></td></tr>'; }).join('') +
+          '</tbody></table></div>' +
+          '<div class="row" style="margin-top:10px"><button class="sm" id="sqAdd">+ เพิ่มแถวว่าง</button>' +
+          '<div class="spacer"></div><span class="hint">' + withSid + ' คนมีเลขประจำตัว จึงจับคู่กับ SGS ได้' +
+          (withSid < rows.length ? ' • อีก ' + (rows.length - withSid) + ' คนยังไม่มีเลขประจำตัว จะไม่ถูกส่งไป' : '') + '</span></div>'
+          : '<div class="empty" style="margin-top:10px">ยังไม่มีรายชื่อ — วางจาก Excel ที่กล่องด้านบน หรือกดเพิ่มแถวว่าง' +
+            '<div class="row" style="margin-top:10px;justify-content:center"><button class="sm" id="sqAdd">+ เพิ่มแถวว่าง</button></div></div>') + '</div>' +
+
+      '<div class="card"><h3 style="margin:0">ส่งเข้า SGS</h3>' +
+        '<ol class="sgs-steps">' +
+          '<li><b>ครั้งแรกครั้งเดียว</b> ลากปุ่มนี้ไปวางบนแถบบุ๊กมาร์กของ Chrome ' +
+            '<a class="sgs-bookmarklet" data-sgs-bookmarklet href="#">📥 กรอกคะแนนจาก KruSpace</a>' +
+            '<div class="hint">ถ้าไม่เห็นแถบบุ๊กมาร์ก กด Ctrl+Shift+B</div></li>' +
+          '<li>คัดลอกคะแนนจากตารางนี้ <button class="sm primary" id="sqCopy"' + (withSid ? '' : ' disabled') + '>คัดลอกคะแนน ' + withSid + ' คน</button></li>' +
+          '<li>เปิด SGS หน้า <b>บันทึกผลการเรียน ตลอดภาคเรียน</b> เลือกรายวิชาและกลุ่มให้ตรง ' +
+            'แล้วตั้งช่อง <b>/หน้า</b> เท่ากับจำนวนนักเรียน (ไม่เกิน 40)</li>' +
+          '<li>กดปุ่มบนแถบบุ๊กมาร์ก → วาง (Ctrl+V) → <b>ตรวจตารางเปรียบเทียบ</b> → กด “กรอกลง SGS”</li>' +
+        '</ol>' +
+        '<div class="notice warn" style="margin-top:10px">ข้อมูลในโหมดนี้เก็บไว้ในเบราว์เซอร์เครื่องนี้เท่านั้น ' +
+          'ไม่ขึ้นฐานข้อมูลกลาง ไม่ปนกับสมุดคะแนนของครูที่ใช้งานจริงบนเครื่องเดียวกัน ' +
+          'ล้างข้อมูลเบราว์เซอร์เมื่อไรก็หายไป</div></div>' +
+    '</div>';
+  bindSgsQuick(host);
+}
+
+function bindSgsQuick(host) {
+  $('#sqExit', host).addEventListener('click', closeSgsQuick);
+  $$('[data-sq-meta]', host).forEach(el => el.addEventListener('change', () => {
+    sgsQuick[el.dataset.sqMeta] = el.value.trim(); sgsQuickStore();
+  }));
+  $$('[data-sq-w]', host).forEach(el => el.addEventListener('change', () => {
+    sgsQuick.weights[el.dataset.sqW] = num(el.value); sgsQuickStore(); renderSgsQuick();
+  }));
+  const mode = $('[data-sq-mode]', host);
+  if (mode) mode.addEventListener('change', () => { sgsQuick.roundMode = mode.value; sgsQuickStore(); });
+
+  /* แก้ในตารางแล้วอัปเดตเฉพาะช่องรวมกับเกรดของแถวนั้น ไม่วาดทั้งหน้าใหม่
+     ไม่งั้นช่องที่กำลังพิมพ์อยู่จะถูกสร้างใหม่จนเคอร์เซอร์เด้งหลุดทุกตัวอักษร */
+  const body = $('[data-sq-body]', host);
+  if (body) {
+    body.addEventListener('input', e => {
+      const el = e.target.closest('[data-sq]'); if (!el) return;
+      const r = sgsQuick.rows.filter(x => x.id === el.dataset.sq)[0]; if (!r) return;
+      r[el.dataset.f] = el.value.trim();
+      const c = sgsQuickCalc(r), tr = el.closest('tr');
+      $('[data-sq-total]', tr).innerHTML = '<b>' + (c.filled ? fmt(c.total, 2) : '') + '</b>';
+      $('[data-sq-grade]', tr).textContent = c.grade;
+      sgsQuickStore();
+    });
+    body.addEventListener('click', e => {
+      const del = e.target.closest('[data-sq-del]'); if (!del) return;
+      sgsQuick.rows = sgsQuick.rows.filter(x => x.id !== del.dataset.sqDel);
+      sgsQuickStore(); renderSgsQuick();
+    });
+  }
+  const add = $('#sqAdd', host);
+  if (add) add.addEventListener('click', () => {
+    sgsQuick.rows.push(sgsQuickRow({ no: sgsQuick.rows.length + 1 }));
+    sgsQuickStore(); renderSgsQuick();
+  });
+  const clear = $('#sqClear', host);
+  if (clear) clear.addEventListener('click', async () => {
+    if (!await confirmBox('ล้างทั้งหมด', 'ลบรายชื่อและคะแนนทั้ง ' + sgsQuick.rows.length + ' แถวในโหมดทดลอง ย้อนกลับไม่ได้', 'ล้างทั้งหมด')) return;
+    sgsQuick.rows = []; sgsQuickStore(); renderSgsQuick(); toast('ล้างแล้ว', 'ok');
+  });
+  const read = $('#sqRead', host);
+  if (read) read.addEventListener('click', () => {
+    const ta = $('#sqPaste', host), how = $('#sqPasteMode', host).value;
+    const got = sgsQuickParse(ta.value);
+    if (!got.rows.length) return toast('อ่านข้อมูลไม่ได้ — คัดลอกจาก Excel มาวางใหม่อีกครั้ง', 'bad');
+    sgsQuick.rows = how === 'append' ? sgsQuick.rows.concat(got.rows) : got.rows;
+    sgsQuickStore(); renderSgsQuick();
+    toast('อ่านได้ ' + got.rows.length + ' แถว • ' + got.note, 'ok');
+  });
+  const link = $('[data-sgs-bookmarklet]', host);
+  if (link) {
+    link.href = sgsBookmarkletHref();
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      toast('ลากปุ่มนี้ไปวางบนแถบบุ๊กมาร์ก แล้วค่อยกดตอนเปิดหน้า SGS อยู่', 'warn');
+    });
+  }
+  const copy = $('#sqCopy', host);
+  if (copy) copy.addEventListener('click', async () => {
+    const p = sgsQuickPayload();
+    if (!p.count) return toast('ยังไม่มีนักเรียนที่มีเลขประจำตัว จึงจับคู่กับ SGS ไม่ได้', 'bad');
+    if (await copyTextToClipboard(p.text)) return toast('คัดลอกคะแนน ' + p.count + ' คนแล้ว • ไปที่ SGS แล้วกดปุ่มบนแถบบุ๊กมาร์ก', 'ok');
+    openModal({ title: 'คัดลอกคะแนนไป SGS', buttons: [{ label: 'ปิด', cls: 'primary' }],
+      bodyHTML: '<div class="notice warn">เครื่องนี้คัดลอกให้อัตโนมัติไม่ได้ กด Ctrl+A แล้ว Ctrl+C ในกล่องด้านล่าง</div>' +
+        '<textarea readonly style="width:100%;height:160px;font:12px monospace">' + esc(p.text) + '</textarea>',
+      onMount(root) { const t = $('textarea', root); t.focus(); t.select(); } });
+  });
+}
+
+/** การ์ดชวนให้ลองใช้ ใส่ไว้บนสุดของกล่องเข้าสู่ระบบครู แยกจากปุ่มเข้าสู่ระบบให้ชัด */
+const sgsQuickEntryHtml = () =>
+  '<div class="notice ok" style="margin:0 0 14px"><b>ยังไม่อยากกรอกข้อมูลทั้งระบบ?</b> ' +
+  'ถ้ารวมคะแนนไว้ใน Excel อยู่แล้ว และอยากได้แค่ตัวช่วยกรอกคะแนนลง SGS' +
+  '<div class="row" style="margin-top:9px"><button class="primary" data-sq-open>ทดลองใช้งาน — ส่งคะแนนเข้า SGS อย่างเดียว</button></div>' +
+  '<div class="hint" style="margin-top:6px">ไม่ต้องเข้าสู่ระบบ ไม่ยุ่งกับฐานข้อมูลกลาง วางรายชื่อกับคะแนนแล้วส่งเข้า SGS ของจริงได้เลย</div></div>';
+
+/* ผูกที่เอกสารครั้งเดียว ปุ่มจึงไปโผล่ในกล่องไหนก็ได้โดยไม่ต้องไปแก้ onMount ของกล่องนั้น
+   ปิดกล่องด้วยการกดปุ่มปิดของมันเอง เพื่อให้การปลดล็อกการเลื่อนหน้าทำงานตามปกติ */
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-sq-open]');
+  if (!btn) return;
+  const bg = btn.closest('.modal-bg'), x = bg ? bg.querySelector('[data-close]') : null;
+  if (x) x.click();
+  openSgsQuick();
+});
+
 /* ---- ข้อมูลที่คัดลอกไปให้ปุ่ม SGS --------------------------------------------
    ส่งคะแนนรายส่วนแบบยังไม่ปัดเศษ ให้ปุ่มฝั่ง SGS เป็นคนปัดตามที่ครูเลือกตอนตรวจ
    คิดแบบไม่ใช่โหมด "เฉพาะส่วนที่กรอกแล้ว" เสมอ เพราะที่ส่งเข้า SGS ต้องเป็นคะแนนจริง
@@ -17189,7 +17548,7 @@ function completeStaffLogin(teacher, gateRole) {
 }
 
 function openBootstrapAdmin() {
-  openModal({ title: 'สร้างผู้ดูแลระบบคนแรก', bodyHTML: '<div class="notice">ยังไม่มีบัญชีบุคลากร กรุณาสร้างผู้ดูแลระบบเริ่มต้นก่อน แล้วจึงนำเข้าข้อมูลครูคนอื่นในหน้าหลังบ้าน</div><div class="grid2" style="margin-top:12px"><div class="pick"><label>ชื่อผู้ดูแลระบบ</label><input id="bootstrapAdminName" style="width:100%"></div><div class="pick"><label>อีเมล Gmail/โรงเรียน</label><input id="bootstrapAdminEmail" type="email" style="width:100%"></div></div>', buttons: [{ label: 'ยกเลิก' }, { label: 'สร้างและเข้าสู่ระบบ', cls: 'primary', act(close, root) { const name = $('#bootstrapAdminName', root).value.trim(), email = $('#bootstrapAdminEmail', root).value.trim(); if (!name || !email) return toast('กรุณากรอกชื่อและอีเมล', 'bad'); const teacher = { id: uid('teacher'), name: name, email: email, phone: '', homeroomClassId: '', roles: ['teacher', 'executive', 'admin'] }; DB.teachers.push(teacher); close(); completeStaffLogin(teacher, 'admin'); } }], onMount(root) { $('#bootstrapAdminName', root).focus(); } });
+  openModal({ title: 'สร้างผู้ดูแลระบบคนแรก', bodyHTML: sgsQuickEntryHtml() + '<div class="notice">ยังไม่มีบัญชีบุคลากร กรุณาสร้างผู้ดูแลระบบเริ่มต้นก่อน แล้วจึงนำเข้าข้อมูลครูคนอื่นในหน้าหลังบ้าน</div><div class="grid2" style="margin-top:12px"><div class="pick"><label>ชื่อผู้ดูแลระบบ</label><input id="bootstrapAdminName" style="width:100%"></div><div class="pick"><label>อีเมล Gmail/โรงเรียน</label><input id="bootstrapAdminEmail" type="email" style="width:100%"></div></div>', buttons: [{ label: 'ยกเลิก' }, { label: 'สร้างและเข้าสู่ระบบ', cls: 'primary', act(close, root) { const name = $('#bootstrapAdminName', root).value.trim(), email = $('#bootstrapAdminEmail', root).value.trim(); if (!name || !email) return toast('กรุณากรอกชื่อและอีเมล', 'bad'); const teacher = { id: uid('teacher'), name: name, email: email, phone: '', homeroomClassId: '', roles: ['teacher', 'executive', 'admin'] }; DB.teachers.push(teacher); close(); completeStaffLogin(teacher, 'admin'); } }], onMount(root) { $('#bootstrapAdminName', root).focus(); } });
 }
 
 function openStaffRoleLogin(role) {
@@ -17221,7 +17580,7 @@ function openStaffRoleLogin(role) {
   } });
   if (DB.cloud && DB.cloud.clientId) buttons.push({ label: 'เข้าสู่ระบบด้วย Google (เฉพาะเครื่องนี้)', async act(close) { try { await googleLogin(); const email = String(DB.cloud.accountEmail || '').toLowerCase(), matched = DB.teachers.find(t => String(t.email || '').toLowerCase() === email); if (!matched) return toast('อีเมลนี้ยังไม่มีในฐานข้อมูลบุคลากร', 'bad'); if (!gatewayModeOf(matched, role)) return toast('บัญชีนี้ไม่มีสิทธิ์ ' + roleLabel(role), 'bad'); close(); completeStaffLogin(matched, role); } catch (e) { toast('เข้าสู่ระบบ Google ไม่สำเร็จ: ' + e.message, 'bad'); } } });
   if (profiles.length) buttons.push({ label: 'เข้าใช้บนเครื่องนี้', act(close, root) { const teacher = DB.teachers.find(t => t.id === $('#staffLocalProfile', root).value); if (!teacher) return toast('กรุณาเลือกโปรไฟล์', 'bad'); close(); completeStaffLogin(teacher, role); } });
-  openModal({ title: 'เข้าสู่ระบบ' + roleLabel(role), bodyHTML: (profiles.length ? '<div class="pick"><label>โปรไฟล์บุคลากรในเครื่องนี้</label><select id="staffLocalProfile" style="width:100%">' + profileOptions + '</select></div>' : '<div class="notice bad">ยังไม่มีบุคลากรที่ได้รับสิทธิ์ ' + esc(roleLabel(role)) + ' กรุณาให้ผู้ดูแลระบบกำหนดสิทธิ์ก่อน</div>') +
+  openModal({ title: 'เข้าสู่ระบบ' + roleLabel(role), bodyHTML: (role === 'teacher' ? sgsQuickEntryHtml() : '') + (profiles.length ? '<div class="pick"><label>โปรไฟล์บุคลากรในเครื่องนี้</label><select id="staffLocalProfile" style="width:100%">' + profileOptions + '</select></div>' : '<div class="notice bad">ยังไม่มีบุคลากรที่ได้รับสิทธิ์ ' + esc(roleLabel(role)) + ' กรุณาให้ผู้ดูแลระบบกำหนดสิทธิ์ก่อน</div>') +
     '<div class="portal-login-note" style="margin-top:12px">' + (firebaseConfigured()
       ? '<b>แนะนำ:</b> กด “เข้าสู่ระบบด้วย Google” แล้วเลือกบัญชีของโรงเรียน ระบบจะตรวจสิทธิ์จากฐานข้อมูลกลาง ใช้ได้ทั้งคอม มือถือ และไอแพด'
       : staffApiUrl()
