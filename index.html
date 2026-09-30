@@ -7981,6 +7981,59 @@ async function openIndicatorFromTeachers() {
     } }] : [{ label: 'ปิด' }] });
 }
 
+/* นำเข้าคะแนนหัวข้อหนึ่งจากไฟล์ CSV/Excel ที่มีคอลัมน์เลขประจำตัวกับคะแนน (เช่นผลสอบจากคลังโจทย์)
+   เติมเฉพาะช่องที่ยังว่าง ไม่ทับคะแนนที่มีอยู่ เพราะใช้กู้คะแนนที่หายด้วย ถ้าทับได้ ไฟล์เก่าจะลบคะแนนที่แก้ทีหลัง
+   ถ้าคะแนนเต็มในไฟล์มากกว่าเต็มของหัวข้อ เสนอให้ตั้ง “คะแนนดิบเต็ม” ระบบหารให้เอง น้ำหนักหัวข้อไม่เปลี่ยน
+   แต่เสนอเฉพาะหัวข้อที่ยังไม่มีใครมีคะแนน ไม่งั้นคะแนนเดิมที่กรอกตามเต็มเก่าจะถูกหารผิด */
+async function importItemScoresFromFile(b) {
+  if (blockClosedTerm()) return;
+  if (!b.items.length) return toast('ยังไม่มีหัวข้อคะแนน กรุณาเพิ่มหัวข้อก่อน', 'bad');
+  const f = await pickFile('.csv,.txt,.xlsx'); if (!f) return;
+  let rows;
+  try { rows = /\.(csv|txt)$/i.test(f.name) ? parseCsv(await readTextSmart(f)) : (((await readXlsx(await f.arrayBuffer()))[0] || {}).rows || []); }
+  catch (e) { return toast('เปิดไฟล์ไม่สำเร็จ: ' + (e.message || e), 'bad'); }
+  const cell = v => String(v == null ? '' : v).trim();
+  const hi = rows.findIndex(r => (r || []).some(v => /เลขประจำตัว|รหัสนักเรียน/.test(cell(v))));
+  if (hi < 0) return toast('ไม่พบคอลัมน์ “เลขประจำตัว” ในไฟล์', 'bad');
+  const head = rows[hi].map(cell);
+  const cSid = head.findIndex(h => /เลขประจำตัว|รหัสนักเรียน/.test(h)), cScore = head.findIndex(h => /คะแนน/.test(h) && !/เต็ม|ร้อยละ/.test(h)),
+    cFull = head.findIndex(h => /คะแนนเต็ม/.test(h)), cRoom = head.findIndex(h => /^(ชั้น|ห้อง)/.test(h));
+  if (cScore < 0) return toast('ไม่พบคอลัมน์ “คะแนน” ในไฟล์', 'bad');
+  const cls = curClass(), inClass = new Set((cls.students || []).map(x => String(x.sid)));
+  const data = new Map(); let otherRoom = 0, full = 0;
+  rows.slice(hi + 1).forEach(r => {
+    r = r || []; const sid = cell(r[cSid]), v = cell(r[cScore]);
+    if (!sid || v === '' || isNaN(+v)) return;
+    if (cRoom >= 0 && cell(r[cRoom]) && cell(r[cRoom]) !== cls.name) { otherRoom++; return; }
+    data.set(sid, +v); if (cFull >= 0) full = Math.max(full, num(r[cFull]));
+  });
+  if (!data.size) return toast('ในไฟล์ไม่มีคะแนนของห้อง ' + cls.name, 'bad');
+  const plan = it => { let fill = 0, keep = 0, out = 0;
+    data.forEach((v, sid) => { if (!inClass.has(sid)) out++; else if (has((b.scores[sid] || {})[it.id])) keep++; else fill++; });
+    const anyScore = Object.values(b.scores || {}).some(r => has((r || {})[it.id]));
+    return { fill: fill, keep: keep, out: out, offerRaw: full > itemEntryMax(it) && !anyScore && !itemComponents(it).length }; };
+  const summary = it => { const p = plan(it);
+    return '<div class="notice">เติมใหม่ <b>' + p.fill + ' คน</b> • มีคะแนนอยู่แล้ว ไม่ทับ ' + p.keep + ' คน' +
+      (p.out ? ' • เลขประจำตัวไม่อยู่ในห้องนี้ ' + p.out + ' คน' : '') + (otherRoom ? ' • ข้ามแถวของห้องอื่น ' + otherRoom + ' แถว' : '') +
+      '<br>หัวข้อนี้กรอกเต็ม <b>' + fmt(itemEntryMax(it)) + '</b>' + (full ? ' • ในไฟล์เต็ม <b>' + fmt(full) + '</b>' : '') + '</div>' +
+      (p.offerRaw ? '<label style="display:block;margin-top:8px"><input type="checkbox" id="isRaw" checked> ตั้งคะแนนดิบเต็มของหัวข้อนี้เป็น ' + fmt(full) +
+        ' (กรอกตามไฟล์ แล้วระบบหารเป็นเต็ม ' + fmt(it.max) + ' ให้เอง)</label>' :
+       full > itemEntryMax(it) ? '<div class="notice bad" style="margin-top:8px">คะแนนในไฟล์เต็มมากกว่าหัวข้อนี้ และหัวข้อนี้มีคะแนนอยู่แล้ว ตรวจคะแนนเต็มก่อนนำเข้า</div>' : ''); };
+  const guess = b.items.find(it => normalizeName(it.name) && normalizeName(f.name).includes(normalizeName(it.name))) || b.items[0];
+  openModal({ title: 'นำเข้าคะแนนจากไฟล์ • ' + cls.name, bodyHTML: '<div class="hint">' + esc(f.name) + ' • พบคะแนน ' + data.size + ' คน</div>' +
+      '<div class="pick" style="margin-top:10px"><label>ลงคะแนนในหัวข้อ</label><select id="isItem" style="width:100%">' +
+      b.items.map(it => '<option value="' + it.id + '"' + (it === guess ? ' selected' : '') + '>' + esc(it.name) + ' (เต็ม ' + fmt(it.max) + ')</option>').join('') + '</select></div>' +
+      '<div id="isSummary" style="margin-top:10px">' + summary(guess) + '</div>',
+    buttons: [{ label: 'ยกเลิก' }, { label: 'เติมคะแนน', cls: 'primary', act(close, root) {
+      const it = b.items.find(x => x.id === $('#isItem', root).value); if (!it) return;
+      if (plan(it).offerRaw && $('#isRaw', root) && $('#isRaw', root).checked) it.rawMax = full;
+      let n = 0;
+      data.forEach((v, sid) => { if (!inClass.has(sid)) return; b.scores[sid] = b.scores[sid] || {}; if (has(b.scores[sid][it.id])) return; b.scores[sid][it.id] = v; n++; });
+      save(true); close(); renderItems(); toast('เติมคะแนน “' + it.name + '” แล้ว ' + n + ' คน', 'ok');
+    } }],
+    onMount(root) { $('#isItem', root).addEventListener('change', e => { $('#isSummary', root).innerHTML = summary(b.items.find(x => x.id === e.target.value)); }); } });
+}
+
 function renderItems() {
   const pane = $('#pane-items');
   const gate = gateMsg(true);
@@ -8003,6 +8056,7 @@ function renderItems() {
         '<button id="btnAddMany">เพิ่มหลายหัวข้อ</button>' +
         '<button id="btnReuseItems">นำไปใช้ซ้ำ / ใช้รูปแบบของห้องอื่น</button>' +
         '<button id="btnPushItems" title="ส่งเฉพาะโครงหัวข้อคะแนนขึ้นส่วนกลาง คะแนนนักเรียนไม่ถูกส่ง">⤒ ส่งรูปแบบขึ้นส่วนกลาง</button>' +
+        '<button id="btnImportItemScores" title="เติมคะแนนหัวข้อหนึ่งจากไฟล์ที่มีเลขประจำตัวกับคะแนน เช่นผลสอบออนไลน์ เติมเฉพาะช่องที่ว่าง">⤓ นำเข้าคะแนนจากไฟล์</button>' +
         '<button id="btnPullItems" title="ดึงรูปแบบที่เคยส่งไว้ หรือของครูที่สอนวิชาเดียวกัน มาใช้กับเครื่องนี้">⤓ ดึงรูปแบบจากส่วนกลาง</button>' +
         '<span class="hint">เลือก “สอบวัดผลรายหน่วย” เพื่อเปิดช่องซ่อมอัตโนมัติเฉพาะผู้ที่ได้ต่ำกว่าเกณฑ์รายส่วน</span>' +
         '<span class="hint tip"><b>คะแนนดิบเต็ม</b> คือเต็มของตัวเลขที่ครูกรอกจริง เช่นตรวจใบงานเต็ม 25 แล้วคิดเป็น 5 คะแนน ' +
@@ -8101,6 +8155,7 @@ function renderItems() {
   $('#btnReuseItems').addEventListener('click', openItemReuse);
   $('#btnPushItems').addEventListener('click', pushItemTemplate);
   $('#btnPullItems').addEventListener('click', openItemTemplateCloud);
+  $('#btnImportItemScores').addEventListener('click', () => importItemScoresFromFile(b));
   $('#btnAddMany').addEventListener('click', () => {
     openModal({
       title: 'เพิ่มหลายหัวข้อพร้อมกัน',
@@ -16872,16 +16927,24 @@ function unsyncedBookCount() {
   return n;
 }
 
+let pullBooksKept = [];
 async function pullMyBooks() {
   const root = myBookRoot();
   if (!root) throw new Error('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อน');
   const items = await root.collection('items').get({ source: 'server' });
   let books = 0, records = 0;
+  /* เคยทำคะแนนหาย: ดึงแล้วสมุดบนส่วนกลางที่เก่ากว่าทับสมุดในเครื่องทั้งเล่ม จากนั้นส่งอัตโนมัติก็พาฉบับที่ขาดขึ้นไปทับส่วนกลางต่อ
+     จึงไม่ทับเล่มที่ในเครื่องมีคะแนนมากกว่า เก็บไว้ให้ครูตัดสินเอง และบอกว่าข้ามเล่มไหน */
+  pullBooksKept = [];
   items.docs.forEach(doc => {
     const data = doc.data() || {};
-    if (data.key && data.book) { DB.books[data.key] = normalizeBook(fbDecodeNested(data.book)); books++;
-      (DB.cloud.syncBase = DB.cloud.syncBase || {})['b:' + data.key] = true; }
+    if (!data.key || !data.book) return;
+    const remote = normalizeBook(fbDecodeNested(data.book)), local = DB.books[data.key];
+    if (local && bookContentCount(local) > bookContentCount(remote)) { pullBooksKept.push(bookLabelOf(data.key)); return; }
+    DB.books[data.key] = remote; books++;
+    (DB.cloud.syncBase = DB.cloud.syncBase || {})['b:' + data.key] = true;
   });
+  if (pullBooksKept.length) setTimeout(() => toast('ไม่ดึงทับ ' + pullBooksKept.length + ' เล่มที่ในเครื่องมีคะแนนมากกว่าส่วนกลาง: ' + pullBooksKept.join(', '), 'bad'), 400);
   const months = await root.collection('attendance').get({ source: 'server' });
   months.docs.forEach(doc => {
     const recs = fbDecodeNested((doc.data() || {}).records || {});
