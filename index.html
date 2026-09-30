@@ -15796,7 +15796,15 @@ function mergeCentralStaff(list) {
   let added = 0, updated = 0;
   (list || []).forEach(item => {
     const email = String(item.email || '').trim().toLowerCase();
-    if (!email) return;
+    if (!email) {
+      /* ครูที่ยังไม่มีอีเมล: สร้างจากชื่อ ถ้ามีคนนี้อยู่แล้ว (รหัสเดียวกัน หรือชื่อเดียวกัน) ไม่สร้างซ้ำ */
+      const nm = String(item.name || '').trim(); if (!nm) return;
+      const same = DB.teachers.find(x => item.id && x.id === item.id) || DB.teachers.find(x => normalizeName(x.name) === normalizeName(nm));
+      if (same) { if (!same.name) same.name = nm; return; }
+      const nt = { id: item.id || uid('teacher'), name: nm, email: '', phone: item.phone || '', learningArea: item.learningArea || '', homeroomClassId: '', roles: normalizeRoles(item.roles).length ? normalizeRoles(item.roles) : ['teacher'] };
+      if (item.homeroom) { nt.homeroomName = item.homeroom; const hc = DB.classes.find(c => c.name === item.homeroom); if (hc) nt.homeroomClassId = hc.id; }
+      DB.teachers.push(nt); added++; return;
+    }
     let t = DB.teachers.find(x => String(x.email || '').toLowerCase() === email) ||
             DB.teachers.find(x => item.name && normalizeName(x.name) === normalizeName(item.name));
     if (!t) { t = { id: item.id || canonicalTeacherId(item) || uid('teacher'), email: email, homeroomClassId: '' }; DB.teachers.push(t); added++; }
@@ -15892,8 +15900,8 @@ function centralPayloadRows() {
   const withEmail = DB.teachers.filter(t => String(t.email || '').trim());
   const noEmail = DB.teachers.length - withEmail.length;
   const dupes = staffEmailDuplicates();
-  const docSizes = withEmail.map(t => byteSize(fbTeacherDoc(t)));
-  const staffProblem = noEmail ? 'ไม่มีอีเมล ' + noEmail + ' คน จึงส่งขึ้นไม่ได้และเข้าสู่ระบบไม่ได้'
+  const docSizes = DB.teachers.filter(fbHasStaffIdentity).map(t => byteSize(fbTeacherDoc(t)));
+  const staffProblem = noEmail ? 'ยังไม่มีอีเมล ' + noEmail + ' คน (ส่งชื่อขึ้นได้ แต่เข้าสู่ระบบไม่ได้จนกว่าจะกรอก)'
     : dupes.length ? 'อีเมลซ้ำ ' + dupes.length + ' รายการ ข้อมูลจะทับกันบนส่วนกลาง' : '';
   const rows = [
     { label: 'บุคลากรและสิทธิ์ใช้งาน', doc: 'staff/{อีเมล} • แยกเอกสารรายคน',
@@ -15946,22 +15954,22 @@ async function centralHealthCheck() {
 
   await step('จำนวนบุคลากรบนส่วนกลาง', async () => {
     if (!remote) throw new Error('อ่านคอลเลกชัน staff ไม่ได้ — ตรวจว่าวางกฎจากไฟล์ firestore.rules แล้ว');
-    const local = DB.teachers.filter(t => t.email).length;
+    const local = DB.teachers.filter(fbHasStaffIdentity).length;
     const inactive = remote.docs.filter(d => (d.data() || {}).active === false).length;
     if (remote.size < local) throw new Error('ส่วนกลางมี ' + remote.size + ' คน แต่ในเครื่องนี้มี ' + local + ' คน — ยังส่งขึ้นไม่ครบ คนที่ขาดจะเข้าสู่ระบบไม่ได้');
     return remote.size + ' คน' + (inactive ? ' • ปิดใช้งาน ' + inactive + ' คน' : '') + ' • ในเครื่องนี้ ' + local + ' คน';
   });
   await step('ครูที่มีอีเมลแต่ยังไม่มีชื่อบนส่วนกลาง', async () => {
     if (!remote) throw new Error('อ่านคอลเลกชัน staff ไม่ได้');
-    const missing = DB.teachers.filter(t => String(t.email || '').trim() && !remoteMap.has(fbStaffId(t.email)));
-    if (missing.length) throw new Error(missing.length + ' คนเข้าสู่ระบบไม่ได้ เช่น ' +
+    const missing = DB.teachers.filter(t => fbHasStaffIdentity(t) && !remoteMap.has(fbStaffKey(t)));
+    if (missing.length) throw new Error(missing.length + ' คนยังไม่มีชื่อบนส่วนกลาง เช่น ' +
       missing.slice(0, 5).map(t => t.name || t.email).join(', ') + (missing.length > 5 ? ' และอีก ' + (missing.length - 5) + ' คน' : '') +
       ' — กดปุ่ม “ส่งรายชื่อบุคลากรขึ้น”');
-    return 'ครูทุกคนที่มีอีเมลมีชื่อบนส่วนกลางครบ';
+    return 'ครูทุกคนมีชื่อบนส่วนกลางครบ';
   });
   await step('ครูที่ยังไม่มีอีเมลในเครื่องนี้', async () => {
     const none = DB.teachers.filter(t => !String(t.email || '').trim());
-    if (none.length) throw new Error(none.length + ' คนไม่มีอีเมล จึงส่งขึ้นส่วนกลางไม่ได้และเข้าสู่ระบบไม่ได้ เช่น ' +
+    if (none.length) throw new Error(none.length + ' คนยังไม่มีอีเมล (ชื่อส่งขึ้นส่วนกลางได้ แต่จะเข้าสู่ระบบไม่ได้จนกว่าจะกรอกอีเมล) เช่น ' +
       none.slice(0, 5).map(t => t.name || '(ยังไม่มีชื่อ)').join(', '));
     return 'ครูทุกคนมีอีเมลครบ';
   });
@@ -15972,7 +15980,7 @@ async function centralHealthCheck() {
   });
   await step('ชื่อบนส่วนกลางที่ไม่มีในเครื่องนี้', async () => {
     if (!remote) throw new Error('อ่านคอลเลกชัน staff ไม่ได้');
-    const localIds = new Set(DB.teachers.filter(t => t.email).map(t => fbStaffId(t.email)));
+    const localIds = new Set(DB.teachers.filter(fbHasStaffIdentity).map(fbStaffKey));
     const extra = remote.docs.filter(d => !localIds.has(d.id));
     if (extra.length) throw new Error(extra.length + ' คนมีบนส่วนกลางแต่ไม่มีในเครื่องนี้ เช่น ' +
       extra.slice(0, 5).map(d => d.id).join(', ') + ' — เครื่องนี้อาจมีรายชื่อเก่ากว่าส่วนกลาง');
@@ -16025,17 +16033,17 @@ async function centralHealthCheck() {
 
   // ตารางรายคน ใช้ชี้ตัวได้เลยว่าใครเข้าสู่ระบบไม่ได้เพราะอะไร
   const staffRows = DB.teachers.slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'th')).map(t => {
-    const mail = String(t.email || '').trim(), id = mail ? fbStaffId(mail) : '', r = id ? remoteMap.get(id) : null;
+    const mail = String(t.email || '').trim(), id = fbHasStaffIdentity(t) ? fbStaffKey(t) : '', r = id ? remoteMap.get(id) : null;
     return { name: t.name || '(ยังไม่มีชื่อ)', email: mail, roles: (t.roles || []).map(roleLabel).join(', '),
       onCentral: !!r, active: r ? r.active !== false : null,
-      note: !mail ? 'ไม่มีอีเมล — ส่งขึ้นไม่ได้และเข้าสู่ระบบไม่ได้'
+      note: !mail ? (r ? 'มีชื่อบนส่วนกลางแล้ว แต่ยังไม่มีอีเมล — เข้าสู่ระบบไม่ได้จนกว่าจะกรอก' : 'ยังไม่มีอีเมล และยังไม่มีชื่อบนส่วนกลาง — กดส่งรายชื่อขึ้น')
         : !remote ? 'อ่านส่วนกลางไม่ได้ ตรวจไม่ได้'
         : !r ? 'ยังไม่มีชื่อบนส่วนกลาง — เข้าสู่ระบบไม่ได้'
         : r.active === false ? 'ถูกตั้งเป็นไม่ใช้งาน — เข้าสู่ระบบไม่ได้'
         : 'เข้าสู่ระบบได้' };
   });
   if (remote) {
-    const localIds = new Set(DB.teachers.filter(t => t.email).map(t => fbStaffId(t.email)));
+    const localIds = new Set(DB.teachers.filter(fbHasStaffIdentity).map(fbStaffKey));
     remote.docs.filter(d => !localIds.has(d.id)).forEach(d => { const x = d.data() || {};
       staffRows.push({ name: x.name || '(ไม่มีชื่อ)', email: d.id, roles: (x.roles || []).join(', '),
         onCentral: true, active: x.active !== false, note: 'มีบนส่วนกลางแต่ไม่มีในเครื่องนี้' });
@@ -16449,6 +16457,13 @@ const firebaseConfigured = () => {
 const firebaseReady = () => !!fbDb;
 const fbSignedIn = () => !!fbUser;
 const fbStaffId = email => String(email || '').trim().toLowerCase().replace(/[^a-z0-9@._-]/g, '_');
+/* ครูที่ยังไม่มีอีเมลก็ต้องมีชื่ออยู่บนส่วนกลาง ไม่งั้นเครื่องอื่นเห็นรายชื่อไม่ครบ
+   เอกสารใช้คีย์ noemail_<รหัสครู> (ไม่มี @ จึงไม่มีทางตรงกับอีเมลของใคร ล็อกอินและกฎความปลอดภัยไม่เกี่ยว)
+   พอกรอกอีเมลแล้วส่งขึ้นใหม่ จะย้ายไปคีย์อีเมลและลบเอกสารชั่วคราวทิ้ง */
+const fbStaffKey = t => String((t || {}).email || '').trim() ? fbStaffId(t.email) : 'noemail_' + fbStaffId((t || {}).id);
+const fbIsNoEmailKey = id => String(id || '').indexOf('noemail_') === 0;
+const fbHasStaffIdentity = t => !!(String((t || {}).email || '').trim() || String((t || {}).name || '').trim());
+const fbStaffItem = (d, data) => Object.assign({ email: fbIsNoEmailKey(d.id) ? '' : d.id }, data === undefined ? d.data() : data);
 
 /** เอกสารกลางที่เก็บข้อมูลชุดเล็กซึ่งใช้ร่วมกันทั้งโรงเรียน */
 const FB_SHARED_DOCS = [
@@ -16623,7 +16638,7 @@ function startFirebaseSync() {
   const quiet = () => {};
 
   fbUnsub.push(fbDb.collection('staff').onSnapshot(snap => apply(() => {
-    const list = snap.docs.map(d => Object.assign({ email: d.id }, d.data())).filter(s => s.active !== false);
+    const list = snap.docs.map(d => fbStaffItem(d)).filter(s => s.active !== false);
     mergeCentralStaff(list); save(true); renderTop();
   }), quiet));
 
@@ -16941,9 +16956,10 @@ function staffGapReport() {
   const dupes = staffEmailDuplicates();
   const onCentral = cc && cc.staffIds ? new Set(cc.staffIds) : null;
   const activeOnCentral = cc && cc.staffActiveIds ? new Set(cc.staffActiveIds) : null;
-  const notPushed = onCentral ? withEmail.filter(t => !onCentral.has(fbStaffId(t.email))) : [];
+  const named = DB.teachers.filter(fbHasStaffIdentity);
+  const notPushed = onCentral ? named.filter(t => !onCentral.has(fbStaffKey(t))) : [];
   const inactive = activeOnCentral ? withEmail.filter(t => onCentral.has(fbStaffId(t.email)) && !activeOnCentral.has(fbStaffId(t.email))) : [];
-  const localIds = new Set(withEmail.map(t => fbStaffId(t.email)));
+  const localIds = new Set(named.map(fbStaffKey));
   const extra = onCentral ? cc.staffIds.filter(id => !localIds.has(id)) : [];
   return { withEmail: withEmail, noEmail: noEmail, dupes: dupes, notPushed: notPushed,
     inactive: inactive, extra: extra, hasCentral: !!onCentral };
@@ -16955,10 +16971,10 @@ function staffGapHtml() {
   const names = list => list.slice(0, 8).map(t => esc(t.name || t.email || '(ไม่มีชื่อ)')).join(', ') +
     (list.length > 8 ? ' และอีก ' + (list.length - 8) + ' คน' : '');
   const rows = [];
-  if (g.notPushed.length) rows.push({ n: g.notPushed.length, head: 'มีอีเมลแต่ยังไม่มีบนส่วนกลาง',
+  if (g.notPushed.length) rows.push({ n: g.notPushed.length, head: 'ยังไม่มีชื่อบนส่วนกลาง',
     detail: names(g.notPushed), fix: 'ผู้ดูแลระบบกด <b>อัปเดตขึ้นส่วนกลาง</b> หรือ <b>ส่งเฉพาะรายชื่อบุคลากร</b> ที่หน้าผู้ดูแลระบบ' });
-  if (g.noEmail.length) rows.push({ n: g.noEmail.length, head: 'ยังไม่มีอีเมลในระบบ จึงส่งขึ้นไม่ได้',
-    detail: names(g.noEmail), fix: 'กรอกอีเมลให้ครบที่ <b>ผู้ดูแลระบบ → ข้อมูลครูและสิทธิ์ใช้งาน</b> แล้วค่อยกดส่งขึ้น' });
+  if (g.noEmail.length) rows.push({ n: g.noEmail.length, head: 'ยังไม่มีอีเมล (ชื่ออยู่บนส่วนกลางได้ แต่เข้าสู่ระบบไม่ได้)',
+    detail: names(g.noEmail), fix: 'กรอกอีเมลที่ <b>ผู้ดูแลระบบ → ข้อมูลครูและสิทธิ์ใช้งาน</b> เมื่อได้อีเมลแล้ว แล้วกดส่งขึ้นส่วนกลางอีกครั้ง' });
   if (g.inactive.length) rows.push({ n: g.inactive.length, head: 'มีบนส่วนกลางแต่ถูกตั้งเป็นไม่ใช้งาน',
     detail: names(g.inactive), fix: 'ครูกลุ่มนี้เข้าสู่ระบบไม่ได้ ให้แก้สถานะแล้วส่งขึ้นใหม่' });
   if (g.dupes.length) rows.push({ n: g.dupes.length, head: 'อีเมลซ้ำกัน ข้อมูลจะทับกันบนส่วนกลาง',
@@ -17149,7 +17165,7 @@ async function pullSchoolData() {
   try {
     await step('บุคลากร', async () => {
       const snap = await fromServer(fbDb.collection('staff'));
-      const list = snap.docs.map(d => Object.assign({ email: d.id }, fbDecodeNested(d.data()))).filter(x => x.active !== false);
+      const list = snap.docs.map(d => fbStaffItem(d, fbDecodeNested(d.data()))).filter(x => x.active !== false);
       mergeCentralStaff(list);
       return list.length + ' คน';
     });
@@ -17228,12 +17244,16 @@ async function pushToFirebase(what) {
   const jobs = [];
   const add = (label, p) => jobs.push({ label: label, p: p });
   if (!what || what === 'staff') {
-    const list = DB.teachers.filter(t => t.email);
-    if (!list.length) throw new Error('ครูทุกคนต้องมีอีเมลก่อนจึงจะส่งขึ้นส่วนกลางได้');
+    const list = DB.teachers.filter(fbHasStaffIdentity);
+    if (!list.length) throw new Error('ยังไม่มีรายชื่อครูให้ส่งขึ้นส่วนกลาง');
+    /* ครูที่เพิ่งได้อีเมล: ลบเอกสารชั่วคราว noemail_ ของเขา ไม่งั้นบนส่วนกลางจะซ้ำสองแถว */
+    const stale = new Set();
+    try { (await fbDb.collection('staff').get({ source: 'server' })).docs.forEach(d => { if (fbIsNoEmailKey(d.id)) stale.add(d.id); }); } catch (e) { /* อ่านไม่ได้ก็แค่ไม่ลบ ไม่ขวางการส่ง */ }
     let batch = fbDb.batch(), n = 0, part = 1;
     list.forEach(t => {
-      batch.set(fbDb.collection('staff').doc(fbStaffId(t.email)), fbPlain(fbTeacherDoc(t)), { merge: true });
-      if (++n % 400 === 0) { add('รายชื่อบุคลากร ชุดที่ ' + part++, batch.commit()); batch = fbDb.batch(); }
+      batch.set(fbDb.collection('staff').doc(fbStaffKey(t)), fbPlain(fbTeacherDoc(t)), { merge: true }); n++;
+      if (String(t.email || '').trim()) [t.id].concat(t.legacyIds || []).forEach(oid => { const k = 'noemail_' + fbStaffId(oid); if (stale.has(k)) { batch.delete(fbDb.collection('staff').doc(k)); n++; } });
+      if (n >= 400) { add('รายชื่อบุคลากร ชุดที่ ' + part++, batch.commit()); batch = fbDb.batch(); n = 0; }
     });
     add('รายชื่อบุคลากร ชุดที่ ' + part, batch.commit());
   }
