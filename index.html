@@ -3082,6 +3082,7 @@ function openTabSheet() {
     })() +
     '<div class="tabsheet-tools"><button class="sm" data-sheet-act="search">⌕ ค้นหานักเรียน</button>' +
     '<button class="sm" data-sheet-act="guide">▶ วิธีใช้งาน</button>' +
+    '<button class="sm" data-sheet-act="dpabook">📅 จองคิวลงข้อมูล DPA / วิทยฐานะ</button>' +
     '<button class="sm" data-sheet-act="theme">◐ สลับโหมดสี</button>' +
     '<button class="sm" data-sheet-act="promode">ⓘ ' + (proModeOn() ? 'แสดงคำอธิบาย' : 'ซ่อนคำอธิบาย (โหมดมืออาชีพ)') + '</button>' +
     '<button class="sm" data-sheet-act="pullschool">⤓ ดึงฐานข้อมูลจากส่วนกลาง</button>' +
@@ -3099,6 +3100,8 @@ function openTabSheet() {
     if (act === 'search') return openStudentSearch();
     /* หน้าแนะนำการใช้งานแบบภาพเคลื่อนไหว (guide.html) เปิดแท็บใหม่ ไม่ทิ้งงานที่ค้างในแอป */
     if (act === 'guide') { window.open('./guide.html' + (DB.ui.staffMode === 'executive' ? '?mode=exec' : ''), '_blank', 'noopener'); return; }
+    /* แอปจองคิว DPA/วิทยฐานะ เป็นแอปแยก (repo dpa-booking) ใช้บัญชี Google และรายชื่อครูชุดเดียวกัน เปิดแท็บใหม่ไม่ทิ้งงานที่ค้างอยู่ */
+    if (act === 'dpabook') { window.open('https://boydzii.github.io/dpa-booking/', '_blank', 'noopener'); return; }
     if (act === 'theme') { const t = $('#btnTheme'); if (t) t.click(); return; }
     if (act === 'promode') { toggleProMode(); return; }
     if (act === 'pullschool') return openTopPull();
