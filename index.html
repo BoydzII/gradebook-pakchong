@@ -17554,7 +17554,8 @@ function openBootstrapAdmin() {
 function openStaffRoleLogin(role) {
   const profiles = DB.teachers.filter(t => gatewayModeOf(t, role));
   /* ยังไม่มีบุคลากรเลย ให้สร้างผู้ดูแลระบบคนแรก — ไม่มีช่องผู้ดูแลระบบแยกแล้ว จึงเริ่มจากช่องครู */
-  if (!profiles.length && (role === 'admin' || role === 'teacher') && !DB.teachers.length) return openBootstrapAdmin();
+  /* เครื่องใหม่ (ไอโฟน/ไอแพด) ยังไม่มีข้อมูลบุคลากรในเครื่อง แต่ถ้ามีฐานข้อมูลกลาง ต้องให้กดล็อกอินด้วย Google เพื่อดึงรายชื่อมาเอง — ห้ามพาไปฟอร์มสร้างแอดมินคนแรก เพราะฟอร์มนั้นไม่มีปุ่ม Google และจะสร้างแอดมินปลอมไว้ในเครื่อง */
+  if (!profiles.length && (role === 'admin' || role === 'teacher') && !DB.teachers.length && !firebaseConfigured() && !staffApiUrl()) return openBootstrapAdmin();
   const profileOptions = profiles.map(t => '<option value="' + t.id + '">' + esc(t.name || t.email || 'ไม่ระบุชื่อ') + (t.email ? ' • ' + esc(t.email) : '') + '</option>').join('');
   const buttons = [{ label: 'ยกเลิก' }];
   if (firebaseConfigured()) buttons.push({ label: 'เข้าสู่ระบบด้วย Google', cls: 'primary', async act(close) {
@@ -17580,7 +17581,7 @@ function openStaffRoleLogin(role) {
   } });
   if (DB.cloud && DB.cloud.clientId) buttons.push({ label: 'เข้าสู่ระบบด้วย Google (เฉพาะเครื่องนี้)', async act(close) { try { await googleLogin(); const email = String(DB.cloud.accountEmail || '').toLowerCase(), matched = DB.teachers.find(t => String(t.email || '').toLowerCase() === email); if (!matched) return toast('อีเมลนี้ยังไม่มีในฐานข้อมูลบุคลากร', 'bad'); if (!gatewayModeOf(matched, role)) return toast('บัญชีนี้ไม่มีสิทธิ์ ' + roleLabel(role), 'bad'); close(); completeStaffLogin(matched, role); } catch (e) { toast('เข้าสู่ระบบ Google ไม่สำเร็จ: ' + e.message, 'bad'); } } });
   if (profiles.length) buttons.push({ label: 'เข้าใช้บนเครื่องนี้', act(close, root) { const teacher = DB.teachers.find(t => t.id === $('#staffLocalProfile', root).value); if (!teacher) return toast('กรุณาเลือกโปรไฟล์', 'bad'); close(); completeStaffLogin(teacher, role); } });
-  openModal({ title: 'เข้าสู่ระบบ' + roleLabel(role), bodyHTML: (role === 'teacher' ? sgsQuickEntryHtml() : '') + (profiles.length ? '<div class="pick"><label>โปรไฟล์บุคลากรในเครื่องนี้</label><select id="staffLocalProfile" style="width:100%">' + profileOptions + '</select></div>' : '<div class="notice bad">ยังไม่มีบุคลากรที่ได้รับสิทธิ์ ' + esc(roleLabel(role)) + ' กรุณาให้ผู้ดูแลระบบกำหนดสิทธิ์ก่อน</div>') +
+  openModal({ title: 'เข้าสู่ระบบ' + roleLabel(role), bodyHTML: (role === 'teacher' ? sgsQuickEntryHtml() : '') + (profiles.length ? '<div class="pick"><label>โปรไฟล์บุคลากรในเครื่องนี้</label><select id="staffLocalProfile" style="width:100%">' + profileOptions + '</select></div>' : (!DB.teachers.length && (firebaseConfigured() || staffApiUrl()) ? '<div class="notice">เครื่องนี้ยังไม่มีข้อมูลบุคลากร กดเข้าสู่ระบบด้วยบัญชีโรงเรียนเพื่อดึงสิทธิ์จากฐานข้อมูลกลาง</div>' : '<div class="notice bad">ยังไม่มีบุคลากรที่ได้รับสิทธิ์ ' + esc(roleLabel(role)) + ' กรุณาให้ผู้ดูแลระบบกำหนดสิทธิ์ก่อน</div>')) +
     '<div class="portal-login-note" style="margin-top:12px">' + (firebaseConfigured()
       ? '<b>แนะนำ:</b> กด “เข้าสู่ระบบด้วย Google” แล้วเลือกบัญชีของโรงเรียน ระบบจะตรวจสิทธิ์จากฐานข้อมูลกลาง ใช้ได้ทั้งคอม มือถือ และไอแพด'
       : staffApiUrl()
