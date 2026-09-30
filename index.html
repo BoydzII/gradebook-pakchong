@@ -144,6 +144,19 @@ section.tabpane.active{display:block}
 .badge.ok{color:var(--ok);background:var(--ok-bg);border-color:transparent}
 .badge.bad{color:var(--bad);background:var(--bad-bg);border-color:transparent}
 .badge.warn{color:var(--warn);background:var(--warn-bg);border-color:transparent}
+/* หน้าสรุป/ส่งออกแบ่งเป็นหมวด — เดิมกล่อง 12 กล่องเรียงยาวต่อกันจนหาของไม่เจอและรกตา */
+.sum-nav{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.sum-nav button{border-radius:20px;padding:6px 14px;font-weight:600}
+.sum-nav button.active{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+.sum-nav .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--warn);margin-left:6px;vertical-align:middle}
+.sum-hidden{display:none!important}
+.safe-row{display:grid;grid-template-columns:minmax(170px,1fr) 2fr auto;gap:8px 14px;align-items:center;padding:12px 0;border-top:1px solid var(--line2)}
+.safe-row:first-of-type{border-top:0;padding-top:4px}
+.safe-row .t b{display:block}
+.safe-row .acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center}
+.safe-row label{display:flex;gap:6px;align-items:center}
+@media (max-width:760px){.safe-row{grid-template-columns:1fr}.safe-row .acts{justify-content:flex-start}}
+@media print{.sum-nav{display:none}}
 .badge.grp{color:var(--group);background:var(--group-bg);border-color:transparent}
 
 .notice{padding:9px 12px;border-radius:9px;background:var(--warn-bg);color:var(--warn);font-size:13.5px;margin-bottom:10px}
@@ -11408,13 +11421,22 @@ async function copyTextToClipboard(text) {
 
 /** กล่องเครื่องมือท้ายหน้า สรุป/ส่งออก — ข้อมูลหน้าปก ปพ.5 และการสำรอง/กู้คืน */
 function summaryToolsCard() {
-  return '<div class="card"><div class="row"><div><h3 style="margin:0">ข้อมูลรายวิชาและการสำรองข้อมูล</h3>' +
-    '<div class="hint tip">ข้อมูลสำหรับหน้าปก ปพ.5 และการสำรอง/กู้คืนข้อมูลทั้งหมดของเครื่องนี้</div></div></div>' +
-    '<div class="row" style="margin-top:12px;flex-wrap:wrap">' +
-      '<button class="sm" data-sum-act="courseinfo">ข้อมูล ปพ.5</button>' +
-      '<button class="sm primary" data-sum-act="backup">สำรองข้อมูล</button>' +
-      '<button class="sm" data-sum-act="restore">กู้คืนข้อมูล</button></div>' +
-    '<div class="hint" style="margin-top:9px">' + esc(backupAgeText()) + '</div></div>' + bookSyncCard() + gsheetCard() + studentPortalCard();
+  /* รวมทุกทางสำรองไว้กล่องเดียว แถวละเรื่อง: สถานะอยู่ตรงกลาง ปุ่มอยู่ขวา คำอธิบายยาวพับเก็บไว้
+     เดิมแยก 3 กล่อง แต่ละกล่องมีย่อหน้าอธิบายยาว ครูต้องอ่านเยอะกว่าจะเจอปุ่ม */
+  const row = (title, sub, status, acts) => '<div class="safe-row"><div class="t"><b>' + title + '</b><span class="hint">' + sub + '</span></div>' +
+    '<div>' + status + '</div><div class="acts">' + acts + '</div></div>';
+  return '<div class="card" data-sum-group="safe"><div class="row"><h3 style="margin:0">สำรองและซิงก์คะแนน</h3></div>' +
+    row('🕘 ประวัติสมุดคะแนน', 'เก็บให้เองในเครื่องนี้ ไม่ต้องกด', '<span class="badge ok">ทำงานอยู่</span> <span class="hint">ย้อนได้ 60 วัน</span>',
+      '<button class="sm" data-sum-act="history">เปิดประวัติวิชานี้</button>') +
+    bookSyncRow(row) + gsheetRow(row) +
+    row('💾 ไฟล์สำรองทั้งเครื่อง', 'ทุกห้อง ทุกวิชา การเช็กชื่อ ตั้งค่า', '<span class="hint">' + esc(backupAgeText()) + '</span>',
+      '<button class="sm" data-sum-act="backup">สำรองเป็นไฟล์</button><button class="sm" data-sum-act="restore">กู้คืนจากไฟล์</button>') +
+    '<details class="exec-more" style="margin-top:8px"><summary>แต่ละแบบต่างกันอย่างไร</summary><div class="hint" style="line-height:1.7">' +
+      '<b>ประวัติสมุดคะแนน</b> — ทุกครั้งที่กรอก ระบบเก็บฉบับย้อนหลังในเครื่องนี้ และเก็บก่อนดึง/กู้คืน/ใช้รูปแบบหัวข้อ คะแนนลดวูบจะเตือนทันที<br>' +
+      '<b>ส่วนกลาง</b> — คะแนนตามไปทุกเครื่องที่ล็อกอินบัญชีเดียวกัน ครูท่านอื่นเปิดดูไม่ได้ บนส่วนกลางเก็บฉบับรายวันไว้ 30 วันด้วย<br>' +
+      '<b>Google Sheet</b> — ไฟล์ในไดรฟ์ของคุณเอง แอปเห็นเฉพาะไฟล์นี้ Google เก็บประวัติเวอร์ชันให้ (ไฟล์ → ประวัติเวอร์ชัน)<br>' +
+      '<b>ไฟล์สำรอง</b> — เก็บทุกอย่างของเครื่องนี้เป็นไฟล์เดียว เดือนละครั้งก็พอ การกู้คืนจะทับข้อมูลทั้งเครื่อง</div></details></div>' +
+    studentPortalCard().replace('<div class="card"', '<div class="card" data-sum-group="portal"');
 }
 /** ข้อความบอกว่าสำรองข้อมูลครั้งล่าสุดเมื่อไร */
 function backupAgeText() {
@@ -11425,20 +11447,13 @@ function backupAgeText() {
 }
 
 /** กล่องเปิด/ปิดการซิงก์สมุดคะแนนของตัวเองขึ้นส่วนกลาง */
-function bookSyncCard() {
+function bookSyncRow(row) {
   const ready = firebaseReady() && fbSignedIn(), email = myEmailForSync();
-  const last = DB.cloud.lastBookSync ? new Date(DB.cloud.lastBookSync).toLocaleString('th-TH') : 'ยังไม่เคยซิงก์';
-  return '<div class="card"><div class="row"><div><h3 style="margin:0">ซิงก์สมุดคะแนนของฉันขึ้นส่วนกลาง</h3>' +
-    '<div class="hint tip">คะแนน การเช็กชื่อ และผลคุณลักษณะของคุณจะตามไปทุกเครื่องที่เข้าสู่ระบบด้วยบัญชีเดียวกัน • ครูท่านอื่นเปิดดูไม่ได้</div></div>' +
-    '<div class="spacer"></div><span class="badge ' + (bookSyncOn() ? 'ok' : '') + '">' + (bookSyncOn() ? 'เปิดใช้งาน' : 'ปิดอยู่') + '</span></div>' +
-    (!ready ? '<div class="notice bad" style="margin-top:12px">ต้องเข้าสู่ระบบด้วยบัญชี Google ของโรงเรียนก่อน จึงจะซิงก์ได้</div>' :
-      !email ? '<div class="notice bad" style="margin-top:12px">โปรไฟล์ครูของคุณยังไม่มีอีเมล ให้ผู้ดูแลระบบเพิ่มอีเมลก่อน</div>' :
-      '<label class="notice" style="margin-top:12px;display:block"><input type="checkbox" id="bookSyncOn"' + (bookSyncOn() ? ' checked' : '') + '> ' +
-      'ส่งขึ้นเองอัตโนมัติหลังกรอกคะแนนหรือเช็กชื่อ (หน่วง 8 วินาที ส่งเฉพาะส่วนที่แก้)<br>' +
-      '<span class="hint">เปิดไว้เป็นค่าเริ่มต้น ดูสถานะได้ที่ป้ายบนแถบบน กดป้ายเพื่อส่งเดี๋ยวนี้</span></label>' +
-      '<div class="row" style="margin-top:10px;flex-wrap:wrap"><button class="sm primary" data-sum-act="pushbooks">ส่งขึ้นตอนนี้</button>' +
-      '<button class="sm" data-sum-act="pullbooks">ดึงจากส่วนกลางมาทับเครื่องนี้</button>' +
-      '<span class="hint">ซิงก์ล่าสุด: ' + esc(last) + '</span></div>') + '</div>';
+  const last = DB.cloud.lastBookSync ? new Date(DB.cloud.lastBookSync).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }) : 'ยังไม่เคย';
+  if (!ready || !email) return row('☁ ส่วนกลาง', 'ตามไปทุกเครื่องของคุณ', '<span class="badge bad">' + (!ready ? 'ยังไม่ได้เข้าสู่ระบบด้วย Google' : 'โปรไฟล์ยังไม่มีอีเมล') + '</span>', '');
+  return row('☁ ส่วนกลาง', 'ตามไปทุกเครื่องของคุณ',
+    '<label><input type="checkbox" id="bookSyncOn"' + (bookSyncOn() ? ' checked' : '') + '> ส่งอัตโนมัติหลังกรอก</label><span class="hint">ล่าสุด ' + esc(last) + '</span>',
+    '<button class="sm" data-sum-act="pushbooks">ส่งขึ้นตอนนี้</button><button class="sm" data-sum-act="pullbooks">ดึงลงเครื่องนี้</button>');
 }
 
 /* ---------- สำเนาสมุดคะแนนลง Google Sheet ในไดรฟ์ของครูเอง --------------------
@@ -11551,19 +11566,14 @@ function renderGsChip() {
   chip.textContent = gsBusy ? '📗 กำลังส่งลงชีต...' : '📗 ส่งลง Google Sheet วันนี้';
   chip.title = 'สำรองสมุดคะแนนลง Google Sheet ในไดรฟ์ของคุณ วันละครั้ง กดครั้งเดียว';
 }
-function gsheetCard() {
+function gsheetRow(row) {
   const info = gsInfo(), ready = firebaseReady() && fbSignedIn() && myEmailForSync();
-  return '<div class="card"><div class="row"><div><h3 style="margin:0">สำรองลง Google Sheet ในไดรฟ์ของฉัน</h3>' +
-    '<div class="hint tip">สร้างไฟล์ Google Sheet ในบัญชี Google ของคุณ (' + esc(myEmailForSync() || 'ยังไม่มีอีเมล') + ') หนึ่งแท็บต่อหนึ่งห้อง/วิชา ' +
-      'คุณเป็นเจ้าของไฟล์ แอปเห็นเฉพาะไฟล์นี้ ไม่เห็นไฟล์อื่นในไดรฟ์ • Google เก็บประวัติเวอร์ชันให้ ย้อนดูฉบับวันก่อน ๆ ได้</div></div>' +
-    '<div class="spacer"></div><span class="badge ' + (gsOn() ? 'ok' : '') + '">' + (gsOn() ? 'เปิดใช้งาน' : 'ปิดอยู่') + '</span></div>' +
-    (!ready ? '<div class="notice bad" style="margin-top:12px">ต้องเข้าสู่ระบบด้วยบัญชี Google ของโรงเรียน และโปรไฟล์ต้องมีอีเมลก่อน</div>' :
-      '<label class="notice" style="margin-top:12px;display:block"><input type="checkbox" id="gsheetOn"' + (gsOn() ? ' checked' : '') + '> ' +
-        'ชวนส่งวันละครั้งเมื่อคะแนนเปลี่ยน (ป้าย 📗 บนแถบบน กดครั้งเดียว)</label>' +
-      '<div class="row" style="margin-top:10px;flex-wrap:wrap"><button class="sm primary" data-sum-act="gsheet">ส่งลง Google Sheet ตอนนี้</button>' +
-        (info ? '<a class="btn sm" href="' + esc(info.url) + '" target="_blank" rel="noopener">เปิดไฟล์ในไดรฟ์</a>' +
-          '<span class="hint">ส่งล่าสุด ' + esc(new Date(info.at).toLocaleString('th-TH')) + ' • ' + info.tabs + ' เล่ม</span>' : '<span class="hint">ยังไม่เคยส่ง ครั้งแรกระบบจะขออนุญาตสร้างไฟล์ในไดรฟ์ของคุณ</span>') +
-      '</div>') + '</div>';
+  if (!ready) return row('📗 Google Sheet', 'ไฟล์ในไดรฟ์ของคุณเอง', '<span class="badge bad">ต้องเข้าสู่ระบบด้วย Google และมีอีเมล</span>', '');
+  return row('📗 Google Sheet', 'ไดรฟ์ของ ' + esc(myEmailForSync()),
+    '<label><input type="checkbox" id="gsheetOn"' + (gsOn() ? ' checked' : '') + '> ชวนส่งวันละครั้ง</label><span class="hint">' +
+      (info ? 'ล่าสุด ' + esc(new Date(info.at).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })) + ' • ' + info.tabs + ' เล่ม' : 'ยังไม่เคยส่ง') + '</span>',
+    '<button class="sm" data-sum-act="gsheet">ส่งตอนนี้</button>' +
+      (info ? '<button class="sm" data-sum-act="gsopen">เปิดไฟล์</button>' : ''));
 }
 
 function bindSummaryTools(pane) {
@@ -11613,6 +11623,8 @@ function bindSummaryTools(pane) {
     if (act === 'courseinfo') return editCourseInfo();
     if (act === 'backup') return backup();
     if (act === 'restore') return restore();
+    if (act === 'history') return openBookHistory();
+    if (act === 'gsopen') { const i = gsInfo(); if (i) window.open(i.url, '_blank', 'noopener'); return; }
     if (act === 'gsheet') { btn.disabled = true; return gsExportClick().then(() => { btn.disabled = false; }); }
     if (act === 'pushbooks') {
       btn.disabled = true;
@@ -12151,13 +12163,40 @@ function bindScoreSheet(pane, b, rows, sts) {
   }));
 }
 
+/* แบ่งหน้าสรุป/ส่งออกเป็น 4 หมวด แสดงทีละหมวด จำหมวดล่าสุดไว้ ครูช่วงส่ง SGS จะเปิดมาเจอหมวด SGS เลย
+   จัดกลุ่มจากเนื้อหาของกล่อง ไม่ต้องไปแก้ฟังก์ชันสร้างกล่องแต่ละตัว */
+const SUM_GROUPS = [['result', '📊 สรุปผลและพิมพ์'], ['sgs', '⤴ ส่งเข้า SGS'], ['safe', '🛟 สำรองและซิงก์'], ['portal', '📱 นักเรียนดูผล']];
+function groupSummaryCards(pane) {
+  const cards = Array.from(pane.children).filter(c => c.classList.contains('card'));
+  cards.forEach(c => {
+    if (c.dataset.sumGroup) return;
+    const h = (c.querySelector('h3') || {}).textContent || '';
+    c.dataset.sumGroup = /SGS/.test(h) || c.querySelector('[data-sgs-act],[data-sgs-bookmarklet]') ? 'sgs' : c.querySelector('[data-portal-act]') ? 'portal' : 'result';
+  });
+  const groups = SUM_GROUPS.filter(g => cards.some(c => c.dataset.sumGroup === g[0]));
+  const cur = groups.some(g => g[0] === DB.ui.sumView) ? DB.ui.sumView : (groups[0] || [])[0];
+  const backupDays = DB.settings.lastBackupAt ? (Date.now() - new Date(DB.settings.lastBackupAt).getTime()) / 86400000 : 999;
+  const warn = { safe: !!bookSyncError || (gsOn() && gsDue()) || backupDays > 30 };
+  const nav = document.createElement('div');
+  nav.className = 'sum-nav noprint';
+  nav.innerHTML = groups.map(g => '<button type="button" data-sum-view="' + g[0] + '"' + (g[0] === cur ? ' class="active"' : '') + '>' + g[1] +
+    (warn[g[0]] ? '<span class="dot" title="มีเรื่องที่ควรดู"></span>' : '') + '</button>').join('');
+  pane.prepend(nav);
+  const show = v => {
+    cards.forEach(c => c.classList.toggle('sum-hidden', c.dataset.sumGroup !== v));
+    $$('[data-sum-view]', nav).forEach(b => b.classList.toggle('active', b.dataset.sumView === v));
+  };
+  show(cur);
+  $$('[data-sum-view]', nav).forEach(b => b.addEventListener('click', () => { DB.ui.sumView = b.dataset.sumView; save(); show(DB.ui.sumView); }));
+}
+
 function renderSummary() {
   const pane = $('#pane-summary');
   const gate = gateMsg(true);
-  if (gate) { pane.innerHTML = '<div class="card">' + gate + '</div>' + summaryToolsCard(); bindSummaryTools(pane); return; }
+  if (gate) { pane.innerHTML = '<div class="card">' + gate + '</div>' + summaryToolsCard(); groupSummaryCards(pane); bindSummaryTools(pane); return; }
   const b = curBook(true);
   const sts = curStudents().slice().sort((a, c) => a.no - c.no);
-  if (!sts.length) { pane.innerHTML = sgsExportCard() + '<div class="card"><div class="empty">ยังไม่มีรายชื่อนักเรียน</div></div>' + summaryToolsCard(); bindSummaryTools(pane); return; }
+  if (!sts.length) { pane.innerHTML = sgsExportCard() + '<div class="card"><div class="empty">ยังไม่มีรายชื่อนักเรียน</div></div>' + summaryToolsCard(); groupSummaryCards(pane); bindSummaryTools(pane); return; }
 
   const rows = summaryRows(b, sts, curClass().id, curSubject().id);
   const pcts = rows.map(x => x.r.total);
@@ -12211,6 +12250,7 @@ function renderSummary() {
         '<button class="primary" id="btnXlsx">ส่งออก Excel (.xlsx)</button>' +
         '<button id="btnGroupSheet">ส่งออกใบแบ่งกลุ่ม</button>' +
         '<button id="btnPrint">พิมพ์ปก ปพ.5</button>' +
+        '<button data-sum-act="courseinfo">ข้อมูลหน้าปก ปพ.5</button>' +
       '</div>' +
       (b.partialMode ? '<div class="notice" style="margin-top:8px">โหมด “เฉพาะส่วนที่กรอกแล้ว” เปิดอยู่ — ตัวเลขเป็นการประมาณการระหว่างภาค</div>' : '') +
       (periodLocked() ? '<div class="notice" style="margin-top:8px"><b>ภาคเรียนนี้ปิดแล้ว</b> — คะแนนถูกล็อกไว้ ' +
@@ -12317,6 +12357,7 @@ function renderSummary() {
   pane.insertAdjacentHTML('beforeend', summaryToolsCard());
   /* การ์ดส่งคะแนนเข้า SGS อยู่บนสุดของหน้า ครูใช้บ่อยช่วงส่งผลการเรียน ไม่ต้องเลื่อนผ่านตารางยาวลงไปหา */
   pane.insertAdjacentHTML('afterbegin', sgsExportCard());
+  groupSummaryCards(pane);
   bindSummaryTools(pane);
   bindScoreSheet(pane, b, rows, sts);
   $$('.s-note').forEach(inp => inp.addEventListener('change', () => {
