@@ -237,13 +237,78 @@ table.g td.n,table.g th.n{text-align:center;font-variant-numeric:tabular-nums}
 .title-card h2{font-size:64px;font-weight:800;line-height:1.2;margin:8px 0 10px}
 .title-card p{font-size:20px;opacity:.9;max-width:760px;margin:0 auto;line-height:1.7}
 .title-card .num{font-size:120px;font-weight:800;opacity:.18;position:absolute;right:60px;bottom:10px;line-height:1}
+/* ---- v167: แถบบนมีปุ่มดึง/อัปข้อมูล เมนู ☰ แบ่งหมวด หน้าสรุปมีแถบหมวด ---- */
+.syncb{border:2px solid;border-radius:10px;padding:4px 11px;font-weight:800;font-size:13px;background:#fff;white-space:nowrap}
+.syncb.pull{border-color:#dc2626;color:#dc2626}.syncb.push{border-color:#0ea5e9;color:#0284c7}
+.icon.menu.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.msheet{position:absolute;right:16px;top:70px;bottom:14px;width:390px;background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.28);padding:14px 16px;z-index:15;animation:pop .3s;display:flex;flex-direction:column;gap:6px}
+.msheet .mh{display:flex;align-items:center;gap:8px;font-weight:800;font-size:16px}
+.msheet .sec{font-size:12px;color:var(--mute);font-weight:700;margin-top:4px}
+.msheet .grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.msheet .grid div{border:1px solid #e1e7f0;border-radius:11px;padding:8px 11px;font-weight:700;font-size:14px}
+.msheet .grid div.act{border-color:var(--brand);background:#eef4ff;color:var(--brand)}
+.msheet .tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.msheet .tools span{border:1px solid #e1e7f0;border-radius:8px;padding:3px 9px;font-size:12px}
+.msheet .foot{margin-top:auto;display:flex;align-items:center;border-top:1px solid #e6ebf2;padding-top:10px}
+.sumcats{display:flex;gap:8px;margin-bottom:12px}
+.sumcats span{border:1px solid #dde3ec;background:#fff;border-radius:99px;padding:6px 14px;font-weight:700;font-size:14px}
+.sumcats span.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.sumcats i{display:inline-block;width:8px;height:8px;border-radius:50%;background:#f0a020;margin-left:5px;vertical-align:middle}
+.safe-row{display:grid;grid-template-columns:1.25fr 1fr auto;gap:12px;align-items:center;padding:11px 0;border-top:1px solid #eef1f6}
+.steps6{margin:8px 0 0;padding-left:22px;line-height:2.05}
+.bmchip{display:inline-flex;align-items:center;gap:6px;border:1.5px dashed var(--brand);color:var(--brand);border-radius:10px;padding:3px 12px;font-weight:700;background:#f3f7ff;white-space:nowrap}
+.gsbadge{border:1px solid #bde5cd;background:var(--ok-bg);color:var(--ok);border-radius:99px;padding:4px 12px;font-weight:800;font-size:13px}
+/* หน้าต่างเบราว์เซอร์จำลอง — ขั้นส่ง SGS ต้องเห็นทั้งแถบบุ๊กมาร์กและสองแท็บ (KruSpace / SGS) */
+.brw{position:absolute;inset:0;background:#dfe3ea}
+.brw-tabs{height:34px;display:flex;align-items:flex-end;gap:4px;padding:0 10px}
+.brw-tabs span{background:#eef1f5;border-radius:10px 10px 0 0;padding:6px 16px;font-size:12.5px;color:#555;white-space:nowrap}
+.brw-tabs span.on{background:#fff;font-weight:700;color:#111}
+.brw-bar{height:38px;background:#fff;display:flex;align-items:center;gap:12px;padding:0 12px;font-size:13px;color:#555}
+.brw-bar .url{flex:1;background:#eef1f5;border-radius:99px;padding:6px 14px;color:#333}
+.brw-bm{height:30px;background:#fff;border-bottom:1px solid #d5dae2;display:flex;align-items:center;gap:6px;padding:0 12px;font-size:12.5px}
+.brw-bm span{padding:3px 10px;border-radius:8px;color:#333;white-space:nowrap}
+.brw-bm span.new{background:#eef4ff;color:var(--brand);font-weight:700;animation:pop .35s}
+.brw-page{position:absolute;left:0;right:0;top:102px;bottom:0;background:#f4f6fa;overflow:hidden}
+.keycap{position:absolute;z-index:57;left:50%;top:44%;transform:translate(-50%,-50%);background:#142033;color:#fff;border-radius:16px;padding:16px 30px;font-size:34px;font-weight:800;box-shadow:0 18px 40px rgba(0,0,0,.35);animation:pop .3s}
+/* หน้า SGS จำลอง — ลอกโครงหน้าจริง: แถบเมนูสีเขียวอมฟ้า ตารางช่องติ๊กที่หัวคอลัมน์ */
+.sgs{position:absolute;inset:0;background:#eef3f6;padding:10px 14px;font-family:Tahoma,"Sarabun",sans-serif;font-size:13px;color:#222;transition:opacity .25s}
+.sgs .nav{background:#2d8a9a;color:#fff;padding:6px 10px;font-size:12px}
+.sgs .ttl{background:#2d8a9a;color:#fff;font-weight:700;padding:7px 10px;margin:8px 0 6px;width:770px}
+.sgs .tools{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.sgs .tools .s,.sgs .disk{border:1px solid #9aa;background:#fff;padding:2px 8px;font-size:12.5px}
+.sgs table{border-collapse:collapse;background:#fff}
+.sgs th,.sgs td{border:1px solid #b9ccd3;padding:4px 7px;text-align:center;font-size:12.5px}
+.sgs th{background:#e3f0f3;font-weight:700}
+.sgs td.nm{text-align:left;white-space:nowrap}
+.sgs .ci{display:inline-block;min-width:40px;height:22px;border:1px solid #c4c4c4;background:#f1f1f1;line-height:20px;transition:background .3s}
+.sgs .ci.open{background:#fff;border-color:#888}.sgs .ci.new{background:#dcf5e5}.sgs .ci.ovr{background:#ffe9c6}
+.sgs .cb{display:inline-block;width:12px;height:12px;border:1px solid #666;vertical-align:-1px;margin-right:3px;background:#fff}
+.sgs .cb.on{background:#2d6fd6;border-color:#2d6fd6}.sgs .cb.dis{opacity:.35}
+/* หน้าต่างตัวกรองของ KruSpace ที่เปิดบนหน้า SGS (ข้อความตามของจริงใน sgsFillerMain) */
+.filler{position:absolute;right:14px;top:10px;width:480px;background:#fff;border:1px solid #cfd8e3;border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.28);z-index:12;font-size:13px;overflow:hidden;animation:pop .3s}
+.filler .h{background:#1f6feb;color:#fff;font-weight:800;padding:9px 12px;display:flex}
+.filler .h:after{content:'×';margin-left:auto}
+.filler .b{padding:10px 12px;display:grid;gap:8px}
+.filler .n{background:#f4f7fb;border-radius:8px;padding:7px 9px;line-height:1.55}
+.filler .n.bad{background:#fdecec;color:#8a1c1c}.filler .n.good{background:var(--ok-bg);color:var(--ok)}
+.filler ol{margin:0;padding-left:18px;line-height:1.65}
+.filler .ta{border:1px solid #cfd8e3;border-radius:8px;min-height:50px;padding:6px 8px;font-family:Consolas,monospace;font-size:11.5px;color:#555;word-break:break-all}
+.filler .r2{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.filler .p{background:#1f6feb;color:#fff;border-radius:8px;padding:6px 14px;font-weight:700}
+.filler .p.off{opacity:.4}
+.filler .q{border:1px solid #cfd8e3;border-radius:8px;padding:5px 12px}
+.filler table{width:100%;border-collapse:collapse}
+.filler th,.filler td{border-bottom:1px solid #e6ebf2;padding:3px 4px;text-align:center;font-size:12px}
+.filler td.g{background:#e6f6ee}.filler td.o{background:#fff0d6}
+.qk{position:absolute;inset:0;background:#f4f6fa;padding:16px 22px;display:grid;gap:12px;align-content:start}
+.qk .top{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #dde3ec;border-radius:14px;padding:10px 14px;font-weight:800}
 @media (prefers-reduced-motion:reduce){#cursor,#hl,.gw-slot,.gw-slot img,.dist div{transition:none!important}.modal,.modal-bg,.toast,.sheet,.menu-sheet{animation:none!important}}
 </style>
 </head>
 <body>
 <header class="head">
   <img src="./icons/school-logo.png" alt="" onerror="this.style.display='none'">
-  <div><h1 id="gTitle">วิธีใช้ KruSpace สำหรับครู</h1><p id="gSub">ภาพเคลื่อนไหวแนะนำงานประจำของครู 4 เรื่อง • กดเลือกบท หรือกดเล่นดูต่อกันทั้งหมด</p></div>
+  <div><h1 id="gTitle">วิธีใช้ KruSpace สำหรับครู</h1><p id="gSub">ภาพเคลื่อนไหวแนะนำงานประจำของครู 6 เรื่อง • กดเลือกบท หรือกดเล่นดูต่อกันทั้งหมด</p></div>
   <nav class="modes" aria-label="เลือกโหมด"><a href="./guide.html" id="mTeacher">โหมดครู</a><a href="./guide.html?mode=exec" id="mExec">โหมดผู้บริหาร</a></nav>
   <a href="./">เปิดแอป KruSpace ›</a>
 </header>
@@ -435,16 +500,19 @@ function setGender(g) {
 }
 
 /* ---------------- ชิ้นส่วนหน้าจอแอป ---------------- */
-const TABS = ['ภาพรวม', 'เช็กชื่อ', 'แลกคาบ / การลา', 'กรอกคะแนน', 'หัวข้อคะแนน', 'สรุป / ส่งออก'];
+/* แท็บที่ปักหมุดไว้บนแถบ (PINNED_TABS ของแอป) — หน้าอื่นอยู่ในเมนู ☰ ซึ่งจะเป็นสีน้ำเงินเมื่อเปิดหน้าที่อยู่ในเมนู */
+const TABS = ['ภาพรวม', 'เช็กชื่อ', 'กรอกคะแนน', 'คะแนนกลุ่ม'];
 function shell(active, paneHtml, opt = {}) {
   return '<div class="scr"><div class="app-top"><div class="brand"><i>S</i><span>KruSpace<small>ศูนย์จัดการงานชั้นเรียนแบบครบวงจร</small></span></div>' +
     '<div class="pick">ปี/ภาค <span class="sel" id="pPeriod">2569 • ภาค 2</span></div>' +
     /* ผู้บริหารดูทั้งโรงเรียน แถบบนจึงมีแค่ปี/ภาค เหมือนแอปจริง (TAB_PICKERS.executive) */
     (opt.exec ? '' : '<div class="pick">ชั้น <span class="sel" id="pClass">ม.2/3 (38 คน)</span></div>' +
-    '<div class="pick">วิชา <span class="sel" id="pSubject" style="min-width:190px">ว22102 วิทยาศาสตร์ 4</span></div>') +
-    '<span class="who">' + (opt.exec ? 'ผอ.ประเสริฐ มั่นคง • ผู้บริหาร' : 'ครูสมใจ ใจดี • ครู') + '</span><span class="icon">⌕</span><span class="icon">◐</span></div>' +
+    '<div class="pick">วิชา <span class="sel" id="pSubject" style="min-width:170px">ว22102 วิทยาศาสตร์ 4</span></div>') +
+    '<span class="who">' + (opt.exec ? 'ผอ.ประเสริฐ มั่นคง • ผู้บริหาร' : 'ครูสมใจ ใจดี • ครู') + '</span>' +
+    '<span class="syncb pull" id="bPull">↓ ดึงข้อมูล</span><span class="syncb push" id="bPush">↑ อัปข้อมูล</span></div>' +
     '<div class="tabs">' + (opt.tabs || TABS).map(t => '<span class="tab' + (t === active ? ' on' : '') + '" data-tab="' + t + '">' + t + '</span>').join('') +
-    '<span class="bell" id="bell">🔔<em id="bellN">' + (opt.bell == null ? 2 : opt.bell) + '</em></span><span class="icon menu" id="menuBtn">☰</span></div>' +
+    '<span class="bell" id="bell">🔔<em id="bellN">' + (opt.bell == null ? 2 : opt.bell) + '</em></span>' +
+    '<span class="icon menu' + ((opt.tabs || TABS).indexOf(active) < 0 ? ' on' : '') + '" id="menuBtn">☰</span></div>' +
     '<div class="pane" id="pane">' + paneHtml + '</div></div>';
 }
 const STUDENTS = ['เด็กชายกิตติพัฒน์ ทองดี', 'เด็กหญิงชนิดา ศรีสุข', 'เด็กชายณัฐวุฒิ มั่นคง', 'เด็กหญิงธิดารัตน์ ใจงาม', 'เด็กชายภูมิพัฒน์ แก้วใส', 'เด็กหญิงพิมพ์ชนก รุ่งเรือง', 'เด็กชายวรเมธ ศักดิ์ดี'];
@@ -467,9 +535,10 @@ function titleCard(n, title, text) { return '<div class="title-card"><small>บ�
    เนื้อเรื่อง 4 บท — cap = คำบรรยายเริ่มต้นของขั้น, build = หน้าจอเริ่มต้น, run = ท่าทาง
    ========================================================================== */
 const CH_T = [
-  { t: 'เข้าสู่ระบบ + หน้าภาพรวม', d: 'ทางเข้า • แถบเลือก • กระดิ่ง • ค้นหา' },
-  { t: 'เช็กชื่อ', d: 'คาบวันนี้ • ติ๊กสถานะ • คาบค้าง' },
-  { t: 'คะแนนและ ปพ.5', d: 'หัวข้อ • กรอก • กลุ่ม • สรุป • SGS' },
+  { t: 'เข้าสู่ระบบ + หน้าภาพรวม', d: 'ทางเข้า • แถบบน • ดึง/อัปข้อมูล • เมนู' },
+  { t: 'เช็กชื่อ', d: 'คาบวันนี้ • รับช่วงแถวเช้า • คาบค้าง' },
+  { t: 'คะแนนและ ปพ.5', d: 'หัวข้อ • ประวัติ • กลุ่ม • สรุป • สำรอง' },
+  { t: 'ส่งคะแนนเข้า SGS', d: 'บุ๊กมาร์ก • วาง • ตรวจ • กรอก • F5' },
   { t: 'ตัวชี้วัด / ผลการเรียนรู้', d: 'หลักสูตร • วางจาก Excel • คัดลอก • แชร์' },
   { t: 'แลกคาบ / การลา', d: 'หาครู • ส่งคำขอ • ตอบรับ • ใบลา' }
 ];
@@ -488,14 +557,19 @@ const STEPS_T = [
       await a.wait(900); await a.click('#gw0 .go'); await a.wait(1800); } },
   { ch: 0, cap: 'กด <b>เข้าสู่ระบบด้วย Google</b> แล้วเลือกบัญชีของโรงเรียน ระบบตรวจสิทธิ์ให้เอง', build: () => gatewayHtml(), run: async a => {
       a.set('#gwStage', e => e.classList.add('picked')); a.set('#gw0', e => e.classList.add('on'));
-      a.modal('เข้าสู่ระบบครู', '<div class="hint" style="margin-bottom:10px">แนะนำ: กด “เข้าสู่ระบบด้วย Google” แล้วเลือกบัญชีของโรงเรียน ใช้ได้ทั้งคอม มือถือ และไอแพด</div>',
-        '<span class="btn">ยกเลิก</span><span class="btn primary" id="gBtn">เข้าสู่ระบบด้วย Google</span>');
-      await a.wait(900); await a.click('#gBtn'); await a.wait(700); a.toast('เข้าสู่ระบบในบทบาทครูแล้ว', 'ok'); await a.wait(1600); } },
+      a.modal('เข้าสู่ระบบครู', loginBody(), '<span class="btn">ยกเลิก</span><span class="btn primary" id="gBtn">เข้าสู่ระบบด้วย Google</span><span class="btn">เข้าใช้บนเครื่องนี้</span>');
+      await a.wait(1000); a.hl('#trialBox', 4); await a.cap('กล่องสีเขียว <b>ทดลองใช้งาน</b> ใช้ตัวช่วยกรอก SGS อย่างเดียวได้โดยไม่ต้องเข้าสู่ระบบ — ดูบทที่ 4'); await a.wait(2800); a.hl(null);
+      await a.click('#gBtn'); await a.wait(700); a.toast('เข้าสู่ระบบในบทบาทครูแล้ว', 'ok'); await a.wait(1600); } },
   { ch: 0, cap: 'แถบบนสุดคือ <b>ปี/ภาค • ชั้น • วิชา</b> — เลือกครั้งเดียว ทุกหน้าจะแสดงข้อมูลของห้องและวิชานี้', build: () => shell('ภาพรวม', dashPane()), run: async a => {
       await a.wait(500); a.hl('#pPeriod', 5); await a.move('#pPeriod', 700); await a.wait(700);
       a.hl('#pClass', 5); await a.move('#pClass', 600); await a.wait(700);
       a.hl('#pSubject', 5); await a.click('#pSubject'); await a.wait(1200); a.hl(null);
       await a.cap('ถ้าสอนหลายห้อง ให้เปลี่ยน <b>ชั้น</b> หรือ <b>วิชา</b> ตรงนี้ก่อนเช็กชื่อหรือกรอกคะแนน'); await a.wait(2600); } },
+  { ch: 0, cap: 'ปุ่ม <b>↓ ดึงข้อมูล</b> สีแดง ดึงตารางสอน รายชื่อ และสมุดคะแนนของเราจากส่วนกลาง • ปุ่ม <b>↑ อัปข้อมูล</b> สีฟ้า ส่งสมุดคะแนนของเราขึ้นไปเก็บ', build: () => shell('ภาพรวม', dashPane()), run: async a => {
+      await a.wait(400); a.hl('#bPull', 5); await a.move('#bPull'); await a.wait(1500); a.hl('#bPush', 5); await a.click('#bPush'); a.hl(null);
+      a.modal('อัปข้อมูลขึ้นส่วนกลาง', '<div>ส่งสมุดคะแนนของคุณ <b>3 เล่ม</b> ขึ้นส่วนกลาง</div><div class="hint" style="margin-top:6px">เล่มที่ยังว่างจะไม่ถูกส่ง จึงไม่ไปทับข้อมูลที่มีอยู่บนส่วนกลาง</div>', '<span class="btn">ยกเลิก</span><span class="btn primary" id="pushOk">อัปข้อมูล</span>');
+      await a.wait(1300); await a.click('#pushOk'); a.closeModal(); a.toast('อัปข้อมูลขึ้นส่วนกลางแล้ว 3 เล่ม', 'ok'); await a.wait(1500);
+      await a.cap('ปกติสมุดคะแนนส่งขึ้นเองหลังกรอก ใช้ปุ่มนี้เมื่ออยากส่งทันที เช่นก่อนเปลี่ยนเครื่อง • ทั้งสองปุ่มถามยืนยันก่อนทุกครั้ง'); await a.wait(3000); } },
   { ch: 0, cap: '<b>ตารางสอนวันนี้</b> — คาบที่กำลังสอนมีกรอบสีน้ำเงิน กด <b>เช็กชื่อ</b> ได้จากหน้านี้เลย', build: () => shell('ภาพรวม', dashPane()), run: async a => {
       await a.wait(500); a.hl('#dToday'); await a.move('#dToday .today.now .btn', 900); await a.wait(2600); a.hl(null);
       await a.cap('ตัวเลขด้านบนบอกงานค้าง: คาบค้างเช็กชื่อ • คะแนนครบทุกส่วน • คะแนนเฉลี่ย'); a.hl('#dMetrics'); await a.wait(2800); a.hl(null); } },
@@ -517,12 +591,12 @@ const STEPS_T = [
         '<div style="margin-top:6px"><b>เวลาเรียน</b> มา 16 • สาย 1 • ขาด 1 <span class="badge ok">ผ่าน • 94.4%</span></div></div><div style="text-align:right"><b style="font-size:26px;color:var(--brand)">62</b><div class="hint">เกรด ยังไม่ครบ</div></div></div>',
         '<span class="btn">ปิด</span>');
       await a.wait(1200); await a.cap('ครูผู้สอนเห็นเฉพาะวิชาที่ตัวเองสอน • ครูที่ปรึกษาเห็นทุกวิชาของนักเรียนห้องที่ปรึกษา'); await a.wait(3000); } },
-  { ch: 0, cap: 'ปุ่ม <b>☰</b> รวมทุกหน้าไว้ ด้านล่างมีปุ่มตรวจเวอร์ชัน — <b>สีเขียว</b> = ล่าสุดแล้ว • <b>สีแดง</b> = กดเพื่ออัปเดต', build: () => shell('ภาพรวม', dashPane()), run: async a => {
-      await a.click('#menuBtn');
-      stage.querySelector('.scr').insertAdjacentHTML('beforeend', '<div class="menu-sheet" id="msheet"><b>ไปที่หน้า</b><div class="grid"><div>◈ ภาพรวม</div><div>◷ เช็กชื่อ</div><div>⇄ แลกคาบ</div><div>★ กิจกรรม</div><div>✎ คะแนน</div><div>☰ หัวข้อคะแนน</div><div>◉ คะแนนกลุ่ม</div><div>▤ สรุป ปพ.5</div></div>' +
-        '<div class="row" style="border-top:1px solid #e6ebf2;padding-top:10px"><span class="hint">เวอร์ชัน v142</span><span class="sp"></span><span class="vbtn" id="vbtn">✓ ล่าสุดแล้ว</span></div></div>');
-      await a.wait(700); a.hl('#vbtn', 5); await a.move('#vbtn'); await a.wait(1800);
-      a.set('#vbtn', e => { e.classList.add('old'); e.textContent = '⟳ อัปเดตเป็น v143'; }); await a.cap('ถ้าปุ่มเป็นสีแดง แปลว่ามีเวอร์ชันใหม่ กดครั้งเดียวแอปจะโหลดเวอร์ชันใหม่ให้'); await a.wait(3000); a.hl(null); } },
+  { ch: 0, cap: 'ปุ่ม <b>☰</b> คือเมนูรวมทุกหน้า แบ่งเป็นหมวด <b>งานประจำวัน • คะแนนและ ปพ.5 • ข้อมูลโรงเรียน</b>', build: () => shell('ภาพรวม', dashPane()), run: async a => {
+      await a.click('#menuBtn'); stage.querySelector('.scr').insertAdjacentHTML('beforeend', menuSheet('ภาพรวม')); await a.wait(1000);
+      await a.move('#m-หัวข้อคะแนน', 700); await a.move('#m-ตัวชี้วัด', 500); await a.move('#m-สรุปปพ5', 500); await a.move('#m-แลกคาบ', 600);
+      await a.cap('แถบบนมีแค่ <b>ภาพรวม เช็กชื่อ กรอกคะแนน คะแนนกลุ่ม</b> หน้าอื่นอยู่ในเมนูนี้ • หมวดข้อมูลโรงเรียนมีปุ่ม <b>จองคิว DPA</b>'); a.hl('#m-จองคิวDPA', 4); await a.wait(2800);
+      a.hl('#vbtn', 5); await a.cap('ด้านล่างคือปุ่มตรวจเวอร์ชัน — <b>สีเขียว</b> = ล่าสุดแล้ว • <b>สีแดง</b> = มีเวอร์ชันใหม่ กดครั้งเดียวแอปโหลดให้เอง'); await a.wait(1800);
+      a.set('#vbtn', e => { e.classList.add('old'); e.textContent = '⟳ อัปเดตเป็น v168'; }); await a.wait(2600); a.hl(null); } },
 
   /* ---------------- บท 2 ---------------- */
   { ch: 1, cap: 'บทที่ 2 • <b>เช็กชื่อ</b>', build: () => titleCard(2, 'เช็กชื่อ', 'เช็กชื่อรายคาบให้เสร็จในไม่กี่วินาที ระบบคำนวณเวลาเรียนและเตือน มส ให้เอง'), run: async a => { await a.wait(3000); } },
@@ -539,13 +613,16 @@ const STEPS_T = [
       attModal(a); markAtt('2', 'absent'); markAtt('4', 'late'); markAtt('6', 'leave'); await a.wait(900);
       await a.click('#attSave'); a.closeModal(); a.toast('บันทึกการเช็กชื่อแล้ว', 'ok');
       a.set('#slot3', e => { e.classList.add('done'); e.querySelector('.st').innerHTML = '<span class="badge ok">เช็กแล้ว • ขาด 1</span>'; }); a.hl('#slot3', 4); await a.wait(2600); a.hl(null); } },
+  { ch: 1, cap: 'คาบแรกหลังเข้าแถว ระบบ <b>รับช่วงผลเช็กแถวเช้า</b> ของครูที่ปรึกษามาให้ — คนที่ขาดหรือลาขึ้นไว้ก่อน แค่ตรวจแล้วกดบันทึก', build: () => shell('เช็กชื่อ', attPage()), run: async a => {
+      attModal(a, true); markAtt('2', 'absent'); markAtt('6', 'leave'); await a.wait(600); a.hl('#inh', 4); await a.wait(3000); a.hl(null);
+      await a.cap('นักเรียนที่มาสายตอนเข้าแถว ถึงโรงเรียนแล้ว ระบบจึงตั้งเป็น <b>“มา”</b> • ถ้าใครมาหลังเข้าแถว แตะแก้ได้เลย'); await a.click('#s2-present'); markAtt('2', 'present'); await a.wait(2600); } },
   { ch: 1, cap: 'คาบที่ผ่านไปแล้วแต่ยังไม่เช็ก จะขึ้นใน <b>คาบค้างเช็กชื่อ</b> — กดเพื่อเช็กย้อนหลังได้ทันที', build: () => shell('เช็กชื่อ', attPage(true)), run: async a => {
       await a.wait(500); a.hl('#missed'); await a.move('#missed .btn'); await a.wait(2600); a.hl(null);
       await a.cap('เลขสีแดงที่แท็บเช็กชื่อและบนหน้าภาพรวมจะหายไปเมื่อเช็กครบ'); await a.wait(2600); } },
 
   /* ---------------- บท 3 ---------------- */
   { ch: 2, cap: 'บทที่ 3 • <b>คะแนนและ ปพ.5</b>', build: () => titleCard(3, 'คะแนนและ ปพ.5', 'ตั้งหัวข้อครั้งเดียว กรอกคะแนนเร็วด้วยคีย์บอร์ด ให้คะแนนงานกลุ่มทีเดียวทั้งกลุ่ม ระบบรวมคะแนน ตัดเกรด และส่งเข้า SGS ให้'), run: async a => { await a.wait(3000); } },
-  { ch: 2, cap: 'แท็บ <b>หัวข้อคะแนน</b> — กด <b>+ เพิ่มหัวข้อ</b> ตั้งชื่องาน คะแนนเต็ม และส่วนที่นับ (ก่อน/หลังกลางภาค)', build: () => shell('หัวข้อคะแนน', itemsPage()), run: async a => {
+  { ch: 2, cap: 'เมนู <b>☰</b> → <b>หัวข้อคะแนน</b> แล้วกด <b>+ เพิ่มหัวข้อ</b> ตั้งชื่องาน คะแนนเต็ม และส่วนที่นับ (ก่อน/หลังกลางภาค)', build: () => shell('หัวข้อคะแนน', itemsPage()), run: async a => {
       await a.wait(500); await a.click('#addItem');
       a.set('#itemsBody', e => e.insertAdjacentHTML('beforeend', '<tr id="newRow" style="background:#f3f7ff"><td class="n">5</td><td><span class="cellin" id="newName" style="justify-content:start;padding:0 10px;display:flex;min-width:260px"></span></td><td class="n"><span class="cellin" id="newMax"></span></td><td>ก่อนกลางภาค</td></tr>'));
       await a.type('#newName', 'รายงานการทดลองวงจรไฟฟ้า', 70); await a.type('#newMax', '10', 200); await a.wait(1500); } },
@@ -555,7 +632,17 @@ const STEPS_T = [
       const v = ['8', '10', '7', '9', '6'];
       for (let i = 0; i < v.length; i++) { a.set('#c' + i, e => e.classList.add('cur')); await a.move('#c' + i, 360); await a.type('#c' + i, v[i], 120); await a.wait(260); a.set('#c' + i, e => { e.classList.remove('cur', 'typing'); }); }
       await a.cap('กรอกเกินคะแนนเต็มจะขึ้นเตือนสีแดง • ใช้ <b>กรอกด้วยเสียง</b> ก็ได้ ระบบฟังตัวเลขแล้วเติมให้'); await a.wait(3000); } },
-  { ch: 2, cap: 'งานกลุ่มใช้แท็บ <b>คะแนนกลุ่ม</b> — กด <b>+ สร้างชุดกลุ่มใหม่</b> แล้วกด <b>แบ่งอัตโนมัติ</b>', build: () => shell('คะแนนกลุ่ม', groupsPage(0), { tabs: GTABS }), run: async a => {
+  { ch: 2, cap: 'คะแนนไม่หายแน่นอน — ระบบ <b>เก็บฉบับย้อนหลังให้เอง</b> ทุกครั้งที่แก้ กด <b>🕘 ประวัติ</b> ในหน้าหัวข้อคะแนนเพื่อกู้คืน', build: () => shell('หัวข้อคะแนน', itemsPage()), run: async a => {
+      await a.wait(400); a.hl('#bHist', 5); await a.click('#bHist'); a.hl(null);
+      a.modal('🕘 ประวัติสมุดคะแนน • ว22102 • ม.2/3', histBody(), '<span class="btn">ปิด</span>'); stage.querySelector('.modal').style.width = '880px'; await a.wait(1400);
+      a.hl('#h1', 3); await a.cap('<b>เติมช่องว่าง</b> = เอาคะแนนจากฉบับนั้นใส่เฉพาะช่องที่ว่าง ไม่ทับที่กรอกไว้ • <b>แทนทั้งเล่ม</b> = กลับไปเป็นฉบับนั้นทั้งเล่ม'); await a.wait(2600);
+      await a.click('#hFill'); a.hl(null); a.closeModal(); a.toast('เติมคะแนนกลับ 31 ช่องแล้ว', 'ok'); await a.wait(1800); } },
+  { ch: 2, cap: 'มีคะแนนอยู่ในไฟล์แล้ว เช่นผลสอบออนไลน์ กด <b>⤓ นำเข้าคะแนนจากไฟล์</b> — ระบบจับคู่ด้วยเลขประจำตัว และเติมเฉพาะช่องที่ว่าง', build: () => shell('หัวข้อคะแนน', itemsPage()), run: async a => {
+      await a.wait(400); await a.click('#bImp');
+      a.modal('นำเข้าคะแนนจากไฟล์ • ม.2/3', '<div class="hint">ผลสอบย่อยบทที่ 1.xlsx • พบคะแนน 38 คน</div><div class="row" style="margin-top:10px"><span class="sel" style="min-width:300px">ใส่ในหัวข้อ: สอบย่อยบทที่ 1 (เต็ม 20)</span></div>' +
+        '<div class="res" style="margin-top:10px;display:block">จะเติม <b>36 คน</b> • มีคะแนนอยู่แล้ว 2 คน ไม่ทับ • ข้ามแถวของห้องอื่นให้เอง</div>', '<span class="btn">ยกเลิก</span><span class="btn primary" id="impOk">เติมคะแนน</span>');
+      await a.wait(2000); await a.click('#impOk'); a.closeModal(); a.toast('เติมคะแนน 36 คนแล้ว', 'ok'); await a.wait(1800); } },
+  { ch: 2, cap: 'งานกลุ่มใช้แท็บ <b>คะแนนกลุ่ม</b> — กด <b>+ สร้างชุดกลุ่มใหม่</b> แล้วกด <b>แบ่งอัตโนมัติ</b>', build: () => shell('คะแนนกลุ่ม', groupsPage(0)), run: async a => {
       await a.wait(500); await a.click('#gsNew'); a.html('#pane', groupsPage(1)); await a.wait(700);
       await a.click('#gsAuto');
       a.modal('แบ่งกลุ่มอัตโนมัติ — กลุ่มการทดลอง', '<div class="row" style="gap:10px;margin-bottom:10px"><span class="chk on" style="--c:var(--brand);border-radius:999px"></span> กำหนดจำนวนกลุ่ม <span class="cellin" id="autoN" style="width:60px"></span></div>' +
@@ -563,76 +650,141 @@ const STEPS_T = [
       await a.type('#autoN', '8', 200); await a.wait(500); await a.click('#autoOk'); a.closeModal(); a.html('#pane', groupsPage(2)); a.toast('แบ่ง 38 คนเป็น 8 กลุ่มแล้ว', 'ok'); await a.wait(1500);
       await a.cap('ปรับสมาชิกได้ แตะเลขที่เพื่อย้ายเข้าหรือออก หรือพิมพ์ช่วงเลขที่ เช่น <b>1-5, 8</b> • ใครยังไม่มีกลุ่มหรืออยู่ซ้ำสองกลุ่ม ระบบจะเตือน');
       a.hl('#gr1'); await a.move('#gr1'); await a.wait(3200); a.hl(null); } },
-  { ch: 2, cap: 'ที่แท็บ <b>หัวข้อคะแนน</b> ตั้ง <b>ประเภท</b> ของงานเป็น <b>กลุ่ม</b> แล้วเลือกชุดกลุ่มที่ใช้', build: () => shell('หัวข้อคะแนน', groupItemPage(), { tabs: GTABS }), run: async a => {
+  { ch: 2, cap: 'ที่หน้า <b>หัวข้อคะแนน</b> ตั้ง <b>ประเภท</b> ของงานเป็น <b>กลุ่ม</b> แล้วเลือกชุดกลุ่มที่ใช้', build: () => shell('หัวข้อคะแนน', groupItemPage()), run: async a => {
       await a.wait(500); await a.click('#gKind'); a.set('#gKind', e => { e.textContent = 'กลุ่ม'; e.style.color = 'var(--group)'; e.style.fontWeight = '800'; }); await a.wait(700);
       a.set('#gSet', e => { e.style.opacity = 1; }); await a.click('#gSet'); a.set('#gSet', e => { e.textContent = 'กลุ่มการทดลอง'; }); await a.wait(1800); } },
-  { ch: 2, cap: 'กลับมาที่แท็บ <b>คะแนนกลุ่ม</b> — ลงคะแนนครั้งเดียวต่อกลุ่ม ระบบลงให้สมาชิกทุกคนเอง', build: () => shell('คะแนนกลุ่ม', groupsPage(3), { tabs: GTABS }), run: async a => {
+  { ch: 2, cap: 'กลับมาที่แท็บ <b>คะแนนกลุ่ม</b> — ลงคะแนนครั้งเดียวต่อกลุ่ม ระบบลงให้สมาชิกทุกคนเอง', build: () => shell('คะแนนกลุ่ม', groupsPage(3)), run: async a => {
       await a.wait(500); await a.type('#gs1', '9', 200); await a.wait(300); a.toast('ลง 9 คะแนนให้ กลุ่ม 1 จำนวน 5 คน', 'ok'); await a.wait(1400);
       await a.type('#gs2', '8', 200); await a.wait(300); a.toast('ลง 8 คะแนนให้ กลุ่ม 2 จำนวน 5 คน', 'ok'); await a.wait(1300);
       await a.cap('แตะเลขที่ <b>ผู้นำเสนอ</b> ของแต่ละกลุ่ม ระบบนับสถิติว่าใครนำเสนอไปกี่ครั้ง จะได้หมุนเวียนให้ทั่วถึง');
       for (const n of [2, 4]) { await a.click('#pr1_' + n); a.set('#pr1_' + n, e => e.classList.add('on')); await a.wait(400); }
       await a.click('#gAll2'); for (let n = 6; n <= 10; n++) a.set('#pr2_' + n, e => e.classList.add('on')); a.set('#gAll2', e => { e.textContent = 'ทั้งกลุ่ม ✓'; e.classList.add('primary'); });
       await a.wait(2600); } },
-  { ch: 2, cap: 'แท็บ <b>สรุป / ส่งออก</b> — รวมคะแนน ตัดเกรด คิดเวลาเรียน และแสดงการกระจายเกรดให้เอง', build: () => shell('สรุป / ส่งออก', summaryPage()), run: async a => {
-      await a.wait(400); const h = [8, 14, 22, 30, 38, 26, 18, 10];
+  { ch: 2, cap: 'เมนู <b>☰</b> → <b>สรุป ปพ.5</b> — หน้านี้แบ่งเป็น 4 หมวด <b>สรุปผลและพิมพ์ • ส่งเข้า SGS • สำรองและซิงก์ • นักเรียนดูผล</b>', build: () => shell('สรุป / ส่งออก', summaryPage()), run: async a => {
+      await a.wait(300); a.hl('#sumCats', 5); await a.wait(2600); a.hl(null);
+      await a.cap('หมวด <b>สรุปผลและพิมพ์</b> รวมคะแนน ตัดเกรด คิดเวลาเรียน และแสดงการกระจายเกรดให้เอง'); const h = [8, 14, 22, 30, 38, 26, 18, 10];
       stage.querySelectorAll('.dist div').forEach((d, i) => { d.style.height = h[i] * 3 + 'px'; });
       await a.wait(2400); a.hl('#sumBtns'); await a.cap('ส่งออก Excel • พิมพ์ปก ปพ.5 ได้จากปุ่มด้านบน'); await a.wait(2600); a.hl(null); } },
-  { ch: 2, cap: 'การ์ด <b>ให้นักเรียนดูผลจากมือถือตัวเอง</b> — ตรวจคะแนนเสร็จแล้วกด <b>เผยแพร่</b>', build: () => shell('สรุป / ส่งออก', publishPage()), run: async a => {
+  { ch: 2, cap: 'หมวด <b>📱 นักเรียนดูผล</b> — ตรวจคะแนนเสร็จแล้วกด <b>เผยแพร่</b> นักเรียนเปิดดูจากมือถือตัวเองได้', build: () => shell('สรุป / ส่งออก', summaryPage('pub')), run: async a => {
       await a.wait(500); a.hl('#pubCard'); await a.wait(900); await a.click('#pubBtn'); a.toast('เผยแพร่ผลให้นักเรียน 38 คนแล้ว', 'ok');
       a.set('#pubState', e => { e.innerHTML = '<span class="badge ok">เผยแพร่แล้ว • 27 ก.ย. 2569</span>'; }); await a.wait(1800); a.hl(null);
       await a.cap('นักเรียนเข้าทางช่อง <b>นักเรียน</b> เห็นคะแนนรายหัวข้อและเวลาเรียนของตัวเอง • แก้คะแนนแล้วกดเผยแพร่ซ้ำได้'); await a.wait(3000); } },
-  { ch: 2, cap: '<b>ส่งคะแนนเข้า SGS</b> — กดคัดลอกคะแนน เปิดหน้า SGS แล้วกดปุ่มบุ๊กมาร์ก ระบบกรอกช่องให้', build: () => shell('สรุป / ส่งออก', sgsPage()), run: async a => {
-      await a.wait(500); a.hl('#sgsCard'); await a.click('#sgsCopy'); a.toast('คัดลอกคะแนน ม.2/3 แล้ว', 'ok'); await a.wait(1600);
-      await a.cap('ไม่ต้องใส่รหัสผ่าน SGS ในแอป — ครูล็อกอิน SGS เอง แล้วกดบุ๊กมาร์กบนหน้านั้น • ตรวจกับ SGS อีกครั้งก่อนยืนยัน'); await a.wait(3200); a.hl(null); } },
+  { ch: 2, cap: 'หมวด <b>🛟 สำรองและซิงก์</b> รวมทุกทางสำรองไว้ที่เดียว — ประวัติในเครื่อง • ส่วนกลาง • Google Sheet • ไฟล์สำรอง', build: () => shell('สรุป / ส่งออก', summaryPage('safe')), run: async a => {
+      for (const id of ['sf1', 'sf2', 'sf3', 'sf4']) { a.hl('#' + id, 3); await a.wait(1400); } a.hl(null);
+      await a.cap('<b>Google Sheet</b> คือสำเนาในไดรฟ์ของครูเอง เปิดดูได้แม้แอปมีปัญหา • วันที่คะแนนเปลี่ยน แถบบนจะขึ้นป้าย <b>📗 ส่งลง Google Sheet วันนี้</b> กดครั้งเดียวจบ');
+      await a.click('#gsNow'); a.toast('ส่งลง Google Sheet แล้ว • 4 แท็บ', 'ok'); await a.wait(2800);
+      await a.cap('จุดสีส้มที่หมวดนี้ แปลว่ามีเรื่องควรทำ เช่นไม่ได้สำรองไฟล์เกิน 30 วัน'); a.hl('#cat-safe', 5); await a.wait(2600); a.hl(null); } },
 
+  /* ---------------- บท 4 ส่งคะแนนเข้า SGS ---------------- */
+  { ch: 3, cap: 'บทที่ 4 • <b>ส่งคะแนนเข้า SGS</b>', build: () => titleCard(4, 'ส่งคะแนนเข้า SGS', 'ไม่ต้องพิมพ์คะแนนลง SGS ทีละช่อง — คัดลอก วาง ตรวจ แล้วให้ปุ่มบุ๊กมาร์กกรอกให้ทั้งห้อง ทั้งคะแนนสี่ส่วน การอ่านคิดวิเคราะห์ และคุณลักษณะ'), run: async a => { await a.wait(3400); } },
+  { ch: 3, cap: 'เมนู <b>☰</b> → <b>สรุป ปพ.5</b> แล้วเลือกหมวด <b>⤴ ส่งเข้า SGS</b>', build: () => shell('สรุป / ส่งออก', summaryPage('sum')), run: async a => {
+      await a.click('#menuBtn'); stage.querySelector('.scr').insertAdjacentHTML('beforeend', menuSheet('')); await a.wait(700);
+      await a.click('#m-สรุปปพ5'); a.set('#msheet', e => e.remove()); await a.wait(500);
+      await a.click('#cat-sgs'); a.html('#pane', summaryPage('sgs')); await a.wait(800);
+      a.hl('#sgsCard', 4); await a.cap('การ์ดนี้บอกขั้นตอนครบ 6 ขั้น — ครูล็อกอิน SGS เอง รหัสผ่านไม่ผ่าน KruSpace'); await a.wait(3000); a.hl(null); } },
+  { ch: 3, cap: '<b>ครั้งแรกครั้งเดียว</b> — ลากปุ่ม <b>📥 กรอกคะแนนจาก KruSpace</b> ไปวางบนแถบบุ๊กมาร์กของ Chrome', build: () => browser(URL_KS, ksPage()), run: async a => {
+      await a.wait(500); a.hl('#sgs1', 4); await a.wait(1200); a.hl(null);
+      await dragBookmark(a); a.toast('เพิ่มปุ่มลงแถบบุ๊กมาร์กแล้ว', 'ok'); await a.wait(1200);
+      await a.cap('ถ้าไม่เห็นแถบบุ๊กมาร์ก กด <b>Ctrl+Shift+B</b> • ลากครั้งเดียว ใช้ได้ทุกวิชา ทุกภาคเรียน'); await pressKey(a, 'Ctrl + Shift + B', 1600); await a.wait(1400); } },
+  { ch: 3, cap: 'กด <b>คัดลอกคะแนน</b> ของวิชาและห้องที่เลือกไว้ — ข้อมูลทุกส่วนเก็บไว้พร้อมวางใน SGS', build: () => browser(URL_KS, ksPage(), { bm: true }), run: async a => {
+      await a.wait(400); a.hl('#sgs2', 4); await a.click('#sgsCopy'); a.toast('คัดลอกคะแนน • วิทยาศาสตร์ 4 • ม.2/3 แล้ว', 'ok'); await a.wait(1800); a.hl(null);
+      await a.cap('ห้องหรือวิชาอื่น ให้เปลี่ยนที่แถบบนก่อนแล้วค่อยกดคัดลอก — ข้อมูลที่คัดลอกมีชื่อวิชาและห้องกำกับไว้ ระบบจึงตรวจได้ว่าวางผิดห้องหรือไม่'); a.hl('#pSubject', 5); await a.wait(3400); a.hl(null); } },
+  { ch: 3, cap: 'เปิด SGS แล้วล็อกอินเอง เลือก <b>รายวิชา</b> และ <b>กลุ่ม</b> ให้ตรง และตั้ง <b>/หน้า</b> ให้เห็นนักเรียนครบทุกคน', build: () => browser(URL_SGS, sgsScorePage(false), { bm: true, tab: 'sgs' }), run: async a => {
+      await a.wait(500); await a.click('#sgSub'); a.hl('#sgSub', 4); await a.wait(900); await a.click('#sgGrp'); a.hl('#sgGrp', 4); await a.wait(900); await a.click('#sgPer'); a.hl('#sgPer', 4); await a.wait(1200); a.hl(null);
+      await a.cap('ช่องที่ยังเป็นสีเทาคือคอลัมน์ที่ยังไม่ได้ติ๊กเปิด — จะติ๊กเองก่อน หรือให้ปุ่มติ๊กให้ในขั้นตรวจก็ได้'); a.hl('#cb0', 8); await a.wait(3000); a.hl(null); } },
+  { ch: 3, cap: 'กดปุ่ม <b>📥 กรอกคะแนนจาก KruSpace</b> บนแถบบุ๊กมาร์ก หน้าต่างของ KruSpace จะเปิดบนหน้า SGS', build: () => browser(URL_SGS, sgsScorePage(false), { bm: true, tab: 'sgs' }), run: async a => {
+      await a.wait(400); await a.click('#bmBtn'); a.set('#bpage', e => e.insertAdjacentHTML('beforeend', fillerPaste())); await a.wait(1400);
+      await a.cap('กด <b>Ctrl+V</b> วางคะแนนที่คัดลอกมา แล้วกด <b>ตรวจสอบ</b> — ขั้นนี้ยังไม่มีอะไรถูกกรอกลง SGS'); await a.click('#fTa'); await pressKey(a, 'Ctrl + V', 900);
+      a.set('#fTa', e => { e.style.color = '#142033'; e.textContent = 'KRUSPACE-SGS:v1:{"subject":"ว22102","subjectName":"วิทยาศาสตร์ 4","cls":"ม.2/3","students":[{"sid":"24510","before":27,"mid":16}, …'; });
+      await a.wait(1400); await a.click('#fChk'); a.set('#filler', e => { e.outerHTML = fillerCompare(false); }); await a.wait(1600); } },
+  { ch: 3, cap: '<b>ตารางเปรียบเทียบ</b> — สีเขียว คือช่องว่างที่จะกรอกใหม่ • สีส้ม คือช่องที่จะเขียนทับค่าเดิมใน SGS', build: () => browser(URL_SGS, sgsScorePage(false) + fillerCompare(false), { bm: true, tab: 'sgs' }), run: async a => {
+      await a.wait(400); a.hl('#fTable', 4); await a.wait(3000); a.hl(null);
+      await a.cap('SGS ต้องติ๊กช่องที่หัวคอลัมน์ก่อนจึงกรอกได้ — กด <b>ติ๊กเปิดให้เลย</b> ปุ่มจะติ๊กเฉพาะคอลัมน์ในรอบที่ SGS เปิดให้กรอก'); a.hl('#fLock', 4); await a.wait(2400);
+      await a.click('#fTick'); a.hl(null); a.set('#cb0', e => e.classList.add('on')); a.set('#cb3', e => e.classList.add('on'));
+      stage.querySelectorAll('#sgsP [id^="sg"][id$="b"], #sgsP [id^="sg"][id$="m"]').forEach(e => e.classList.add('open'));
+      a.set('#filler', e => { e.outerHTML = fillerCompare(true); }); await a.wait(1600);
+      await a.cap('ตรวจตัวเลขให้ดีก่อนทุกครั้ง เพราะหน้านี้ของ SGS <b>บันทึกทันทีที่ช่องเปลี่ยน</b> ไม่มีปุ่มยกเลิก'); a.hl('#fGo', 5); await a.wait(3000); a.hl(null); } },
+  { ch: 3, cap: 'กด <b>กรอกลง SGS</b> — ระบบกรอกให้ทีละช่อง อย่าปิดหรือเปลี่ยนหน้า SGS จนกว่าจะเสร็จ', build: () => browser(URL_SGS, sgsScorePage(true) + fillerCompare(true), { bm: true, tab: 'sgs' }), run: async a => {
+      await a.wait(400); await a.click('#fGo'); a.set('#filler', e => { e.outerHTML = fillerRunning(12); }); await a.wait(500);
+      let n = 0;
+      for (let i = 0; i < SGS_ST.length; i++) for (const k of ['b', 'm']) {
+        const v = k === 'b' ? SGS_ST[i][2] : SGS_ST[i][3];
+        a.set('#sg' + i + k, e => { e.textContent = v; e.classList.add(i === 2 && k === 'b' ? 'ovr' : 'new'); });
+        a.set('#sgp' + i, e => { e.textContent = SGS_ST[i][2] + (k === 'm' ? SGS_ST[i][3] : 0); });
+        n++; a.set('#fBar', e => { e.style.width = (n / 12 * 100) + '%'; }); a.set('#fProg', e => { e.textContent = n + ' / 12 ช่อง'; });
+        await a.wait(230);
+      }
+      a.set('#filler', e => { e.outerHTML = fillerDone(12); }); await a.wait(1200); a.hl('#fDone', 4); await a.wait(1600); a.hl(null); } },
+  { ch: 3, cap: '<b>ขั้นสุดท้าย</b> — ถ้าหน้านั้นมีปุ่ม <b>บันทึก</b> ให้กดก่อน แล้วกด <b>F5</b> ดูว่าตัวเลขยังอยู่ครบ', build: () => browser(URL_SGS, sgsScorePage(true, true) + fillerDone(12), { bm: true, tab: 'sgs' }), run: async a => {
+      await a.wait(400); a.hl('#fLast', 4); await a.wait(2400); a.hl(null);
+      await a.click('#sgDisk'); a.toast('บันทึกแล้ว', 'ok'); await a.wait(1000);
+      await pressKey(a, 'F5', 900); a.set('#filler', e => e.remove()); a.set('#sgsP', e => { e.style.opacity = .15; }); await a.wait(500); a.set('#sgsP', e => { e.style.opacity = 1; });
+      stage.querySelectorAll('#sgsP .ci.new, #sgsP .ci.ovr').forEach(e => e.classList.remove('new', 'ovr')); await a.wait(700);
+      a.hl('#sgsP table', 4); a.toast('ตัวเลขอยู่ครบ = บันทึกลง SGS แล้ว', 'ok'); await a.wait(1800); a.hl(null);
+      await a.cap('ถ้ากด F5 ก่อนกดบันทึก ตัวเลขที่เพิ่งกรอกจะหายทั้งหมด • รอบหลังกลางภาคทำแบบเดียวกัน'); await a.wait(3000); } },
+  { ch: 3, cap: 'หน้า <b>การอ่าน คิดวิเคราะห์ และเขียน</b> และหน้า <b>คุณลักษณะอันพึงประสงค์</b> ใช้ปุ่มเดียวกัน ไม่ต้องคัดลอกใหม่', build: () => browser(URL_TR, sgsTraitsPage(false), { bm: true, tab: 'sgs' }), run: async a => {
+      await a.wait(400); await a.click('#bmBtn'); a.set('#bpage', e => e.insertAdjacentHTML('beforeend', fillerTraits())); await a.wait(1500);
+      await a.cap('ปุ่มดูเองว่าเปิดหน้าไหนอยู่ แล้วกรอก<b>คะแนนรายข้อ</b> ให้ — ช่อง <b>รวม</b> กับ <b>ผลการประเมิน</b> SGS คำนวณให้เองหลังกรอกครบ'); await a.wait(2600);
+      await a.click('#fGo');
+      for (let i = 0; i < SGS_ST.length; i++) { for (let k = 0; k < 8; k++) a.set('#tr' + i + '_' + k, e => { e.textContent = TRAITS[i][k]; e.classList.add('new'); }); await a.wait(160); }
+      a.set('#filler', e => { e.outerHTML = fillerDone(48, 'คุณลักษณะอันพึงประสงค์'); }); await a.wait(1400);
+      await a.cap('ผลการประเมินของสองฝั่งอาจต่างกันได้ เพราะคิดคนละเกณฑ์ — ตารางตรวจจึงแสดง <b>SGS • KruSpace</b> คู่กันให้เทียบ'); await a.wait(3200); } },
+  { ch: 3, cap: '<b>ทดลองใช้งาน</b> — ถ้ารวมคะแนนไว้ใน Excel แล้ว ใช้ตัวช่วยกรอก SGS ได้เลยโดยไม่ต้องเข้าสู่ระบบ', build: () => gatewayHtml(), run: async a => {
+      a.set('#gwStage', e => e.classList.add('picked')); a.set('#gw0', e => e.classList.add('on'));
+      a.modal('เข้าสู่ระบบครู', loginBody(), '<span class="btn">ยกเลิก</span><span class="btn primary">เข้าสู่ระบบด้วย Google</span>'); await a.wait(900);
+      await a.click('#trialBtn'); a.closeModal(); a.set('.gw', e => { e.insertAdjacentHTML('afterend', quickPage(false)); }); await a.wait(900);
+      await a.cap('คัดลอกตารางจาก Excel มาวาง แล้วกด <b>อ่านข้อมูลที่วาง</b> — ระบบรวมคะแนนและตัดเกรดให้'); await a.click('#qkBox');
+      await a.type('#qkBox', '35065\tปานเทพ สายสะอาด\t25\t16\t26\t17\n35070\tอนพัทธ์ พิมพ์คำ\t27\t18\t28\t19\n35080\tปรเมธ ซอหนองบัว\t20\t12\t22\t13', 6);
+      await a.click('#qkRead'); a.set('#qkRes', e => { e.style.opacity = 1; }); await a.wait(1200); a.hl('#qkCopy', 5);
+      await a.cap('กด <b>คัดลอกคะแนน</b> แล้วใช้ปุ่มบุ๊กมาร์กบนหน้า SGS ตามขั้นเดิมได้เลย • ข้อมูลโหมดนี้อยู่ในเครื่องนี้เท่านั้น ไม่ขึ้นส่วนกลาง'); await a.wait(3400); a.hl(null); } },
 
-  /* ---------------- บท 4 ตัวชี้วัด / ผลการเรียนรู้ ---------------- */
-  { ch: 3, cap: 'บทที่ 4 • <b>ตัวชี้วัดและผลการเรียนรู้</b>', build: () => titleCard(4, 'ตัวชี้วัด / ผลการเรียนรู้', 'ใส่ตัวชี้วัดของวิชาครั้งเดียว ใช้ต่อได้ทั้งภาค คัดลอกไปห้องอื่น และแบ่งปันให้เพื่อนครูได้'), run: async a => { await a.wait(3000); } },
-  { ch: 3, cap: 'เปิดเมนู <b>☰</b> แล้วเลือก <b>ตัวชี้วัด</b> — หรือกดปุ่ม <b>เปิดหน้าตัวชี้วัด</b> ในหน้าหัวข้อคะแนนก็ได้', build: () => shell('', indPage(false)), run: async a => {
+  /* ---------------- บท 5 ตัวชี้วัด / ผลการเรียนรู้ ---------------- */
+  { ch: 4, cap: 'บทที่ 5 • <b>ตัวชี้วัดและผลการเรียนรู้</b>', build: () => titleCard(5, 'ตัวชี้วัด / ผลการเรียนรู้', 'ใส่ตัวชี้วัดของวิชาครั้งเดียว ใช้ต่อได้ทั้งภาค คัดลอกไปห้องอื่น และแบ่งปันให้เพื่อนครูได้'), run: async a => { await a.wait(3000); } },
+  { ch: 4, cap: 'เปิดเมนู <b>☰</b> แล้วเลือก <b>ตัวชี้วัด</b> — หรือกดปุ่ม <b>เปิดหน้าตัวชี้วัด</b> ในหน้าหัวข้อคะแนนก็ได้', build: () => shell('', indPage(false)), run: async a => {
       await a.click('#menuBtn');
-      stage.querySelector('.scr').insertAdjacentHTML('beforeend', '<div class="menu-sheet"><b>ไปที่หน้า</b><div class="grid"><div>✎ คะแนน</div><div>☰ หัวข้อคะแนน</div><div id="mInd" style="border-color:var(--brand);color:var(--brand)">◇ ตัวชี้วัด</div><div>◉ คะแนนกลุ่ม</div></div></div>');
-      await a.wait(600); await a.click('#mInd'); stage.querySelector('.menu-sheet').remove(); await a.wait(600);
+      stage.querySelector('.scr').insertAdjacentHTML('beforeend', menuSheet(''));
+      await a.wait(600); await a.click('#m-ตัวชี้วัด'); a.set('#msheet', e => e.remove()); await a.wait(600);
       await a.cap('หน้าตัวชี้วัดแสดงของ <b>วิชาและห้องที่เลือกไว้ที่แถบบน</b> มีทางเพิ่มตัวชี้วัด 5 แบบ'); a.hl('#indActions'); await a.wait(3200); a.hl(null); } },
-  { ch: 3, cap: 'วิชาพื้นฐาน กด <b>เลือกจากหลักสูตร</b> แล้วติ๊กตัวชี้วัดจากฐานข้อมูลของโรงเรียน', build: () => shell('', indPage(false)), run: async a => {
+  { ch: 4, cap: 'วิชาพื้นฐาน กด <b>เลือกจากหลักสูตร</b> แล้วติ๊กตัวชี้วัดจากฐานข้อมูลของโรงเรียน', build: () => shell('', indPage(false)), run: async a => {
       await a.click('#indCore');
       a.modal('เลือกตัวชี้วัดจากหลักสูตร', '<div class="row" style="gap:8px;margin-bottom:10px"><span class="sel">วิทยาศาสตร์และเทคโนโลยี</span><span class="sel">ม.2</span><span class="cellin" style="flex:1;justify-content:start;padding:0 10px;display:flex;color:var(--mute)">ค้นหาตัวชี้วัด</span></div>' +
         IND.map((r, i) => '<div class="res" style="margin-top:6px"><span class="chk" id="ic' + i + '" style="--c:var(--brand)"></span><div><b>' + r[0] + '</b> <span class="badge ' + (r[2] === 'S' ? 'grp' : '') + '">' + (r[2] === 'S' ? 'ปลายทาง' : 'กลางทาง') + '</span><div class="hint">' + r[1] + '</div></div></div>').join(''),
         '<span class="btn">ยกเลิก</span><span class="btn primary" id="icAdd">เพิ่มที่เลือก</span>');
       for (const i of [0, 1, 2, 3]) { await a.click('#ic' + i); a.set('#ic' + i, e => e.classList.add('on')); await a.wait(250); }
       a.set('#icAdd', e => e.textContent = 'เพิ่มที่เลือก 4 ข้อ'); await a.wait(500); await a.click('#icAdd'); a.closeModal(); a.html('#pane', indPage(true)); a.toast('เพิ่มตัวชี้วัด 4 ข้อแล้ว', 'ok'); await a.wait(1800); } },
-  { ch: 3, cap: 'ตาราง <b>ชุดตัวชี้วัดของวิชานี้</b> — แก้รหัส ข้อความ ประเภท เวลา และคะแนนได้ในตาราง ระบบบันทึกให้อัตโนมัติ', build: () => shell('', indPage(true)), run: async a => {
+  { ch: 4, cap: 'ตาราง <b>ชุดตัวชี้วัดของวิชานี้</b> — แก้รหัส ข้อความ ประเภท เวลา และคะแนนได้ในตาราง ระบบบันทึกให้อัตโนมัติ', build: () => shell('', indPage(true)), run: async a => {
       await a.wait(400); a.hl('#indTable'); await a.wait(1400); a.set('#k2', e => { e.textContent = 'ปลายทาง'; e.className = 'badge grp'; }); await a.click('#k2'); await a.wait(1200); a.hl(null);
       await a.cap('แถบสรุปบอก <b>จำนวนกลางทาง ปลายทาง รวมเวลา และรวมคะแนน</b> ใช้ตรวจว่าครบตามโครงสร้างรายวิชา'); a.hl('#indSum'); await a.wait(3000); a.hl(null); } },
-  { ch: 3, cap: 'วิชาเพิ่มเติม กด <b>พิมพ์เอง / วางจาก Excel</b> คัดลอกตารางผลการเรียนรู้มาวางได้ทีเดียวทั้งชุด', build: () => shell('', indPage(true)), run: async a => {
+  { ch: 4, cap: 'วิชาเพิ่มเติม กด <b>พิมพ์เอง / วางจาก Excel</b> คัดลอกตารางผลการเรียนรู้มาวางได้ทีเดียวทั้งชุด', build: () => shell('', indPage(true)), run: async a => {
       await a.click('#indPaste');
       a.modal('พิมพ์เอง / วางจาก Excel', '<div class="hint" style="margin-bottom:8px">วางทีละบรรทัด: รหัส • ผลการเรียนรู้ • เวลา • คะแนน</div><div class="cellin" id="pasteBox" style="height:150px;align-items:start;justify-content:start;padding:10px;display:flex;white-space:pre-line;font-weight:400;text-align:left"></div>',
         '<span class="btn">ยกเลิก</span><span class="btn primary" id="pasteOk">เพิ่มเข้าวิชานี้</span>');
       await a.type('#pasteBox', 'ผล 1\tอธิบายหลักการทำงานของวงจรไฟฟ้าอย่างง่าย\t4\t10\nผล 2\tออกแบบและทดลองต่อวงจรไฟฟ้า\t6\t15', 18);
       await a.wait(500); await a.click('#pasteOk'); a.closeModal(); a.toast('เพิ่มผลการเรียนรู้ 2 ข้อแล้ว', 'ok'); await a.wait(1400);
       await a.cap('ม.ปลาย วิชาฟิสิกส์ เคมี ชีววิทยา โลกฯ และคณิตศาสตร์เพิ่มเติม มีปุ่ม <b>เลือกผลการเรียนรู้ สสวท.</b> ให้เลือกได้เลย'); a.hl('#indIpst', 5); await a.wait(3000); a.hl(null); } },
-  { ch: 3, cap: 'สอนหลายห้อง กด <b>คัดลอกไปห้องอื่น</b> • ใช้ชุดของเพื่อนครู กด <b>ขอจากครูท่านอื่น</b> • ส่งชุดของเราให้คนอื่นใช้ กด <b>แชร์ให้เพื่อนครู</b>', build: () => shell('', indPage(true)), run: async a => {
+  { ch: 4, cap: 'สอนหลายห้อง กด <b>คัดลอกไปห้องอื่น</b> • ใช้ชุดของเพื่อนครู กด <b>ขอจากครูท่านอื่น</b> • ส่งชุดของเราให้คนอื่นใช้ กด <b>แชร์ให้เพื่อนครู</b>', build: () => shell('', indPage(true)), run: async a => {
       await a.wait(400); a.hl('#indCopy', 5); await a.move('#indCopy'); await a.wait(1600); a.hl('#indFrom', 5); await a.move('#indFrom'); await a.wait(1600); a.hl('#indShare', 5); await a.move('#indShare'); await a.wait(1600); a.hl(null);
       await a.cap('ชุดตัวชี้วัด<b>เก็บไว้กับสมุดคะแนนของวิชานี้</b> กดอัปข้อมูลแล้วใช้ได้ทุกเครื่องที่เข้าสู่ระบบ'); await a.wait(2600); } },
 
-  /* ---------------- บท 5 ---------------- */
-  { ch: 4, cap: 'บทที่ 5 • <b>แลกคาบ / การลา</b>', build: () => titleCard(5, 'แลกคาบ / การลา', 'หาครูที่ว่างให้อัตโนมัติ ส่งคำขอ รับการตอบรับ และพิมพ์บันทึกข้อความได้ในที่เดียว'), run: async a => { await a.wait(3000); } },
-  { ch: 4, cap: 'แท็บ <b>แลกคาบ / การลา</b> — เลือก <b>แลกคาบปกติ</b> แล้วเลือกคาบที่ต้องการจัดการ', build: () => shell('แลกคาบ / การลา', exPage()), run: async a => {
+  /* ---------------- บท 6 ---------------- */
+  { ch: 5, cap: 'บทที่ 6 • <b>แลกคาบ / การลา</b>', build: () => titleCard(6, 'แลกคาบ / การลา', 'หาครูที่ว่างให้อัตโนมัติ ส่งคำขอ รับการตอบรับ และพิมพ์บันทึกข้อความได้ในที่เดียว'), run: async a => { await a.wait(3000); } },
+  { ch: 5, cap: 'เมนู <b>☰</b> → <b>แลกคาบ</b> — เลือก <b>แลกคาบปกติ</b> แล้วเลือกคาบที่ต้องการจัดการ', build: () => shell('แลกคาบ / การลา', exPage()), run: async a => {
       await a.wait(500); a.hl('#modeSwap', 4); await a.wait(1500); a.hl(null); await a.click('#exSrc2');
       a.set('#exSrc2', e => { e.style.borderColor = 'var(--brand)'; e.style.background = '#f3f7ff'; }); await a.wait(700);
       a.set('#cands', e => e.style.opacity = 1); await a.cap('ระบบค้นหา <b>ครูที่ว่างในคาบนั้น</b> ให้เอง แยกเป็น สลับคาบ • แลกคาบ • สอนแทน'); a.hl('#cands'); await a.wait(2800); a.hl(null); } },
-  { ch: 4, cap: 'กด <b>ส่งคำขอ</b> ที่ครูที่เลือก — อีกฝ่ายจะเห็นในกระดิ่งแจ้งเตือนทันที', build: () => shell('แลกคาบ / การลา', exPage(true)), run: async a => {
+  { ch: 5, cap: 'กด <b>ส่งคำขอ</b> ที่ครูที่เลือก — อีกฝ่ายจะเห็นในกระดิ่งแจ้งเตือนทันที', build: () => shell('แลกคาบ / การลา', exPage(true)), run: async a => {
       await a.wait(500); await a.click('#sendC1'); a.set('#sendC1', e => { e.outerHTML = '<span class="badge warn">รอตอบรับ</span>'; }); a.toast('ส่งคำขอถึง ครูวิไล แล้ว', 'ok'); await a.wait(2400); } },
-  { ch: 4, cap: 'ฝั่ง <b>ครูผู้รับ</b>: เปิดกระดิ่ง แล้วกด <b>ตอบรับ</b> — ระบบย้ายคาบในตารางให้ทั้งสองคน', build: () => shell('ภาพรวม', dashPane(), { bell: 1 }), run: async a => {
+  { ch: 5, cap: 'ฝั่ง <b>ครูผู้รับ</b>: เปิดกระดิ่ง แล้วกด <b>ตอบรับ</b> — ระบบย้ายคาบในตารางให้ทั้งสองคน', build: () => shell('ภาพรวม', dashPane(), { bell: 1 }), run: async a => {
       await a.click('#bell');
       a.modal('🔔 การแจ้งเตือน', '<div class="res"><span class="av">⇄</span><div><b>ครูสมใจ ขอแลกคาบกับคุณ</b><div class="hint">ศุกร์ 3 ต.ค. คาบ 3 ม.2/5 ↔ จันทร์ 6 ต.ค. คาบ 2 ม.2/1</div></div><span class="sp"></span><span class="btn">ปฏิเสธ</span><span class="btn ok" id="acc">ตอบรับ</span></div>', '<span class="btn">ปิด</span>');
       await a.wait(1200); await a.click('#acc'); a.set('#acc', e => { e.outerHTML = '<span class="badge ok">✓ ตอบรับแล้ว</span>'; }); a.set('#bellN', e => e.textContent = '0'); await a.wait(2400); } },
-  { ch: 4, cap: 'ตอบรับแล้วกด <b>พิมพ์เอกสาร</b> ได้ <b>บันทึกข้อความ</b> ตามแบบราชการ พร้อมลงนามทันที', build: () => '<div class="scr" style="background:#5b6475;padding:40px 0"><div class="sheet" id="sheet"><div class="krut"></div><h4>บันทึกข้อความ</h4><div class="hint">ส่วนราชการ โรงเรียนปากช่อง</div><div class="l" style="width:70%"></div><div class="l"></div><div class="l" style="width:88%"></div><div class="l"></div><div class="l" style="width:62%"></div><div class="l" style="width:92%"></div><div class="l" style="width:78%"></div><div style="text-align:right;margin-top:30px" class="hint">ลงชื่อ ..................................</div><div class="l" style="width:40%;margin-left:auto"></div></div></div>', run: async a => {
+  { ch: 5, cap: 'ตอบรับแล้วกด <b>พิมพ์เอกสาร</b> ได้ <b>บันทึกข้อความ</b> ตามแบบราชการ พร้อมลงนามทันที', build: () => '<div class="scr" style="background:#5b6475;padding:40px 0"><div class="sheet" id="sheet"><div class="krut"></div><h4>บันทึกข้อความ</h4><div class="hint">ส่วนราชการ โรงเรียนปากช่อง</div><div class="l" style="width:70%"></div><div class="l"></div><div class="l" style="width:88%"></div><div class="l"></div><div class="l" style="width:62%"></div><div class="l" style="width:92%"></div><div class="l" style="width:78%"></div><div style="text-align:right;margin-top:30px" class="hint">ลงชื่อ ..................................</div><div class="l" style="width:40%;margin-left:auto"></div></div></div>', run: async a => {
       await a.wait(3200); await a.cap('รวมหลายคำขอเป็นเอกสารฉบับเดียวได้ที่ปุ่ม <b>พิมพ์เอกสารรวม</b>'); await a.wait(2400); } },
-  { ch: 4, cap: 'ถ้าจะลา เลือก <b>ลา / ไปราชการ</b> กรอกประเภทและวันที่ แล้วส่งใบลา', build: () => shell('แลกคาบ / การลา', leavePage()), run: async a => {
+  { ch: 5, cap: 'ถ้าจะลา เลือก <b>ลา / ไปราชการ</b> กรอกประเภทและวันที่ แล้วส่งใบลา', build: () => shell('แลกคาบ / การลา', leavePage()), run: async a => {
       await a.wait(500); await a.click('#lvSick'); a.set('#lvSick', e => { e.style.borderColor = 'var(--brand)'; e.style.background = '#f3f7ff'; }); await a.wait(700);
       await a.click('#lvSend'); a.toast('ส่งใบลาแล้ว • รอผู้บริหารอนุมัติ', 'ok'); await a.wait(1400);
       await a.cap('ผู้บริหารอนุมัติในระบบ • คาบที่ตรงกับวันลาขึ้นให้จัดครูสอนแทนต่อได้เลย หรือให้หัวหน้ากลุ่มสาระจัดให้'); await a.wait(3200); } },
-  { ch: 4, cap: '<b>พร้อมใช้งานแล้ว</b> — เปิดแอปได้ทั้งคอม มือถือ และไอแพด • ติดตั้งเป็นแอปบนหน้าจอหลักได้', build: () => '<div class="title-card"><small>จบการแนะนำ</small><h2>พร้อมใช้งาน KruSpace</h2><p>เช็กชื่อ • กรอกคะแนน • สรุป ปพ.5 • แลกคาบและการลา — ครบในที่เดียว<br>สงสัยตรงไหน กดเลือกบทด้านบนเพื่อดูซ้ำได้</p></div>', run: async a => { await a.wait(4000); } }
+  { ch: 5, cap: '<b>พร้อมใช้งานแล้ว</b> — เปิดแอปได้ทั้งคอม มือถือ และไอแพด • ติดตั้งเป็นแอปบนหน้าจอหลักได้', build: () => '<div class="title-card"><small>จบการแนะนำ</small><h2>พร้อมใช้งาน KruSpace</h2><p>เช็กชื่อ • กรอกคะแนน • สรุป ปพ.5 • แลกคาบและการลา — ครบในที่เดียว<br>สงสัยตรงไหน กดเลือกบทด้านบนเพื่อดูซ้ำได้</p></div>', run: async a => { await a.wait(4000); } }
 ];
 
 
@@ -778,11 +930,19 @@ function attPage(withMissed) {
     (withMissed ? '<div class="card" id="missed" style="border-left:4px solid var(--bad)"><h3>คาบค้างเช็กชื่อ <span class="badge bad">1</span></h3><div class="res"><div><b>พฤหัสบดี 2 ต.ค. • คาบ 6</b><div class="hint">ว20202 วิทยาการคำนวณ • ม.2/1</div></div><span class="sp"></span><span class="btn primary">เช็กย้อนหลัง</span></div></div>' : '');
 }
 const ATT = [['present', 'มา'], ['late', 'สาย'], ['leave', 'ลา'], ['activity', 'กิจกรรม'], ['absent', 'ขาด']];
-function attModal(a) {
+/* หน้าต่างเข้าสู่ระบบครูของแอปจริง: กล่องทดลองใช้งาน (ตัวช่วยกรอก SGS อย่างเดียว) อยู่บนสุด */
+function loginBody() {
+  return '<div class="res" id="trialBox" style="background:#e9f8ef;border-color:#bfe6cf;display:block"><b>ยังไม่อยากกรอกข้อมูลทั้งระบบ?</b> ถ้ารวมคะแนนไว้ใน Excel อยู่แล้ว และอยากได้แค่ตัวช่วยกรอกคะแนนลง SGS' +
+    '<div style="margin-top:8px"><span class="btn primary" id="trialBtn">ทดลองใช้งาน — ส่งคะแนนเข้า SGS อย่างเดียว</span></div><div class="hint" style="margin-top:6px">ไม่ต้องเข้าสู่ระบบ ไม่ยุ่งกับฐานข้อมูลกลาง</div></div>' +
+    '<div class="hint" style="margin-top:12px">แนะนำ: กด “เข้าสู่ระบบด้วย Google” แล้วเลือกบัญชีของโรงเรียน ระบบจะตรวจสิทธิ์จากฐานข้อมูลกลาง ใช้ได้ทั้งคอม มือถือ และไอแพด</div>';
+}
+function attModal(a, inherit) {
   a.modal('เช็กชื่อ • ว22102 วิทยาศาสตร์ 4 • ม.2/5 • คาบ 3',
     '<table class="g"><thead><tr id="attHead"><th class="n">เลขที่</th><th>ชื่อ – สกุล</th>' + ATT.map(s => '<th class="n" style="color:var(--att-' + s[0] + ');border-bottom:3px solid var(--att-' + s[0] + ')">' + s[1] + '</th>').join('') + '</tr></thead><tbody>' +
     STUDENTS.map((n, i) => '<tr id="r' + (i + 1) + '"><td class="n">' + (i + 1) + '</td><td>' + n + '</td>' + ATT.map(s => '<td class="n"><span class="chk' + (s[0] === 'present' ? ' on' : '') + '" id="s' + (i + 1) + '-' + s[0] + '" style="--c:var(--att-' + s[0] + ')"></span></td>').join('') + '</tr>').join('') + '</tbody></table>' +
-    '<div class="hint" style="margin-top:8px">ติ๊กช่องสถานะของนักเรียนได้เลย • หรือแตะที่ชื่อเพื่อวนสถานะ</div>',
+    '<div class="hint" style="margin-top:8px">ติ๊กช่องสถานะของนักเรียนได้เลย • หรือแตะที่ชื่อเพื่อวนสถานะ</div>' +
+    (inherit ? '<div class="res" id="inh" style="margin-top:8px;background:#f3f7ff;border-color:#cfe0ff;display:block"><b>รับช่วงสถานะจาก เข้าแถวเช้า • ครูที่ปรึกษา เมื่อ 08:05 น.</b> ยังไม่นับว่าเช็กชื่อคาบนี้ จนกว่าจะกดบันทึก' +
+      '<div class="hint">ต้องตรวจ 2 คน: เลขที่ 2 ขาด • เลขที่ 6 ลา • มาสายตอนเข้าแถว 1 คน — ถึงโรงเรียนแล้ว จึงตั้งเป็น “มา”</div></div>' : ''),
     '<span class="btn">ยกเลิก</span><span class="btn primary" id="attSave">บันทึกการเช็กชื่อ</span>');
   stage.querySelector('.modal').style.width = '860px';
 }
@@ -790,6 +950,7 @@ function markAtt(no, status) { ATT.forEach(s => { const c = $('#s' + no + '-' + 
 function itemsPage() {
   const rows = [['ใบงานที่ 1 แรงและการเคลื่อนที่', '10', 'ก่อนกลางภาค'], ['ใบงานที่ 2 งานและพลังงาน', '10', 'ก่อนกลางภาค'], ['สอบย่อยบทที่ 1', '20', 'ก่อนกลางภาค'], ['โครงงานวิทยาศาสตร์', '20', 'หลังกลางภาค']];
   return '<div class="two" style="grid-template-columns:1.4fr 1fr"><div class="card"><div class="row"><h3 style="margin:0">หัวข้อที่ให้คะแนน</h3><span class="sp"></span><span class="btn primary" id="addItem">+ เพิ่มหัวข้อ</span><span class="btn">เพิ่มหลายหัวข้อ</span></div>' +
+    '<div class="row" style="margin-top:8px;gap:6px"><span class="btn" id="bHist">🕘 ประวัติ</span><span class="btn" id="bImp">⤓ นำเข้าคะแนนจากไฟล์</span><span class="btn">⤒ ส่งรูปแบบขึ้นส่วนกลาง</span></div>' +
     '<table class="g" style="margin-top:10px"><thead><tr><th class="n">#</th><th>ชื่อหัวข้อ</th><th class="n">เต็ม</th><th>นับใน</th></tr></thead><tbody id="itemsBody">' +
     rows.map((r, i) => '<tr><td class="n">' + (i + 1) + '</td><td>' + r[0] + '</td><td class="n">' + r[1] + '</td><td>' + r[2] + '</td></tr>').join('') + '</tbody></table></div>' +
     '<div><div class="card" id="weights"><h3>น้ำหนักคะแนนก่อน–หลังกลางภาคและเกณฑ์</h3><div class="row" style="gap:18px;flex-wrap:wrap"><span>ก่อนกลาง <b>30</b></span><span>กลางภาค <b>20</b></span><span>หลังกลาง <b>30</b></span><span>ปลายภาค <b>20</b></span></div><div class="hint" style="margin-top:6px">รวม 100 • เกณฑ์ผ่านรายส่วน 50%</div></div>' +
@@ -829,7 +990,144 @@ function groupItemPage() {
     rows.map((r, i) => '<tr><td class="n">' + (i + 1) + '</td><td>' + r[0] + '</td><td class="n">' + r[1] + '</td><td>' + r[2] + '</td><td class="hint">' + r[3] + '</td></tr>').join('') +
     '<tr id="gItemRow" style="background:#f3f7ff"><td class="n">3</td><td>รายงานการทดลองกลุ่ม</td><td class="n">10</td><td><span class="sel" id="gKind">รายบุคคล</span></td><td><span class="sel" id="gSet" style="opacity:.35">—</span></td></tr></tbody></table></div>';
 }
-function summaryPage() {
+/* เมนู ☰ ของแอปจริง (openTabSheet): แบ่งหมวดตาม TAB_SECTIONS + ปุ่มจองคิว DPA + ปุ่มเครื่องมือ + เวอร์ชัน */
+function menuSheet(active) {
+  const sec = [['งานประจำวัน', [['◈', 'ภาพรวม'], ['◷', 'เช็กชื่อ'], ['⇄', 'แลกคาบ'], ['★', 'กิจกรรม']]],
+    ['คะแนนและ ปพ.5', [['✎', 'คะแนน'], ['☰', 'หัวข้อคะแนน'], ['◇', 'ตัวชี้วัด'], ['◉', 'คะแนนกลุ่ม'], ['☑', 'คุณลักษณะ'], ['▤', 'สรุป ปพ.5']]],
+    ['ข้อมูลโรงเรียน', [['▦', 'ตารางสอน'], ['📅', 'จองคิว DPA']]]];
+  const idOf = t => 'm-' + t.replace(/[^ก-๙A-Za-z0-9]/g, '');
+  return '<div class="msheet" id="msheet"><div class="mh">ไปที่หน้า <span class="hint" style="font-weight:400">ครู</span><span class="sp"></span>✕</div>' +
+    sec.map(x => '<div class="sec">' + x[0] + '</div><div class="grid">' + x[1].map(m => '<div id="' + idOf(m[1]) + '"' + (m[1] === active ? ' class="act"' : '') + '>' + m[0] + ' ' + m[1] + '</div>').join('') + '</div>').join('') +
+    '<div class="tools"><span>⌕ ค้นหานักเรียน</span><span>▶ วิธีใช้งาน</span><span>◐ สลับโหมดสี</span><span>⤓ ดึงฐานข้อมูลจากส่วนกลาง</span><span>⏻ ออกจากระบบ</span></div>' +
+    '<div class="foot"><span class="hint">เวอร์ชัน v167</span><span class="sp"></span><span class="vbtn" id="vbtn">✓ ล่าสุดแล้ว</span></div></div>';
+}
+/* หน้าสรุป/ส่งออกของแอปแบ่งเป็น 4 หมวด แสดงทีละหมวด (daf9bdc) */
+const SUMCATS = [['sum', '📊 สรุปผลและพิมพ์'], ['sgs', '⤴ ส่งเข้า SGS'], ['safe', '🛟 สำรองและซิงก์'], ['pub', '📱 นักเรียนดูผล']];
+function summaryPage(cat = 'sum') {
+  return '<div class="sumcats" id="sumCats">' + SUMCATS.map(c => '<span id="cat-' + c[0] + '"' + (c[0] === cat ? ' class="on"' : '') + '>' + c[1] + (c[0] === 'safe' ? '<i></i>' : '') + '</span>').join('') + '</div>' +
+    (cat === 'sgs' ? sgsCard() : cat === 'safe' ? safePage() : cat === 'pub' ? publishPage() : summaryCore());
+}
+function safePage() {
+  const row = (id, t, sub, st, b) => '<div class="safe-row" id="' + id + '"><div><b>' + t + '</b><div class="hint">' + sub + '</div></div><div>' + st + '</div><div class="row" style="gap:6px">' + b + '</div></div>';
+  return '<div class="card" style="max-width:1000px"><h3>สำรองและซิงก์คะแนน</h3>' +
+    row('sf1', '🕘 ประวัติสมุดคะแนน', 'เก็บให้เองในเครื่องนี้ ไม่ต้องกด', '<span class="badge ok">ทำงานอยู่</span> <span class="hint">ย้อนได้ 60 วัน</span>', '<span class="btn">เปิดประวัติวิชานี้</span>') +
+    row('sf2', '☁ ส่วนกลาง', 'ตามไปทุกเครื่องของคุณ', '<span class="hint">☑ ส่งอัตโนมัติหลังกรอก • ล่าสุด วันนี้ 10:42 น.</span>', '<span class="btn">ส่งขึ้นตอนนี้</span><span class="btn">ดึงลงเครื่องนี้</span>') +
+    row('sf3', '📗 Google Sheet', 'ไดรฟ์ของ somjai@school.ac.th', '<span class="hint">☑ ชวนส่งวันละครั้ง • ล่าสุด เมื่อวาน</span>', '<span class="btn primary" id="gsNow">ส่งตอนนี้</span><span class="btn">เปิดไฟล์</span>') +
+    row('sf4', '💾 ไฟล์สำรองทั้งเครื่อง', 'ทุกห้อง ทุกวิชา การเช็กชื่อ ตั้งค่า', '<span class="hint">สำรองล่าสุด 12 วันก่อน</span>', '<span class="btn">สำรองเป็นไฟล์</span><span class="btn">กู้คืนจากไฟล์</span>') +
+    '<div class="hint" style="margin-top:8px">▸ แต่ละแบบต่างกันอย่างไร</div></div>';
+}
+/* การ์ดส่งคะแนนเข้า SGS — ข้อความตามการ์ดจริงในหมวด ⤴ ส่งเข้า SGS */
+function sgsCard() {
+  return '<div class="card" id="sgsCard" style="max-width:1080px"><h3>ส่งคะแนนเข้า SGS</h3><div class="hint">กรอกคะแนนรายส่วน (ก่อนกลาง กลางภาค หลังกลาง ปลายภาค) ลงหน้า “บันทึกผลการเรียน ตลอดภาคเรียน” ของ SGS ให้เอง จับคู่นักเรียนด้วยเลขประจำตัว ครูล็อกอิน SGS เอง รหัสผ่านไม่ผ่าน KruSpace</div>' +
+    '<ol class="steps6"><li id="sgs1"><b>ครั้งแรกครั้งเดียว</b> ลากปุ่มนี้ไปวางบนแถบบุ๊กมาร์กของ Chrome <span class="bmchip" id="bmSrc">📥 กรอกคะแนนจาก KruSpace</span></li>' +
+    '<li id="sgs2">คัดลอกคะแนนของวิชานี้ <span class="btn primary" id="sgsCopy">คัดลอกคะแนน • วิทยาศาสตร์ 4 • ม.2/3</span></li>' +
+    '<li id="sgs3">เปิด SGS เลือก<b>รายวิชา</b>และ<b>กลุ่ม</b>ให้ตรง แล้วตั้งช่อง <b>/หน้า</b> เท่ากับจำนวนนักเรียนในห้อง (ไม่เกิน 40)</li>' +
+    '<li id="sgs4">ติ๊ก ☐ ที่หัวคอลัมน์ที่เปิดรอบให้กรอก หรือให้ปุ่มติ๊กให้ในขั้นตรวจก็ได้</li>' +
+    '<li id="sgs5">กดปุ่มบนแถบบุ๊กมาร์ก → วาง (Ctrl+V) → <b>ตรวจตารางเปรียบเทียบ</b> → กด “กรอกลง SGS”</li>' +
+    '<li id="sgs6">กด <b>F5</b> รีเฟรชหน้า SGS เพื่อยืนยันว่าบันทึกจริง</li></ol>' +
+    '<div class="res" style="margin-top:8px;background:#fff8e8;border-color:#f3dca6;display:block">ปุ่มเดียวกันนี้ใช้กับหน้า <b>การอ่าน คิดวิเคราะห์ และเขียน</b> และ <b>คุณลักษณะอันพึงประสงค์</b> ของ SGS ได้ด้วย • ช่อง <b>รวม</b> กับ <b>ผลการประเมิน</b> SGS คำนวณให้เอง</div></div>';
+}
+function histBody() {
+  const rows = [['วันนี้ 10:42 น.', '', 'เครื่องนี้', 412, '—'], ['วันนี้ 09:15 น.', 'ก่อนคะแนนลดลง', 'เครื่องนี้', 443, '31'], ['เมื่อวาน 16:05 น.', '', 'ส่วนกลาง', 438, '26']];
+  return '<div class="hint">ตอนนี้มีคะแนน <b>412</b> ช่อง • ระบบเก็บฉบับย้อนหลังให้เองทุกครั้งที่แก้ ก่อนดึง กู้คืน หรือใช้รูปแบบหัวข้อ และบนส่วนกลางวันละฉบับ</div>' +
+    '<table class="g" style="margin-top:10px"><thead><tr><th>เวลา</th><th>ที่เก็บ</th><th class="n">ช่องที่มีคะแนน</th><th class="n">จะเติมกลับ</th><th></th></tr></thead><tbody>' +
+    rows.map((r, i) => '<tr id="h' + i + '"><td>' + r[0] + (r[1] ? ' <span class="badge warn">' + r[1] + '</span>' : '') + '</td><td>' + r[2] + '</td><td class="n">' + r[3] + '</td><td class="n"><b>' + r[4] + '</b></td>' +
+      '<td style="white-space:nowrap"><span class="btn"' + (i === 1 ? ' id="hFill"' : '') + '>เติมช่องว่าง</span> <span class="btn">แทนทั้งเล่ม</span> <span class="btn">⤓</span></td></tr>').join('') + '</tbody></table>';
+}
+
+/* ---- ส่งคะแนนเข้า SGS: เบราว์เซอร์ + หน้า SGS + หน้าต่างตัวกรองของ KruSpace ---- */
+const SGS_ST = [['24510', 'กิตติพัฒน์ ทองดี', 27, 16], ['24511', 'ชนิดา ศรีสุข', 24.5, 18], ['24512', 'ณัฐวุฒิ มั่นคง', 21, 12.5],
+  ['24513', 'ธิดารัตน์ ใจงาม', 28, 17], ['24514', 'ภูมิพัฒน์ แก้วใส', 19.5, 14], ['24515', 'พิมพ์ชนก รุ่งเรือง', 25, 15]];
+const TRAITS = [[3, 3, 2, 3, 3, 2, 3, 3], [3, 2, 3, 3, 2, 3, 3, 2], [2, 2, 2, 3, 2, 2, 3, 2], [3, 3, 3, 3, 3, 3, 3, 3], [2, 3, 2, 2, 3, 2, 2, 3], [3, 3, 3, 2, 3, 3, 2, 3]];
+const URL_KS = 'boydzii.github.io/gradebook-pakchong', URL_SGS = 'sgs.bopp-obec.info/sgss/Score/ScoreAll.aspx', URL_TR = 'sgs.bopp-obec.info/sgss/Score/Desirable.aspx';
+function browser(url, page, opt = {}) {
+  return '<div class="brw"><div class="brw-tabs"><span' + (opt.tab === 'sgs' ? '' : ' class="on"') + '>KruSpace</span><span' + (opt.tab === 'sgs' ? ' class="on"' : '') + '>SGS • ระบบบริหารจัดการสถานศึกษา</span></div>' +
+    '<div class="brw-bar"><span>←</span><span>→</span><span>⟳</span><span class="url">🔒 ' + url + '</span><span>☆</span></div>' +
+    '<div class="brw-bm" id="bmBar"><span>📁 งานโรงเรียน</span><span>📁 วิชาการ</span>' + (opt.bm ? '<span class="new" id="bmBtn">📥 กรอกคะแนนจาก KruSpace</span>' : '<span id="bmSlot" style="width:190px"></span>') + '</div>' +
+    '<div class="brw-page" id="bpage">' + page + '</div></div>';
+}
+const ksPage = () => shell('สรุป / ส่งออก', summaryPage('sgs'));
+function sgsNav() { return '<div class="nav">โรงเรียน | งานวัดผล | ผลการเรียน ▸ บันทึกผลการเรียน ตลอดภาคเรียน · บันทึก การอ่าน คิดวิเคราะห์ และเขียน · บันทึก คุณลักษณะอันพึงประสงค์ | รายงาน</div>'; }
+/* หน้า “บันทึกผลการเรียน ตลอดภาคเรียน”: รอบแรกเปิดให้กรอกก่อนกลางภาค (ช่อง 1) กับกลางภาค ช่องหลังกลางภาคติ๊กไม่ได้ */
+function sgsScorePage(open, filled) {
+  const cols = [['1', '30', 'b'], ['2', '0', ''], ['3', '0', ''], ['กลางภาค', '20', 'm'], ['10', '30', ''], ['11', '0', ''], ['12', '0', ''], ['ปลายภาค', '20', '']];
+  return '<div class="sgs" id="sgsP">' + sgsNav() + '<div class="ttl">บันทึกผลการเรียน ตลอดภาคเรียน</div>' +
+    '<div class="tools"><span class="s" id="sgSub">ว22102 วิทยาศาสตร์ 4 ▾</span><span class="s" id="sgGrp">กลุ่ม 3 ▾</span><span class="s" id="sgPer">/หน้า 40 ▾</span><span class="disk" id="sgDisk">💾 บันทึก</span></div>' +
+    '<table><thead><tr><th>เลขที่</th><th>เลขประจำตัว</th><th>ชื่อ นามสกุล</th>' + cols.map((c, j) => '<th><span class="cb' + (c[2] && open ? ' on' : '') + (j >= 4 ? ' dis' : '') + '" id="cb' + j + '"></span>' + c[0] + '<br>' + c[1] + '</th>').join('') + '<th>%</th></tr></thead><tbody>' +
+    SGS_ST.map((st, i) => '<tr><td>' + (i + 1) + '</td><td>' + st[0] + '</td><td class="nm">' + st[1] + '</td>' +
+      cols.map(c => '<td><span class="ci' + (c[2] && open ? ' open' : '') + '"' + (c[2] ? ' id="sg' + i + c[2] + '"' : '') + '>' +
+        (c[2] === 'b' ? (filled ? st[2] : i === 2 ? '20' : '') : c[2] === 'm' && filled ? st[3] : '') + '</span></td>').join('') +
+      '<td id="sgp' + i + '">' + (filled ? st[2] + st[3] : i === 2 ? 20 : 0) + '</td></tr>').join('') + '</tbody></table></div>';
+}
+function sgsTraitsPage(filled) {
+  return '<div class="sgs" id="sgsP">' + sgsNav() + '<div class="ttl">บันทึก คุณลักษณะอันพึงประสงค์</div>' +
+    '<div class="tools"><span class="s">ว22102 วิทยาศาสตร์ 4 ▾</span><span class="s">กลุ่ม 3 ▾</span><span class="s">/หน้า 40 ▾</span><span class="disk">💾 บันทึก</span></div>' +
+    '<table><thead><tr><th>เลขที่</th><th>เลขประจำตัว</th><th>ชื่อ นามสกุล</th>' + [1, 2, 3, 4, 5, 6, 7, 8].map(k => '<th><span class="cb on"></span>' + k + '</th>').join('') + '<th>รวม</th><th>ผลการประเมิน</th></tr></thead><tbody>' +
+    SGS_ST.map((st, i) => '<tr><td>' + (i + 1) + '</td><td>' + st[0] + '</td><td class="nm">' + st[1] + '</td>' +
+      TRAITS[i].map((v, k) => '<td><span class="ci open" id="tr' + i + '_' + k + '" style="min-width:26px">' + (filled ? v : '') + '</span></td>').join('') +
+      '<td id="trs' + i + '">' + (filled ? TRAITS[i].reduce((x, y) => x + y, 0) : '') + '</td><td id="trl' + i + '">' + (filled ? (TRAITS[i].reduce((x, y) => x + y, 0) >= 20 ? 'ดีเยี่ยม' : 'ดี') : '') + '</td></tr>').join('') + '</tbody></table></div>';
+}
+const fillerHead = t => '<div class="h">📥 KruSpace → SGS • ' + t + '</div>';
+function fillerPaste() {
+  return '<div class="filler" id="filler">' + fillerHead('คะแนนรายภาค') + '<div class="b">' +
+    '<div class="n">หน้านี้ของ SGS <b>บันทึกทันทีที่ช่องเปลี่ยน</b> ระบบจะให้ตรวจตารางเปรียบเทียบก่อนทุกครั้ง ยังไม่มีอะไรถูกกรอกจนกว่าจะกดยืนยัน</div>' +
+    '<ol><li>เลือก<b>รายวิชา</b>และ<b>กลุ่ม</b>ของ SGS ให้ตรงกับที่คัดลอกมา</li><li>ตั้งช่อง <b>/หน้า</b> ให้เห็นครบทุกคน</li><li>ใน KruSpace กดปุ่ม "คัดลอกคะแนน" แล้วกลับมาวางในช่องนี้ (Ctrl+V)</li></ol>' +
+    '<div class="ta" id="fTa">วางข้อความที่คัดลอกจาก KruSpace ที่นี่</div>' +
+    '<div class="r2"><span class="p" id="fChk">ตรวจสอบ</span><span class="hint">ยังไม่กรอกอะไรลง SGS</span></div></div></div>';
+}
+function fillerCompare(open) {
+  return '<div class="filler" id="filler">' + fillerHead('คะแนนรายภาค') + '<div class="b">' +
+    '<div class="n">ข้อมูลจาก KruSpace: <b>ว22102 วิทยาศาสตร์ 4 • ม.2/3</b> • 6 คน</div>' +
+    (open ? '' : '<div class="n bad" id="fLock"><b>ยังกรอกไม่ได้:</b> SGS ต้องติ๊ก ☐ ที่หัวคอลัมน์ ก่อนกลางภาค และ กลางภาค ก่อน <span class="p" id="fTick" style="margin-left:6px">ติ๊กเปิดให้เลย</span><div style="font-size:12px;margin-top:4px">หรือติ๊กเองในหน้า SGS แล้วกด "ตรวจใหม่"</div></div>') +
+    '<table id="fTable"><tr><th>เลขประจำตัว</th><th>ชื่อ</th><th>ก่อนกลางภาค<br><small>เต็ม 30</small></th><th>กลางภาค<br><small>เต็ม 20</small></th><th>รวมใน SGS</th><th>รวม KruSpace</th></tr>' +
+    SGS_ST.map((st, i) => '<tr><td>' + st[0] + '</td><td style="text-align:left">' + st[1].split(' ')[0] + '</td><td class="' + (i === 2 ? 'o' : 'g') + '">' + (i === 2 ? '20 → ' : '') + st[2] + '</td><td class="g">' + st[3] + '</td><td>' + (i === 2 ? 20 : '—') + '</td><td>' + (st[2] + st[3]) + '</td></tr>').join('') + '</table>' +
+    '<div style="font-size:12px"><span style="background:#e6f6ee;padding:1px 6px;border-radius:4px">เขียว</span> = ช่องว่างที่จะกรอกใหม่ • <span style="background:#fff0d6;padding:1px 6px;border-radius:4px">ส้ม</span> = จะเขียนทับค่าเดิม</div>' +
+    '<div class="r2"><span class="p' + (open ? '' : ' off') + '" id="fGo">กรอกลง SGS 12 ช่อง</span><span style="color:#7a4700">ในนั้นเขียนทับค่าเดิม 1 ช่อง</span><span class="sp"></span><span class="q">ตรวจใหม่</span><span class="q">วางข้อมูลใหม่</span></div></div></div>';
+}
+function fillerTraits() {
+  return '<div class="filler" id="filler" style="width:560px">' + fillerHead('คุณลักษณะอันพึงประสงค์') + '<div class="b">' +
+    '<div class="n">ข้อมูลจาก KruSpace: <b>ว22102 วิทยาศาสตร์ 4 • ม.2/3</b> • 6 คน</div>' +
+    '<div class="n">ช่อง <b>รวม</b> <b>ผลการประเมิน</b> และ <b>หมายเหตุ</b> ปุ่มนี้ไม่แตะเลย — SGS คำนวณสองช่องแรกให้เองหลังกรอกครบทุกข้อ กรอกเสร็จให้กด F5 แล้วดูได้</div>' +
+    '<table><tr><th>เลขประจำตัว</th>' + [1, 2, 3, 4, 5, 6, 7, 8].map(k => '<th>' + k + '</th>').join('') + '<th>ผลการประเมิน<br><small>SGS • KruSpace</small></th></tr>' +
+    SGS_ST.map((st, i) => '<tr><td>' + st[0] + '</td>' + TRAITS[i].map(v => '<td class="g">' + v + '</td>').join('') + '<td>— • ' + (TRAITS[i].indexOf(1) >= 0 ? 1 : Math.min(...TRAITS[i]) >= 3 ? 3 : 2) + '</td></tr>').join('') + '</table>' +
+    '<div style="font-size:12px">0=ไม่ผ่าน 1=ผ่าน 2=ดี 3=ดีเยี่ยม</div>' +
+    '<div class="r2"><span class="p" id="fGo">กรอกลง SGS 48 ช่อง</span><span class="sp"></span><span class="q">ตรวจใหม่</span></div></div></div>';
+}
+function fillerRunning(total) {
+  return '<div class="filler" id="filler">' + fillerHead('คะแนนรายภาค') + '<div class="b"><div class="n">กำลังกรอก… อย่าปิดหรือเปลี่ยนหน้า SGS จนกว่าจะเสร็จ</div>' +
+    '<div class="n" style="font-size:12px">เดินแบบระวัง — หน้านี้บันทึกทีละช่อง ต้องรอให้แต่ละช่องบันทึกจบก่อน</div><div class="bar"><i id="fBar" style="width:0"></i></div><div class="hint" id="fProg">0 / ' + total + ' ช่อง</div></div></div>';
+}
+function fillerDone(n, head) {
+  return '<div class="filler" id="filler">' + fillerHead(head || 'คะแนนรายภาค') + '<div class="b"><div class="n good" id="fDone"><b>กรอกแล้ว ' + n + ' จาก ' + n + ' ช่อง</b></div>' +
+    '<div class="n" id="fLast"><b>ขั้นสุดท้ายที่ต้องทำ:</b> ถ้าหน้านี้มีปุ่ม <b>บันทึก</b> (รูปแผ่นดิสก์เหนือตาราง) <b>ให้กดบันทึกก่อน</b> แล้วค่อยกด <b>F5</b> รีเฟรชดูว่าตัวเลขยังอยู่ครบ<br>ถ้ากด F5 ก่อนกดบันทึก ตัวเลขที่เพิ่งกรอกจะหายทั้งหมด</div>' +
+    '<div class="r2"><span class="p">ปิด</span></div></div></div>';
+}
+/* ลากชิปปุ่มบุ๊กมาร์กไปวางบนแถบบุ๊กมาร์ก — ขยับทั้งเคอร์เซอร์และเงาปุ่มพร้อมกัน */
+async function dragBookmark(a) {
+  await a.move('#bmSrc', 800);
+  const st = stage.getBoundingClientRect(), k = st.width / 1280, src = $('#bmSrc').getBoundingClientRect(), dst = $('#bmSlot').getBoundingClientRect();
+  const g = document.createElement('div'); g.className = 'bmchip'; g.textContent = '📥 กรอกคะแนนจาก KruSpace';
+  Object.assign(g.style, { position: 'absolute', zIndex: 58, left: (src.left - st.left) / k + 'px', top: (src.top - st.top) / k + 'px', boxShadow: '0 10px 24px rgba(0,0,0,.25)', transition: 'all ' + (reduce ? 0 : 1100 / speed) + 'ms cubic-bezier(.45,.05,.25,1)' });
+  stage.appendChild(g); await a.wait(150);
+  g.style.left = (dst.left - st.left) / k + 'px'; g.style.top = (dst.top - st.top) / k - 2 + 'px';
+  await a.move('#bmSlot', 1100); g.remove();
+  a.set('#bmSlot', e => { e.outerHTML = '<span class="new" id="bmBtn">📥 กรอกคะแนนจาก KruSpace</span>'; });
+}
+async function pressKey(a, label, ms = 1100) {
+  const k = document.createElement('div'); k.className = 'keycap'; k.textContent = label; stage.appendChild(k); await a.wait(ms); k.remove();
+}
+function quickPage(read) {
+  return '<div class="qk"><div class="top"><span class="brand"><i>S</i></span>ส่งคะแนนเข้า SGS <span class="hint" style="font-weight:400">โหมดทดลองใช้งาน • ไม่ต้องเข้าสู่ระบบ ไม่ยุ่งกับข้อมูลกลาง</span><span class="sp"></span><span class="btn">ออกจากโหมดทดลอง</span></div>' +
+    '<div class="card"><h3>วิชาและคะแนนเต็มแต่ละส่วน</h3><div class="row" style="gap:10px"><span class="sel">ว31201</span><span class="sel">ฟิสิกส์ 1</span><span class="sel">ม.4/4</span><span class="hint">ก่อนกลาง 30 • กลางภาค 20 • หลังกลาง 30 • ปลายภาค 20</span></div></div>' +
+    '<div class="card"><h3>วางรายชื่อและคะแนน</h3><div class="hint">คัดลอกจาก Excel มาวางได้เลย มีหัวตารางก็อ่านจากหัวตาราง ไม่มีก็เดาให้จากเนื้อข้อมูล</div>' +
+    '<div class="cellin" id="qkBox" style="height:74px;align-items:start;justify-content:start;padding:8px;display:flex;white-space:pre;font-family:Consolas,monospace;font-size:12.5px;margin-top:8px"></div>' +
+    '<div class="row" style="margin-top:8px"><span class="sp"></span><span class="btn primary" id="qkRead">อ่านข้อมูลที่วาง</span></div></div>' +
+    '<div class="card" id="qkRes" style="' + (read ? '' : 'opacity:.25') + '"><div class="row"><h3 style="margin:0">รายชื่อและคะแนน</h3><span class="sp"></span><span class="btn primary" id="qkCopy">คัดลอกคะแนน 3 คน</span></div>' +
+    '<table class="g" style="margin-top:8px"><thead><tr><th>เลขประจำตัว</th><th>ชื่อ</th><th class="n">ก่อนกลาง</th><th class="n">กลางภาค</th><th class="n">หลังกลาง</th><th class="n">ปลายภาค</th><th class="n">รวม</th><th class="n">เกรด</th></tr></thead><tbody>' +
+    [['35065', 'ปานเทพ สายสะอาด', 25, 16, 26, 17], ['35070', 'อนพัทธ์ พิมพ์คำ', 27, 18, 28, 19], ['35080', 'ปรเมธ ซอหนองบัว', 20, 12, 22, 13]].map(r => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td>' + r.slice(2).map(v => '<td class="n">' + v + '</td>').join('') +
+      '<td class="n"><b>' + (r[2] + r[3] + r[4] + r[5]) + '</b></td><td class="n">' + ((r[2] + r[3] + r[4] + r[5]) >= 80 ? 4 : (r[2] + r[3] + r[4] + r[5]) >= 75 ? 3.5 : 2.5) + '</td></tr>').join('') + '</tbody></table></div></div>';
+}
+function summaryCore() {
   return '<div class="card"><div class="row"><h3 style="margin:0">สรุปผล</h3><span class="sp"></span><span class="row" id="sumBtns" style="gap:6px"><span class="btn">ส่งออก Excel (.xlsx)</span><span class="btn">พิมพ์ปก ปพ.5</span></span></div></div>' +
     '<div class="two" style="grid-template-columns:1fr 1.2fr"><div class="card"><h3>การกระจายเกรด</h3><div class="dist">' + ['0', '1', '1.5', '2', '2.5', '3', '3.5', '4'].map(g => '<div><em></em><span>' + g + '</span></div>').join('') + '</div><div style="height:26px"></div></div>' +
     '<div class="card"><h3>ตารางสรุปรายคน</h3><table class="g"><thead><tr><th class="n">เลขที่</th><th>ชื่อ – สกุล</th><th class="n">รวม</th><th class="n">เกรด</th><th class="n">เวลาเรียน</th></tr></thead><tbody>' +

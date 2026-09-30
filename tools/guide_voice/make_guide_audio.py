@@ -54,14 +54,14 @@ async def main():
             path = os.path.join(OUT, file)
             # ไฟล์ว่างจากรอบที่เน็ตหลุดกลางทาง ถือว่ายังไม่มี ไม่งั้นจะค้างเป็นเสียงเงียบตลอดไป
             if FORCE or not os.path.exists(path) or os.path.getsize(path) < 1024:
-                for attempt in range(3):
+                for attempt in range(6):   # บริการเสียงจำกัดความถี่ ถ้าอัดติดกันหลายสิบประโยคจะตอบ NoAudioReceived ชั่วคราว
                     try:
                         await edge_tts.Communicate(row['say'], voice, rate=RATE).save(path)
                         break
                     except Exception as e:
                         if os.path.exists(path): os.remove(path)
-                        if attempt == 2: raise
-                        await asyncio.sleep(2)
+                        if attempt == 5: raise
+                        await asyncio.sleep(3 * 2 ** attempt)
                 made += 1
             index[gender][key] = file
     # เสียงชุดอื่นที่ไม่ได้มาจากสคริปต์นี้ (เช่นเสียงครูจากห้องอัดเสียง = "self" และชื่อปุ่ม "_voices") ต้องเก็บไว้ตามเดิม

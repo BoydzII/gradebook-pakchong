@@ -148,6 +148,24 @@ def generate(text, out, seed=None, engine_name=None):
     return engine.call(req)
 
 
+# บทพากย์เขียนคำอังกฤษเป็นอักษรอังกฤษ (ให้เสียง Edge อ่านแบบที่คนพูดจริง) แต่ F5-TTS-THAI เทรนด้วยข้อความไทย
+# อ่านอักษรอังกฤษเพี้ยน จึงแปลงเป็นคำอ่านไทยก่อนสร้างเสียงครู — เพิ่มคำใหม่ที่นี่เมื่อบทพากย์มีคำอังกฤษเพิ่ม
+CLONE_TH = [('Google Sheet', 'กูเกิล ชีต'), ('KruSpace', 'ครูสเปซ'), ('Google', 'กูเกิล'), ('Excel', 'เอ็กเซล'), ('Chrome', 'โครม'),
+            ('SGS', 'เอส จี เอส'), ('CSV', 'ซี เอส วี'), ('DPA', 'ดี พี เอ'), ('Enter', 'เอ็นเทอร์'), ('Ctrl', 'คอนโทรล'),
+            ('Shift', 'ชิฟต์'), ('F5', 'เอฟ ห้า'), (' V ', ' วี '), (' B', ' บี')]
+
+
+def clone_text(say):
+    import re as _re
+    t = ' ' + say + ' '
+    for en, th in CLONE_TH:
+        t = t.replace(en, th)
+    t = _re.sub(r'\s+', ' ', t).strip()
+    if _re.search(r'[A-Za-z0-9]', t):
+        raise RuntimeError('บทพากย์มีอักษรอังกฤษ/ตัวเลขที่ยังไม่มีคำอ่านไทย: ' + t + ' — เพิ่มใน CLONE_TH ใน studio.py')
+    return t
+
+
 def gen_line(key, seed=None):
     line = next((l for l in script_lines() if l['key'] == key), None)
     if not line:
@@ -155,7 +173,7 @@ def gen_line(key, seed=None):
     seed = state['settings']['seed'] if seed is None else seed
     name = '%s_%s_%d.mp3' % (key, say_hash(line['say']), seed)
     out = os.path.join(DATA, 'lines', name)
-    res = generate(line['say'], out, seed)
+    res = generate(clone_text(line['say']) if state['settings']['engine'] == 'f5' else line['say'], out, seed)
     with lock:
         old = state['lines'].get(key, {})
         state['lines'][key] = {'file': name, 'seed': seed, 'src': state['settings']['engine'], 'say': say_hash(line['say']),
