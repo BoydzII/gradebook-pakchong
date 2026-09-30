@@ -13509,6 +13509,30 @@ async function importTeachersExcel() {
   } catch (e) { toast('นำเข้าไม่สำเร็จ: ' + e.message, 'bad'); }
 }
 
+/* กู้รายชื่อครูที่หายไปจากไฟล์สำรอง (.json จากปุ่ม “สำรองข้อมูล”)
+   เพิ่มเฉพาะครูที่ยังไม่มีในระบบ (เทียบรหัส ชื่อ อีเมล) ไม่แตะครูที่มีอยู่แล้ว และคงรหัสครูเดิมไว้
+   เพื่อให้คาบสอนที่อ้างรหัสเดิมกลับมาผูกกับครูได้ ห้องที่ปรึกษาแมปจากชื่อห้อง เพราะรหัสห้องอาจไม่ตรงกัน */
+async function restoreMissingTeachersFromBackup() {
+  const f = await pickFile('.json'); if (!f) return;
+  let data; try { data = JSON.parse(await f.text()); } catch (e) { return toast('ไฟล์สำรองไม่ถูกต้อง', 'bad'); }
+  if (!data || !Array.isArray(data.teachers)) return toast('ไฟล์นี้ไม่มีรายชื่อครู', 'bad');
+  const have = t => DB.teachers.some(x => x.id === t.id || normalizeName(x.name) === normalizeName(t.name) ||
+    (t.email && x.email && String(x.email).toLowerCase() === String(t.email).toLowerCase()));
+  const missing = data.teachers.filter(t => t && String(t.name || '').trim() && !have(t));
+  if (!missing.length) return toast('ครูในไฟล์สำรองมีอยู่ในระบบครบแล้ว ไม่มีอะไรต้องกู้', 'ok');
+  const names = missing.slice(0, 8).map(t => esc(t.name)).join(', ') + (missing.length > 8 ? ' และอีก ' + (missing.length - 8) + ' คน' : '');
+  if (!await confirmBox('กู้รายชื่อครูที่หายไป', 'พบครูในไฟล์สำรองที่ยังไม่มีในระบบ <b>' + missing.length + ' คน</b> เช่น ' + names +
+    '<br><br>ระบบจะ<b>เพิ่มเข้า</b>เท่านั้น ไม่แก้ครูที่มีอยู่แล้ว (ถ้าเคยลบครูบางคนทิ้งโดยตั้งใจ จะกลับมาด้วย ลบใหม่ได้ภายหลัง)', 'เพิ่มครูเหล่านี้')) return;
+  const backupRooms = new Map((data.classes || []).map(c => [c.id, c.name]));
+  missing.forEach(b => {
+    const roomName = backupRooms.get(b.homeroomClassId), cls = roomName && DB.classes.find(c => c.name === roomName);
+    DB.teachers.push({ id: b.id || uid('teacher'), name: b.name, email: b.email || '', phone: b.phone || '', learningArea: b.learningArea || '',
+      homeroomClassId: cls ? cls.id : '', roles: Array.isArray(b.roles) && b.roles.length ? b.roles : ['teacher'], legacyIds: b.legacyIds || [] });
+  });
+  save(true); renderAdmin(); renderTop();
+  toast('กู้ครูกลับมา ' + missing.length + ' คนแล้ว • กดอัป (ฟ้า) เพื่อส่งชื่อขึ้นส่วนกลาง', 'ok');
+}
+
 function downloadMultiTeacherTimetableTemplate() {
   const period = curPeriod() || { academicYear: '', semester: '' }, header = ['ปีการศึกษา', 'ภาคเรียน', 'อีเมลครู', 'ชื่อครู', 'เบอร์โทร', 'กลุ่มสาระ', 'วัน', 'คาบ', 'รหัสวิชา', 'ชื่อวิชา', 'ห้องเรียน', 'สถานที่'];
   const teacherRows = DB.teachers.map(t => [t.email || '', t.name || '', t.phone || '']);
@@ -14248,7 +14272,7 @@ function renderAdmin() {
    ตารางครู + ครูที่ปรึกษารายห้อง + หัวหน้ากลุ่มสาระ อยู่หน้าเดียวกัน
    เดิมตารางครูที่ปรึกษาซ้ำอยู่ทั้งหน้านี้และหน้าตั้งค่า แก้ที่หนึ่งอีกที่ไม่รู้ */
 function adminSectionPeople(box) {
-  box.innerHTML = '<div class="card"><div class="row"><div><h3 style="margin:0">ข้อมูลครูและสิทธิ์ใช้งาน</h3><div class="hint tip">หนึ่งห้องกำหนดครูที่ปรึกษาได้สูงสุด 2 คน • กลุ่มสาระใช้จัดสิทธิ์หัวหน้ากลุ่มสาระและการหาครูสอนแทน</div></div><div class="spacer"></div><button id="adminTeacherTemplate">ดาวน์โหลดแม่แบบ</button><button id="adminTeacherImport">นำเข้า Excel</button><button class="primary" id="adminTeacherAdd">+ เพิ่มครู</button></div>' +
+  box.innerHTML = '<div class="card"><div class="row"><div><h3 style="margin:0">ข้อมูลครูและสิทธิ์ใช้งาน</h3><div class="hint tip">หนึ่งห้องกำหนดครูที่ปรึกษาได้สูงสุด 2 คน • กลุ่มสาระใช้จัดสิทธิ์หัวหน้ากลุ่มสาระและการหาครูสอนแทน</div></div><div class="spacer"></div><button id="adminTeacherTemplate">ดาวน์โหลดแม่แบบ</button><button id="adminTeacherImport">นำเข้า Excel</button><button id="adminTeacherRestore" title="เพิ่มครูที่หายไปกลับมาจากไฟล์สำรอง .json">กู้ครูจากไฟล์สำรอง</button><button class="primary" id="adminTeacherAdd">+ เพิ่มครู</button></div>' +
       '<div class="row" style="margin-top:12px"><div class="pick" style="flex:1;min-width:240px"><label>ค้นหา ชื่อครู / อีเมล / เบอร์โทร / กลุ่มสาระ</label><input id="adminSearch" value="' + esc(DB.ui.adminSearch || '') + '" placeholder="พิมพ์บางส่วนของชื่อ เช่น สมชาย" style="width:100%"></div>' +
       '<div class="pick"><label>เรียงลำดับตาม</label><div class="sort-group">' + ADMIN_SORTS.map(x => '<button class="sm' + (adminSortKey() === x.key ? ' active' : '') + '" data-admin-sort="' + x.key + '">' + esc(x.label) + (adminSortKey() === x.key ? (DB.ui.adminSortDir === 'desc' ? ' ▼' : ' ▲') : '') + '</button>').join('') + '</div></div>' +
       '<div class="spacer"></div><button class="sm" id="adminSearchClear">ล้างตัวกรอง</button></div>' +
@@ -14274,6 +14298,7 @@ function adminSectionPeople(box) {
   });
   $('#adminTeacherTemplate', box).addEventListener('click', downloadTeacherTemplate);
   $('#adminTeacherImport', box).addEventListener('click', importTeachersExcel);
+  $('#adminTeacherRestore', box).addEventListener('click', restoreMissingTeachersFromBackup);
   $('#adminTeacherAdd', box).addEventListener('click', () => openAddTeacherProfile(renderAdmin, false));
   $('#adminTeacherSave', box).addEventListener('click', () => {
     collectAdminTeacherDraft();                       // เก็บค่าที่แก้ในแถวที่แสดงอยู่ก่อน
