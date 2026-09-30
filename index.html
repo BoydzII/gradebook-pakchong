@@ -1562,6 +1562,7 @@ tr.conduct-void td{opacity:.55}tr.conduct-void td b{text-decoration:line-through
   <button class="sm icon-btn" id="btnFullscreen" title="ขยายเต็มหน้าจอ" aria-label="ขยายเต็มหน้าจอ">⤢</button>
   <button class="sm icon-btn logout-btn" id="btnStaffLogout" title="ออกจากระบบ" aria-label="ออกจากระบบ">⏻</button>
   <button class="sync-chip" id="syncChip" hidden title="สถานะการส่งขึ้นส่วนกลาง"></button>
+  <button class="sync-chip wait" id="gsChip" hidden></button>
   <span class="offline-chip" id="offlineChip" hidden>ออฟไลน์</span>
   <div class="savestate" id="saveState"></div>
 </header>
@@ -11413,7 +11414,7 @@ function summaryToolsCard() {
       '<button class="sm" data-sum-act="courseinfo">ข้อมูล ปพ.5</button>' +
       '<button class="sm primary" data-sum-act="backup">สำรองข้อมูล</button>' +
       '<button class="sm" data-sum-act="restore">กู้คืนข้อมูล</button></div>' +
-    '<div class="hint" style="margin-top:9px">' + esc(backupAgeText()) + '</div></div>' + bookSyncCard() + studentPortalCard();
+    '<div class="hint" style="margin-top:9px">' + esc(backupAgeText()) + '</div></div>' + bookSyncCard() + gsheetCard() + studentPortalCard();
 }
 /** ข้อความบอกว่าสำรองข้อมูลครั้งล่าสุดเมื่อไร */
 function backupAgeText() {
@@ -11438,6 +11439,131 @@ function bookSyncCard() {
       '<div class="row" style="margin-top:10px;flex-wrap:wrap"><button class="sm primary" data-sum-act="pushbooks">ส่งขึ้นตอนนี้</button>' +
       '<button class="sm" data-sum-act="pullbooks">ดึงจากส่วนกลางมาทับเครื่องนี้</button>' +
       '<span class="hint">ซิงก์ล่าสุด: ' + esc(last) + '</span></div>') + '</div>';
+}
+
+/* ---------- สำเนาสมุดคะแนนลง Google Sheet ในไดรฟ์ของครูเอง --------------------
+   อีกทางสำรองนอกระบบ: ไฟล์อยู่ในบัญชี Google ของครู (อีเมลที่ล็อกอิน) ครูเป็นเจ้าของ เปิดดูได้แม้แอปหรือ Firebase มีปัญหา
+   และ Google Sheet เก็บประวัติเวอร์ชันของไฟล์ให้เองอีกชั้น (ไฟล์ → ประวัติเวอร์ชัน) จึงย้อนดูฉบับวันก่อน ๆ ได้
+   ขอสิทธิ์ drive.file = แอปเห็นเฉพาะไฟล์ที่แอปสร้างเอง ไม่เห็นไฟล์อื่นในไดรฟ์ครู
+   Google ต้องให้ครูกดอนุญาตผ่านหน้าต่างเล็ก ส่งเองเงียบ ๆ โดยไม่มีการกดไม่ได้
+   จึงใช้ป้าย “📗 ส่งลงชีต” บนแถบบน ขึ้นวันละครั้งเมื่อคะแนนเปลี่ยน กดครั้งเดียวจบ (ภายใน 50 นาทีส่งซ้ำได้โดยไม่ถามอีก) */
+const GS_SCOPE = 'https://www.googleapis.com/auth/drive.file', GS_API = 'https://sheets.googleapis.com/v4/spreadsheets';
+let gsToken = '', gsTokenAt = 0, gsBusy = false;
+const gsOn = () => !!(DB.cloud && DB.cloud.gsheetOn);
+const gsInfo = () => ((DB.cloud || {}).gsheet || {})[myEmailForSync()] || null;
+async function gsGetToken() {
+  if (gsToken && Date.now() - gsTokenAt < 50 * 60000) return gsToken;
+  if (!firebaseReady() || !fbSignedIn()) throw new Error('ต้องเข้าสู่ระบบด้วยบัญชี Google ของโรงเรียนก่อน');
+  const p = new firebase.auth.GoogleAuthProvider();
+  p.addScope(GS_SCOPE);
+  p.setCustomParameters({ login_hint: fbUser.email || '' });
+  const r = await fbUser.reauthenticateWithPopup(p);
+  const t = r && r.credential && r.credential.accessToken;
+  if (!t) throw new Error('Google ไม่ได้ให้สิทธิ์สร้างไฟล์ ลองกดอีกครั้งแล้วติ๊กอนุญาต');
+  gsToken = t; gsTokenAt = Date.now();
+  return t;
+}
+async function gsApi(url, method, body) {
+  const res = await fetch(url, { method: method || 'GET',
+    headers: { Authorization: 'Bearer ' + await gsGetToken(), 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined });
+  if (res.status === 401) gsToken = '';
+  if (!res.ok) {
+    let m = ''; try { m = (await res.json()).error.message; } catch (e) { }
+    const err = new Error(/has not been used|is disabled/i.test(m) ? 'ยังไม่ได้เปิด Google Sheets API ในโปรเจกต์ Firebase ให้ผู้ดูแลระบบเปิดก่อน' : (m || 'Google Sheets ตอบกลับ ' + res.status));
+    err.status = res.status; throw err;
+  }
+  return res.json();
+}
+/** สมุดของครูคนนี้ที่มีคะแนน: ตามตารางสอนของครู ถ้าไม่เจอเลยใช้ทุกเล่มที่มีคะแนนในเครื่อง */
+function gsBookKeys() {
+  const me = curTeacher();
+  const mine = new Set((DB.timetable.entries || []).filter(e => me && e.teacherId === me.id).map(e => bookKeyOf(e.classId, e.subjectId, e.periodId)));
+  const keys = Object.keys(DB.books || {}).filter(k => k.split('::').length === 3 && bookContentCount(DB.books[k]) > 0);
+  const own = keys.filter(k => mine.has(k));
+  return own.length ? own : keys;
+}
+/** ตารางคะแนนของเล่มหนึ่ง ใช้ชีต “คะแนน” ชุดเดียวกับปุ่มส่งออก Excel สลับห้อง/วิชาชั่วคราวแล้วคืนค่าเดิม */
+function gsRowsOf(key) {
+  const [classId, subjectId, periodId] = key.split('::'), ui = { c: DB.ui.classId, s: DB.ui.subjectId, p: DB.ui.periodId };
+  try {
+    DB.ui.classId = classId; DB.ui.subjectId = subjectId; DB.ui.periodId = periodId;
+    const out = exportWorkbook(false, true);
+    const sheet = out && out.sheets.find(x => x.name === 'คะแนน');
+    return sheet ? sheet.rows.map(r => r.map(c => c && typeof c === 'object' ? (c.v == null ? '' : c.v) : (c == null ? '' : c))) : null;
+  } catch (e) { return null; }
+  finally { DB.ui.classId = ui.c; DB.ui.subjectId = ui.s; DB.ui.periodId = ui.p; }
+}
+const gsTabName = key => { const p = String(key).split('::'), c = DB.classes.find(x => x.id === p[0]), sj = DB.subjects.find(x => x.id === p[1]), pr = DB.periods.find(x => x.id === p[2]);
+  return ((c ? c.name : 'ห้อง') + ' ' + (sj ? sj.code || sj.name : 'วิชา') + (pr ? ' ' + pr.academicYear + '-' + pr.semester : '')).replace(/[\[\]*?:\/\\']/g, '-').slice(0, 90); };
+const gsSig = keys => quickSig(JSON.stringify(keys.map(k => DB.books[k])));
+/** ถึงเวลาชวนส่งไหม: เปิดใช้อยู่ • วันนี้ยังไม่ได้ส่ง • คะแนนเปลี่ยนจากที่ส่งครั้งก่อน */
+function gsDue() {
+  if (!gsOn() || !myEmailForSync() || !firebaseReady() || !fbSignedIn()) return false;
+  const info = gsInfo(), keys = gsBookKeys();
+  if (!keys.length) return false;
+  return !info || (info.day !== todayISO() && info.sig !== gsSig(keys));
+}
+async function gsExport() {
+  if (gsBusy) return;
+  const email = myEmailForSync(); if (!email) throw new Error('โปรไฟล์ครูยังไม่มีอีเมล');
+  const keys = gsBookKeys(); if (!keys.length) throw new Error('ยังไม่มีสมุดที่มีคะแนนให้ส่ง');
+  gsBusy = true;
+  try {
+    renderSyncChip();   // อยู่ใน try เพื่อให้ finally ปลด gsBusy เสมอ ไม่งั้นส่งซ้ำไม่ได้อีกเลยจนรีโหลด
+    await gsGetToken();
+    const tabs = keys.map(k => ({ title: gsTabName(k), rows: gsRowsOf(k) })).filter(t => t.rows && t.rows.length);
+    const me = curTeacher() || {}, now = new Date(), store = DB.cloud.gsheet = DB.cloud.gsheet || {};
+    let info = store[email], meta = null;
+    if (info && info.id) {
+      try { meta = await gsApi(GS_API + '/' + info.id + '?fields=sheets.properties.title'); }
+      catch (e) { if (e.status === 404 || e.status === 403) info = null; else throw e; }   // ครูลบไฟล์ทิ้ง → สร้างใหม่
+    }
+    if (!info) {
+      const made = await gsApi(GS_API, 'POST', { properties: { title: 'KruSpace สมุดคะแนน • ' + (me.name || email), locale: 'th_TH' },
+        sheets: [{ properties: { title: 'อ่านก่อน' } }] });
+      info = { id: made.spreadsheetId, url: made.spreadsheetUrl };
+      meta = { sheets: [{ properties: { title: 'อ่านก่อน' } }] };
+    }
+    const have = new Set((meta.sheets || []).map(x => x.properties.title));
+    const add = tabs.filter(t => !have.has(t.title)).map(t => ({ addSheet: { properties: { title: t.title, gridProperties: { frozenRowCount: 2, frozenColumnCount: 3 } } } }));
+    if (add.length) await gsApi(GS_API + '/' + info.id + ':batchUpdate', 'POST', { requests: add });
+    const readme = [['สำเนาสมุดคะแนนจาก KruSpace (ปพ.5 Online)'], ['ครู', me.name || '', email], ['อัปเดตล่าสุด', now.toLocaleString('th-TH')],
+      ['หมายเหตุ', 'ไฟล์นี้ถูกเขียนทับทุกครั้งที่ส่ง ดูฉบับวันก่อน ๆ ได้ที่เมนู ไฟล์ → ประวัติเวอร์ชัน'],
+      ['', 'แก้คะแนนในไฟล์นี้จะไม่กลับเข้าแอป ให้แก้ในแอปแล้วส่งใหม่'], [], ['สมุดในไฟล์นี้']].concat(tabs.map(t => ['', t.title, (t.rows.length - 2) + ' คน']));
+    const all = tabs.concat([{ title: 'อ่านก่อน', rows: readme }]);
+    await gsApi(GS_API + '/' + info.id + '/values:batchClear', 'POST', { ranges: all.map(t => "'" + t.title + "'") });
+    await gsApi(GS_API + '/' + info.id + '/values:batchUpdate', 'POST', { valueInputOption: 'RAW',
+      data: all.map(t => ({ range: "'" + t.title + "'!A1", values: t.rows })) });
+    store[email] = { id: info.id, url: info.url || ('https://docs.google.com/spreadsheets/d/' + info.id), at: now.toISOString(), day: todayISO(), sig: gsSig(keys), tabs: tabs.length };
+    save(true);
+    return store[email];
+  } finally { gsBusy = false; renderSyncChip(); }
+}
+function gsExportClick() {
+  return gsExport().then(r => { if (r) toast('ส่งคะแนนลง Google Sheet แล้ว ' + r.tabs + ' เล่ม', 'ok'); if ($('#pane-summary.active')) renderSummary(); })
+    .catch(e => toast('ส่งลง Google Sheet ไม่สำเร็จ: ' + fbErrorMessage(e), 'bad'));
+}
+function renderGsChip() {
+  const chip = $('#gsChip'); if (!chip) return;
+  const due = gsDue();
+  chip.hidden = !(due || gsBusy);
+  chip.textContent = gsBusy ? '📗 กำลังส่งลงชีต...' : '📗 ส่งลง Google Sheet วันนี้';
+  chip.title = 'สำรองสมุดคะแนนลง Google Sheet ในไดรฟ์ของคุณ วันละครั้ง กดครั้งเดียว';
+}
+function gsheetCard() {
+  const info = gsInfo(), ready = firebaseReady() && fbSignedIn() && myEmailForSync();
+  return '<div class="card"><div class="row"><div><h3 style="margin:0">สำรองลง Google Sheet ในไดรฟ์ของฉัน</h3>' +
+    '<div class="hint tip">สร้างไฟล์ Google Sheet ในบัญชี Google ของคุณ (' + esc(myEmailForSync() || 'ยังไม่มีอีเมล') + ') หนึ่งแท็บต่อหนึ่งห้อง/วิชา ' +
+      'คุณเป็นเจ้าของไฟล์ แอปเห็นเฉพาะไฟล์นี้ ไม่เห็นไฟล์อื่นในไดรฟ์ • Google เก็บประวัติเวอร์ชันให้ ย้อนดูฉบับวันก่อน ๆ ได้</div></div>' +
+    '<div class="spacer"></div><span class="badge ' + (gsOn() ? 'ok' : '') + '">' + (gsOn() ? 'เปิดใช้งาน' : 'ปิดอยู่') + '</span></div>' +
+    (!ready ? '<div class="notice bad" style="margin-top:12px">ต้องเข้าสู่ระบบด้วยบัญชี Google ของโรงเรียน และโปรไฟล์ต้องมีอีเมลก่อน</div>' :
+      '<label class="notice" style="margin-top:12px;display:block"><input type="checkbox" id="gsheetOn"' + (gsOn() ? ' checked' : '') + '> ' +
+        'ชวนส่งวันละครั้งเมื่อคะแนนเปลี่ยน (ป้าย 📗 บนแถบบน กดครั้งเดียว)</label>' +
+      '<div class="row" style="margin-top:10px;flex-wrap:wrap"><button class="sm primary" data-sum-act="gsheet">ส่งลง Google Sheet ตอนนี้</button>' +
+        (info ? '<a class="btn sm" href="' + esc(info.url) + '" target="_blank" rel="noopener">เปิดไฟล์ในไดรฟ์</a>' +
+          '<span class="hint">ส่งล่าสุด ' + esc(new Date(info.at).toLocaleString('th-TH')) + ' • ' + info.tabs + ' เล่ม</span>' : '<span class="hint">ยังไม่เคยส่ง ครั้งแรกระบบจะขออนุญาตสร้างไฟล์ในไดรฟ์ของคุณ</span>') +
+      '</div>') + '</div>';
 }
 
 function bindSummaryTools(pane) {
@@ -11487,6 +11613,7 @@ function bindSummaryTools(pane) {
     if (act === 'courseinfo') return editCourseInfo();
     if (act === 'backup') return backup();
     if (act === 'restore') return restore();
+    if (act === 'gsheet') { btn.disabled = true; return gsExportClick().then(() => { btn.disabled = false; }); }
     if (act === 'pushbooks') {
       btn.disabled = true;
       try { const n = await pushMyBooks(); toast('ส่งสมุดคะแนนขึ้นส่วนกลางแล้ว ' + n + ' รายการ', 'ok'); renderSummary(); }
@@ -11500,6 +11627,8 @@ function bindSummaryTools(pane) {
       catch (e) { toast(fbErrorMessage(e), 'bad'); btn.disabled = false; }
     }
   }));
+  const gsToggle = $('#gsheetOn', pane);
+  if (gsToggle) gsToggle.addEventListener('change', () => { DB.cloud.gsheetOn = gsToggle.checked; save(true); renderSyncChip(); renderSummary(); });
   const toggle = $('#bookSyncOn', pane);
   if (toggle) toggle.addEventListener('change', () => {
     DB.cloud.syncBooks = toggle.checked; save(true); renderSyncChip();
@@ -12213,7 +12342,7 @@ function renderSummary() {
 }
 
 /* --- สร้างไฟล์ Excel ----------------------------------------------------- */
-function exportWorkbook(groupsOnly) {
+function exportWorkbook(groupsOnly, asSheets) {
   const b = curBook(true);
   const cls = curClass(), sub = curSubject(), period = curPeriod();
   const sts = curStudents().slice().sort((a, c) => a.no - c.no);
@@ -12350,6 +12479,7 @@ function exportWorkbook(groupsOnly) {
   const safe = s => String(s || '').replace(/[\\\/:*?"<>|]/g, '_');
   const fn = (groupsOnly ? 'ใบแบ่งกลุ่ม_' : 'คะแนน_') +
     safe(sub.code || sub.name) + '_' + safe(cls.name) + '_ปี' + safe(period.academicYear) + '_ภาค' + safe(period.semester) + '.xlsx';
+  if (asSheets) return { sheets: sheets, fn: fn };
   try {
     download(buildXlsx(sheets), fn);
     toast('ส่งออก ' + fn, 'ok');
@@ -17178,6 +17308,7 @@ function flushBookSync() { if (unsyncedBookCount()) runBookSync(); }
 
 /** ป้ายเล็ก ๆ บนแถบบน บอกว่าที่กรอกไปขึ้นส่วนกลางแล้วหรือยัง */
 function renderSyncChip() {
+  if (typeof renderGsChip === 'function') renderGsChip();
   const chip = $('#syncChip'); if (!chip) return;
   const held = outboxCount();
   if (!bookSyncOn() || !myBookRoot()) {
@@ -18809,6 +18940,8 @@ window.addEventListener('offline', () => { renderOnlineState(); toast('ออฟ
 
 $('#btnInstall').addEventListener('click', installApp);
 updateInstallButton();
+const gsChipEl = $('#gsChip');
+if (gsChipEl) gsChipEl.addEventListener('click', gsExportClick);
 const syncChipEl = $('#syncChip');
 if (syncChipEl) syncChipEl.addEventListener('click', () => {
   const n = unsyncedBookCount() + outboxCount();
