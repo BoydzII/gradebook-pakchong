@@ -3737,6 +3737,12 @@ function acknowledgeActivity(id) {
   toast('รับทราบกิจกรรมแล้ว', 'ok');
 }
 
+/* คำขอจองคิวจากแอปจองคิว DPA (repo dpa-booking) ที่ส่งถึงเจ้าหน้าที่คนนี้และยังไม่ได้กดรับ
+   ฟังจากคอลเลกชัน dpaSlots ใน startFirebaseSync เก็บไว้ในหน่วยความจำเท่านั้น ไม่ลง DB เพราะเป็นของแอปอื่น
+   ใช้อีเมลที่ล็อกอินเทียบกับช่อง officer จึงเห็นเฉพาะคิวของตัวเอง */
+const DPA_BOOKING_URL = 'https://boydzii.github.io/dpa-booking/';
+let dpaRequests = [];
+
 function pendingApprovals() {
   const me = curTeacher(); if (!me || !curPeriod()) return [];
   const swaps = DB.timetable.exchangeRequests || [], leaves = DB.timetable.leaveRequests || [];
@@ -3770,6 +3776,10 @@ function pendingApprovals() {
   if (myHeadWait.length) list.push({ tone: 'warn', icon: '◆', role: 'teacher', tab: 'exchange',
     title: 'รอหัวหน้ากลุ่มสาระจัดครูให้ ' + totalSlotCount(myHeadWait) + ' คาบ',
     detail: 'คุณเลือกให้หัวหน้ากลุ่มสาระจัดครูแทน ยังไม่ต้องดำเนินการเอง' });
+
+  if (dpaRequests.length) list.push({ tone: 'bad', icon: '📅', role: 'teacher', url: DPA_BOOKING_URL + '#work',
+    title: 'คำขอจองคิว DPA รอคุณกดรับ ' + dpaRequests.length + ' รายการ',
+    detail: dpaRequests.slice(0, 3).map(s => (s.teacherName || 'ครู') + ' ' + thaiDate(s.date) + ' ' + (s.start || '') + ' น.' + (s.topic ? ' (' + s.topic + ')' : '')).join(' • ') });
 
   const myDraft = leaves.filter(l => l.teacherId === me.id && ['draft', 'rejected'].indexOf((l.approval || {}).status || 'draft') >= 0);
   if (myDraft.length) list.push({ tone: 'warn', icon: '✈', role: 'teacher', tab: 'exchange',
@@ -3830,6 +3840,7 @@ function bindApprovalCard(pane) {
   const items = pendingApprovals();
   $$('[data-approval-go]', pane).forEach(btn => btn.addEventListener('click', () => {
     const x = items[num(btn.dataset.approvalGo)]; if (!x) return;
+    if (x.url) { window.open(x.url, '_blank', 'noopener'); return; }   // งานของแอปอื่น (จองคิว DPA) เปิดแอปนั้นแทนการสลับแท็บ
     const me = curTeacher();
     if (x.role !== 'teacher' && me && teacherHasRole(me, x.role) && (DB.ui.staffMode || 'teacher') !== x.role) {
       DB.ui.staffMode = x.role;   // สลับบทบาทให้อัตโนมัติ จะได้ไม่ต้องหาเอง
@@ -3983,6 +3994,7 @@ function openAlertCenter() {
     }));
     $$('[data-bell-go]', body).forEach(b => b.addEventListener('click', () => {
       const x = s.approvals[num(b.dataset.bellGo)]; if (!x) return;
+      if (x.url) { close(); window.open(x.url, '_blank', 'noopener'); return; }
       if (x.role !== 'teacher' && me && teacherHasRole(me, x.role) && (DB.ui.staffMode || 'teacher') !== x.role) DB.ui.staffMode = x.role;
       close(); setTab(x.tab);
     }));
@@ -16960,6 +16972,15 @@ function startFirebaseSync() {
   /* เกณฑ์คะแนนพฤติกรรมเป็นเอกสารเดียว ทุกเครื่องฟังได้ไม่เปลือง ครูจะได้เห็นรายการและแต้มล่าสุด */
   /* ประกาศ/นัดประชุม — ฟังเฉพาะที่กำหนดไม่เก่ากว่า 30 วัน ของเก่าไม่แสดงอยู่แล้ว ไม่ต้องโหลดมาเปลืองเน็ต
      ที่แก้/กดรับทราบในเครื่องแต่ยังส่งไม่ขึ้น ต้องคงไว้ ไม่งั้นการ์ดเด้งกลับเป็นค่าเดิม (ดู timetableUnsent) */
+  /* คำขอจองคิว DPA ที่ส่งถึงเราและยังรอกดรับ — ครูที่ไม่ใช่เจ้าหน้าที่ได้ผลว่างเปล่า ไม่เปลืองอะไร
+     ถ้ายังไม่ได้วางกฎ dpaSlots หรืออ่านไม่ได้ ให้เงียบไว้ ไม่ต้องรบกวนครูด้วยข้อความผิดพลาด */
+  if (fbUser && fbUser.email) fbUnsub.push(fbDb.collection('dpaSlots').where('officer', '==', fbStaffId(fbUser.email)).where('status', '==', 'requested')
+    .onSnapshot(snap => {
+      const today = todayISO();
+      dpaRequests = snap.docs.map(d => Object.assign({ id: d.id }, d.data())).filter(s => String(s.date || '') >= today)
+        .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+      updateAlertBell(); if (DB.ui.tab === 'dashboard') render();
+    }, () => { dpaRequests = []; updateAlertBell(); }));
   fbUnsub.push(fbDb.collection('notices').where('date', '>=', isoDate(new Date(Date.now() - 30 * 86400000))).onSnapshot(snap => apply(() => {
     const waiting = outboxIdsOf('notice'), acking = outboxIdsOf('noticeack'), local = noticeList(), key = noticeAckKey(curTeacher());
     const localOf = id => local.find(y => y.id === id);
@@ -16998,7 +17019,7 @@ function startFirebaseSync() {
   });
 }
 
-function stopFirebaseSync() { fbUnsub.forEach(fn => { try { fn(); } catch (e) { } }); fbUnsub = []; }
+function stopFirebaseSync() { fbUnsub.forEach(fn => { try { fn(); } catch (e) { } }); fbUnsub = []; dpaRequests = []; }
 
 /* ---------- สมุดคะแนนและการเช็กชื่อของครูแต่ละคน --------------------------
    เก็บแยกรายบุคคลใต้ books/{อีเมลของครู} ตามกฎความปลอดภัย เจ้าของเท่านั้นที่เข้าถึงได้
