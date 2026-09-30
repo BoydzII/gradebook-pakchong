@@ -3088,16 +3088,18 @@ function openTabSheet() {
         const mine = sec.tabs.filter(t => { const at = left.indexOf(t); if (at < 0) return false; left.splice(at, 1); return true; });
         return { label: sec.label, tabs: mine };
       });
+      /* ลิงก์แอปจองคิว DPA ไว้ในหมวดข้อมูลโรงเรียนต่อจากตารางสอน ให้ครูเห็นพร้อมเมนูหลักโดยไม่ต้องหาในแถบเครื่องมือ
+         แอปอยู่โดเมนเดียวกัน (boydzii.github.io) ใช้ Firebase ชุดเดียวกัน จึงใช้การเข้าสู่ระบบเดียวกับ KruSpace ไม่ต้องล็อกอินซ้ำ */
+      const extra = { 'ข้อมูลโรงเรียน': '<button data-sheet-act="dpabook"><span class="ts-ico">📅</span>จองคิว DPA</button>' };
       if (left.length) groups.push({ label: 'อื่น ๆ', tabs: left });   // หน้าที่เพิ่มใหม่ยังไม่ได้จัดหมวด จะได้ไม่หายไปเงียบ ๆ
-      return groups.filter(g => g.tabs.length).map(g =>
+      return groups.filter(g => g.tabs.length || extra[g.label]).map(g =>
         '<div class="tabsheet-sec">' + esc(g.label) + '</div><div class="tabsheet-grid">' +
         g.tabs.map(t => '<button data-goto="' + t + '"' + (t === DB.ui.tab ? ' class="active"' : '') + '>' +
           '<span class="ts-ico">' + (TAB_ICON[t] || '▸') + '</span>' + esc(TAB_SHORT[t] || t) + '</button>').join('') +
-        '</div>').join('');
+        (extra[g.label] || '') + '</div>').join('');
     })() +
     '<div class="tabsheet-tools"><button class="sm" data-sheet-act="search">⌕ ค้นหานักเรียน</button>' +
     '<button class="sm" data-sheet-act="guide">▶ วิธีใช้งาน</button>' +
-    '<button class="sm" data-sheet-act="dpabook">📅 จองคิวลงข้อมูล DPA / วิทยฐานะ</button>' +
     '<button class="sm" data-sheet-act="theme">◐ สลับโหมดสี</button>' +
     '<button class="sm" data-sheet-act="promode">ⓘ ' + (proModeOn() ? 'แสดงคำอธิบาย' : 'ซ่อนคำอธิบาย (โหมดมืออาชีพ)') + '</button>' +
     '<button class="sm" data-sheet-act="pullschool">⤓ ดึงฐานข้อมูลจากส่วนกลาง</button>' +
