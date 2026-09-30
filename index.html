@@ -13574,21 +13574,38 @@ async function restoreMissingTeachersFromBackup() {
   const f = await pickFile('.json'); if (!f) return;
   let data; try { data = JSON.parse(await f.text()); } catch (e) { return toast('ไฟล์สำรองไม่ถูกต้อง', 'bad'); }
   if (!data || !Array.isArray(data.teachers)) return toast('ไฟล์นี้ไม่มีรายชื่อครู', 'bad');
-  const have = t => DB.teachers.some(x => x.id === t.id || normalizeName(x.name) === normalizeName(t.name) ||
+  const sameAs = t => DB.teachers.find(x => x.id === t.id || normalizeName(x.name) === normalizeName(t.name) ||
     (t.email && x.email && String(x.email).toLowerCase() === String(t.email).toLowerCase()));
-  const missing = data.teachers.filter(t => t && String(t.name || '').trim() && !have(t));
-  if (!missing.length) return toast('ครูในไฟล์สำรองมีอยู่ในระบบครบแล้ว ไม่มีอะไรต้องกู้', 'ok');
+  const missing = data.teachers.filter(t => t && String(t.name || '').trim() && !sameAs(t));
+  /* ครูที่ยังอยู่ในระบบแต่ใช้รหัสอื่น (เช่นเคยมีชื่อซ้ำสองรายการแล้วรายการหนึ่งถูกลบ) คาบสอน ใบลา และคำขอแลกคาบ
+     ยังอ้างรหัสเดิมอยู่จึงไม่ขึ้นให้ครูเห็น ผูกรหัสเดิมเข้ากับครูคนนั้นแทนการเพิ่มคนซ้ำ
+     เฉพาะรหัสที่ยังมีข้อมูลอ้างถึงและไม่ใช่รหัสของครูคนไหนในเครื่องนี้ เพื่อไม่ไปยุ่งกับครูที่ถูกต้องอยู่แล้ว */
+  const known = new Set(); DB.teachers.forEach(t => { known.add(t.id); (t.legacyIds || []).forEach(k => known.add(k)); });
+  const used = new Set();
+  (DB.timetable.entries || []).forEach(e => used.add(e.teacherId));
+  (DB.timetable.leaveRequests || []).forEach(l => used.add(l.teacherId));
+  (DB.timetable.exchangeRequests || []).forEach(r => { used.add(r.requesterTeacherId); used.add(r.targetTeacherId); });
+  const relink = data.teachers.filter(t => t && t.id && !known.has(t.id) && used.has(t.id))
+    .map(t => ({ from: t.id, to: sameAs(t) })).filter(x => x.to && x.to.id !== x.from);
+  if (!missing.length && !relink.length) return toast('ครูในไฟล์สำรองมีอยู่ในระบบครบแล้ว ไม่มีอะไรต้องกู้', 'ok');
   const names = missing.slice(0, 8).map(t => esc(t.name)).join(', ') + (missing.length > 8 ? ' และอีก ' + (missing.length - 8) + ' คน' : '');
-  if (!await confirmBox('กู้รายชื่อครูที่หายไป', 'พบครูในไฟล์สำรองที่ยังไม่มีในระบบ <b>' + missing.length + ' คน</b> เช่น ' + names +
-    '<br><br>ระบบจะ<b>เพิ่มเข้า</b>เท่านั้น ไม่แก้ครูที่มีอยู่แล้ว (ถ้าเคยลบครูบางคนทิ้งโดยตั้งใจ จะกลับมาด้วย ลบใหม่ได้ภายหลัง)', 'เพิ่มครูเหล่านี้')) return;
+  const linkNames = relink.map(x => esc(x.to.name)).join(', ');
+  if (!await confirmBox('กู้รายชื่อครูที่หายไป', (missing.length ? 'พบครูในไฟล์สำรองที่ยังไม่มีในระบบ <b>' + missing.length + ' คน</b> เช่น ' + names +
+    '<br><br>ระบบจะ<b>เพิ่มเข้า</b>เท่านั้น ไม่แก้ครูที่มีอยู่แล้ว (ถ้าเคยลบครูบางคนทิ้งโดยตั้งใจ จะกลับมาด้วย ลบใหม่ได้ภายหลัง)' : '') +
+    (relink.length ? (missing.length ? '<br><br>' : '') + 'ผูกคาบสอนที่ยังอ้างรหัสเดิมกลับให้ครูที่มีอยู่แล้ว <b>' + relink.length + ' คน</b>: ' + linkNames : ''), 'กู้เลย')) return;
   const backupRooms = new Map((data.classes || []).map(c => [c.id, c.name]));
   missing.forEach(b => {
     const roomName = backupRooms.get(b.homeroomClassId), cls = roomName && DB.classes.find(c => c.name === roomName);
     DB.teachers.push({ id: b.id || uid('teacher'), name: b.name, email: b.email || '', phone: b.phone || '', learningArea: b.learningArea || '',
       homeroomClassId: cls ? cls.id : '', roles: Array.isArray(b.roles) && b.roles.length ? b.roles : ['teacher'], legacyIds: b.legacyIds || [] });
   });
+  // เก็บรหัสเดิมไว้ใน legacyIds ด้วย เครื่องอื่นที่ดึงรายชื่อจากส่วนกลางจะได้ซ่อมข้อมูลของตัวเองได้เหมือนกัน
+  const map = new Map();
+  relink.forEach(x => { x.to.legacyIds = Array.from(new Set((x.to.legacyIds || []).concat([x.from]))); map.set(x.from, x.to.id); });
+  const fixed = remapTeacherIds(map); rememberTeacherIdMap(map);
   save(true); renderAdmin(); renderTop();
-  toast('กู้ครูกลับมา ' + missing.length + ' คนแล้ว • กดอัป (ฟ้า) เพื่อส่งชื่อขึ้นส่วนกลาง', 'ok');
+  toast((missing.length ? 'กู้ครูกลับมา ' + missing.length + ' คน' : '') + (relink.length ? (missing.length ? ' • ' : '') + 'ผูกคืน ' + fixed + ' จุด' : '') +
+    ' • กด “อัปเดตขึ้นส่วนกลาง” ที่ ผู้ดูแลระบบ → ระบบและข้อมูลกลาง เพื่อส่งขึ้นส่วนกลาง', 'ok');
 }
 
 function downloadMultiTeacherTimetableTemplate() {
