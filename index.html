@@ -2286,6 +2286,7 @@ function save(immediate) {
       clearTimeout(saveFlash);
       saveFlash = setTimeout(() => { el.textContent = ''; el.classList.remove('on'); }, 1600);
       if (typeof queueBookSync === 'function') queueBookSync();
+      if (typeof bhQueue === 'function') bhQueue();   // เก็บประวัติสมุดคะแนนให้เอง
     } catch (e) {
       storageOK = false;
       renderStorageWarn();
@@ -7399,6 +7400,7 @@ function copyItemsToClasses(classIds) {
   let n = 0;
   classIds.forEach(cid => {
     const key = bookKeyOf(cid, DB.ui.subjectId, DB.ui.periodId);
+    bhSnapshot(key, DB.books[key], 'ก่อนใช้รูปแบบหัวข้อของห้องอื่น');
     const target = DB.books[key] = normalizeBook(DB.books[key] || defaultBook());
     target.items = deepCopy(from.items);
     target.weights = deepCopy(from.weights);
@@ -7496,6 +7498,7 @@ async function openItemTemplateCloud() {
       const tpl = docs[num(picked.value)] || {};
       ids.forEach(cid => {
         const key = bookKeyOf(cid, DB.ui.subjectId, DB.ui.periodId);
+        bhSnapshot(key, DB.books[key], 'ก่อนใช้รูปแบบหัวข้อจากส่วนกลาง');
         applyItemTemplate(DB.books[key] = normalizeBook(DB.books[key] || defaultBook()), tpl);
       });
       save(true); close(); render();
@@ -8056,6 +8059,7 @@ function renderItems() {
         '<button id="btnAddMany">เพิ่มหลายหัวข้อ</button>' +
         '<button id="btnReuseItems">นำไปใช้ซ้ำ / ใช้รูปแบบของห้องอื่น</button>' +
         '<button id="btnPushItems" title="ส่งเฉพาะโครงหัวข้อคะแนนขึ้นส่วนกลาง คะแนนนักเรียนไม่ถูกส่ง">⤒ ส่งรูปแบบขึ้นส่วนกลาง</button>' +
+        '<button id="btnBookHistory" title="ฉบับย้อนหลังที่ระบบเก็บไว้ให้เอง กู้คะแนนที่หายหรือถูกทับได้">🕘 ประวัติ</button>' +
         '<button id="btnImportItemScores" title="เติมคะแนนหัวข้อหนึ่งจากไฟล์ที่มีเลขประจำตัวกับคะแนน เช่นผลสอบออนไลน์ เติมเฉพาะช่องที่ว่าง">⤓ นำเข้าคะแนนจากไฟล์</button>' +
         '<button id="btnPullItems" title="ดึงรูปแบบที่เคยส่งไว้ หรือของครูที่สอนวิชาเดียวกัน มาใช้กับเครื่องนี้">⤓ ดึงรูปแบบจากส่วนกลาง</button>' +
         '<span class="hint">เลือก “สอบวัดผลรายหน่วย” เพื่อเปิดช่องซ่อมอัตโนมัติเฉพาะผู้ที่ได้ต่ำกว่าเกณฑ์รายส่วน</span>' +
@@ -8156,6 +8160,7 @@ function renderItems() {
   $('#btnPushItems').addEventListener('click', pushItemTemplate);
   $('#btnPullItems').addEventListener('click', openItemTemplateCloud);
   $('#btnImportItemScores').addEventListener('click', () => importItemScoresFromFile(b));
+  $('#btnBookHistory').addEventListener('click', openBookHistory);
   $('#btnAddMany').addEventListener('click', () => {
     openModal({
       title: 'เพิ่มหลายหัวข้อพร้อมกัน',
@@ -16903,6 +16908,7 @@ async function pushMyBooks(onlyChanged) {
       }
       await fbSetDoc(ref, { key: key, book: fbPlain(book), updatedAt: stamp }, 'สมุดคะแนน ' + key);
       sigs[id] = sig; written++;
+      bhCloudSave(root, key, book, stamp);   // สำเนารายวันบนส่วนกลาง
     })());
   });
   const months = myAttendanceByMonth();
@@ -16944,6 +16950,180 @@ function unsyncedBookCount() {
   return n;
 }
 
+/* ---------- ประวัติสมุดคะแนน (สำรองอัตโนมัติ) ------------------------------
+   30 ก.ย. 2569 คะแนนสองห้องหายทั้งในเครื่องและบนส่วนกลาง ไฟล์สำรองล่าสุดเก่าไป 6 สัปดาห์
+   เพราะระบบเก็บสมุดไว้ฉบับเดียว ปุ่มที่เขียนทับทั้งเล่ม (ดึง กู้คืน ใช้รูปแบบหัวข้อ) จึงลบคะแนนได้โดยย้อนไม่ได้
+   ที่นี่เก็บสำเนารายเล่มให้เองโดยครูไม่ต้องจำกดสำรอง
+   • เครื่องนี้: IndexedDB (localStorage เต็มโควตาแล้ว) ทุกครั้งที่เล่มเปลี่ยนแต่ห่างกันอย่างน้อย 5 นาที และก่อนทุกปุ่มที่เขียนทับ
+   • ส่วนกลาง: books/{อีเมล}/history วันละฉบับต่อเล่ม กันเครื่องพังหรือล้างเบราว์เซอร์ (กฎเดิมครอบคลุมแล้ว)
+   • คะแนนลดวูบ: เก็บฉบับก่อนลดติดป้ายไว้ และเตือนให้ครูรู้ทันที
+   ครูกู้เองได้จากปุ่ม “🕘 ประวัติ” ในหน้าหัวข้อคะแนน */
+const BH_DB = 'kruspace-history', BH_STORE = 'books', BH_GAP = 5 * 60000, BH_HOUR = 3600000, BH_DAY = 24 * BH_HOUR;
+let bhDbP = null, bhTimer = null;
+const bhLast = {}, bhPrev = {};   // ฉบับล่าสุดที่เก็บ / ฉบับล่าสุดที่เห็น (ไว้เก็บย้อนเมื่อคะแนนลดวูบ)
+function bhOpen() {
+  if (bhDbP) return bhDbP;
+  bhDbP = new Promise((res, rej) => {
+    if (!window.indexedDB) return rej(new Error('ไม่มี IndexedDB'));
+    const r = indexedDB.open(BH_DB, 1);
+    r.onupgradeneeded = () => r.result.createObjectStore(BH_STORE, { keyPath: 'id', autoIncrement: true }).createIndex('key', 'key');
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+  bhDbP.catch(() => { bhDbP = null; });
+  return bhDbP;
+}
+const bhReq = r => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+async function bhList(key) {
+  const db = await bhOpen();
+  return (await bhReq(db.transaction(BH_STORE).objectStore(BH_STORE).index('key').getAll(key))).sort((a, b) => b.at - a.at);
+}
+async function bhAdd(rec) { const db = await bhOpen(); return bhReq(db.transaction(BH_STORE, 'readwrite').objectStore(BH_STORE).add(rec)); }
+async function bhDelete(ids) {
+  if (!ids.length) return;
+  const db = await bhOpen(), st = db.transaction(BH_STORE, 'readwrite').objectStore(BH_STORE);
+  await Promise.all(ids.map(id => bhReq(st.delete(id))));
+}
+/** เลือกฉบับที่ลบได้: เก็บทุกฉบับใน 3 ชม. • ชั่วโมงละฉบับถึง 3 วัน • วันละฉบับถึง 60 วัน • ฉบับติดป้ายเก็บครบ 60 วัน */
+function bhPrune(list, now) {
+  const keep = new Set(), seen = new Set();
+  list.forEach(r => {                                 // list เรียงใหม่→เก่า ฉบับแรกของแต่ละช่วงคือฉบับล่าสุดของช่วงนั้น
+    const age = now - r.at;
+    if (age > 60 * BH_DAY) return;
+    if (age < 3 * BH_HOUR || r.reason) { keep.add(r.id); return; }
+    const bucket = age < 3 * BH_DAY ? 'h' + Math.floor(r.at / BH_HOUR) : 'd' + new Date(r.at).toDateString();
+    if (!seen.has(bucket)) { seen.add(bucket); keep.add(r.id); }
+  });
+  return list.filter(r => !keep.has(r.id)).map(r => r.id);
+}
+/** เก็บสำเนาเล่มหนึ่ง — คัดลอกทันทีก่อน await แรก จึงเรียกก่อนเขียนทับได้โดยไม่ต้องรอ */
+function bhSnapshot(key, book, reason) {
+  if (!book) return Promise.resolve();
+  const plain = deepCopy(book), count = bookContentCount(plain);
+  if (!count) return Promise.resolve();               // สมุดเปล่าไม่มีอะไรให้เสีย
+  const sig = quickSig(JSON.stringify(plain)), at = Date.now();
+  bhLast[key] = { sig: sig, count: count, at: at };
+  return (async () => {
+    await bhAdd({ key: key, at: at, sig: sig, count: count, reason: reason || '', book: plain });
+    await bhDelete(bhPrune(await bhList(key), at));
+  })().catch(() => {});
+}
+/** เรียกก่อนปุ่มที่เขียนทับสมุด keys = null คือทุกเล่ม */
+function bhBeforeOverwrite(keys, reason) {
+  (keys || Object.keys(DB.books || {})).forEach(k => { if (DB.books[k]) bhSnapshot(k, DB.books[k], reason); });
+}
+function bhQueue() { clearTimeout(bhTimer); bhTimer = setTimeout(() => bhCheck().catch(() => {}), 3000); }
+async function bhCheck() {
+  for (const key of Object.keys(DB.books || {})) {
+    const book = DB.books[key], sig = quickSig(JSON.stringify(book)), count = bookContentCount(book);
+    if (bhLast[key] === undefined) {
+      const l = (await bhList(key).catch(() => []))[0];
+      bhLast[key] = l ? { sig: l.sig, count: l.count, at: l.at } : null;
+    }
+    const prev = bhPrev[key], last = bhLast[key];
+    if (prev && prev.sig === sig) continue;
+    const base = prev || last;
+    if (base && (base.count - count > 10 || (base.count >= 10 && count < base.count * 0.8))) {
+      // คะแนนลดวูบ: เก็บฉบับก่อนลด (จากที่เห็นล่าสุด) ติดป้ายไว้ และบอกครูทันที
+      if (prev && prev.copy) {
+        bhSnapshot(key, prev.copy, 'ก่อนคะแนนลดลง (' + prev.count + ' → ' + count + ' ช่อง)');
+        const root = myBookRoot(); if (root) bhCloudSave(root, key, prev.copy, new Date().toISOString(), 'ก่อนคะแนนลดลง');
+      }
+      toast('คะแนน ' + bookLabelOf(key) + ' ลดลง ' + (base.count - count) + ' ช่อง • เก็บฉบับก่อนหน้าไว้แล้ว ถ้าไม่ได้ตั้งใจ กด “🕘 ประวัติ” ในหน้าหัวข้อคะแนนเพื่อกู้', 'bad');
+    }
+    if (!last || last.sig !== sig && Date.now() - last.at >= BH_GAP) await bhSnapshot(key, book, '');
+    bhPrev[key] = { sig: sig, count: count, copy: deepCopy(book) };
+  }
+}
+/** สำเนาบนส่วนกลาง: วันละฉบับต่อเล่ม (reason = ฉบับพิเศษ เก็บเพิ่มทุกครั้ง) ลบที่เก่ากว่า 30 วันวันละครั้ง */
+function bhCloudSave(root, key, book, stamp, reason) {
+  const day = stamp.slice(0, 10), done = DB.cloud.histDays = DB.cloud.histDays || {};
+  if (!reason && done[key] === day) return Promise.resolve();
+  const id = bookDocId(key) + '__' + day + (reason ? '__' + Date.now() : '');
+  return fbSetDoc(root.collection('history').doc(id), { key: key, day: day, at: stamp, reason: reason || '',
+    count: bookContentCount(book), book: fbPlain(book) }, 'ประวัติสมุดคะแนน ' + key)
+    .then(() => {
+      if (!reason) done[key] = day;
+      if (DB.cloud.histPrunedOn === day) return;
+      DB.cloud.histPrunedOn = day;
+      const cutoff = new Date(Date.now() - 30 * BH_DAY).toISOString().slice(0, 10);
+      return root.collection('history').where('day', '<', cutoff).get().then(snap => Promise.all(snap.docs.map(d => d.ref.delete())));
+    }).catch(() => {});
+}
+/** เติมเฉพาะช่องที่ว่างจากฉบับเก่า คืนจำนวนช่องที่เติม
+    หัวข้อในฉบับเก่าที่มีคะแนนแต่รหัสหายไปจากฉบับนี้ (เช่นถูกใช้รูปแบบหัวข้อทับ) ใส่กลับ
+    และถ้าฉบับนี้มีหัวข้อชื่อเดียวกันที่ยังไม่มีคะแนนเลย เอาหัวข้อว่างนั้นออก ไม่ให้ซ้ำสองหัวข้อ */
+function bhFillBlanks(target, from) {
+  let n = 0;
+  const scoredIn = (b, id) => Object.values(b.scores || {}).some(r => has((r || {})[id]));
+  const curIds = new Set((target.items || []).map(i => i.id));
+  (from.items || []).forEach(it => {
+    if (curIds.has(it.id) || !scoredIn(from, it.id)) return;
+    const twin = (target.items || []).findIndex(x => normalizeName(x.name) === normalizeName(it.name) && !scoredIn(target, x.id));
+    if (twin >= 0) target.items.splice(twin, 1, deepCopy(it)); else (target.items = target.items || []).push(deepCopy(it));
+    n++;
+  });
+  ['scores', 'exam', 'itemRetakes'].forEach(m => Object.entries(from[m] || {}).forEach(([sid, row]) => Object.entries(row || {}).forEach(([f, v]) => {
+    if (!has(v)) return;
+    const t = (target[m] = target[m] || {})[sid] = target[m][sid] || {};
+    if (!has(t[f])) { t[f] = v; n++; }
+  })));
+  Object.entries(from.componentScores || {}).forEach(([sid, its]) => Object.entries(its || {}).forEach(([iid, parts]) => Object.entries(parts || {}).forEach(([p, v]) => {
+    if (!has(v)) return;
+    const cs = target.componentScores = target.componentScores || {}, t = (cs[sid] = cs[sid] || {})[iid] = cs[sid][iid] || {};
+    if (!has(t[p])) { t[p] = v; n++; }
+  })));
+  return n;
+}
+async function openBookHistory() {
+  const key = bookKey(); if (!key) return toast('เลือกห้องและวิชาก่อน', 'bad');
+  const cur = curBook(true);
+  let rows = [];
+  try { rows = (await bhList(key)).map(r => ({ src: 'เครื่องนี้', at: r.at, count: r.count, reason: r.reason, book: normalizeBook(r.book) })); } catch (e) { }
+  const root = myBookRoot();
+  if (root) {
+    try {
+      const snap = await root.collection('history').where('key', '==', key).get({ source: 'server' });
+      snap.docs.forEach(d => { const x = d.data() || {};
+        rows.push({ src: 'ส่วนกลาง', at: Date.parse(x.at) || 0, count: x.count || 0, reason: x.reason || '', book: normalizeBook(fbDecodeNested(x.book || {})) }); });
+    } catch (e) { }
+  }
+  rows.sort((a, b) => b.at - a.at);
+  if (!rows.length) return toast('ยังไม่มีประวัติของสมุดเล่มนี้ ระบบจะเริ่มเก็บให้เองเมื่อมีการกรอกคะแนน', 'ok');
+  const when = t => new Date(t).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
+  const fills = rows.map(r => bhFillBlanks(deepCopy(cur), r.book));
+  openModal({ title: '🕘 ประวัติสมุดคะแนน • ' + bookLabelOf(key), wide: true, bodyHTML:
+    '<div class="hint">ตอนนี้มีคะแนน <b>' + bookContentCount(cur) + '</b> ช่อง • ระบบเก็บฉบับย้อนหลังให้เองทุกครั้งที่แก้ (ห่างกันอย่างน้อย 5 นาที) ' +
+      'ก่อนดึง กู้คืน หรือใช้รูปแบบหัวข้อ และบนส่วนกลางวันละฉบับ<br>' +
+      '<b>เติมช่องว่าง</b> = เอาคะแนนจากฉบับนั้นมาใส่เฉพาะช่องที่ตอนนี้ว่าง ไม่ทับที่กรอกไว้ • <b>แทนทั้งเล่ม</b> = กลับไปเป็นฉบับนั้นทั้งเล่ม (ฉบับปัจจุบันถูกเก็บไว้ก่อน)</div>' +
+    '<div class="tablewrap" style="max-height:55vh;margin-top:10px"><table><thead><tr><th>เวลา</th><th>ที่เก็บ</th><th>ช่องที่มีคะแนน</th><th>จะเติมกลับ</th><th></th></tr></thead><tbody>' +
+    rows.map((r, i) => '<tr><td>' + esc(when(r.at)) + (r.reason ? '<div class="hint">' + esc(r.reason) + '</div>' : '') + '</td><td>' + r.src + '</td><td>' + r.count + '</td>' +
+      '<td>' + (fills[i] ? '<b>' + fills[i] + '</b>' : '—') + '</td><td style="white-space:nowrap">' +
+      '<button data-bh-fill="' + i + '"' + (fills[i] ? '' : ' disabled') + '>เติมช่องว่าง</button> ' +
+      '<button data-bh-replace="' + i + '">แทนทั้งเล่ม</button> <button data-bh-dl="' + i + '" title="ดาวน์โหลดฉบับนี้เป็นไฟล์">⤓</button></td></tr>').join('') +
+    '</tbody></table></div>', buttons: [{ label: 'ปิด' }],
+    onMount(bg) {
+      const done = msg => { bg.remove(); modalStack = modalStack.filter(x => x !== bg); syncModalScrollLock(); save(true); render(); toast(msg, 'ok'); };
+      $$('[data-bh-fill]', bg).forEach(b => b.addEventListener('click', () => {
+        const r = rows[+b.dataset.bhFill]; bhSnapshot(key, DB.books[key], 'ก่อนเติมจากประวัติ');
+        const n = bhFillBlanks(DB.books[key], r.book); DB.books[key] = normalizeBook(DB.books[key]);
+        done('เติมคะแนนกลับ ' + n + ' ช่อง จากฉบับ ' + when(r.at));
+      }));
+      $$('[data-bh-replace]', bg).forEach(b => b.addEventListener('click', async () => {
+        const r = rows[+b.dataset.bhReplace];
+        if (!await confirmBox('แทนทั้งเล่ม', 'สมุด ' + esc(bookLabelOf(key)) + ' จะกลับไปเป็นฉบับ <b>' + esc(when(r.at)) + '</b> (' + r.count + ' ช่อง)<br>' +
+          'ที่กรอกหลังเวลานั้นจะหายจากสมุด แต่ฉบับปัจจุบันถูกเก็บไว้ในประวัติก่อน กู้กลับได้', 'แทนทั้งเล่ม')) return;
+        bhSnapshot(key, DB.books[key], 'ก่อนแทนด้วยฉบับย้อนหลัง');
+        DB.books[key] = normalizeBook(deepCopy(r.book));
+        done('กลับไปใช้ฉบับ ' + when(r.at) + ' แล้ว');
+      }));
+      $$('[data-bh-dl]', bg).forEach(b => b.addEventListener('click', () => {
+        const r = rows[+b.dataset.bhDl], d = new Date(r.at), p = x => String(x).padStart(2, '0');
+        download(new Blob([JSON.stringify({ key: key, label: bookLabelOf(key), at: new Date(r.at).toISOString(), book: r.book }, null, 1)], { type: 'application/json' }),
+          'สมุดคะแนน_' + bookLabelOf(key).replace(/[\\/:*?"<>|•]+/g, ' ').trim() + '_' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '_' + p(d.getHours()) + p(d.getMinutes()) + '.json');
+      }));
+    } });
+}
+
 let pullBooksKept = [];
 async function pullMyBooks() {
   const root = myBookRoot();
@@ -16958,6 +17138,7 @@ async function pullMyBooks() {
     if (!data.key || !data.book) return;
     const remote = normalizeBook(fbDecodeNested(data.book)), local = DB.books[data.key];
     if (local && bookContentCount(local) > bookContentCount(remote)) { pullBooksKept.push(bookLabelOf(data.key)); return; }
+    bhSnapshot(data.key, local, 'ก่อนดึงจากส่วนกลาง');
     DB.books[data.key] = remote; books++;
     (DB.cloud.syncBase = DB.cloud.syncBase || {})['b:' + data.key] = true;
   });
@@ -17538,6 +17719,7 @@ async function restore() {
   if (!await confirmBox('กู้คืนข้อมูล',
     'ไฟล์นี้มี <b>' + data.classes.length + ' ชั้น</b>, <b>' + (data.subjects || []).length + ' วิชา</b>, นักเรียนรวม <b>' + nSt + ' คน</b><br><br>' +
     'การกู้คืนจะ<b>ทับข้อมูลปัจจุบันทั้งหมด</b> — แนะนำให้กด “สำรองข้อมูล” เก็บของเดิมไว้ก่อน', 'กู้คืนทับข้อมูลเดิม')) return;
+  bhBeforeOverwrite(null, 'ก่อนกู้คืนไฟล์สำรอง');   // กู้คืนทับทั้งเครื่อง เก็บทุกเล่มไว้ก่อน
   DB = data;
   DB.classes = DB.classes || []; DB.subjects = DB.subjects || []; DB.teachers = DB.teachers || []; DB.books = DB.books || {}; DB.ui = DB.ui || {};
   DB.teachers.forEach(t => { t.phone = t.phone || ''; t.homeroomClassId = t.homeroomClassId || ''; t.learningArea = t.learningArea || ''; t.roles = Array.isArray(t.roles) && t.roles.length ? t.roles : ['teacher', 'executive', 'admin']; });
