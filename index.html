@@ -899,6 +899,9 @@ body:has(#sgsQuick:not([hidden])) .sync-fab,body:has(#sgsQuick:not([hidden])) .i
 .ps-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
 .ps-box{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:2px;background:var(--panel)}
 .ps-box b{font-size:18px;font-variant-numeric:tabular-nums}
+.ps-box.ready{border-color:color-mix(in srgb,var(--ok) 50%,var(--line));background:color-mix(in srgb,var(--ok-bg) 60%,var(--panel))}
+.ps-lock{border:0;background:none;padding:0 2px;cursor:pointer;font-size:14px;opacity:.55;min-height:0;box-shadow:none}
+.ps-lock.on{opacity:1}
 .approval-item.ok{border-color:color-mix(in srgb,var(--ok) 45%,var(--line));background:color-mix(in srgb,var(--ok-bg) 60%,var(--panel))}
 .approval-item.warn{border-color:color-mix(in srgb,var(--warn) 45%,var(--line));background:color-mix(in srgb,var(--warn-bg) 60%,var(--panel))}
 .approval-ico{width:28px;height:28px;flex:0 0 28px;display:grid;place-items:center;border-radius:9px;
@@ -3802,6 +3805,10 @@ function pendingApprovals() {
     title: 'รอหัวหน้ากลุ่มสาระจัดครูให้ ' + totalSlotCount(myHeadWait) + ' คาบ',
     detail: 'คุณเลือกให้หัวหน้ากลุ่มสาระจัดครูแทน ยังไม่ต้องดำเนินการเอง' });
 
+  const pReq = (typeof personalReqIn !== 'undefined' ? personalReqIn : []).filter(r => r.status === 'pending');
+  if (pReq.length) list.push({ tone: 'warn', icon: '🔒', role: 'teacher', tab: 'personal',
+    title: 'มีคำขอดูประวัติส่วนตัวที่คุณล็อกไว้ ' + pReq.length + ' รายการ',
+    detail: pReq.slice(0, 3).map(r => (r.requesterName || r.requester) + ' ขอดู ' + (r.keys || []).map(personalLabelOf).join(', ') + ' • เหตุผล: ' + (r.reason || '—')).join(' • ') });
   dpaUnseen().forEach(x => list.push({ tone: x.status === 'confirmed' ? 'ok' : 'warn', icon: '📅', role: 'teacher', url: DPA_BOOKING_URL, ackId: 'dpa:' + x.id,
     title: x.status === 'confirmed' ? 'เจ้าหน้าที่ตอบรับคิว DPA ของคุณแล้ว' : 'เจ้าหน้าที่ไม่รับคิว DPA ของคุณ — เลือกเวลาใหม่ได้',
     detail: thaiDate(x.date) + ' ' + (x.start || '') + ' น. • ' + (x.officerName || 'เจ้าหน้าที่') + (x.topic ? ' • ' + x.topic : '') + (x.officerNote ? ' • หมายเหตุ: ' + x.officerNote : '') }));
@@ -11619,40 +11626,49 @@ function gsheetRow(row) {
 }
 
 /* ---------- ประวัติส่วนตัวของครู ----------------------------------------------
-   ข้อมูลที่ครูต้องมีติดตัว (วันเกิด วันบรรจุ เงินเดือน การเลื่อนเงินเดือน ประวัติ เครื่องราชฯ)
-   เป็นข้อมูลส่วนบุคคลที่อ่อนไหว จึงไม่เก็บใน DB และไม่ส่งขึ้นส่วนกลางเลย:
-   - เก็บในเครื่องนี้ที่ localStorage คีย์แยกต่อบัญชี (ไม่ปนกับ gradebook.v1 ไฟล์สำรองทั้งเครื่องจึงไม่พาไปด้วย)
-   - สำเนาหลักอยู่ใน Google Sheet ในไดรฟ์ของครูเอง ("KruSpace ประวัติส่วนตัว • ชื่อ") แอปเห็นเฉพาะไฟล์นี้ (drive.file)
-     เปลี่ยนเครื่องก็ดึงกลับจากชีตได้ และลบออกจากเครื่องที่ใช้ร่วมกันได้ด้วยปุ่มเดียว
-   ช่องไหนจะให้โรงเรียนเห็น ผู้ใช้จะกำหนดภายหลัง — ตอนนี้ทุกช่องเป็นส่วนตัว (PERSONAL_SCHOOL_FIELDS ว่าง) */
-const PERSONAL_SCHOOL_FIELDS = [];
+   ข้อมูลที่ครูต้องมีติดตัว (วันเกิด วันบรรจุ เงินเดือน การเลื่อนเงินเดือน ประวัติ อบรม เครื่องราชฯ)
+   - ต้นฉบับอยู่ในเครื่องนี้ (localStorage คีย์แยกต่อบัญชี ไม่ปนกับ gradebook.v1) และสำเนาใน Google Sheet ในไดรฟ์ของครูเอง
+   - เจ้าของล็อกได้ทีละช่อง/ทีละตาราง (🔒) ช่องที่ล็อกไม่ขึ้นส่วนกลางเลย ผู้ดูแลระบบก็มองไม่เห็น
+   - ช่องที่ไม่ล็อกส่งขึ้น personalPublic/{อีเมล} ให้เจ้าหน้าที่วิทยฐานะ (ผู้ดูแลระบบกำหนดใน personalConfig/main)
+     ดูได้ทันทีว่าใครถึงเวลาขอมี/เลื่อนวิทยฐานะ
+   - ช่องที่ล็อก เจ้าหน้าที่ต้องส่งคำขอพร้อมเหตุผล (personalRequests) เจ้าของเห็นในกระดิ่งแล้วเลือกอนุมัติ
+     อนุมัติแล้วเครื่องของเจ้าของส่งเฉพาะค่าที่ขอไปที่ personalShares/{รหัสคำขอ} อ่านได้แค่เจ้าของกับผู้ขอ ยกเลิกได้ทุกเมื่อ */
+const RANK_OPTS = ['', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ', 'ครูเชี่ยวชาญ', 'ครูเชี่ยวชาญพิเศษ'];
 const PERSONAL_FIELDS = [
   { sec: 'general', k: 'prefix', label: 'คำนำหน้า', type: 'select', opts: ['', 'นาย', 'นาง', 'นางสาว', 'ว่าที่ร้อยตรี', 'ดร.'] },
   { sec: 'general', k: 'fullName', label: 'ชื่อ-นามสกุล' },
   { sec: 'general', k: 'birthDate', label: 'วันเดือนปีเกิด', type: 'date' },
-  { sec: 'general', k: 'phone', label: 'เบอร์โทร' },
-  { sec: 'general', k: 'education', label: 'วุฒิการศึกษาสูงสุด', placeholder: 'เช่น ค.ม. การบริหารการศึกษา' },
+  { sec: 'general', k: 'schoolEmail', label: 'อีเมลโรงเรียน', type: 'email' },
+  { sec: 'general', k: 'personalEmail', label: 'อีเมลสำรอง (ส่วนตัว)', type: 'email', lock: true },
+  { sec: 'general', k: 'phone', label: 'เบอร์โทร', lock: true },
+  { sec: 'general', k: 'degree', label: 'ระดับวุฒิสูงสุด', type: 'select', opts: ['', 'ปริญญาตรี', 'ปริญญาโท', 'ปริญญาเอก'] },
+  { sec: 'general', k: 'education', label: 'ชื่อวุฒิการศึกษา', placeholder: 'เช่น ค.ม. การบริหารการศึกษา' },
   { sec: 'general', k: 'major', label: 'วิชาเอก' },
   { sec: 'service', k: 'position', label: 'ตำแหน่ง', type: 'select', opts: ['', 'ครูผู้ช่วย', 'ครู', 'รองผู้อำนวยการสถานศึกษา', 'ผู้อำนวยการสถานศึกษา', 'พนักงานราชการ', 'ครูอัตราจ้าง', 'อื่น ๆ'] },
-  { sec: 'service', k: 'rank', label: 'วิทยฐานะ', type: 'select', opts: ['', 'ไม่มี', 'ชำนาญการ', 'ชำนาญการพิเศษ', 'เชี่ยวชาญ', 'เชี่ยวชาญพิเศษ'] },
+  { sec: 'service', k: 'rank', label: 'วิทยฐานะ', type: 'select', opts: RANK_OPTS },
   { sec: 'service', k: 'level', label: 'อันดับ', type: 'select', opts: ['', 'ครูผู้ช่วย', 'คศ.1', 'คศ.2', 'คศ.3', 'คศ.4', 'คศ.5'] },
   { sec: 'service', k: 'positionNo', label: 'เลขที่ตำแหน่ง' },
   { sec: 'service', k: 'appointDate', label: 'วันบรรจุ', type: 'date' },
   { sec: 'service', k: 'appointPosition', label: 'ตำแหน่งที่บรรจุ', placeholder: 'เช่น ครูผู้ช่วย' },
-  { sec: 'service', k: 'appointSalary', label: 'เงินเดือนบรรจุ (บาท)', type: 'number' },
-  { sec: 'service', k: 'currentSalary', label: 'เงินเดือนปัจจุบัน (บาท)', type: 'number' },
-  { sec: 'service', k: 'lastRaiseRound', label: 'รอบเลื่อนเงินเดือนล่าสุด', placeholder: 'เช่น 1 ต.ค. 2569' },
-  { sec: 'service', k: 'lastRaisePercent', label: 'ได้เลื่อนรอบล่าสุด (%)', type: 'number', step: '0.01' }
+  { sec: 'service', k: 'teacherDate', label: 'วันที่ได้ดำรงตำแหน่งครู (พ้นครูผู้ช่วย)', type: 'date' },
+  { sec: 'service', k: 'rankDate', label: 'วันที่ได้รับวิทยฐานะปัจจุบัน', type: 'date' },
+  { sec: 'salary', k: 'appointSalary', label: 'เงินเดือนบรรจุ (บาท)', type: 'number', lock: true },
+  { sec: 'salary', k: 'currentSalary', label: 'เงินเดือนปัจจุบัน (บาท)', type: 'number', lock: true },
+  { sec: 'salary', k: 'lastRaiseRound', label: 'รอบเลื่อนเงินเดือนล่าสุด', placeholder: 'เช่น 1 ต.ค. 2569', lock: true },
+  { sec: 'salary', k: 'lastRaisePercent', label: 'ได้เลื่อนรอบล่าสุด (%)', type: 'number', step: '0.01', lock: true }
 ];
 const DECORATIONS = ['ร.จ.พ. เหรียญจักรพรรดิมาลา', 'บ.ม. เบญจมาภรณ์มงกุฎไทย', 'บ.ช. เบญจมาภรณ์ช้างเผือก', 'จ.ม. จัตุรถาภรณ์มงกุฎไทย', 'จ.ช. จัตุรถาภรณ์ช้างเผือก',
   'ต.ม. ตริตาภรณ์มงกุฎไทย', 'ต.ช. ตริตาภรณ์ช้างเผือก', 'ท.ม. ทวีติยาภรณ์มงกุฎไทย', 'ท.ช. ทวีติยาภรณ์ช้างเผือก', 'ป.ม. ประถมาภรณ์มงกุฎไทย', 'ป.ช. ประถมาภรณ์ช้างเผือก', 'อื่น ๆ'];
 /* ตารางที่เพิ่มแถวได้ — ชื่อแท็บในชีตตรงกับ title จะได้อ่านกลับได้ */
 const PERSONAL_TABLES = [
-  { k: 'raises', title: 'ประวัติการเลื่อนเงินเดือน', hint: 'ใส่ทุกรอบที่จำได้ ใช้ดูแนวโน้มและประกอบการขอเครื่องราชฯ',
+  { k: 'raises', title: 'ประวัติการเลื่อนเงินเดือน', lock: true, hint: 'ใส่ทุกรอบที่จำได้ ใช้ดูแนวโน้มและประกอบการขอเครื่องราชฯ',
     cols: [{ k: 'round', label: 'รอบ', type: 'select', opts: ['', '1 เม.ย.', '1 ต.ค.'] }, { k: 'year', label: 'ปี พ.ศ.', type: 'number' },
       { k: 'percent', label: 'ร้อยละที่ได้', type: 'number', step: '0.01' }, { k: 'salary', label: 'เงินเดือนหลังเลื่อน', type: 'number' }, { k: 'note', label: 'หมายเหตุ' }] },
-  { k: 'history', title: 'ประวัติ', hint: 'การศึกษา ตำแหน่ง/วิทยฐานะ การย้าย อบรม รางวัล',
-    cols: [{ k: 'year', label: 'ปี พ.ศ.', type: 'number' }, { k: 'kind', label: 'ประเภท', type: 'select', opts: ['', 'การศึกษา', 'ตำแหน่ง/วิทยฐานะ', 'การย้าย', 'อบรม/พัฒนา', 'รางวัล', 'อื่น ๆ'] },
+  { k: 'training', title: 'ประวัติการอบรม', hint: 'อบรม สัมมนา ศึกษาดูงาน — ใช้นับชั่วโมงพัฒนาตนเองประกอบการขอวิทยฐานะ',
+    cols: [{ k: 'date', label: 'วันที่', type: 'date' }, { k: 'course', label: 'หลักสูตร/หัวข้อ', wide: true }, { k: 'organizer', label: 'หน่วยงานที่จัด' },
+      { k: 'hours', label: 'ชั่วโมง', type: 'number', step: '0.5' }, { k: 'kind', label: 'รูปแบบ', type: 'select', opts: ['', 'อบรม', 'สัมมนา', 'ศึกษาดูงาน', 'อบรมออนไลน์', 'อื่น ๆ'] }] },
+  { k: 'history', title: 'ประวัติ', hint: 'การศึกษา ตำแหน่ง/วิทยฐานะ การย้าย รางวัล',
+    cols: [{ k: 'year', label: 'ปี พ.ศ.', type: 'number' }, { k: 'kind', label: 'ประเภท', type: 'select', opts: ['', 'การศึกษา', 'ตำแหน่ง/วิทยฐานะ', 'การย้าย', 'รางวัล', 'อื่น ๆ'] },
       { k: 'detail', label: 'รายละเอียด', wide: true }] },
   { k: 'decorations', title: 'เครื่องราชฯ ที่ได้รับแล้ว', hint: 'ดูเลขราชกิจจานุเบกษาได้จากประกาศที่ได้รับ',
     cols: [{ k: 'cls', label: 'ชั้นเครื่องราชฯ', type: 'select', opts: [''].concat(DECORATIONS) }, { k: 'year', label: 'ปี พ.ศ. ที่ได้', type: 'number' },
@@ -11661,6 +11677,7 @@ const PERSONAL_TABLES = [
     cols: [{ k: 'year', label: 'ปี พ.ศ. ที่ขอ', type: 'number' }, { k: 'cls', label: 'ชั้นที่ขอ', type: 'select', opts: [''].concat(DECORATIONS) },
       { k: 'status', label: 'สถานะ', type: 'select', opts: ['', 'กำลังรวบรวมเอกสาร', 'ส่งแล้ว รอประกาศ', 'ได้รับแล้ว', 'ไม่ได้รับ'] }, { k: 'note', label: 'หมายเหตุ', wide: true }] }
 ];
+const personalLabelOf = k => (PERSONAL_FIELDS.find(x => x.k === k) || PERSONAL_TABLES.find(x => x.k === k) || { label: k }).label || (PERSONAL_TABLES.find(x => x.k === k) || {}).title || k;
 const personalKey = () => 'kruspace.personal.' + (myEmailForSync() || ((curTeacher() || {}).id) || 'local');
 function personalLoad() {
   let p = null;
@@ -11668,14 +11685,22 @@ function personalLoad() {
   p = p && typeof p === 'object' ? p : {};
   p.fields = p.fields || {};
   PERSONAL_TABLES.forEach(t => { if (!Array.isArray(p[t.k])) p[t.k] = []; });
+  if (!p.locks) { p.locks = {}; PERSONAL_FIELDS.concat(PERSONAL_TABLES).forEach(x => { if (x.lock) p.locks[x.k] = true; }); }
   const me = curTeacher();
   if (!p.fields.fullName && me && me.name) p.fields.fullName = me.name;   // ตั้งต้นจากโปรไฟล์ครู ไม่ต้องพิมพ์ซ้ำ
   if (!p.fields.phone && me && me.phone) p.fields.phone = me.phone;
+  if (!p.fields.schoolEmail && myEmailForSync()) p.fields.schoolEmail = myEmailForSync();
+  if (p.fields.rank && RANK_OPTS.indexOf(p.fields.rank) < 0) {   // รุ่นแรกเก็บแค่ "ชำนาญการ" ไม่มีคำว่าครูนำหน้า
+    const r = p.fields.rank === 'ไม่มี' ? 'ไม่มีวิทยฐานะ' : 'ครู' + p.fields.rank;
+    if (RANK_OPTS.indexOf(r) >= 0) p.fields.rank = r;
+  }
   return p;
 }
 function personalSave(p) {
   p.updatedAt = new Date().toISOString();
-  try { localStorage.setItem(personalKey(), JSON.stringify(p)); return true; } catch (e) { return false; }
+  try { localStorage.setItem(personalKey(), JSON.stringify(p)); } catch (e) { return false; }
+  personalPublishSoon(p);
+  return true;
 }
 /* วันที่จากช่อง date เป็นปี ค.ศ. เสมอ แสดงผลเป็น พ.ศ. */
 function ageParts(fromIso, toDate) {
@@ -11687,6 +11712,7 @@ function ageParts(fromIso, toDate) {
   return y < 0 ? null : { y, m, d };
 }
 const agePartsText = x => x ? x.y + ' ปี ' + x.m + ' เดือน' : '—';
+const addYearsIso = (iso, n) => { const d = parseISODate(iso); if (!d) return ''; d.setFullYear(d.getFullYear() + n); return isoDate(d); };
 /* วันเกษียณ = 30 ก.ย. ของปีงบประมาณที่อายุครบ 60 ปี
    เกิด 2 ต.ค. – 31 ธ.ค. อายุครบ 60 ในปีงบประมาณถัดไป จึงเกษียณ 30 ก.ย. ของปีถัดจากปีที่อายุครบ */
 function retireDate(birthIso) {
@@ -11694,15 +11720,43 @@ function retireDate(birthIso) {
   const late = b.getMonth() > 9 || (b.getMonth() === 9 && b.getDate() >= 2);
   return new Date(b.getFullYear() + 60 + (late ? 1 : 0), 8, 30);
 }
+/* ระยะเวลาขอมี/เลื่อนวิทยฐานะตาม ว9/2564: ทุกขั้นต้องดำรงตำแหน่ง/วิทยฐานะก่อนหน้ามาแล้วไม่น้อยกว่า 4 ปีติดต่อกัน
+   เจ้าหน้าที่วิทยฐานะแก้จำนวนปีได้ใน personalConfig เผื่อหลักเกณฑ์เปลี่ยน — นับเฉพาะระยะเวลา คุณสมบัติอื่น (ผล PA วินัย ผลงาน) ต้องตรวจเอง */
+const RANK_STEPS = [
+  { from: ['', 'ไม่มีวิทยฐานะ'], to: 'ครูชำนาญการ', k: 'cn', base: 'teacherDate', baseLabel: 'ดำรงตำแหน่งครู' },
+  { from: ['ครูชำนาญการ'], to: 'ครูชำนาญการพิเศษ', k: 'cnp', base: 'rankDate', baseLabel: 'มีวิทยฐานะครูชำนาญการ' },
+  { from: ['ครูชำนาญการพิเศษ'], to: 'ครูเชี่ยวชาญ', k: 'ch', base: 'rankDate', baseLabel: 'มีวิทยฐานะครูชำนาญการพิเศษ' },
+  { from: ['ครูเชี่ยวชาญ'], to: 'ครูเชี่ยวชาญพิเศษ', k: 'chp', base: 'rankDate', baseLabel: 'มีวิทยฐานะครูเชี่ยวชาญ' }];
+let personalCfg = { officers: [], years: { cn: 4, cnp: 4, ch: 4, chp: 4 } };
+function rankEligibility(f) {
+  if (f.rank === 'ครูเชี่ยวชาญพิเศษ') return { top: true, text: 'วิทยฐานะสูงสุดแล้ว' };
+  if (['ครูผู้ช่วย', 'ครู', ''].indexOf(f.position || '') < 0) return { na: true, text: 'ไม่ใช่สายตำแหน่งครู' };
+  const step = RANK_STEPS.find(s => s.from.indexOf(f.rank || '') >= 0); if (!step) return { na: true, text: '—' };
+  const years = num((personalCfg.years || {})[step.k]) || 4;
+  let baseIso = f[step.base];
+  // ยังเป็นครูผู้ช่วยหรือไม่ได้กรอกวันเป็นครู: ประมาณจากวันบรรจุ + 2 ปี (ครูผู้ช่วยเตรียมความพร้อม 2 ปี)
+  if (!baseIso && step.base === 'teacherDate' && f.appointDate) baseIso = (f.position === 'ครูผู้ช่วย' || /ผู้ช่วย/.test(f.appointPosition || '')) ? addYearsIso(f.appointDate, 2) : f.appointDate;
+  if (!baseIso) return { target: step.to, missing: true, text: 'กรอกวันที่' + (step.base === 'teacherDate' ? 'ได้ดำรงตำแหน่งครู' : 'ได้รับวิทยฐานะปัจจุบัน') + 'ก่อน' };
+  const due = addYearsIso(baseIso, years), left = ageParts(isoDate(new Date()), parseISODate(due));
+  const ready = due <= isoDate(new Date());
+  return { target: step.to, due, ready, years, baseLabel: step.baseLabel, text: ready ? 'ครบ ' + years + ' ปีแล้ว ขอได้ตั้งแต่ ' + thaiDate(due) : 'ขอได้ ' + thaiDate(due) + ' (อีก ' + agePartsText(left) + ')' };
+}
+/* ชั่วโมงอบรมของปีงบประมาณนี้ (1 ต.ค. – 30 ก.ย.) */
+function trainingHoursThisFY(rows) {
+  const now = new Date(), fyStart = isoDate(new Date(now.getMonth() >= 9 ? now.getFullYear() : now.getFullYear() - 1, 9, 1));
+  return (rows || []).filter(r => String(r.date || '') >= fyStart).reduce((a, r) => a + (num(r.hours) || 0), 0);
+}
 function personalSummaryHtml(p) {
   const f = p.fields, age = ageParts(f.birthDate), svc = ageParts(f.appointDate), ret = retireDate(f.birthDate);
-  const left = ret ? ageParts(isoDate(new Date()), ret) : null;
+  const left = ret ? ageParts(isoDate(new Date()), ret) : null, el = rankEligibility(f);
   const money = v => v ? Number(v).toLocaleString('th-TH') + ' บาท' : '—';
-  const box = (k, v, sub) => '<div class="ps-box"><span class="hint">' + k + '</span><b>' + v + '</b>' + (sub ? '<span class="hint">' + sub + '</span>' : '') + '</div>';
+  const box = (k, v, sub, cls) => '<div class="ps-box' + (cls ? ' ' + cls : '') + '"><span class="hint">' + k + '</span><b>' + v + '</b>' + (sub ? '<span class="hint">' + sub + '</span>' : '') + '</div>';
   return '<div class="ps-sum">' +
     box('อายุ', agePartsText(age)) +
     box('อายุราชการ', agePartsText(svc), f.appointDate ? 'บรรจุ ' + thaiDate(f.appointDate) : '') +
     box('เกษียณอายุราชการ', ret ? thaiDate(isoDate(ret)) : '—', left ? 'อีก ' + agePartsText(left) : '') +
+    box(el.target ? 'ขอ' + (el.target === 'ครูชำนาญการ' ? 'มี' : 'เลื่อน') + 'วิทยฐานะ ' + el.target : 'วิทยฐานะ', el.ready ? 'ถึงเวลาแล้ว' : el.due ? thaiDate(el.due) : '—', el.text, el.ready ? 'ready' : '') +
+    box('อบรมปีงบประมาณนี้', trainingHoursThisFY(p.training) + ' ชั่วโมง') +
     box('เงินเดือนปัจจุบัน', money(f.currentSalary), f.lastRaisePercent ? 'เลื่อนรอบล่าสุด ' + f.lastRaisePercent + '%' : '') + '</div>' +
     (svc && svc.y >= 25 ? '<div class="notice" style="margin-top:10px">รับราชการครบ 25 ปีแล้ว — ตรวจสิทธิ์ขอ <b>เหรียญจักรพรรดิมาลา</b> กับงานบุคคลของโรงเรียน</div>' : '');
 }
@@ -11715,55 +11769,216 @@ function personalInput(def, val, attr) {
   return '<input ' + attr + ' type="' + (def.type || 'text') + '"' + (def.step ? ' step="' + def.step + '"' : '') +
     (def.placeholder ? ' placeholder="' + esc(def.placeholder) + '"' : '') + ' value="' + esc(v) + '">';
 }
-function personalTableHtml(t, rows) {
-  return '<div class="card" data-ptable="' + t.k + '"><div class="row"><div><h3 style="margin:0">' + esc(t.title) + '</h3><div class="hint tip">' + esc(t.hint) + '</div></div>' +
+const lockBtn = (p, k) => '<button type="button" class="ps-lock' + (p.locks[k] ? ' on' : '') + '" data-plock="' + k + '" title="' +
+  (p.locks[k] ? 'ล็อกอยู่: เห็นเฉพาะคุณ คนอื่นต้องขออนุญาต กดเพื่อปลดล็อก' : 'ไม่ล็อก: เจ้าหน้าที่วิทยฐานะและผู้ดูแลระบบเห็นได้ กดเพื่อล็อก') + '">' + (p.locks[k] ? '🔒' : '🔓') + '</button>';
+function personalTableHtml(p, t) {
+  const rows = p[t.k];
+  return '<div class="card" data-ptable="' + t.k + '"><div class="row"><div><h3 style="margin:0">' + lockBtn(p, t.k) + ' ' + esc(t.title) + '</h3><div class="hint tip">' + esc(t.hint) + '</div></div>' +
     '<div class="spacer"></div><button class="sm" data-prow-add="' + t.k + '">+ เพิ่มแถว</button></div>' +
     '<div class="tablewrap" style="margin-top:8px"><table><thead><tr>' + t.cols.map(c => '<th>' + esc(c.label) + '</th>').join('') + '<th></th></tr></thead><tbody>' +
-    (rows.length ? rows.map((r, i) => '<tr>' + t.cols.map(c => '<td' + (c.wide ? ' style="min-width:260px"' : '') + '>' +
+    (rows.length ? rows.map((r, i) => '<tr>' + t.cols.map(c => '<td' + (c.wide ? ' style="min-width:240px"' : '') + '>' +
       personalInput(c, r[c.k], 'data-pcell="' + t.k + '|' + i + '|' + c.k + '"' + (c.wide ? ' style="width:100%"' : '')) + '</td>').join('') +
       '<td><button class="sm danger" data-prow-del="' + t.k + '|' + i + '" title="ลบแถวนี้">✕</button></td></tr>').join('')
       : '<tr><td colspan="' + (t.cols.length + 1) + '" class="hint">ยังไม่มีข้อมูล — กด “+ เพิ่มแถว”</td></tr>') +
     '</tbody></table></div></div>';
 }
 function personalSheetInfo(p) { return p.sheet && p.sheet.id ? p.sheet : null; }
+
+/* ---- ส่วนกลาง: ส่งเฉพาะช่องที่ไม่ล็อก -------------------------------------------- */
+const personalReady = () => firebaseReady() && fbSignedIn() && !!myEmailForSync();
+const isRankOfficer = () => personalReady() && (personalCfg.officers || []).indexOf(fbStaffId(myEmailForSync())) >= 0;
+function personalPublicDoc(p) {
+  const fields = {}, tables = {}, locked = [];
+  PERSONAL_FIELDS.forEach(x => { if (p.locks[x.k]) locked.push(x.k); else if (p.fields[x.k]) fields[x.k] = p.fields[x.k]; });
+  PERSONAL_TABLES.forEach(t => { if (p.locks[t.k]) locked.push(t.k); else tables[t.k] = p[t.k]; });
+  return { email: fbStaffId(myEmailForSync()), name: p.fields.fullName || ((curTeacher() || {}).name) || '', fields, tables, locked, updatedAt: new Date().toISOString() };
+}
+let personalPubTimer = 0, personalPubAt = '';
+function personalPublishSoon(p) {
+  if (!personalReady()) return;
+  clearTimeout(personalPubTimer);
+  personalPubTimer = setTimeout(() => {
+    fbSetDoc(fbDb.collection('personalPublic').doc(fbStaffId(myEmailForSync())), fbPlain(personalPublicDoc(p)), 'ประวัติส่วนตัว (ช่องที่ไม่ล็อก)')
+      .then(() => { personalPubAt = new Date().toISOString(); const s = $('#psPubState'); if (s) s.textContent = 'ส่งช่องที่ไม่ล็อกขึ้นส่วนกลางแล้ว ' + new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.'; })
+      .catch(() => { const s = $('#psPubState'); if (s) s.textContent = 'ยังส่งขึ้นส่วนกลางไม่ได้ (ผู้ดูแลระบบอาจยังไม่ได้วางกฎ Firestore ชุดประวัติส่วนตัว)'; });
+  }, 2500);
+}
+
+/* ---- คำขอดูช่องที่ล็อก ---------------------------------------------------------- */
+let personalReqIn = [], personalReqOut = [], personalSharesIn = [], personalPublicAll = null, personalPublicAt = 0;
+function personalValueOf(p, k) {
+  if (PERSONAL_TABLES.find(t => t.k === k)) return p[k] || [];
+  return p.fields[k] || '';
+}
+async function personalDecide(req, approve) {
+  const p = personalLoad(), now = new Date().toISOString();
+  if (approve) {
+    const values = {}; (req.keys || []).forEach(k => { values[k] = personalValueOf(p, k); });
+    const empty = (req.keys || []).filter(k => { const v = values[k]; return Array.isArray(v) ? !v.length : !v; });
+    if (empty.length && !await confirmBox('ยังไม่มีข้อมูลบางช่องในเครื่องนี้', 'ช่อง ' + empty.map(personalLabelOf).join(', ') + ' ยังว่างในเครื่องนี้ ' +
+      '(ถ้าเพิ่งเปลี่ยนเครื่อง ให้กด “ดึงจากชีตของฉัน” ก่อน) จะอนุมัติทั้งที่ว่างไหม?', 'อนุมัติต่อ')) return;
+    await fbSetDoc(fbDb.collection('personalShares').doc(req.id), fbPlain({ owner: req.owner, requester: req.requester, requestId: req.id, keys: req.keys || [], values, at: now }), 'ข้อมูลที่อนุญาตให้ดู');
+  }
+  await fbDb.collection('personalRequests').doc(req.id).update({ status: approve ? 'approved' : 'denied', decidedAt: now });
+  toast(approve ? 'อนุมัติแล้ว — ' + (req.requesterName || 'ผู้ขอ') + ' ดูข้อมูลที่ขอได้' : 'ไม่อนุมัติคำขอแล้ว', 'ok');
+}
+async function personalRevoke(req) {
+  if (!await confirmBox('ยกเลิกการให้สิทธิ์', (req.requesterName || 'ผู้ขอ') + ' จะดูข้อมูลที่เคยอนุญาตไม่ได้อีก', 'ยกเลิกสิทธิ์')) return;
+  await fbDb.collection('personalShares').doc(req.id).delete().catch(() => {});
+  await fbDb.collection('personalRequests').doc(req.id).update({ status: 'revoked', decidedAt: new Date().toISOString() });
+  toast('ยกเลิกการให้สิทธิ์แล้ว', 'ok');
+}
+function personalOwnerRequestsHtml() {
+  if (!personalReqIn.length) return '';
+  const st = { pending: '<span class="badge warn">รอคุณตัดสิน</span>', approved: '<span class="badge ok">อนุมัติแล้ว</span>', denied: '<span class="badge bad">ไม่อนุมัติ</span>', revoked: '<span class="badge">ยกเลิกสิทธิ์แล้ว</span>', cancelled: '<span class="badge">ผู้ขอยกเลิก</span>' };
+  return '<div class="card"><h3>คำขอดูข้อมูลที่คุณล็อกไว้</h3><div class="hint tip">อนุมัติแล้ว ระบบส่งเฉพาะช่องที่ขอให้ผู้ขอคนนั้นคนเดียว ผู้ดูแลระบบก็มองไม่เห็น ยกเลิกสิทธิ์ได้ทุกเมื่อ</div>' +
+    '<div class="alert-list" style="margin-top:10px">' + personalReqIn.map(r => '<div class="alert-item approval-item ' + (r.status === 'pending' ? 'warn' : '') + '"><span class="approval-ico">🔒</span>' +
+      '<div><b>' + esc(r.requesterName || r.requester) + '</b> ขอดู ' + esc((r.keys || []).map(personalLabelOf).join(', ')) + ' ' + (st[r.status] || '') +
+      '<div class="hint">เหตุผล: ' + esc(r.reason || '—') + ' • ' + esc(new Date(r.createdAt || Date.now()).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })) + '</div></div><div class="spacer"></div>' +
+      (r.status === 'pending' ? '<button class="sm primary" data-preq-ok="' + r.id + '">อนุมัติ</button><button class="sm" data-preq-no="' + r.id + '">ไม่อนุมัติ</button>' :
+        r.status === 'approved' ? '<button class="sm" data-preq-revoke="' + r.id + '">ยกเลิกสิทธิ์</button>' : '') + '</div>').join('') + '</div></div>';
+}
+
+/* ---- เจ้าหน้าที่วิทยฐานะ ------------------------------------------------------- */
+async function personalLoadPublic(force) {
+  if (!isRankOfficer() && !(curTeacher() && teacherHasRole(curTeacher(), 'admin'))) return null;
+  if (personalPublicAll && !force && Date.now() - personalPublicAt < 5 * 60000) return personalPublicAll;
+  const snap = await fbDb.collection('personalPublic').get();
+  personalPublicAll = snap.docs.map(d => Object.assign({ id: d.id }, d.data())); personalPublicAt = Date.now();
+  return personalPublicAll;
+}
+function personalOfficerHtml() {
+  if (!isRankOfficer()) return '';
+  const list = personalPublicAll;
+  if (!list) return '<div class="card" id="psOfficer"><h3>งานวิทยฐานะ</h3><div class="hint">กำลังโหลดข้อมูลครู…</div></div>';
+  const rows = list.map(d => {
+    const f = Object.assign({}, d.fields || {}), shared = personalSharesIn.filter(s => s.owner === d.id);
+    shared.forEach(s => Object.assign(f, Object.keys(s.values || {}).reduce((o, k) => { if (!PERSONAL_TABLES.find(t => t.k === k)) o[k] = s.values[k]; return o; }, {})));
+    const el = rankEligibility(f), tr = (d.tables || {}).training || (((shared.find(s => s.values && s.values.training) || {}).values) || {}).training;
+    return { d, f, el, hours: tr ? trainingHoursThisFY(tr) : null };
+  }).sort((a, b) => (b.el.ready ? 1 : 0) - (a.el.ready ? 1 : 0) || String(a.el.due || '9').localeCompare(String(b.el.due || '9')));
+  const ready = rows.filter(r => r.el.ready).length;
+  return '<div class="card" id="psOfficer"><div class="row"><div><h3 style="margin:0">งานวิทยฐานะ</h3><div class="hint">คุณเป็นเจ้าหน้าที่วิทยฐานะ • ข้อมูลจากช่องที่ครูไม่ล็อก ' +
+    'ช่องที่ล็อกต้องขออนุญาตเจ้าของ • ถึงเวลาขอแล้ว <b>' + ready + '</b> คน จาก ' + rows.length + ' คนที่กรอกข้อมูล</div></div><div class="spacer"></div><button class="sm" id="psOffReload">โหลดใหม่</button></div>' +
+    '<div class="tablewrap" style="margin-top:10px"><table><thead><tr><th>ครู</th><th>ตำแหน่ง / วิทยฐานะ</th><th>ขอได้</th><th>ระยะเวลา</th><th class="n">อบรมปีนี้</th><th>ช่องที่ล็อก</th><th></th></tr></thead><tbody>' +
+    (rows.length ? rows.map(r => '<tr><td><b>' + esc(r.d.name || r.d.id) + '</b></td><td>' + esc([r.f.position, r.f.rank].filter(Boolean).join(' • ') || '—') + '</td>' +
+      '<td>' + esc(r.el.target || '—') + '</td><td>' + (r.el.ready ? '<span class="badge ok">ถึงเวลาแล้ว</span> ' : r.el.missing ? '<span class="badge warn">ข้อมูลไม่ครบ</span> ' : '') + '<span class="hint">' + esc(r.el.text || '') + '</span></td>' +
+      '<td class="n">' + (r.hours == null ? '🔒' : r.hours + ' ชม.') + '</td><td>' + ((r.d.locked || []).length ? (r.d.locked || []).length + ' ช่อง' : '—') + '</td>' +
+      '<td style="white-space:nowrap"><button class="sm" data-poff-view="' + esc(r.d.id) + '">ดู</button>' +
+      ((r.d.locked || []).length ? ' <button class="sm" data-poff-ask="' + esc(r.d.id) + '">ขอดูช่องที่ล็อก</button>' : '') + '</td></tr>').join('')
+      : '<tr><td colspan="7" class="hint">ยังไม่มีครูกรอกประวัติส่วนตัว</td></tr>') + '</tbody></table></div>' +
+    (personalReqOut.length ? '<div class="hint" style="margin-top:10px"><b>คำขอของคุณ:</b> ' + personalReqOut.map(r => esc((r.ownerName || r.owner) + ' (' + ({ pending: 'รอเจ้าของ', approved: 'อนุมัติ', denied: 'ไม่อนุมัติ', revoked: 'ยกเลิกสิทธิ์', cancelled: 'ยกเลิก' }[r.status] || r.status) + ')')).join(' • ') + '</div>' : '') +
+    '<div class="hint tip" style="margin-top:8px">ระยะเวลานับตาม ว9/2564 (ดำรงตำแหน่ง/วิทยฐานะก่อนหน้าไม่น้อยกว่า ' + num(personalCfg.years.cn) + ' ปีติดต่อกัน) — คุณสมบัติอื่น เช่นผลการประเมิน PA วินัย และผลงาน ต้องตรวจเพิ่ม</div></div>';
+}
+function personalOfficerView(id) {
+  const d = (personalPublicAll || []).find(x => x.id === id); if (!d) return;
+  const shared = personalSharesIn.filter(s => s.owner === id), vals = Object.assign({}, d.fields || {});
+  shared.forEach(s => Object.assign(vals, s.values || {}));
+  const fieldRows = PERSONAL_FIELDS.map(x => {
+    const lockedNow = (d.locked || []).indexOf(x.k) >= 0, sharedHas = shared.some(s => (s.keys || []).indexOf(x.k) >= 0);
+    const v = vals[x.k];
+    return '<tr><td>' + esc(x.label) + '</td><td>' + (lockedNow && !sharedHas ? '<span class="hint">🔒 ล็อก — ต้องขออนุญาต</span>' : esc(x.type === 'date' && v ? thaiDate(v) : v || '—')) + (sharedHas ? ' <span class="badge ok">ได้รับอนุญาต</span>' : '') + '</td></tr>';
+  }).join('');
+  const tableBlock = t => {
+    const rows = (d.tables || {})[t.k] || ((shared.find(s => s.values && s.values[t.k]) || {}).values || {})[t.k];
+    if (!rows) return '<div class="hint" style="margin-top:8px"><b>' + esc(t.title) + '</b> — 🔒 ล็อก</div>';
+    return '<div style="margin-top:10px"><b>' + esc(t.title) + '</b>' + (rows.length ? '<table style="margin-top:4px"><thead><tr>' + t.cols.map(c => '<th>' + esc(c.label) + '</th>').join('') + '</tr></thead><tbody>' +
+      rows.map(r => '<tr>' + t.cols.map(c => '<td>' + esc(c.type === 'date' && r[c.k] ? thaiDate(r[c.k]) : r[c.k] || '') + '</td>').join('') + '</tr>').join('') + '</tbody></table>' : ' <span class="hint">ไม่มีข้อมูล</span>') + '</div>';
+  };
+  openModal({ title: 'ประวัติส่วนตัว • ' + (d.name || id), wide: true, bodyHTML: '<div class="tablewrap"><table><tbody>' + fieldRows + '</tbody></table></div>' +
+    PERSONAL_TABLES.map(tableBlock).join(''), buttons: [{ label: 'ปิด' }] });
+}
+function personalOfficerAsk(id) {
+  const d = (personalPublicAll || []).find(x => x.id === id); if (!d) return;
+  const opts = (d.locked || []).map(k => '<label class="conduct-pick"><input type="checkbox" value="' + esc(k) + '"> ' + esc(personalLabelOf(k)) + '</label>').join('');
+  openModal({ title: 'ขอดูข้อมูลที่ล็อก • ' + (d.name || id), bodyHTML: '<div class="hint">เจ้าของจะเห็นคำขอในกระดิ่ง พร้อมชื่อคุณและเหตุผล แล้วเลือกอนุมัติหรือไม่</div>' +
+    '<div style="margin-top:10px;display:grid;gap:6px" id="paskKeys">' + opts + '</div>' +
+    '<div class="pick" style="margin-top:10px"><label>เหตุผลที่ขอ</label><textarea id="paskReason" rows="3" placeholder="เช่น ตรวจคุณสมบัติขอเลื่อนวิทยฐานะครูชำนาญการพิเศษ รอบ ต.ค. 2569"></textarea></div>',
+    buttons: [{ label: 'ยกเลิก' }, { label: 'ส่งคำขอ', cls: 'primary', act: async close => {
+      const keys = $$('#paskKeys input:checked').map(x => x.value), reason = ($('#paskReason').value || '').trim();
+      if (!keys.length) return toast('เลือกช่องที่ต้องการขออย่างน้อย 1 ช่อง', 'bad');
+      if (!reason) return toast('ใส่เหตุผลที่ขอด้วย เจ้าของจะใช้ตัดสินใจ', 'bad');
+      const me = curTeacher() || {}, ref = fbDb.collection('personalRequests').doc();
+      try {
+        await ref.set({ requester: fbStaffId(myEmailForSync()), requesterName: me.name || myEmailForSync(), owner: id, ownerName: d.name || id,
+          keys, reason, status: 'pending', createdAt: new Date().toISOString() });
+        close(); toast('ส่งคำขอถึง ' + (d.name || id) + ' แล้ว', 'ok');
+      } catch (e) { toast('ส่งคำขอไม่สำเร็จ: ' + fbErrorMessage(e), 'bad'); }
+    } }] });
+}
+
+/* ---- ผู้ดูแลระบบกำหนดเจ้าหน้าที่วิทยฐานะ ---------------------------------------------- */
+function personalAdminHtml() {
+  const me = curTeacher(); if (!me || !teacherHasRole(me, 'admin') || !personalReady()) return '';
+  const offs = personalCfg.officers || [], y = personalCfg.years || {};
+  const teachers = DB.teachers.filter(t => t.email).slice().sort((a, b) => String(a.name).localeCompare(String(b.name), 'th'));
+  return '<div class="card"><h3>ตั้งค่าเจ้าหน้าที่วิทยฐานะ (ผู้ดูแลระบบ)</h3><div class="hint tip">เจ้าหน้าที่เห็นเฉพาะช่องที่ครูไม่ล็อก และขอดูช่องที่ล็อกได้โดยเจ้าของต้องอนุมัติ ผู้ดูแลระบบเองก็ดูช่องที่ล็อกไม่ได้</div>' +
+    '<div class="row" style="margin-top:10px;gap:10px"><div class="pick"><label>เจ้าหน้าที่วิทยฐานะ</label><select id="psCfgOfficer"><option value="">— ยังไม่กำหนด —</option>' +
+    teachers.map(t => '<option value="' + esc(fbStaffId(t.email)) + '"' + (offs.indexOf(fbStaffId(t.email)) >= 0 ? ' selected' : '') + '>' + esc(t.name || t.email) + '</option>').join('') + '</select></div>' +
+    [['cn', 'ชำนาญการ'], ['cnp', 'ชำนาญการพิเศษ'], ['ch', 'เชี่ยวชาญ'], ['chp', 'เชี่ยวชาญพิเศษ']].map(x => '<div class="pick"><label>ขอ' + x[1] + ' (ปี)</label><input type="number" min="1" max="10" data-pcfg-year="' + x[0] + '" value="' + esc(y[x[0]] || 4) + '" style="width:80px"></div>').join('') +
+    '<button class="primary" id="psCfgSave">บันทึก</button></div></div>';
+}
+
 function renderPersonal() {
   const pane = $('#pane-personal'); if (!pane) return;
-  const p = personalLoad(), f = p.fields, sh = personalSheetInfo(p);
-  const signed = firebaseReady() && fbSignedIn() && !!myEmailForSync();
-  const fieldsOf = sec => PERSONAL_FIELDS.filter(x => x.sec === sec).map(x => '<div class="pick"><label>' + esc(x.label) +
-    (PERSONAL_SCHOOL_FIELDS.indexOf(x.k) >= 0 ? ' <span class="badge">โรงเรียนเห็น</span>' : '') + '</label>' +
+  const p = personalLoad(), f = p.fields, sh = personalSheetInfo(p), signed = personalReady();
+  const fieldsOf = sec => PERSONAL_FIELDS.filter(x => x.sec === sec).map(x => '<div class="pick"><label>' + lockBtn(p, x.k) + ' ' + esc(x.label) + '</label>' +
     personalInput(x, f[x.k], 'data-pfield="' + x.k + '"') + '</div>').join('');
   pane.innerHTML =
     '<div class="card"><div class="row"><div><h3 style="margin:0">ประวัติส่วนตัว</h3>' +
-      '<div class="hint">🔒 ข้อมูลส่วนตัว — เก็บในเครื่องนี้และ Google Sheet ในไดรฟ์ของคุณเท่านั้น ไม่ขึ้นฐานข้อมูลกลาง ครูท่านอื่นและผู้บริหารมองไม่เห็น</div></div></div>' +
+      '<div class="hint">ต้นฉบับอยู่ในเครื่องนี้และ Google Sheet ในไดรฟ์ของคุณ • ช่องที่มี <b>🔒</b> เห็นเฉพาะคุณ ผู้ดูแลระบบก็มองไม่เห็น คนอื่นต้องขออนุญาต • ' +
+      'ช่อง <b>🔓</b> เจ้าหน้าที่วิทยฐานะและผู้ดูแลระบบเห็นได้ กดที่แม่กุญแจเพื่อสลับ</div></div></div>' +
       '<div class="row" style="margin-top:10px;gap:8px">' +
         '<button class="primary" id="psSheetSave"' + (signed ? '' : ' disabled') + '>📗 บันทึกลงชีตของฉัน</button>' +
         '<button id="psSheetLoad"' + (signed ? '' : ' disabled') + '>⤓ ดึงจากชีตของฉัน</button>' +
         (sh ? '<button id="psSheetOpen">เปิดชีต</button>' : '') +
         '<div class="spacer"></div><button class="danger" id="psClear" title="ใช้กับเครื่องที่ใช้ร่วมกัน ข้อมูลในชีตยังอยู่">ล้างจากเครื่องนี้</button></div>' +
-      '<div class="hint" style="margin-top:6px" id="psState">' + (signed ? '' : 'ต้องเข้าสู่ระบบด้วยบัญชี Google จึงบันทึกลงชีตได้ • ') +
+      '<div class="hint" style="margin-top:6px">' + (signed ? '' : 'ต้องเข้าสู่ระบบด้วยบัญชี Google จึงบันทึกลงชีตและส่งช่องที่ไม่ล็อกขึ้นส่วนกลางได้ • ') +
         'บันทึกในเครื่องนี้ให้เองทุกครั้งที่พิมพ์' + (p.updatedAt ? ' • ล่าสุด ' + esc(new Date(p.updatedAt).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })) : '') +
-        (sh && sh.at ? ' • ส่งลงชีตล่าสุด ' + esc(new Date(sh.at).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })) : '') + '</div>' +
+        (sh && sh.at ? ' • ส่งลงชีตล่าสุด ' + esc(new Date(sh.at).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })) : '') + ' • <span id="psPubState"></span></div>' +
       '<div id="psSummary" style="margin-top:12px">' + personalSummaryHtml(p) + '</div></div>' +
+    personalOwnerRequestsHtml() + personalOfficerHtml() + personalAdminHtml() +
     '<div class="card"><h3>ข้อมูลทั่วไป</h3><div class="ps-grid">' + fieldsOf('general') + '</div></div>' +
-    '<div class="card"><h3>การรับราชการและเงินเดือน</h3><div class="ps-grid">' + fieldsOf('service') + '</div></div>' +
-    PERSONAL_TABLES.map(t => personalTableHtml(t, p[t.k])).join('');
+    '<div class="card"><h3>การรับราชการและวิทยฐานะ</h3><div class="ps-grid">' + fieldsOf('service') + '</div></div>' +
+    '<div class="card"><h3>เงินเดือน</h3><div class="ps-grid">' + fieldsOf('salary') + '</div></div>' +
+    PERSONAL_TABLES.map(t => personalTableHtml(p, t)).join('');
 
   const sync = () => { personalSave(p); const s = $('#psSummary', pane); if (s) s.innerHTML = personalSummaryHtml(p); };
   $$('[data-pfield]', pane).forEach(el => el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => { f[el.dataset.pfield] = el.value.trim(); sync(); }));
   $$('[data-pcell]', pane).forEach(el => el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => {
     const [tk, i, ck] = el.dataset.pcell.split('|'); const row = p[tk][num(i)]; if (row) { row[ck] = el.value.trim(); sync(); }
   }));
+  $$('[data-plock]', pane).forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.plock; p.locks[k] = !p.locks[k]; personalSave(p); renderPersonal();
+    toast(p.locks[k] ? '🔒 ล็อก “' + personalLabelOf(k) + '” แล้ว — เห็นเฉพาะคุณ' : '🔓 ปลดล็อก “' + personalLabelOf(k) + '” — เจ้าหน้าที่วิทยฐานะเห็นได้', 'ok');
+  }));
   $$('[data-prow-add]', pane).forEach(b => b.addEventListener('click', () => { p[b.dataset.prowAdd].push({}); personalSave(p); renderPersonal(); }));
   $$('[data-prow-del]', pane).forEach(b => b.addEventListener('click', () => {
     const [tk, i] = b.dataset.prowDel.split('|'); p[tk].splice(num(i), 1); personalSave(p); renderPersonal();
   }));
-  const busy = (btn, on) => { if (btn) { btn.disabled = on; } };
+  const reqOf = id => personalReqIn.find(r => r.id === id);
+  $$('[data-preq-ok]', pane).forEach(b => b.addEventListener('click', () => { const r = reqOf(b.dataset.preqOk); if (r) personalDecide(r, true).catch(e => toast('อนุมัติไม่สำเร็จ: ' + fbErrorMessage(e), 'bad')); }));
+  $$('[data-preq-no]', pane).forEach(b => b.addEventListener('click', () => { const r = reqOf(b.dataset.preqNo); if (r) personalDecide(r, false).catch(e => toast('บันทึกไม่สำเร็จ: ' + fbErrorMessage(e), 'bad')); }));
+  $$('[data-preq-revoke]', pane).forEach(b => b.addEventListener('click', () => { const r = reqOf(b.dataset.preqRevoke); if (r) personalRevoke(r).catch(e => toast('ยกเลิกไม่สำเร็จ: ' + fbErrorMessage(e), 'bad')); }));
+  $$('[data-poff-view]', pane).forEach(b => b.addEventListener('click', () => personalOfficerView(b.dataset.poffView)));
+  $$('[data-poff-ask]', pane).forEach(b => b.addEventListener('click', () => personalOfficerAsk(b.dataset.poffAsk)));
+  const reload = $('#psOffReload', pane);
+  if (reload) reload.addEventListener('click', () => personalLoadPublic(true).then(renderPersonal).catch(e => toast('โหลดไม่สำเร็จ: ' + fbErrorMessage(e), 'bad')));
+  if (isRankOfficer() && !personalPublicAll) personalLoadPublic().then(() => { if (DB.ui.tab === 'personal') renderPersonal(); }).catch(() => { personalPublicAll = []; });
+  const cfgSave = $('#psCfgSave', pane);
+  if (cfgSave) cfgSave.addEventListener('click', async () => {
+    const off = $('#psCfgOfficer', pane).value, years = {};
+    $$('[data-pcfg-year]', pane).forEach(x => { years[x.dataset.pcfgYear] = Math.max(1, Math.min(10, num(x.value) || 4)); });
+    try {
+      await fbSetDoc(fbDb.collection('personalConfig').doc('main'), { officers: off ? [off] : [], years, updatedAt: new Date().toISOString() }, 'ตั้งค่าเจ้าหน้าที่วิทยฐานะ');
+      toast('บันทึกเจ้าหน้าที่วิทยฐานะแล้ว', 'ok');
+    } catch (e) { toast('บันทึกไม่สำเร็จ: ' + fbErrorMessage(e) + ' (วางกฎ Firestore ชุดประวัติส่วนตัวแล้วหรือยัง)', 'bad'); }
+  });
   const save = $('#psSheetSave', pane), load = $('#psSheetLoad', pane), open = $('#psSheetOpen', pane), clear = $('#psClear', pane);
   if (save) save.addEventListener('click', async () => {
-    busy(save, true);
+    save.disabled = true;
     try { await personalToSheet(p); toast('บันทึกประวัติส่วนตัวลงชีตของคุณแล้ว', 'ok'); renderPersonal(); }
-    catch (e) { toast('บันทึกลงชีตไม่สำเร็จ: ' + fbErrorMessage(e), 'bad'); busy(save, false); }
+    catch (e) { toast('บันทึกลงชีตไม่สำเร็จ: ' + fbErrorMessage(e), 'bad'); save.disabled = false; }
   });
   if (load) load.addEventListener('click', async () => {
     let id = (personalSheetInfo(p) || {}).id;
@@ -11773,9 +11988,9 @@ function renderPersonal() {
       id = m[1];
     }
     if (!await confirmBox('ดึงจากชีตของฉัน', 'แทนข้อมูลประวัติส่วนตัวในเครื่องนี้ด้วยข้อมูลในชีต?', 'ดึงข้อมูล')) return;
-    busy(load, true);
+    load.disabled = true;
     try { const got = await personalFromSheet(id); personalSave(got); toast('ดึงประวัติส่วนตัวจากชีตแล้ว', 'ok'); renderPersonal(); }
-    catch (e) { toast('ดึงจากชีตไม่สำเร็จ: ' + fbErrorMessage(e), 'bad'); busy(load, false); }
+    catch (e) { toast('ดึงจากชีตไม่สำเร็จ: ' + fbErrorMessage(e), 'bad'); load.disabled = false; }
   });
   if (open) open.addEventListener('click', () => window.open(sh.url, '_blank', 'noopener'));
   if (clear) clear.addEventListener('click', async () => {
@@ -11784,8 +11999,8 @@ function renderPersonal() {
     toast('ล้างประวัติส่วนตัวจากเครื่องนี้แล้ว', 'ok'); renderPersonal();
   });
 }
-/* เขียนทั้งไฟล์ใหม่ทุกครั้ง: แท็บข้อมูลทั่วไปเก็บ [หัวข้อ, ค่า, รหัส] อ่านกลับด้วยคอลัมน์รหัส
-   แท็บตารางมีหัวคอลัมน์แถวแรก อ่านกลับตามลำดับคอลัมน์ */
+/* เขียนทั้งไฟล์ใหม่ทุกครั้ง: แท็บข้อมูลทั่วไปเก็บ [หัวข้อ, ข้อมูล, รหัส, ล็อก] อ่านกลับด้วยคอลัมน์รหัส
+   แท็บตารางมีหัวคอลัมน์แถวแรก อ่านกลับตามลำดับคอลัมน์ • สถานะล็อกของตารางเก็บในแท็บข้อมูลทั่วไปด้วยรหัส lock:<ตาราง> */
 async function personalToSheet(p) {
   const me = curTeacher() || {}, email = myEmailForSync();
   await gsGetToken();
@@ -11800,8 +12015,10 @@ async function personalToSheet(p) {
     info = { id: made.spreadsheetId, url: made.spreadsheetUrl };
     meta = { sheets: [{ properties: { title: 'ข้อมูลทั่วไป' } }] };
   }
-  const tabs = [{ title: 'ข้อมูลทั่วไป', rows: [['หัวข้อ', 'ข้อมูล', 'รหัส (ห้ามแก้)']].concat(PERSONAL_FIELDS.map(x => [x.label, p.fields[x.k] || '', x.k]))
-    .concat([[], ['บันทึกจาก KruSpace', new Date().toLocaleString('th-TH'), '_at'], ['แก้ในชีตได้ แล้วกด “ดึงจากชีตของฉัน” ในแอป', '', '_note']]) }]
+  const tabs = [{ title: 'ข้อมูลทั่วไป', rows: [['หัวข้อ', 'ข้อมูล', 'รหัส (ห้ามแก้)', 'ล็อก']]
+      .concat(PERSONAL_FIELDS.map(x => [x.label, p.fields[x.k] || '', x.k, p.locks[x.k] ? 'ล็อก' : '']))
+      .concat(PERSONAL_TABLES.map(t => ['ตาราง ' + t.title, '', 'lock:' + t.k, p.locks[t.k] ? 'ล็อก' : '']))
+      .concat([[], ['บันทึกจาก KruSpace', new Date().toLocaleString('th-TH'), '_at'], ['แก้ในชีตได้ แล้วกด “ดึงจากชีตของฉัน” ในแอป', '', '_note']]) }]
     .concat(PERSONAL_TABLES.map(t => ({ title: t.title, rows: [t.cols.map(c => c.label)].concat(p[t.k].map(r => t.cols.map(c => r[c.k] || ''))) })));
   const have = new Set((meta.sheets || []).map(x => x.properties.title));
   const add = tabs.filter(t => !have.has(t.title)).map(t => ({ addSheet: { properties: { title: t.title, gridProperties: { frozenRowCount: 1 } } } }));
@@ -11817,8 +12034,9 @@ async function personalFromSheet(id) {
   const res = await gsApi(GS_API + '/' + id + '/values:batchGet?' + ranges.join('&'));
   const vr = res.valueRanges || [], p = personalLoad();
   const general = ((vr[0] || {}).values || []).slice(1);
-  PERSONAL_FIELDS.forEach(x => { const row = general.find(r => r[2] === x.k); if (row) p.fields[x.k] = String(row[1] == null ? '' : row[1]).trim(); });
+  PERSONAL_FIELDS.forEach(x => { const row = general.find(r => r[2] === x.k); if (row) { p.fields[x.k] = String(row[1] == null ? '' : row[1]).trim(); if (row.length > 3) p.locks[x.k] = String(row[3] || '').trim() === 'ล็อก'; } });
   PERSONAL_TABLES.forEach((t, i) => {
+    const lockRow = general.find(r => r[2] === 'lock:' + t.k); if (lockRow) p.locks[t.k] = String(lockRow[3] || '').trim() === 'ล็อก';
     const rows = ((vr[i + 1] || {}).values || []).slice(1).filter(r => r.some(c => String(c || '').trim()));
     p[t.k] = rows.map(r => { const o = {}; t.cols.forEach((c, j) => { o[c.k] = String(r[j] == null ? '' : r[j]).trim(); }); return o; });
   });
@@ -17217,6 +17435,24 @@ function startFirebaseSync() {
         .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
       updateAlertBell(); if (DB.ui.tab === 'dashboard') render();
     }, () => { dpaRequests = []; updateAlertBell(); }));
+  /* ประวัติส่วนตัว: ตั้งค่าเจ้าหน้าที่วิทยฐานะ • คำขอดูช่องที่ล็อกที่ส่งถึงเรา • คำขอและสิทธิ์ที่เราได้รับ (ถ้าเป็นเจ้าหน้าที่)
+     อ่านไม่ได้ (ยังไม่วางกฎ) ให้เงียบไว้ ไม่รบกวนครู */
+  if (fbUser && fbUser.email) {
+    const meId = fbStaffId(fbUser.email), redraw = () => { updateAlertBell(); if (DB.ui.tab === 'personal' || DB.ui.tab === 'dashboard') render(); };
+    fbUnsub.push(fbDb.collection('personalConfig').doc('main').onSnapshot(doc => {
+      const v = doc.exists ? doc.data() || {} : {};
+      personalCfg = { officers: v.officers || [], years: Object.assign({ cn: 4, cnp: 4, ch: 4, chp: 4 }, v.years || {}) };
+      if (isRankOfficer()) {
+        fbUnsub.push(fbDb.collection('personalRequests').where('requester', '==', meId).onSnapshot(snap => { personalReqOut = snap.docs.map(d => Object.assign({ id: d.id }, d.data())); redraw(); }, () => {}));
+        fbUnsub.push(fbDb.collection('personalShares').where('requester', '==', meId).onSnapshot(snap => { personalSharesIn = snap.docs.map(d => Object.assign({ id: d.id }, fbDecodeNested(d.data() || {}))); redraw(); }, () => {}));
+      }
+      redraw();
+    }, () => {}));
+    fbUnsub.push(fbDb.collection('personalRequests').where('owner', '==', meId).onSnapshot(snap => {
+      personalReqIn = snap.docs.map(d => Object.assign({ id: d.id }, d.data())).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+      redraw();
+    }, () => { personalReqIn = []; }));
+  }
   /* คิวของเราที่เจ้าหน้าที่ตอบรับหรือไม่รับแล้ว ตั้งแต่วันนี้ไป — ผู้ขอจะรู้ผลโดยไม่ต้องเปิดแอปจองคิวเช็กเอง */
   if (fbUser && fbUser.email) fbUnsub.push(fbDb.collection('dpaSlots').where('teacherEmail', '==', fbStaffId(fbUser.email)).where('status', 'in', ['confirmed', 'declined'])
     .onSnapshot(snap => {
@@ -17263,7 +17499,7 @@ function startFirebaseSync() {
   });
 }
 
-function stopFirebaseSync() { fbUnsub.forEach(fn => { try { fn(); } catch (e) { } }); fbUnsub = []; dpaRequests = []; dpaMine = []; }
+function stopFirebaseSync() { fbUnsub.forEach(fn => { try { fn(); } catch (e) { } }); fbUnsub = []; dpaRequests = []; dpaMine = []; personalReqIn = []; personalReqOut = []; personalSharesIn = []; personalPublicAll = null; }
 
 /* ---------- สมุดคะแนนและการเช็กชื่อของครูแต่ละคน --------------------------
    เก็บแยกรายบุคคลใต้ books/{อีเมลของครู} ตามกฎความปลอดภัย เจ้าของเท่านั้นที่เข้าถึงได้

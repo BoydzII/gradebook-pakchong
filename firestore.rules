@@ -317,6 +317,44 @@ service cloud.firestore {
             && resource.data.status in ['open', 'declined', 'cancelled']);
     }
 
+    /* ---------- ประวัติส่วนตัวของครู ----------
+       ช่องที่เจ้าของไม่ล็อก (personalPublic) เจ้าของเขียนเอง อ่านได้โดยเจ้าของ ผู้ดูแลระบบ และเจ้าหน้าที่วิทยฐานะ
+       ช่องที่ล็อกไม่ขึ้นมาที่ส่วนกลางเลย เว้นแต่เจ้าของอนุมัติคำขอเป็นราย ๆ (personalShares)
+       ซึ่งอ่านได้แค่เจ้าของกับผู้ขอ — ผู้ดูแลระบบไม่มีสิทธิ์อ่านคำขอและข้อมูลที่อนุญาต */
+    function isRankOfficer() {
+      return isStaff()
+        && exists(/databases/$(database)/documents/personalConfig/main)
+        && myId() in get(/databases/$(database)/documents/personalConfig/main).data.officers;
+    }
+    match /personalConfig/{docId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+    match /personalPublic/{email} {
+      allow read: if isStaff() && (email == myId() || isAdmin() || isRankOfficer());
+      allow write: if isStaff() && email == myId();
+    }
+    match /personalRequests/{reqId} {
+      allow read: if isStaff() && (resource.data.owner == myId() || resource.data.requester == myId());
+      allow create: if isRankOfficer()
+        && request.resource.data.requester == myId()
+        && request.resource.data.owner != myId()
+        && request.resource.data.status == 'pending';
+      allow update: if isStaff() && (
+           (resource.data.owner == myId()
+             && request.resource.data.status in ['approved', 'denied', 'revoked']
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'decidedAt']))
+        || (resource.data.requester == myId() && resource.data.status == 'pending'
+             && request.resource.data.status == 'cancelled'
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'decidedAt'])));
+      allow delete: if false;
+    }
+    match /personalShares/{reqId} {
+      allow read: if isStaff() && (resource.data.owner == myId() || resource.data.requester == myId());
+      allow create, update: if isStaff() && request.resource.data.owner == myId();
+      allow delete: if isStaff() && resource.data.owner == myId();
+    }
+
     /* ปิดทุกอย่างที่ไม่ได้ระบุไว้ข้างบน */
     match /{document=**} {
       allow read, write: if false;
