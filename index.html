@@ -1510,6 +1510,21 @@ body.pro-mode #btnProMode{opacity:.45}
   @page leaveSheet{size:A4 portrait;margin:1cm 0}
   body.print-doc .dotted-line{min-height:1.4em}
   @page docSheet{size:A4 portrait;margin:15mm}
+  /* ปฏิทินรายเดือนต้องกว้างพอให้ช่องวันอ่านออก จึงพิมพ์แนวนอนแยกหน้ากระดาษของตัวเอง */
+  body.print-doc .acal-month-sheet{page:acalMonth;padding:0;max-width:none;font-size:15pt;line-height:1.3}
+  /* TH SarabunPSK ตัวเล็กกว่าฟอนต์ทั่วไปมาก ขนาดพื้นของ .doc-sheet (12px) จึงอ่านไม่ออกบนกระดาษ ตั้งเป็น pt ตามเอกสารราชการ */
+  body.print-doc .acal-month-sheet h2,body.print-doc .acal-doc h2{font-size:20pt;margin-bottom:0}
+  body.print-doc .acal-month-sheet .doc-head,body.print-doc .acal-doc .doc-head{margin-bottom:4px}
+  body.print-doc .acal-doc-grid th{font-size:14pt;padding:0 2px}
+  body.print-doc .acal-doc-grid td{font-size:12.5pt;line-height:1.15;height:25mm}
+  body.print-doc .acal-doc-grid.acal-doc-6w td{height:20.5mm}
+  body.print-doc .acal-doc-num{font-size:14pt}
+  body.print-doc .acal-doc-list{font-size:12.5pt;line-height:1.3;margin-top:5px}
+  body.print-doc .acal-doc{font-size:15pt;line-height:1.35}
+  body.print-doc .acal-doc .doc-table th,body.print-doc .acal-doc .doc-table td{font-size:14pt;padding:1px 6px;line-height:1.2;color:#000}
+  body.print-doc .acal-doc .doc-table thead{display:table-header-group}
+  body.print-doc .acal-doc .doc-table tr{break-inside:avoid;page-break-inside:avoid}
+  body.print-doc .acal-doc .doc-sign{break-inside:avoid;page-break-inside:avoid}
   .stickytop,.topbar,.tabs,.noprint{display:none !important}
   body{background:#fff;font-size:12px}
   .card{box-shadow:none;border:none;padding:0}
@@ -1540,6 +1555,7 @@ body.pro-mode #btnProMode{opacity:.45}
 }
 @page scheduleSheet{size:A4 landscape;margin:7mm}
 @page coverSheet{size:A4 portrait;margin:7mm}
+@page acalMonth{size:A4 landscape;margin:8mm}
 /* กิจการนักเรียน */
 .conduct-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:2px 10px;max-height:46vh;overflow:auto;margin-top:10px;padding:8px;border:1px solid var(--line);border-radius:10px}
 .conduct-pick{display:flex;gap:6px;align-items:center;padding:4px 2px;cursor:pointer}
@@ -1547,6 +1563,78 @@ tr.conduct-void td{opacity:.55}tr.conduct-void td b{text-decoration:line-through
 .conduct-score{font-size:13px;min-width:44px;text-align:center}
 .gate-result{font-size:16px;line-height:1.7}
 .affairs-views{flex-wrap:wrap}
+/* ฝ่ายวิชาการ • ปฏิทินวิชาการ
+   สีของแต่ละประเภทยืมโทเคนที่มีอยู่แล้ว จึงสลับโหมดมืด/สว่างตามทั้งแอปโดยไม่ต้องตั้งเพิ่ม */
+.acal-t-holiday{--ac:var(--bad);--ac-bg:var(--bad-bg)}
+.acal-t-important{--ac:var(--warn);--ac-bg:var(--warn-bg)}
+.acal-t-school{--ac:var(--ok);--ac-bg:var(--ok-bg)}
+.acal-t-academic{--ac:var(--group);--ac-bg:var(--group-bg)}
+.acal-t-exam{--ac:var(--brand);--ac-bg:color-mix(in srgb,var(--brand) 14%,var(--panel))}
+.acal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.acal-dow{text-align:center;font-weight:700;font-size:13px;color:var(--muted);padding:4px 0}
+.acal-dow.acal-weekend{color:var(--bad)}
+.acal-cell{min-height:104px;background:var(--panel2);border:1px solid var(--line2);border-radius:10px;padding:4px 5px;display:flex;flex-direction:column;gap:3px;cursor:pointer;min-width:0;overflow:hidden}
+.acal-cell:hover{border-color:var(--brand)}
+.acal-cell.acal-out{opacity:.45}
+.acal-cell.acal-weekend{background:color-mix(in srgb,var(--panel2) 85%,var(--line))}
+.acal-cell.acal-off{background:var(--bad-bg);border-color:color-mix(in srgb,var(--bad) 35%,var(--line))}
+.acal-cell.acal-today{outline:2px solid var(--brand);outline-offset:-1px}
+.acal-cell.acal-clash{border-color:var(--warn)}
+.acal-num{font-weight:700;font-size:14px;display:flex;justify-content:space-between;align-items:center}
+.acal-today .acal-num{color:var(--brand)}
+.acal-warn{color:var(--warn);font-size:13px}
+.acal-chip{display:block;width:100%;text-align:left;border:0;border-left:3px solid var(--ac);background:var(--ac-bg);color:var(--ink);
+  border-radius:5px;padding:1px 5px;font-size:12px;line-height:1.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;min-height:0}
+.acal-chip.acal-noclass{font-weight:700}
+.acal-chip-wide{white-space:normal;font-size:14px;padding:3px 7px}
+.acal-more,.acal-admin-hol{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acal-admin-hol{color:var(--bad)}
+.acal-dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--ac);flex:none}
+.acal-noclass-dot{background:var(--bad-bg);border:1px solid var(--bad);border-radius:3px}
+.acal-legend-item{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border:1px solid var(--line);border-radius:99px;font-size:13px;cursor:pointer}
+.acal-badge{background:var(--ac-bg);color:color-mix(in srgb,var(--ac) 72%,var(--ink));border-color:transparent}
+.acal-detail+.acal-detail{border-top:1px solid var(--line);margin-top:10px;padding-top:10px}
+.acal-warn-list{margin:0 0 10px;padding-left:20px;color:var(--warn)}
+.acal-up-list{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.acal-up-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.acal-up-date{color:var(--muted);font-size:13px;min-width:110px}
+.acad-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:12px}
+.acad-tile{border:1px solid var(--line);border-radius:12px;padding:8px 12px;background:var(--panel2)}
+.acad-tile b{display:block;font-size:24px;line-height:1.2}
+.acad-tile span{font-size:13px;color:var(--muted)}
+.acad-tile.ok b{color:var(--ok)}.acad-tile.warn b{color:var(--warn)}.acad-tile.bad b{color:var(--bad)}
+.acad-bar{display:inline-block;width:80px;height:7px;border-radius:99px;background:var(--line2);overflow:hidden;vertical-align:middle;margin-right:6px}
+.acad-bar span{display:block;height:100%;background:var(--ok)}
+.acad-bar-wide{width:220px;max-width:50vw}
+.acad-task-month{margin:16px 0 6px;font-size:16px}
+.acad-task-month.now{color:var(--ok)}
+.acad-task{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 10px;border:1px solid var(--line2);border-radius:10px;margin-bottom:5px;background:var(--panel)}
+.acad-task label{display:flex;align-items:center;gap:8px;cursor:pointer}
+.acad-task.done .acad-task-title{text-decoration:line-through;color:var(--muted)}
+.acad-task-note{flex-basis:100%;margin-left:26px}
+/* มือถือ: ช่องวันแคบเกินจะอ่านชื่อกิจกรรม จึงเหลือแถบสีเตี้ย ๆ แล้วให้ดูชื่อจากตารางรายการใต้ปฏิทิน */
+@media (max-width:640px){
+  .acal-grid{gap:2px}
+  .acal-cell{min-height:58px;padding:3px;border-radius:7px}
+  .acal-num{font-size:12px}
+  .acal-chip{font-size:0;height:5px;padding:0;border-left:0;background:var(--ac);border-radius:3px}
+  .acal-chip-wide{font-size:14px;height:auto;padding:3px 7px;border-left:3px solid var(--ac);background:var(--ac-bg)}
+  .acal-more,.acal-admin-hol{display:none}
+  .acal-dow{font-size:12px}
+}
+/* เอกสารปฏิทินวิชาการที่สั่งพิมพ์ */
+.acal-doc-table td{vertical-align:top;line-height:1.3}
+.acal-doc-table th,.acal-doc-grid th{color:#000}
+.acal-doc-month td{background:#f1f1f1;font-weight:700}
+.acal-month-sheet{max-width:297mm}
+.acal-doc-grid{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:6px}
+.acal-doc-grid th{border:1px solid #000;background:#eee;color:#000;text-align:center;padding:2px;font-size:14px}
+.acal-doc-grid td{border:1px solid #000;height:24mm;vertical-align:top;padding:2px 4px;font-size:12px;line-height:1.25}
+.acal-doc-grid td.acal-doc-out{background:#f6f6f6}
+.acal-doc-grid td.acal-doc-off{background:#f3dede}
+.acal-doc-num{font-weight:700;font-size:15px}
+.acal-doc-ev{overflow-wrap:anywhere}
+.acal-doc-list{margin-top:8px;font-size:13px;line-height:1.5;columns:2;column-gap:10mm}
 </style>
 </head>
 <body>
@@ -1574,7 +1662,7 @@ tr.conduct-void td{opacity:.55}tr.conduct-void td b{text-decoration:line-through
     </div>
     <div class="pick" data-pick="role">
       <label for="selStaffMode">บทบาท</label>
-      <select id="selStaffMode"><option value="teacher">ครู</option><option value="head">หัวหน้ากลุ่มสาระฯ</option><option value="executive">ผู้บริหาร</option><option value="affairs">ฝ่ายกิจการนักเรียน</option><option value="admin">ผู้ดูแลระบบ</option></select>
+      <select id="selStaffMode"><option value="teacher">ครู</option><option value="head">หัวหน้ากลุ่มสาระฯ</option><option value="executive">ผู้บริหาร</option><option value="affairs">ฝ่ายกิจการนักเรียน</option><option value="academic">ฝ่ายวิชาการ</option><option value="admin">ผู้ดูแลระบบ</option></select>
     </div>
   </div>
   <div class="spacer"></div>
@@ -1613,6 +1701,7 @@ tr.conduct-void td{opacity:.55}tr.conduct-void td b{text-decoration:line-through
   <button data-tab="executive">ภาพรวมผู้บริหาร</button>
   <button data-tab="leaves">การลาและการอนุมัติ <span id="leaveBadge"></span></button>
   <button data-tab="affairs">กิจการนักเรียน</button>
+  <button data-tab="academic">ฝ่ายวิชาการ / ปฏิทินวิชาการ</button>
   <button data-tab="admin">ผู้ดูแลระบบ</button>
 </nav>
 <button class="sm tabs-bell" id="tabsBell" hidden title="การแจ้งเตือน"><span class="bell-ico">🔔</span><span class="bell-n" id="tabsBellCount"></span></button>
@@ -1640,6 +1729,7 @@ tr.conduct-void td{opacity:.55}tr.conduct-void td b{text-decoration:line-through
   <section class="tabpane" id="pane-executive"></section>
   <section class="tabpane" id="pane-leaves"></section>
   <section class="tabpane" id="pane-affairs"></section>
+  <section class="tabpane" id="pane-academic"></section>
   <section class="tabpane" id="pane-admin"></section>
 </main>
 <nav class="bottomnav" id="bottomNav" hidden></nav>
@@ -2331,8 +2421,8 @@ const curSubject = () => DB.subjects.find(s => s.id === DB.ui.subjectId) || null
 const curPeriod  = () => DB.periods.find(p => p.id === DB.ui.periodId) || null;
 const curTeacher = () => DB.teachers.find(t => t.id === DB.ui.teacherId) || null;
 const teacherHasRole = (teacher, role) => !!(teacher && Array.isArray(teacher.roles) && teacher.roles.includes(role));
-const STAFF_ROLES = ['teacher', 'head', 'executive', 'affairs', 'admin'];
-const roleLabel = role => ({ teacher: 'ครู', head: 'หัวหน้ากลุ่มสาระฯ', executive: 'ผู้บริหาร', affairs: 'ฝ่ายกิจการนักเรียน', admin: 'ผู้ดูแลระบบ' }[role] || role);
+const STAFF_ROLES = ['teacher', 'head', 'executive', 'affairs', 'academic', 'admin'];
+const roleLabel = role => ({ teacher: 'ครู', head: 'หัวหน้ากลุ่มสาระฯ', executive: 'ผู้บริหาร', affairs: 'ฝ่ายกิจการนักเรียน', academic: 'ฝ่ายวิชาการ', admin: 'ผู้ดูแลระบบ' }[role] || role);
 /* กลุ่มสาระการเรียนรู้ 8 กลุ่ม + กลุ่มงานที่ไม่ใช่กลุ่มสาระ */
 const LEARNING_AREAS = ['ภาษาไทย', 'คณิตศาสตร์', 'วิทยาศาสตร์และเทคโนโลยี', 'สังคมศึกษา ศาสนาและวัฒนธรรม',
   'สุขศึกษาและพลศึกษา', 'ศิลปะ', 'การงานอาชีพ', 'ภาษาต่างประเทศ', 'กลุ่มงานแนะแนว', 'EP', 'สำนักงาน (สนง.)', 'ผู้บริหาร'];
@@ -3022,10 +3112,10 @@ const TAB_PICKERS = {
   groups: ['period', 'class', 'subject'], assess: ['period', 'class', 'subject'],
   summary: ['period', 'class', 'subject'], students: ['period', 'class'],
   attendance: ['period'], exchange: ['period'], schedule: ['period'], activities: ['period'],
-  head: ['period'], executive: ['period'], leaves: ['period'], admin: ['period'], settings: ['period'], affairs: ['period'], personal: []
+  head: ['period'], executive: ['period'], leaves: ['period'], admin: ['period'], settings: ['period'], affairs: ['period'], academic: ['period'], personal: []
 };
 const pickersForTab = tab => TAB_PICKERS[tab] || ['period', 'class', 'subject'];
-const homeTabOfRole = role => role === 'executive' ? 'executive' : role === 'admin' ? 'admin' : role === 'head' ? 'head' : role === 'affairs' ? 'affairs' : 'dashboard';
+const homeTabOfRole = role => role === 'executive' ? 'executive' : role === 'admin' ? 'admin' : role === 'head' ? 'head' : role === 'affairs' ? 'affairs' : role === 'academic' ? 'academic' : 'dashboard';
 
 /* ---------- เมนูและการนำทาง ----------------------------------------------
    แถบบนเหลือเฉพาะสิ่งที่ใช้บ่อย ปุ่มอื่นย้ายเข้าเมนู ⋯
@@ -3033,17 +3123,17 @@ const homeTabOfRole = role => role === 'executive' ? 'executive' : role === 'adm
 const TAB_SHORT = { dashboard: 'ภาพรวม', attendance: 'เช็กชื่อ', exchange: 'แลกคาบ', scores: 'คะแนน',
   groups: 'คะแนนกลุ่ม', assess: 'คุณลักษณะ', summary: 'สรุป ปพ.5', settings: 'โปรไฟล์ครู', personal: 'ประวัติส่วนตัว', students: 'นักเรียน',
   schedule: 'ตารางสอน', items: 'หัวข้อคะแนน', indicators: 'ตัวชี้วัด', activities: 'กิจกรรม', head: 'กลุ่มสาระ',
-  executive: 'ผู้บริหาร', leaves: 'อนุมัติลา', affairs: 'กิจการนักเรียน', admin: 'ผู้ดูแลระบบ' };
+  executive: 'ผู้บริหาร', leaves: 'อนุมัติลา', affairs: 'กิจการนักเรียน', academic: 'วิชาการ', admin: 'ผู้ดูแลระบบ' };
 const TAB_ICON = { dashboard: '◈', attendance: '◷', exchange: '⇄', scores: '✎', groups: '◉', assess: '☑',
   summary: '▤', settings: '⚙', personal: '🪪', students: '☺', schedule: '▦', items: '☰', indicators: '◇', activities: '★', head: '◆',
-  executive: '◎', leaves: '✈', affairs: '⚑', admin: '⚙' };
+  executive: '◎', leaves: '✈', affairs: '⚑', academic: '▣', admin: '⚙' };
 /* หมวดของเมนู "ไปที่หน้า" — เรียงตามลำดับที่ครูใช้งานจริงในหนึ่งวัน
    เดิมเป็นปุ่ม 17 อันเรียงติดกันไม่มีหัวข้อ ต้องกวาดตาอ่านทีละอันกว่าจะเจอ */
 const TAB_SECTIONS = [
   { label: 'งานประจำวัน', tabs: ['dashboard', 'attendance', 'exchange', 'activities'] },
   { label: 'คะแนนและ ปพ.5', tabs: ['scores', 'items', 'indicators', 'groups', 'assess', 'summary'] },
   { label: 'ข้อมูลโรงเรียน', tabs: ['students', 'schedule', 'personal', 'settings'] },
-  { label: 'บริหารและอนุมัติ', tabs: ['head', 'executive', 'leaves', 'affairs', 'admin'] }
+  { label: 'บริหารและอนุมัติ', tabs: ['head', 'executive', 'leaves', 'affairs', 'academic', 'admin'] }
 ];
 
 /* งานหลักของแต่ละบทบาท ใช้จัดปุ่มบนแถบล่างของมือถือ */
@@ -3051,6 +3141,7 @@ const PRIMARY_TABS = { teacher: ['dashboard', 'attendance', 'scores', 'exchange'
   head: ['head', 'dashboard', 'attendance', 'scores'],
   executive: ['executive', 'leaves', 'dashboard', 'summary'],
   affairs: ['affairs', 'dashboard', 'attendance', 'scores'],
+  academic: ['academic', 'dashboard', 'attendance', 'scores'],
   admin: ['admin', 'students', 'schedule', 'settings'] };
 
 /* แท็บที่ปักหมุดไว้บนแถบเสมอ ที่เหลือเก็บในเมนู เพื่อให้แถบบนโล่งและหาของง่าย */
@@ -3274,6 +3365,7 @@ function render() {
   else if (t === 'executive') renderExecutive();
   else if (t === 'leaves') renderLeaveApprovals();
   else if (t === 'affairs') renderAffairs();
+  else if (t === 'academic') renderAcademic();
   else if (t === 'admin') renderAdmin();
   initCollapsibles();
   bindSearchableSelects();
@@ -3596,6 +3688,9 @@ const SEARCH_INDEX = [
   { t: 'บันทึกนักเรียนมาสาย', w: 'มาสาย ประตู', tab: 'affairs', pre: { affairsView: 'gate' }, card: 'บันทึกนักเรียนมาสาย' },
   { t: 'คะแนนพฤติกรรมนักเรียน', w: 'ความประพฤติ หักคะแนน', tab: 'affairs', pre: { affairsView: 'scores' } },
   { t: 'เกณฑ์คะแนนพฤติกรรม', w: 'ตั้งค่า รายการพฤติกรรม', tab: 'affairs', pre: { affairsView: 'config' }, card: 'เกณฑ์คะแนน' },
+  { t: 'ปฏิทินวิชาการ', w: 'ปฏิทิน วันหยุด วันสำคัญ กิจกรรม สอบ', tab: 'academic', pre: { academicView: 'calendar' } },
+  { t: 'ติดตามการส่งคะแนน', w: 'ฝ่ายวิชาการ ส่ง ปพ.5 ความคืบหน้า', tab: 'academic', pre: { academicView: 'scores' } },
+  { t: 'งานวิชาการตามรอบปี', w: 'ฝ่ายวิชาการ งานประจำปี O-NET ปพ.1', tab: 'academic', pre: { academicView: 'tasks' } },
   { t: 'ข้อมูลครูและสิทธิ์ใช้งาน', w: 'ครู บทบาท สิทธิ์ เพิ่มครู', tab: 'admin', pre: { adminSection: 'people' }, card: 'ข้อมูลครูและสิทธิ์' },
   { t: 'ครูที่ปรึกษาแยกรายห้อง', w: 'ครูประจำชั้น homeroom', tab: 'admin', pre: { adminSection: 'people' }, card: 'ครูที่ปรึกษาแยกรายห้อง' },
   { t: 'กลุ่มสาระและหัวหน้ากลุ่มสาระ', w: 'หัวหน้า กลุ่มสาระ', tab: 'admin', pre: { adminSection: 'people' }, card: 'กลุ่มสาระและหัวหน้า' },
@@ -4235,7 +4330,7 @@ function renderDashboard() {
       '<div class="metric-card" style="--metric:var(--bad)"><div class="metric-icon">⏱</div><div class="metric-value">' + missed.length + '</div><div class="metric-label">คาบค้างเช็กชื่อ</div></div>' +
       '<div class="metric-card" style="--metric:var(--ok)"><div class="metric-icon">✓</div><div class="metric-value">' + completeScores + '/' + students.length + '</div><div class="metric-label">คะแนนครบทุกส่วน</div></div>' +
       '<div class="metric-card" style="--metric:var(--group)"><div class="metric-icon">◎</div><div class="metric-value">' + fmt(average, 1) + '</div><div class="metric-label">คะแนนเฉลี่ยปัจจุบัน</div></div></div>' +
-    (schoolDataMissing() ? schoolDataCard() : '') + noticeCardHtml() + approvalCardHtml() +
+    (schoolDataMissing() ? schoolDataCard() : '') + noticeCardHtml() + approvalCardHtml() + academicUpcomingCardHtml() +
     '<div class="dash-columns"><div><div class="card"><div class="row"><h3 style="margin:0">ตารางสอนวันนี้</h3>' + (todayShift ? '<span class="badge group" title="' + esc(dayShiftText(todayShift)) + '">↷ ' + esc(todayShift.mode === 'day' ? 'ใช้ตารางวัน' + schoolDayName(todayShift.sourceDay) : 'สลับคาบ') + '</span>' : '') + '<div class="spacer"></div><button class="sm" data-go-tab="schedule">ดูตารางทั้งหมด</button></div><div class="today-list" style="margin-top:10px">' +
       (todayEntries.length ? todayEntries.map(x => { const e = x.entry, slot = DB.timetable.slots.find(s => s.id === x.slotId), subject = subjectOf(e), c = classOf(e); const current = slot && nowMin >= timeToMinutes(slot.start) && nowMin <= timeToMinutes(slot.end); const checked = attendanceDone(e, today); return '<div class="today-card' + (current ? ' current' : '') + '"><div class="today-time"><b>' + esc(slot ? slot.label : '') + '</b>' + esc(slot ? slot.start + '-' + slot.end : '') + '</div><div><b>' + esc((subject.code ? subject.code + ' ' : '') + subject.name) + '</b><div class="hint">' + esc(c.name) + (e.room ? ' • ' + esc(e.room) : '') + '</div></div><div class="spacer"></div>' + (checked ? '<span class="badge ok">เช็กแล้ว</span>' : '<button class="sm primary" data-dash-att="' + e.id + '">เช็กชื่อ</button>') + '</div>'; }).join('') : '<div class="empty">วันนี้ไม่มีคาบสอนในตาราง</div>') + '</div></div>' +
       '<div class="card"><h3>ทางลัดงานประจำ</h3><div class="quick-grid"><button class="quick-action" data-go-tab="scores">✎<b>กรอกคะแนน</b><span>คะแนนเก็บ สอบ และซ่อม</span></button><button class="quick-action" data-go-tab="attendance">◷<b>เช็กเวลาเรียน</b><span>คาบประจำ แลกคาบ สอนแทน และชดเชย</span></button><button class="quick-action" data-go-tab="groups">◉<b>คะแนนกลุ่ม</b><span>จัดกลุ่ม ให้คะแนน และผู้นำเสนอ</span></button><button class="quick-action" data-go-tab="summary">▤<b>สรุป ปพ.5</b><span>เกรด เวลาเรียน และส่งออก</span></button>' +
@@ -4712,7 +4807,8 @@ function scheduledDates(entry, untilISO) {
   const until = parseISODate(untilISO);
   if (!start || !close) return [];
   const end = until && until < close ? until : close;
-  const holidays = new Set((term.holidays || []).map(h => h.date));
+  // รวมวันงดการเรียนการสอนจากปฏิทินวิชาการด้วย (termHolidayList)
+  const holidays = new Set(termHolidayList(term).map(h => h.date));
   // การสลับวันของโรงเรียนย้ายคาบไปอยู่คนละวัน จำนวนคาบทั้งภาคและ % เวลาเรียนจึงต้องนับตามนี้ด้วย
   const shifts = {}; (term.dayShifts || []).forEach(x => { if (x && x.date) shifts[x.date] = x; });
   const out = [], d = new Date(start); let guard = 0;
@@ -4742,11 +4838,11 @@ function attendanceSourceText(record) {
 function holidayOf(date, periodId) {
   const term = (DB.timetable.terms || {})[periodId || DB.ui.periodId];
   if (!term || !date) return null;
-  return (term.holidays || []).find(h => h.date === date) || null;
+  return termHolidayList(term).find(h => h.date === date) || null;
 }
 /** เรียงวันหยุดตามวันที่ และตัดรายการที่ไม่ใช่รูปแบบวันที่ออก */
 function sortedHolidays(term) {
-  return (term && Array.isArray(term.holidays) ? term.holidays : [])
+  return (term ? termHolidayList(term) : [])
     .filter(h => h && /^\d{4}-\d{2}-\d{2}$/.test(h.date))
     .sort((a, b) => a.date.localeCompare(b.date));
 }
@@ -5227,7 +5323,7 @@ function renderSchedule() {
         ? '<div class="notice" style="margin-top:10px">กำลังแก้ตารางของ <b>' + esc(viewTeacher.name || viewTeacher.email) +
           '</b> คาบที่เพิ่มใหม่จะเป็นของครูคนนี้</div>' : '')) +
     (!term.openDate || !term.closeDate ? '<div class="notice bad" style="margin-top:10px">กรุณากำหนดวันเปิด–ปิดภาคเรียน เพื่อให้ระบบคำนวณวันเรียน คาบเรียน และแจ้งเตือนคาบที่ยังไม่เช็กได้</div>' :
-      '<div class="hint" style="margin-top:8px">เปิดภาคเรียน ' + thaiDate(term.openDate) + ' ถึง ' + thaiDate(term.closeDate) + ' • วันหยุด ' + (term.holidays || []).length + ' วัน • เกณฑ์เวลาเรียน ' + fmt(term.minAttendance) + '%</div>') + '</div>' +
+      '<div class="hint" style="margin-top:8px">เปิดภาคเรียน ' + thaiDate(term.openDate) + ' ถึง ' + thaiDate(term.closeDate) + ' • วันหยุด ' + sortedHolidays(term).length + ' วัน • เกณฑ์เวลาเรียน ' + fmt(term.minAttendance) + '%</div>') + '</div>' +
     '<div class="card schedule-sheet"><div class="printonly" style="text-align:center;margin-bottom:5px"><b>ตารางสอน</b> ' + esc(DB.settings.schoolName || '') + ' • ปี ' + esc(curPeriod().academicYear) + ' ภาค ' + esc(curPeriod().semester) + '</div><div class="tablewrap"><table class="timetable"><thead><tr><th>วัน / คาบ</th>' + DB.timetable.slots.map(slot => '<th>' + esc(slot.label) + '<br><span class="hint">' + esc(slot.start) + '–' + esc(slot.end) + '</span></th>').join('') + '</tr></thead><tbody>' +
       SCHOOL_DAYS.map(day => '<tr class="' + ((parseISODate(selectedDate) || new Date()).getDay() === day.value ? 'today-row' : '') + '"><td class="slot-info"><b>วัน' + esc(day.label) + '</b></td>' + DB.timetable.slots.map(slot => {
         const e = entries.find(x => num(x.day) === day.value && String(x.slotId) === slot.id);
@@ -14501,9 +14597,11 @@ function holidayRowsHtml(term) {
       const affected = day >= 1 && day <= 5 ? (DB.timetable.entries || []).filter(e => e.periodId === DB.ui.periodId && num(e.day) === day).length : 0;
       const checked = Object.values(DB.timetable.attendance || {}).filter(r => r.date === h.date && r.periodId === DB.ui.periodId).length;
       return '<tr><td><b>' + esc(thaiDate(h.date)) + '</b><br><span class="hint">' + esc(h.date) + '</span></td><td>' + esc(dayName(h.date)) + '</td>' +
-        '<td><input class="holiday-name" data-holiday-date="' + esc(h.date) + '" value="' + esc(h.name || '') + '" style="width:100%" placeholder="เช่น วันแม่แห่งชาติ"></td>' +
+        /* วันที่มาจากปฏิทินวิชาการ แก้/ลบได้ที่หน้าฝ่ายวิชาการเท่านั้น ไม่งั้นลบที่นี่แล้วจะกลับมาเองทุกครั้ง */
+        (h.fromCalendar ? '<td>' + esc(h.name || '') + '<br><span class="badge group">จากปฏิทินวิชาการ</span></td>'
+          : '<td><input class="holiday-name" data-holiday-date="' + esc(h.date) + '" value="' + esc(h.name || '') + '" style="width:100%" placeholder="เช่น วันแม่แห่งชาติ"></td>') +
         '<td>' + affected + ' คาบ' + (checked ? '<br><span class="badge warn">เคยเช็กชื่อไว้ ' + checked + ' รายการ</span>' : '') + '</td>' +
-        '<td><button class="sm danger" data-del-holiday="' + esc(h.date) + '">ลบ</button></td></tr>';
+        '<td>' + (h.fromCalendar ? '<span class="hint">แก้ที่หน้าฝ่ายวิชาการ</span>' : '<button class="sm danger" data-del-holiday="' + esc(h.date) + '">ลบ</button>') + '</td></tr>';
     }).join('') + '</tbody></table></div>';
 }
 
@@ -14971,7 +15069,7 @@ function renderAdminTeacherRows() {
     '<td><input class="admin-email" type="email" value="' + esc(adminDraftValue(t, 'email') || '') + '"></td>' +
     '<td><input class="admin-phone" value="' + esc(adminDraftValue(t, 'phone') || '') + '" style="width:130px"></td>' +
     '<td><select class="admin-area">' + learningAreaOptions(adminDraftValue(t, 'learningArea')) + '</select></td>' +
-    '<td>' + roleBox(t, 'teacher', 'ครู') + ' ' + roleBox(t, 'head', 'หัวหน้ากลุ่มสาระฯ') + ' ' + roleBox(t, 'executive', 'ผู้บริหาร') + ' ' + roleBox(t, 'affairs', 'กิจการนักเรียน') + ' ' + roleBox(t, 'admin', 'แอดมิน') + '</td>' +
+    '<td>' + roleBox(t, 'teacher', 'ครู') + ' ' + roleBox(t, 'head', 'หัวหน้ากลุ่มสาระฯ') + ' ' + roleBox(t, 'executive', 'ผู้บริหาร') + ' ' + roleBox(t, 'affairs', 'กิจการนักเรียน') + ' ' + roleBox(t, 'academic', 'ฝ่ายวิชาการ') + ' ' + roleBox(t, 'admin', 'แอดมิน') + '</td>' +
     '<td><select class="admin-homeroom"><option value="">— ไม่กำหนด —</option>' + sortedClassList(DB.classes).map(c => '<option value="' + c.id + '"' + (adminDraftValue(t, 'homeroomClassId') === c.id ? ' selected' : '') + '>' + esc(c.name) + ' (' + DB.teachers.filter(x => adminDraftValue(x, 'homeroomClassId') === c.id).length + '/2)</option>').join('') + '</select></td>' +
     '<td><button class="sm danger" data-del-teacher="' + t.id + '" title="ลบครูคนนี้">ลบ</button></td></tr>').join('')
     : '<tr><td colspan="7"><div class="empty">' + (DB.ui.adminSearch ? 'ไม่พบครูที่ตรงกับคำค้น “' + esc(DB.ui.adminSearch) + '”' : 'ยังไม่มีข้อมูลครู') + '</div></td></tr>';
@@ -16527,6 +16625,930 @@ function affairsExecCard() {
 }
 
 /* ============================================================================
+   18) ฝ่ายวิชาการ — ปฏิทินวิชาการ ติดตามการส่งคะแนน ผลการเรียนคงค้าง งานตามรอบปี
+   เจ้าหน้าที่วิชาการ (บทบาท academic) กับผู้ดูแลระบบเป็นคนกรอก ครูทุกคนเห็นปฏิทินแบบอ่านอย่างเดียว
+
+   ข้อมูลวิ่งทางใหม่ของตัวเอง ไม่ปนกับสามทางเดิม (เหมือนกิจการนักเรียน)
+   - academicCalendar/{ปีการศึกษา}  { events:[...] }  ส่งทันทีที่บันทึก ทุกเครื่องได้ตามด้วย onSnapshot
+   - academicTasks/{ปีการศึกษา}     { tasks:[...] }   งานวิชาการตามรอบปี
+   - bookProgress/{เล่ม__อีเมล}      ตัวเลขสรุปความคืบหน้าสมุดคะแนนของครูแต่ละเล่ม
+     สมุดคะแนนจริงอ่านได้เฉพาะเจ้าของกับผู้บริหาร (กฎ Firestore) จึงส่งเฉพาะตัวเลขสรุป ไม่มีคะแนนรายคน
+
+   ส่งขึ้นด้วย transaction แล้วรวมกันตามรหัสรายการ ไม่ set ทับทั้งเอกสาร
+   เพราะเจ้าหน้าที่วิชาการอาจกรอกพร้อมกันสองเครื่อง ถ้าทับทั้งก้อนของอีกเครื่องจะหาย
+   รายการที่ยังส่งไม่สำเร็จ (ออฟไลน์/ยังไม่เข้าสู่ระบบ) จำไว้ใน DB.academic.pending แล้วส่งรอบหน้า
+   ========================================================================== */
+const ACAL_TYPES = [
+  { value: 'holiday', label: 'วันหยุดราชการ' },
+  { value: 'important', label: 'วันสำคัญ' },
+  { value: 'school', label: 'กิจกรรมโรงเรียน' },
+  { value: 'academic', label: 'กิจกรรมฝ่ายวิชาการ' },
+  { value: 'exam', label: 'สอบ / วัดผล' }];
+const acalType = v => ACAL_TYPES.find(t => t.value === v) || ACAL_TYPES[2];
+const ACAL_OWNERS = ['ฝ่ายวิชาการ', 'งานวัดผลและประเมินผล', 'งานทะเบียน', 'ฝ่ายบริหารทั่วไป', 'ฝ่ายกิจการนักเรียน', 'ฝ่ายงบประมาณ'];
+const ACAL_TITLE_PRESETS = ['เปิดภาคเรียนที่ 1', 'ปิดภาคเรียนที่ 1', 'เปิดภาคเรียนที่ 2', 'ปิดภาคเรียนที่ 2', 'สอบกลางภาคเรียน', 'สอบปลายภาคเรียน',
+  'สอบแก้ตัว 0 ร มส.', 'ส่งผลการเรียน ปพ.5', 'ประชุมผู้ปกครอง', 'ปฐมนิเทศนักเรียนใหม่', 'สัปดาห์วิทยาศาสตร์', 'วันภาษาไทยแห่งชาติ',
+  'สอบ O-NET ม.3', 'ปัจฉิมนิเทศ ม.3', 'นิเทศการสอน', 'กีฬาสี', 'ทัศนศึกษา', 'ปิดเรียนกรณีพิเศษ'];
+const ACAD_VIEWS = [['calendar', 'ปฏิทินวิชาการ'], ['scores', 'ติดตามการส่งคะแนน'], ['pending', 'นักเรียน 0 ร มส.'], ['tasks', 'งานวิชาการตามรอบปี']];
+const THAI_DOW = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+
+const isAcademicStaff = () => ['academic', 'admin'].includes(DB.ui.staffMode || 'teacher');
+/* ผู้บริหารเห็นทุกมุมมองแบบอ่านอย่างเดียว ครูทั่วไปเห็นเฉพาะปฏิทิน */
+const academicWatcher = () => ['academic', 'admin', 'executive'].includes(DB.ui.staffMode || 'teacher');
+
+/* เป็นฟังก์ชันไม่ใช่ const เพราะ loadDB อาจเรียกก่อนบรรทัดนี้จะถูกประกาศ */
+function ensureAcademic() {
+  const a = DB.academic = DB.academic && typeof DB.academic === 'object' ? DB.academic : {};
+  a.calendars = a.calendars && typeof a.calendars === 'object' ? a.calendars : {};
+  a.tasks = a.tasks && typeof a.tasks === 'object' ? a.tasks : {};
+  a.pending = a.pending && typeof a.pending === 'object' ? a.pending : {};
+  return a;
+}
+function acalStore(year) {
+  const a = ensureAcademic(), y = String(year || '');
+  const c = a.calendars[y] = a.calendars[y] && typeof a.calendars[y] === 'object' ? a.calendars[y] : {};
+  c.events = Array.isArray(c.events) ? c.events : [];
+  return c;
+}
+function acadTaskStore(year) {
+  const a = ensureAcademic(), y = String(year || '');
+  const c = a.tasks[y] = a.tasks[y] && typeof a.tasks[y] === 'object' ? a.tasks[y] : {};
+  c.tasks = Array.isArray(c.tasks) ? c.tasks : [];
+  return c;
+}
+const acalEvents = year => acalStore(year).events.filter(e => e && e.id && e.start)
+  .sort((x, y) => String(x.start).localeCompare(String(y.start)) || String(x.end).localeCompare(String(y.end)));
+
+/* ปีการศึกษาที่เลือกได้ = ปีที่มีใน ปี/ภาคเรียน ของโรงเรียน */
+function acalYearList() {
+  const set = new Set(DB.periods.map(p => String(p.academicYear || '').trim()).filter(Boolean));
+  return Array.from(set).sort();
+}
+function acalCurYear() {
+  const list = acalYearList();
+  if (list.includes(String(DB.ui.acalYear || ''))) return String(DB.ui.acalYear);
+  const cur = affairsYear();
+  return list.includes(cur) ? cur : (list[list.length - 1] || String(new Date().getFullYear() + 543));
+}
+/** ช่วงของปีการศึกษา — ตั้งแต่ 1 พ.ค. ถึง 30 เม.ย. ปีถัดไป ขยายตามวันเปิด/ปิดภาคที่ผู้ดูแลตั้งไว้ถ้าเกินช่วงนี้ */
+function acalYearRange(year) {
+  const ce = num(year) > 2400 ? num(year) - 543 : new Date().getFullYear();
+  let from = ce + '-05-01', to = (ce + 1) + '-04-30';
+  DB.periods.filter(p => String(p.academicYear) === String(year)).forEach(p => {
+    const t = (DB.timetable.terms || {})[p.id];
+    if (t && /^\d{4}-\d{2}-\d{2}$/.test(t.openDate || '') && t.openDate < from) from = t.openDate;
+    if (t && /^\d{4}-\d{2}-\d{2}$/.test(t.closeDate || '') && t.closeDate > to) to = t.closeDate;
+  });
+  return { from: from, to: to };
+}
+/** เดือนในปีการศึกษา เรียง พ.ค. → เม.ย. ในรูป YYYY-MM */
+function acalMonths(year) {
+  const r = acalYearRange(year), out = [];
+  const d = parseISODate(r.from.slice(0, 7) + '-01'), end = r.to.slice(0, 7);
+  for (let guard = 0; d && guard < 24; guard++) {
+    const key = d.getFullYear() + '-' + pad2(d.getMonth() + 1);
+    out.push(key);
+    if (key >= end) break;
+    d.setMonth(d.getMonth() + 1);
+  }
+  return out;
+}
+const acalMonthLabel = ym => { const p = String(ym).split('-'); return THAI_MONTHS[num(p[1]) - 1] + ' ' + (num(p[0]) + 543); };
+function acalCurMonth(year) {
+  const months = acalMonths(year), want = DB.ui.acalMonth, now = todayISO().slice(0, 7);
+  if (months.includes(want)) return want;
+  return months.includes(now) ? now : months[0];
+}
+/** วันทุกวันของรายการ (ช่วงหลายวันกระจายเป็นรายวัน) */
+function acalDays(ev) {
+  const out = [], last = ev.end && ev.end > ev.start ? ev.end : ev.start, d = parseISODate(ev.start);
+  for (let guard = 0; d && guard < 400; guard++) {
+    const iso = isoDate(d); out.push(iso);
+    if (iso >= last) break;
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+function acalRangeText(ev) {
+  if (!ev.end || ev.end === ev.start) return thaiDate(ev.start);
+  /* เดือนเดียวกัน เขียนแบบย่อ 2–3 ต.ค. 2569 ช่องวันที่ในเอกสารจะได้ไม่ขึ้นสองบรรทัด */
+  const s = parseISODate(ev.start);
+  if (s && ev.start.slice(0, 7) === ev.end.slice(0, 7)) return s.getDate() + '–' + thaiDate(ev.end);
+  return thaiDate(ev.start) + ' – ' + thaiDate(ev.end);
+}
+const acalWho = () => { const t = curTeacher() || {}; return t.name || t.email || (fbUser && fbUser.email) || ''; };
+
+/* ---- วันงดการเรียนการสอน → วันหยุดของภาคเรียน ------------------------------
+   ไม่เขียนกลับลง term.holidays เพราะจะมีสองแหล่งเขียนทับกัน และถ้าฝ่ายวิชาการ
+   ลบรายการออกภายหลัง วันนั้นต้องกลับมานับเป็นคาบเรียนทันทีโดยไม่ต้องตามล้างอีกที่
+   แคชไว้ตามรุ่นข้อมูล เพราะ scheduledDates ถูกเรียกทุกคาบทุกครั้งที่คิด % เวลาเรียน */
+let acalVersion = 0, acalNoClassCache = { v: -1, src: null, map: null };
+function acalNoClassMap() {
+  const a = ensureAcademic();
+  if (acalNoClassCache.v === acalVersion && acalNoClassCache.src === a.calendars) return acalNoClassCache.map;
+  const map = {};
+  Object.keys(a.calendars).forEach(y => acalEvents(y).forEach(ev => {
+    if (!ev.noClass) return;
+    acalDays(ev).forEach(iso => { if (!map[iso]) map[iso] = ev.title || 'งดการเรียนการสอน'; });
+  }));
+  acalNoClassCache = { v: acalVersion, src: a.calendars, map: map };
+  return map;
+}
+/** วันหยุดของภาคเรียน = ที่ผู้ดูแลตั้งในหลังบ้าน + วันงดการเรียนการสอนจากปฏิทินวิชาการที่อยู่ในช่วงเปิด-ปิดภาค */
+function termHolidayList(term) {
+  const own = term && Array.isArray(term.holidays) ? term.holidays : [];
+  if (!term || !term.openDate || !term.closeDate) return own;
+  const map = acalNoClassMap(), mine = new Set(own.map(h => h.date));
+  const extra = Object.keys(map).filter(d => d >= term.openDate && d <= term.closeDate && !mine.has(d))
+    .map(d => ({ date: d, name: map[d], fromCalendar: true }));
+  return extra.length ? own.concat(extra) : own;
+}
+
+/* ---- ส่งขึ้น / รับจากส่วนกลาง ---------------------------------------------- */
+const ACAD_DOCS = {
+  cal: { col: 'academicCalendar', field: 'events', list: y => acalStore(y).events, set: (y, v) => { acalStore(y).events = v; acalVersion++; } },
+  task: { col: 'academicTasks', field: 'tasks', list: y => acadTaskStore(y).tasks, set: (y, v) => { acadTaskStore(y).tasks = v; } }
+};
+/** จดว่ารายการนี้ยังต้องส่ง — ค่าเป็น put/del ต่อด้วยเวลา จะได้รู้ว่าแก้ซ้ำระหว่างกำลังส่งหรือไม่ */
+function academicMark(kind, year, id, op) {
+  ensureAcademic().pending[kind + '|' + year + '|' + id] = op + '|' + new Date().toISOString() + '|' + Math.random().toString(36).slice(2, 6);
+}
+async function academicPush(kind, year) {
+  const a = ensureAcademic(), spec = ACAD_DOCS[kind], prefix = kind + '|' + year + '|';
+  const keys = Object.keys(a.pending).filter(k => k.indexOf(prefix) === 0);
+  if (!keys.length || !firebaseReady() || !fbSignedIn()) return 0;
+  const sent = {}; keys.forEach(k => { sent[k] = a.pending[k]; });
+  const ref = fbDb.collection(spec.col).doc(String(year)), stamp = new Date().toISOString(), who = acalWho();
+  const merged = await fbDb.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    const list = snap.exists ? (fbDecodeNested((snap.data() || {})[spec.field]) || []) : [];
+    const byId = new Map((Array.isArray(list) ? list : []).filter(x => x && x.id).map(x => [x.id, x]));
+    const local = spec.list(year);
+    keys.forEach(k => {
+      const id = k.slice(prefix.length);
+      if (String(sent[k]).indexOf('del|') === 0) byId.delete(id);
+      else { const it = local.find(x => x.id === id); if (it) byId.set(id, it); }
+    });
+    const out = Array.from(byId.values());
+    const data = fbPlain({ [spec.field]: out, updatedAt: stamp, updatedBy: who });
+    if (new Blob([JSON.stringify(data)]).size > 900000) throw new Error('ข้อมูลปีการศึกษา ' + year + ' ใหญ่เกินที่ระบบรับได้');
+    tx.set(ref, data);
+    return out;
+  });
+  /* ลบเฉพาะรายการที่ยังเป็นรุ่นเดียวกับที่ส่งไป ถ้าระหว่างส่งมีการแก้ซ้ำ ต้องส่งอีกรอบ */
+  const again = keys.filter(k => a.pending[k] !== sent[k]);
+  keys.forEach(k => { if (a.pending[k] === sent[k]) delete a.pending[k]; });
+  const local = spec.list(year);
+  spec.set(year, merged.map(x => again.some(k => k === prefix + x.id) ? (local.find(y => y.id === x.id) || x) : x)
+    .concat(local.filter(x => again.some(k => k === prefix + x.id) && !merged.some(m => m.id === x.id))));
+  save(true);
+  if (again.length) return academicPush(kind, year);
+  return keys.length;
+}
+/** ส่งทุกรายการที่ค้าง — เรียกหลังเข้าสู่ระบบ และหลังบันทึกทุกครั้ง */
+async function academicFlushAll(quiet) {
+  const groups = {};
+  Object.keys(ensureAcademic().pending).forEach(k => { const p = k.split('|'); groups[p[0] + '|' + p[1]] = [p[0], p[1]]; });
+  let n = 0;
+  for (const g of Object.values(groups)) {
+    try { n += await academicPush(g[0], g[1]); }
+    catch (e) {
+      console.warn('academic push failed', e);
+      if (!quiet) toast('บันทึกในเครื่องแล้ว แต่ส่งขึ้นส่วนกลางไม่สำเร็จ: ' + (e && e.code === 'permission-denied' ? 'บัญชีนี้ยังไม่มีสิทธิ์ฝ่ายวิชาการ หรือยังไม่ได้อัปเดตกฎ Firestore' : (e && e.message) || e), 'bad');
+    }
+  }
+  return n;
+}
+const academicPendingCount = () => Object.keys(ensureAcademic().pending).length;
+/** รับข้อมูลจากส่วนกลาง แล้ววางรายการที่เครื่องนี้ยังส่งไม่สำเร็จทับลงไป จะได้ไม่หายระหว่างรอส่ง */
+function academicApplySnapshot(kind, snap) {
+  const a = ensureAcademic(), spec = ACAD_DOCS[kind];
+  snap.docs.forEach(d => {
+    const year = d.id, prefix = kind + '|' + year + '|';
+    const central = fbDecodeNested((d.data() || {})[spec.field]) || [];
+    const local = spec.list(year), out = (Array.isArray(central) ? central : []).filter(x => x && x.id);
+    Object.keys(a.pending).filter(k => k.indexOf(prefix) === 0).forEach(k => {
+      const id = k.slice(prefix.length), i = out.findIndex(x => x.id === id);
+      if (String(a.pending[k]).indexOf('del|') === 0) { if (i >= 0) out.splice(i, 1); return; }
+      const it = local.find(x => x.id === id); if (!it) return;
+      if (i >= 0) out[i] = it; else out.push(it);
+    });
+    spec.set(year, out);
+  });
+  if (kind === 'cal') acalVersion++;
+  save(true);
+  if (['academic', 'dashboard', 'attendance'].includes(DB.ui.tab)) render();
+}
+
+/* ---- เตือนวันซ้อน ------------------------------------------------------------ */
+function acalOverlaps(ev, year) {
+  return acalEvents(year).filter(x => x.id !== ev.id && x.start <= (ev.end || ev.start) && ev.start <= (x.end || x.start));
+}
+/** คำเตือนที่ควรรู้ก่อนบันทึก นอกเหนือจากรายการที่วันทับกัน */
+function acalWarnings(ev, others) {
+  const out = [], days = acalDays(ev), busy = ['school', 'academic', 'exam'].includes(ev.type);
+  const noClass = others.filter(x => x.noClass);
+  /* วันหยุดที่ผู้ดูแลตั้งไว้ในหลังบ้านก็นับว่าเป็นวันงดเรียนด้วย */
+  const adminHolidays = [];
+  Object.values(DB.timetable.terms || {}).forEach(t => (t && Array.isArray(t.holidays) ? t.holidays : []).forEach(h => {
+    if (h && days.includes(h.date) && !adminHolidays.some(x => x.date === h.date)) adminHolidays.push(h);
+  }));
+  if (busy && !ev.noClass && (noClass.length || adminHolidays.length)) {
+    const names = noClass.map(x => x.title).concat(adminHolidays.map(h => (h.name || 'วันหยุด') + ' (' + thaiDate(h.date) + ')'));
+    out.push('ตรงกับวันงดการเรียนการสอน: ' + names.join(', '));
+  }
+  if (ev.type === 'exam' && others.some(x => x.type === 'exam')) out.push('มีการสอบอีกรายการอยู่ในช่วงวันเดียวกัน');
+  if (ev.noClass && others.some(x => x.type === 'exam')) out.push('วันงดการเรียนการสอนนี้ทับกับวันสอบ');
+  const weekend = days.filter(d => { const w = (parseISODate(d) || new Date()).getDay(); return w === 0 || w === 6; });
+  if (busy && weekend.length && weekend.length === days.length) out.push('ทุกวันของรายการนี้ตรงกับวันเสาร์-อาทิตย์');
+  else if (busy && weekend.length && days.length <= 7) out.push('มีวันเสาร์-อาทิตย์อยู่ในช่วง ' + weekend.length + ' วัน');
+  return out;
+}
+
+/* ---- หน้าฝ่ายวิชาการ ------------------------------------------------------- */
+function renderAcademic() {
+  const pane = $('#pane-academic'); if (!pane) return;
+  ensureAcademic();
+  const views = ACAD_VIEWS.filter(v => v[0] === 'calendar' || academicWatcher());
+  const view = views.some(v => v[0] === DB.ui.academicView) ? DB.ui.academicView : 'calendar';
+  const year = acalCurYear(), staff = isAcademicStaff(), offline = !(firebaseReady() && fbSignedIn()), waiting = academicPendingCount();
+  pane.innerHTML = '<div class="card dash-hero"><div class="row" style="position:relative;z-index:1"><div><div class="hero-sub">ACADEMIC AFFAIRS</div>' +
+      '<h1>' + (academicWatcher() ? 'ฝ่ายวิชาการ' : 'ปฏิทินวิชาการ') + '</h1><div class="hero-sub">ปฏิทินวิชาการ • การส่งผลการเรียน • งานตามรอบปี • ปีการศึกษา ' + esc(year) + '</div></div>' +
+      '<div class="spacer"></div>' + (staff ? '<button class="primary" id="acAdd">＋ เพิ่มกิจกรรม</button>' : '') + '</div></div>' +
+    (staff && offline ? '<div class="notice" style="margin-bottom:12px">ยังไม่ได้เข้าสู่ระบบด้วยบัญชีโรงเรียน สิ่งที่กรอกจะเก็บไว้ในเครื่องนี้ก่อน แล้วส่งขึ้นส่วนกลางเมื่อเข้าสู่ระบบ</div>' : '') +
+    (staff && waiting && !offline ? '<div class="notice warn" style="margin-bottom:12px">มี ' + waiting + ' รายการที่ยังส่งขึ้นส่วนกลางไม่สำเร็จ <button class="sm" id="acRetry">ส่งอีกครั้ง</button></div>' : '') +
+    (!staff ? '<div class="notice" style="margin-bottom:12px">ฝ่ายวิชาการเป็นผู้กรอกปฏิทินนี้ หน้านี้ดูได้อย่างเดียว</div>' : '') +
+    (views.length > 1 ? '<div class="row affairs-views" style="gap:6px;margin-bottom:12px">' + views.map(v => '<button class="sm' + (v[0] === view ? ' primary' : '') + '" data-ac-view="' + v[0] + '">' + esc(v[1]) + '</button>').join('') + '</div>' : '') +
+    '<div id="acBody"></div>';
+  const add = $('#acAdd', pane); if (add) add.addEventListener('click', () => openAcalEditor(null, { start: todayISO() }));
+  const retry = $('#acRetry', pane); if (retry) retry.addEventListener('click', async () => { retry.disabled = true; await academicFlushAll(); renderAcademic(); });
+  $$('[data-ac-view]', pane).forEach(b => b.addEventListener('click', () => { DB.ui.academicView = b.dataset.acView; save(); renderAcademic(); }));
+  const body = $('#acBody', pane);
+  if (view === 'scores') renderAcademicScores(body);
+  else if (view === 'pending') renderAcademicPending(body);
+  else if (view === 'tasks') renderAcademicTasks(body);
+  else renderAcademicCalendar(body);
+}
+
+/* ---- ปฏิทิน --------------------------------------------------------------- */
+function acalTypeFilter() {
+  const f = DB.ui.acalTypes;
+  return Array.isArray(f) && f.length ? f : ACAL_TYPES.map(t => t.value);
+}
+function acalChip(ev, short) {
+  return '<button type="button" class="acal-chip acal-t-' + esc(ev.type) + (ev.noClass ? ' acal-noclass' : '') + '" data-acal-ev="' + esc(ev.id) + '" title="' +
+    esc(ev.title + ' • ' + acalType(ev.type).label + (ev.noClass ? ' • งดการเรียนการสอน' : '') + ' • ' + acalRangeText(ev)) + '">' + esc(short ? '' : ev.title) + '</button>';
+}
+function renderAcademicCalendar(body) {
+  const year = acalCurYear(), months = acalMonths(year), month = acalCurMonth(year), staff = isAcademicStaff();
+  const mode = DB.ui.acalMode === 'list' ? 'list' : 'month', types = acalTypeFilter();
+  const all = acalEvents(year), shown = all.filter(e => types.includes(e.type));
+  const years = acalYearList(); if (!years.includes(year)) years.push(year);
+  const mi = months.indexOf(month);
+  body.innerHTML = '<div class="card"><div class="row acal-bar" style="gap:8px;flex-wrap:wrap">' +
+      '<div class="pick"><label>ปีการศึกษา</label><select id="acalYear">' + years.map(y => '<option' + (y === year ? ' selected' : '') + '>' + esc(y) + '</option>').join('') + '</select></div>' +
+      (mode === 'month' ? '<div class="pick"><label>เดือน</label><div class="row" style="gap:4px;flex-wrap:nowrap">' +
+        '<button class="sm" id="acalPrev"' + (mi <= 0 ? ' disabled' : '') + ' aria-label="เดือนก่อน">◀</button>' +
+        '<select id="acalMonth">' + months.map(m => '<option value="' + m + '"' + (m === month ? ' selected' : '') + '>' + esc(acalMonthLabel(m)) + '</option>').join('') + '</select>' +
+        '<button class="sm" id="acalNext"' + (mi >= months.length - 1 ? ' disabled' : '') + ' aria-label="เดือนถัดไป">▶</button></div></div>' : '') +
+      '<div class="pick"><label>มุมมอง</label><div class="row" style="gap:4px"><button class="sm' + (mode === 'month' ? ' primary' : '') + '" data-acal-mode="month">รายเดือน</button>' +
+        '<button class="sm' + (mode === 'list' ? ' primary' : '') + '" data-acal-mode="list">รายการทั้งปี</button></div></div>' +
+      '<div class="spacer"></div>' +
+      (staff ? '<button id="acalGoogle">⤓ ดึงวันหยุดจาก Google</button><button id="acalIcsPick">นำเข้า .ics</button><input type="file" id="acalIcsFile" accept=".ics,text/calendar" hidden>' : '') +
+      '<button id="acalPrint">🖨 พิมพ์</button></div>' +
+    '<div class="row acal-legend" style="gap:6px;margin-top:10px;flex-wrap:wrap">' + ACAL_TYPES.map(t =>
+      '<label class="acal-legend-item"><input type="checkbox" data-acal-type="' + t.value + '"' + (types.includes(t.value) ? ' checked' : '') + '>' +
+      '<span class="acal-dot acal-t-' + t.value + '"></span>' + esc(t.label) + ' <span class="hint">' + all.filter(e => e.type === t.value).length + '</span></label>').join('') +
+      '<span class="acal-legend-item"><span class="acal-dot acal-noclass-dot"></span>งดการเรียนการสอน</span></div>' +
+    (mode === 'month' ? acalMonthHtml(month, shown) : acalListHtml(year, shown)) + '</div>';
+
+  $('#acalYear', body).addEventListener('change', e => { DB.ui.acalYear = e.target.value; DB.ui.acalMonth = ''; save(); renderAcademic(); });
+  const ms = $('#acalMonth', body); if (ms) ms.addEventListener('change', e => { DB.ui.acalMonth = e.target.value; save(); renderAcademic(); });
+  const step = d => { const m = months[mi + d]; if (m) { DB.ui.acalMonth = m; save(); renderAcademic(); } };
+  const prev = $('#acalPrev', body); if (prev) prev.addEventListener('click', () => step(-1));
+  const next = $('#acalNext', body); if (next) next.addEventListener('click', () => step(1));
+  $$('[data-acal-mode]', body).forEach(b => b.addEventListener('click', () => { DB.ui.acalMode = b.dataset.acalMode; save(); renderAcademic(); }));
+  $$('[data-acal-type]', body).forEach(cb => cb.addEventListener('change', () => {
+    DB.ui.acalTypes = $$('[data-acal-type]', body).filter(x => x.checked).map(x => x.dataset.acalType);
+    if (!DB.ui.acalTypes.length) DB.ui.acalTypes = ACAL_TYPES.map(t => t.value);
+    save(); renderAcademic();
+  }));
+  $$('[data-acal-ev]', body).forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    const ev = acalEvents(year).find(x => x.id === b.dataset.acalEv); if (!ev) return;
+    if (staff) openAcalEditor(ev); else openAcalDetail(ev);
+  }));
+  $$('[data-acal-day]', body).forEach(cell => cell.addEventListener('click', () => {
+    if (staff) return openAcalEditor(null, { start: cell.dataset.acalDay });
+    const list = acalEvents(year).filter(x => x.start <= cell.dataset.acalDay && cell.dataset.acalDay <= (x.end || x.start));
+    if (list.length) openAcalDetail(list[0], list);
+  }));
+  const g = $('#acalGoogle', body); if (g) g.addEventListener('click', () => startAcalGoogleImport(g, year));
+  const pick = $('#acalIcsPick', body);
+  if (pick) {
+    pick.addEventListener('click', () => $('#acalIcsFile', body).click());
+    $('#acalIcsFile', body).addEventListener('change', async e => {
+      const file = e.target.files && e.target.files[0]; e.target.value = '';
+      if (!file) return;
+      try {
+        const events = await parseHolidayIcs(file);
+        if (!events.length) return toast('ไม่พบรายการในไฟล์นี้ • ต้องเป็นไฟล์ .ics จากปฏิทิน Google', 'bad');
+        openAcalImport(events, year, file.name);
+      } catch (err) { toast('อ่านไฟล์ไม่สำเร็จ: ' + (err && err.message ? err.message : 'รูปแบบไฟล์ไม่ถูกต้อง'), 'bad'); }
+    });
+  }
+  $('#acalPrint', body).addEventListener('click', () => openAcalPrint(year, month));
+}
+
+function acalMonthHtml(month, events) {
+  const first = parseISODate(month + '-01'); if (!first) return '';
+  const today = todayISO(), start = new Date(first); start.setDate(1 - first.getDay());
+  const byDay = {};
+  events.forEach(ev => acalDays(ev).forEach(d => { (byDay[d] = byDay[d] || []).push(ev); }));
+  const noClass = acalNoClassMap();
+  /* วันหยุดที่ผู้ดูแลตั้งไว้ในหลังบ้าน แสดงเป็นพื้นแดงด้วย คนกรอกปฏิทินจะได้เห็นว่าวันไหนไม่มีเรียนอยู่แล้ว */
+  const adminHol = {};
+  Object.values(DB.timetable.terms || {}).forEach(t => (t && Array.isArray(t.holidays) ? t.holidays : []).forEach(h => { if (h && h.date) adminHol[h.date] = h.name || 'วันหยุด'; }));
+  /* ⚠ เฉพาะวันที่มีงานจริงชนกันตั้งแต่สองงาน วันหยุดหรือช่วงปิดภาคที่มีกิจกรรมอื่นซ้อนเป็นเรื่องปกติ ไม่ต้องเตือน */
+  const busyCount = list => list.filter(x => !x.noClass && ['school', 'academic', 'exam'].includes(x.type)).length;
+  let cells = '';
+  const d = new Date(start);
+  for (let i = 0; i < 42; i++) {
+    const iso = isoDate(d), inMonth = iso.slice(0, 7) === month, list = byDay[iso] || [], w = d.getDay();
+    if (i >= 35 && !inMonth && d.getDay() === 0) break;
+    const cls = ['acal-cell', inMonth ? '' : 'acal-out', iso === today ? 'acal-today' : '', w === 0 || w === 6 ? 'acal-weekend' : '',
+      noClass[iso] || adminHol[iso] ? 'acal-off' : '', busyCount(list) > 1 ? 'acal-clash' : ''].filter(Boolean).join(' ');
+    cells += '<div class="' + cls + '" data-acal-day="' + iso + '"><div class="acal-num">' + d.getDate() +
+        (busyCount(list) > 1 ? '<span class="acal-warn" title="มีงานมากกว่าหนึ่งงานในวันเดียวกัน">⚠</span>' : '') + '</div>' +
+      (adminHol[iso] && !noClass[iso] ? '<div class="acal-admin-hol" title="วันหยุดที่ผู้ดูแลระบบตั้งไว้">' + esc(adminHol[iso]) + '</div>' : '') +
+      list.slice(0, 3).map(ev => acalChip(ev)).join('') +
+      (list.length > 3 ? '<div class="acal-more">+' + (list.length - 3) + ' รายการ</div>' : '') + '</div>';
+    d.setDate(d.getDate() + 1);
+  }
+  const inThisMonth = events.filter(ev => ev.start.slice(0, 7) <= month && (ev.end || ev.start).slice(0, 7) >= month);
+  return '<div class="acal-grid" style="margin-top:12px">' + THAI_DOW.map((x, i) => '<div class="acal-dow' + (i === 0 || i === 6 ? ' acal-weekend' : '') + '">' + x + '</div>').join('') + cells + '</div>' +
+    '<h3 style="margin:16px 0 6px">รายการเดือน' + esc(acalMonthLabel(month)) + ' <span class="badge">' + inThisMonth.length + '</span></h3>' +
+    (inThisMonth.length ? acalTableHtml(inThisMonth) : '<div class="empty">ยังไม่มีรายการในเดือนนี้' + (isAcademicStaff() ? ' • กดที่ช่องวันเพื่อเพิ่ม' : '') + '</div>');
+}
+function acalTableHtml(list) {
+  return '<div class="tablewrap"><table class="acal-table"><thead><tr><th>วันที่</th><th>รายการ</th><th>ประเภท</th><th>ผู้รับผิดชอบ</th><th>หมายเหตุ</th></tr></thead><tbody>' +
+    list.map(ev => '<tr><td class="lt"><b>' + esc(acalRangeText(ev)) + '</b>' + (ev.end && ev.end !== ev.start ? '<div class="hint">' + acalDays(ev).length + ' วัน</div>' : '') + '</td>' +
+      '<td class="lt">' + acalChip(ev).replace('acal-chip', 'acal-chip acal-chip-wide') + '</td>' +
+      '<td><span class="badge acal-badge acal-t-' + esc(ev.type) + '">' + esc(acalType(ev.type).label) + '</span>' + (ev.noClass ? '<br><span class="badge bad">งดการเรียนการสอน</span>' : '') + '</td>' +
+      '<td>' + esc(ev.owner || '–') + '</td><td class="lt">' + esc(ev.note || '') + '</td></tr>').join('') + '</tbody></table></div>';
+}
+function acalListHtml(year, events) {
+  if (!events.length) return '<div class="empty" style="margin-top:12px">ยังไม่มีรายการในปีการศึกษา ' + esc(year) + '</div>';
+  return acalMonths(year).map(m => {
+    const list = events.filter(ev => ev.start.slice(0, 7) === m);
+    return list.length ? '<h3 style="margin:16px 0 6px">' + esc(acalMonthLabel(m)) + ' <span class="badge">' + list.length + '</span></h3>' + acalTableHtml(list) : '';
+  }).join('') + (events.some(ev => !acalMonths(year).includes(ev.start.slice(0, 7))) ?
+    '<h3 style="margin:16px 0 6px">นอกช่วงปีการศึกษา</h3>' + acalTableHtml(events.filter(ev => !acalMonths(year).includes(ev.start.slice(0, 7)))) : '');
+}
+
+function openAcalDetail(ev, list) {
+  const items = list && list.length ? list : [ev];
+  openModal({ title: 'ปฏิทินวิชาการ • ' + acalRangeText(ev),
+    bodyHTML: items.map(x => '<div class="acal-detail"><span class="badge acal-badge acal-t-' + esc(x.type) + '">' + esc(acalType(x.type).label) + '</span>' +
+      (x.noClass ? ' <span class="badge bad">งดการเรียนการสอน</span>' : '') +
+      '<h3 style="margin:6px 0 2px">' + esc(x.title) + '</h3><div class="hint">' + esc(acalRangeText(x)) + (x.owner ? ' • ' + esc(x.owner) : '') + '</div>' +
+      (x.note ? '<div style="margin-top:6px;white-space:pre-wrap">' + esc(x.note) + '</div>' : '') + '</div>').join('') });
+}
+
+/** เพิ่ม/แก้รายการ — ev = null คือเพิ่มใหม่ */
+function openAcalEditor(ev, preset) {
+  if (!isAcademicStaff()) return toast('ฝ่ายวิชาการหรือผู้ดูแลระบบเท่านั้นที่แก้ปฏิทินได้', 'bad');
+  const year = acalCurYear(), src = ev || Object.assign({ type: 'school', noClass: false }, preset || {});
+  const typeOpts = ACAL_TYPES.map(t => '<option value="' + t.value + '"' + (t.value === src.type ? ' selected' : '') + '>' + esc(t.label) + '</option>').join('');
+  openModal({ title: (ev ? 'แก้ไขรายการ' : 'เพิ่มรายการ') + ' • ปฏิทินวิชาการ ปี ' + year,
+    bodyHTML: '<div class="pick"><label>ชื่อกิจกรรม / วันหยุด</label><input id="aeTitle" list="aeTitlePresets" style="width:100%" value="' + esc(src.title || '') + '" placeholder="เช่น สอบกลางภาคเรียนที่ 1">' +
+        '<datalist id="aeTitlePresets">' + ACAL_TITLE_PRESETS.concat(HOLIDAY_PRESETS).map(x => '<option value="' + esc(x) + '">').join('') + '</datalist></div>' +
+      '<div class="grid2" style="margin-top:10px"><div class="pick"><label>ประเภท</label><select id="aeType" style="width:100%">' + typeOpts + '</select></div>' +
+        '<div class="pick"><label>ผู้รับผิดชอบ</label><input id="aeOwner" list="aeOwnerList" style="width:100%" value="' + esc(src.owner || '') + '" placeholder="เช่น งานวัดผลและประเมินผล">' +
+        '<datalist id="aeOwnerList">' + ACAL_OWNERS.concat(LEARNING_AREAS.map(x => 'กลุ่มสาระฯ ' + x)).map(x => '<option value="' + esc(x) + '">').join('') + '</datalist></div>' +
+        '<div class="pick"><label>ตั้งแต่วันที่</label><input type="date" id="aeStart" value="' + esc(src.start || '') + '"></div>' +
+        '<div class="pick"><label>ถึงวันที่ (เว้นว่างถ้าวันเดียว)</label><input type="date" id="aeEnd" value="' + esc(src.end && src.end !== src.start ? src.end : '') + '"></div></div>' +
+      '<label class="acal-noclass-pick" style="display:block;margin-top:10px"><input type="checkbox" id="aeNoClass"' + (src.noClass ? ' checked' : '') + '> <b>งดการเรียนการสอน</b>' +
+        '<div class="hint">ติ๊กแล้ววันนี้จะนับเป็นวันหยุดของภาคเรียนทันที ครูไม่ต้องเช็กชื่อ และไม่คิดเป็นคาบเรียนตอนคำนวณ % เวลาเรียน</div></label>' +
+      '<div class="pick" style="margin-top:10px"><label>หมายเหตุ</label><textarea id="aeNote" rows="2" style="width:100%">' + esc(src.note || '') + '</textarea></div>' +
+      '<div id="aeClash" style="margin-top:10px"></div>',
+    buttons: [{ label: 'ยกเลิก' }].concat(ev ? [{ label: 'ลบรายการนี้', cls: 'danger', async act(close) {
+      if (!await confirmBox('ลบรายการ', 'ลบ <b>' + esc(ev.title) + '</b> (' + esc(acalRangeText(ev)) + ') ออกจากปฏิทินวิชาการ?' + (ev.noClass ? '<br>วันนี้จะกลับมานับเป็นวันเรียนตามปกติ' : ''), 'ลบ')) return;
+      acalRemove(year, ev.id); close(); renderAcademic(); toast('ลบรายการแล้ว', 'ok');
+    } }] : []).concat([{ label: 'บันทึก', cls: 'primary', async act(close, root) {
+      const title = $('#aeTitle', root).value.trim(), start = $('#aeStart', root).value, end = $('#aeEnd', root).value || start;
+      if (!title) return toast('กรุณาใส่ชื่อกิจกรรม', 'bad');
+      if (!start) return toast('กรุณาเลือกวันที่', 'bad');
+      if (end < start) return toast('วันสิ้นสุดต้องไม่ก่อนวันเริ่ม', 'bad');
+      if (acalDays({ start: start, end: end }).length > 120) return toast('ช่วงวันยาวเกิน 120 วัน กรุณาแบ่งเป็นหลายรายการ', 'bad');
+      const next = Object.assign({}, ev || {}, { id: ev ? ev.id : uid('ac'), title: title, type: $('#aeType', root).value, start: start, end: end,
+        noClass: $('#aeNoClass', root).checked, owner: $('#aeOwner', root).value.trim(), note: $('#aeNote', root).value.trim(),
+        source: ev ? (ev.source || 'manual') : 'manual', updatedAt: new Date().toISOString(), updatedBy: acalWho() });
+      if (!ev) { next.createdAt = next.updatedAt; next.createdBy = next.updatedBy; }
+      const others = acalOverlaps(next, year), warns = acalWarnings(next, others);
+      if ((others.length || warns.length) && !await acalConfirmOverlap(next, others, warns)) return;
+      const range = acalYearRange(year);
+      if (start < range.from || end > range.to) toast('รายการนี้อยู่นอกช่วงปีการศึกษา ' + year + ' (' + thaiDate(range.from) + ' – ' + thaiDate(range.to) + ')', 'bad');
+      acalPut(year, next); close();
+      /* เปิดมาจากปุ่ม "ลงปฏิทิน" ของงานตามรอบปี — ผูกงานกับรายการ จะได้ขึ้นว่าลงปฏิทินแล้ว */
+      const task = !ev && preset && preset.taskId ? acadTaskStore(year).tasks.find(t => t.id === preset.taskId) : null;
+      if (task) { task.eventId = next.id; academicMark('task', year, task.id, 'put'); save(true); academicFlushAll(true); }
+      DB.ui.acalMonth = start.slice(0, 7); save();
+      renderAcademic(); toast((ev ? 'แก้ไข' : 'เพิ่ม') + 'รายการแล้ว' + (next.noClass ? ' • นับเป็นวันงดเรียนแล้ว' : ''), 'ok');
+    } }]),
+    onMount(root) {
+      /* แสดงรายการที่วันทับกันตั้งแต่ตอนกรอก ไม่ต้องรอกดบันทึก */
+      const show = () => {
+        const start = $('#aeStart', root).value, end = $('#aeEnd', root).value || start, box = $('#aeClash', root);
+        if (!start || end < start) { box.innerHTML = ''; return; }
+        const probe = { id: ev ? ev.id : '', start: start, end: end, type: $('#aeType', root).value, noClass: $('#aeNoClass', root).checked };
+        const others = acalOverlaps(probe, year), warns = acalWarnings(probe, others);
+        box.innerHTML = others.length || warns.length ? '<div class="notice warn">⚠ ' + (others.length ? 'วันที่เลือกทับกับ ' + others.length + ' รายการ: ' +
+          others.map(x => '<b>' + esc(x.title) + '</b> (' + esc(acalRangeText(x)) + ')').join(', ') : '') +
+          (warns.length ? '<div>' + warns.map(esc).join('<br>') + '</div>' : '') + '</div>' : '';
+      };
+      $('#aeType', root).addEventListener('change', e => { if (e.target.value === 'holiday') $('#aeNoClass', root).checked = true; show(); });
+      ['#aeStart', '#aeEnd', '#aeNoClass'].forEach(s => $(s, root).addEventListener('change', show));
+      show();
+      $('#aeTitle', root).focus();
+    } });
+}
+/** แจ้งคนกรอกเมื่อวันทับกัน — ยังบันทึกได้ เพราะบางกิจกรรมจัดพร้อมกันจริง แต่ต้องเห็นก่อน */
+function acalConfirmOverlap(ev, others, warns) {
+  return new Promise(res => {
+    openModal({ title: '⚠ วันที่ซ้อนทับกับรายการอื่น',
+      bodyHTML: '<div class="notice warn" style="margin-bottom:10px"><b>' + esc(ev.title) + '</b> • ' + esc(acalRangeText(ev)) + '</div>' +
+        (warns.length ? '<ul class="acal-warn-list">' + warns.map(w => '<li>' + esc(w) + '</li>').join('') + '</ul>' : '') +
+        (others.length ? '<div class="tablewrap"><table><thead><tr><th>รายการที่ทับ</th><th>วันที่</th><th>ประเภท</th></tr></thead><tbody>' +
+          others.map(x => '<tr><td class="lt"><b>' + esc(x.title) + '</b>' + (x.noClass ? ' <span class="badge bad">งดเรียน</span>' : '') + '</td><td>' + esc(acalRangeText(x)) + '</td>' +
+            '<td><span class="badge acal-badge acal-t-' + esc(x.type) + '">' + esc(acalType(x.type).label) + '</span></td></tr>').join('') + '</tbody></table></div>' : '') +
+        '<div class="hint" style="margin-top:8px">ถ้าตั้งใจให้จัดพร้อมกันจริง กด “บันทึกทั้งที่ซ้อน” ได้เลย</div>',
+      buttons: [{ label: 'กลับไปแก้', act: c => { c(); res(false); } }, { label: 'บันทึกทั้งที่ซ้อน', cls: 'primary', act: c => { c(); res(true); } }] });
+  });
+}
+function acalPut(year, ev) {
+  const c = acalStore(year), i = c.events.findIndex(x => x.id === ev.id);
+  if (i >= 0) c.events[i] = ev; else c.events.push(ev);
+  acalVersion++; academicMark('cal', year, ev.id, 'put'); save(true);
+  academicFlushAll();
+}
+function acalRemove(year, id) {
+  const c = acalStore(year);
+  c.events = c.events.filter(x => x.id !== id);
+  acalVersion++; academicMark('cal', year, id, 'del'); save(true);
+  academicFlushAll();
+}
+
+/* ---- ดึงวันหยุดจาก Google ลงปฏิทินวิชาการ ----------------------------------
+   ใช้ตัวดึงเดียวกับหลังบ้าน แต่ดึงทั้งปีการศึกษา และเก็บวันหยุดยาวเป็นรายการเดียวทั้งช่วง
+   วันหยุดนักขัตฤกษ์ = วันหยุดราชการ + งดการเรียนการสอน • วันสำคัญอื่น = วันสำคัญ (โรงเรียนเปิดตามปกติ) */
+async function startAcalGoogleImport(btn, year) {
+  const range = acalYearRange(year), label = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'กำลังดึงจาก Google…'; }
+  try {
+    const events = await fetchGoogleHolidays(range.from, range.to);
+    if (!events.length) return toast('ปฏิทิน Google ไม่มีวันหยุดในปีการศึกษานี้', 'bad');
+    openAcalImport(events, year, 'ดึงออนไลน์');
+  } catch (e) {
+    openHolidayApiHelp(e);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+  }
+}
+function openAcalImport(events, year, sourceLabel) {
+  const range = acalYearRange(year), have = acalEvents(year);
+  const list = (events || []).map(ev => ({ start: ev.date, end: ev.endDate && ev.endDate > ev.date ? shiftISODate(ev.endDate, -1) : ev.date,
+      title: ev.name || 'วันหยุด', official: !!ev.official }))
+    .filter(x => x.start >= range.from && x.start <= range.to)
+    .sort((a, b) => a.start.localeCompare(b.start));
+  if (!list.length) return toast('ไม่พบวันหยุดในช่วงปีการศึกษา ' + year, 'bad');
+  const exists = x => have.some(h => h.start === x.start && String(h.title).trim() === String(x.title).trim());
+  const rows = list.map((x, i) => '<tr><td><input type="checkbox" class="acal-imp" data-i="' + i + '"' + (x.official && !exists(x) ? ' checked' : '') + (exists(x) ? ' disabled' : '') + '></td>' +
+    '<td><b>' + esc(acalRangeText(x)) + '</b></td><td class="lt">' + esc(x.title) + '</td>' +
+    '<td><span class="badge acal-badge acal-t-' + (x.official ? 'holiday' : 'important') + '">' + (x.official ? 'วันหยุดราชการ • งดเรียน' : 'วันสำคัญ • เรียนตามปกติ') + '</span>' +
+    (exists(x) ? '<br><span class="badge ok">มีในปฏิทินแล้ว</span>' : '') + '</td></tr>').join('');
+  openModal({ title: 'วันหยุดจากปฏิทิน Google • ' + sourceLabel, wide: true,
+    bodyHTML: '<div class="notice">พบ <b>' + list.length + '</b> รายการในปีการศึกษา ' + esc(year) + ' (' + esc(thaiDate(range.from)) + ' – ' + esc(thaiDate(range.to)) + ')' +
+        '<br>ระบบติ๊กให้เฉพาะ <b>วันหยุดนักขัตฤกษ์</b> ที่ยังไม่มีในปฏิทิน ซึ่งจะนับเป็นวันงดการเรียนการสอน' +
+        '<br>วันสำคัญอื่นที่ติ๊กเพิ่มจะลงเป็น “วันสำคัญ” โรงเรียนยังเปิดสอนตามปกติ</div>' +
+      '<div class="row" style="margin:8px 0"><button class="sm" id="aiOfficial">ติ๊กเฉพาะวันหยุดนักขัตฤกษ์</button><button class="sm" id="aiAll">ติ๊กทั้งหมด</button>' +
+        '<button class="sm" id="aiNone">ล้างการติ๊ก</button><div class="spacer"></div><span class="badge" id="aiCount"></span></div>' +
+      '<div class="tablewrap" style="max-height:50vh"><table><thead><tr><th></th><th>วันที่</th><th>ชื่อ</th><th>ลงเป็น</th></tr></thead><tbody>' + rows + '</tbody></table></div>',
+    buttons: [{ label: 'ยกเลิก' }, { label: 'เพิ่มลงปฏิทินวิชาการ', cls: 'primary', act(close, root) {
+      const picked = $$('.acal-imp:checked', root).map(x => list[num(x.dataset.i)]).filter(Boolean);
+      if (!picked.length) return toast('ยังไม่ได้ติ๊กรายการไหนเลย', 'bad');
+      const c = acalStore(year), stamp = new Date().toISOString(), who = acalWho();
+      picked.forEach(x => {
+        const ev = { id: uid('ac'), title: x.title, type: x.official ? 'holiday' : 'important', start: x.start, end: x.end, noClass: x.official,
+          owner: '', note: '', source: 'google', createdAt: stamp, createdBy: who, updatedAt: stamp, updatedBy: who };
+        c.events.push(ev); academicMark('cal', year, ev.id, 'put');
+      });
+      acalVersion++; save(true); academicFlushAll(); close(); renderAcademic();
+      toast('เพิ่มลงปฏิทินวิชาการ ' + picked.length + ' รายการ', 'ok');
+    } }],
+    onMount(root) {
+      const count = () => { $('#aiCount', root).textContent = 'ติ๊กไว้ ' + $$('.acal-imp:checked', root).length + ' รายการ'; };
+      const setAll = fn => { $$('.acal-imp:not(:disabled)', root).forEach(cb => { cb.checked = fn(list[num(cb.dataset.i)]); }); count(); };
+      $$('.acal-imp', root).forEach(cb => cb.addEventListener('change', count));
+      $('#aiOfficial', root).addEventListener('click', () => setAll(x => x.official));
+      $('#aiAll', root).addEventListener('click', () => setAll(() => true));
+      $('#aiNone', root).addEventListener('click', () => setAll(() => false));
+      count();
+    } });
+}
+
+/* ---- พิมพ์ปฏิทินวิชาการ ---------------------------------------------------- */
+function openAcalPrint(year, month) {
+  const sems = DB.periods.filter(p => String(p.academicYear) === String(year)).sort((a, b) => String(a.semester).localeCompare(String(b.semester)));
+  openModal({ title: 'พิมพ์ปฏิทินวิชาการ ปีการศึกษา ' + year,
+    bodyHTML: '<div class="pick"><label>รูปแบบเอกสาร</label>' +
+        '<label style="display:block"><input type="radio" name="apKind" value="summary" checked> สรุปปฏิทินวิชาการ (ตารางรายการ A4 แนวตั้ง)</label>' +
+        '<label style="display:block"><input type="radio" name="apKind" value="month"> ปฏิทินรายเดือน ' + esc(acalMonthLabel(month)) + ' (A4 แนวนอน)</label></div>' +
+      '<div class="pick" style="margin-top:10px"><label>ช่วงเวลา (เฉพาะแบบสรุป)</label><select id="apRange"><option value="year">ทั้งปีการศึกษา</option>' +
+        sems.map(p => '<option value="' + esc(p.id) + '">ภาคเรียนที่ ' + esc(p.semester) + '</option>').join('') + '</select></div>' +
+      '<div class="pick" style="margin-top:10px"><label>ประเภทที่จะพิมพ์</label>' + ACAL_TYPES.map(t => '<label style="display:inline-block;margin-right:12px"><input type="checkbox" class="ap-type" value="' + t.value + '" checked> ' + esc(t.label) + '</label>').join('') + '</div>',
+    buttons: [{ label: 'ยกเลิก' }, { label: 'ดูตัวอย่างก่อนพิมพ์', cls: 'primary', act(close, root) {
+      const kind = ($$('[name="apKind"]', root).find(x => x.checked) || {}).value;
+      const types = $$('.ap-type:checked', root).map(x => x.value);
+      if (!types.length) return toast('เลือกประเภทอย่างน้อย 1 ประเภท', 'bad');
+      const rangeId = $('#apRange', root).value;
+      close();
+      if (kind === 'month') openDocumentPreview('ปฏิทินวิชาการ ' + acalMonthLabel(month), acalMonthDocHtml(year, month, types));
+      else openDocumentPreview('สรุปปฏิทินวิชาการ', acalSummaryDocHtml(year, rangeId, types));
+    } }] });
+}
+function acalSignHtml() {
+  return '<div class="doc-sign"><div>ลงชื่อ.......................................................<br>(.......................................................)<br>หัวหน้าฝ่ายวิชาการ</div>' +
+    '<div>ลงชื่อ.......................................................<br>(' + esc(DB.settings.directorName || '.......................................................') + ')<br>' + esc(DB.settings.directorPosition || 'ผู้อำนวยการสถานศึกษา') + '</div></div>';
+}
+function acalSummaryDocHtml(year, rangeId, types) {
+  let list = acalEvents(year).filter(ev => types.includes(ev.type)), sub = 'ปีการศึกษา ' + year;
+  const term = rangeId !== 'year' ? (DB.timetable.terms || {})[rangeId] : null, period = DB.periods.find(p => p.id === rangeId);
+  if (period) {
+    sub = 'ภาคเรียนที่ ' + period.semester + ' ปีการศึกษา ' + year;
+    if (term && term.openDate && term.closeDate) list = list.filter(ev => (ev.end || ev.start) >= term.openDate && ev.start <= term.closeDate);
+  }
+  let no = 0;
+  const body = acalMonths(year).map(m => {
+    const rows = list.filter(ev => ev.start.slice(0, 7) === m);
+    return rows.length ? '<tr class="acal-doc-month"><td colspan="5">' + esc(acalMonthLabel(m)) + '</td></tr>' + rows.map(ev =>
+      '<tr><td style="text-align:center">' + (++no) + '</td><td>' + esc(acalRangeText(ev)) + '</td><td>' + esc(ev.title) + (ev.noClass ? ' <b>(งดการเรียนการสอน)</b>' : '') + '</td>' +
+      '<td>' + esc(ev.owner || acalType(ev.type).label) + '</td><td>' + esc(ev.note || '') + '</td></tr>').join('') : '';
+  }).join('');
+  return '<div class="doc-sheet acal-doc">' + docHeader('ปฏิทินวิชาการ') + '<div style="text-align:center;margin:-8px 0 8px">' + esc(sub) + '</div>' +
+    (no ? '<table class="doc-table acal-doc-table"><thead><tr><th style="width:7%">ที่</th><th style="width:22%">วัน เดือน ปี</th><th>กิจกรรม</th><th style="width:20%">ผู้รับผิดชอบ</th><th style="width:16%">หมายเหตุ</th></tr></thead><tbody>' +
+      body + '</tbody></table>' : '<div style="text-align:center;margin:30px 0">— ยังไม่มีรายการในช่วงนี้ —</div>') +
+    acalSignHtml() + '</div>';
+}
+function acalMonthDocHtml(year, month, types) {
+  const events = acalEvents(year).filter(ev => types.includes(ev.type)), first = parseISODate(month + '-01');
+  const byDay = {}; events.forEach(ev => acalDays(ev).forEach(d => { (byDay[d] = byDay[d] || []).push(ev); }));
+  const start = new Date(first); start.setDate(1 - first.getDay());
+  let rows = '';
+  const d = new Date(start);
+  for (let w = 0; w < 6; w++) {
+    if (w === 5 && d.getMonth() !== first.getMonth()) break;
+    rows += '<tr>';
+    for (let i = 0; i < 7; i++) {
+      const iso = isoDate(d), inMonth = iso.slice(0, 7) === month, list = inMonth ? byDay[iso] || [] : [];
+      rows += '<td class="' + (inMonth ? '' : 'acal-doc-out') + (list.some(x => x.noClass) ? ' acal-doc-off' : '') + '"><div class="acal-doc-num">' + (inMonth ? d.getDate() : '') + '</div>' +
+        /* วันงดเรียนที่ยาวหลายวัน (เช่น ปิดภาคเรียน) เขียนชื่อเฉพาะวันแรก ต้นสัปดาห์ และวันที่ 1 ที่เหลือดูจากแรเงา
+           ไม่งั้นทุกช่องเต็มไปด้วยชื่อเดียวกัน — รายการอื่นอย่างช่วงสอบไม่มีแรเงา จึงยังเขียนทุกวัน */
+        list.filter(ev => !ev.noClass || acalDays(ev).length <= 3 || iso === ev.start || i === 0 || d.getDate() === 1)
+          .map(ev => '<div class="acal-doc-ev">• ' + esc(ev.title) + '</div>').join('') + '</td>';
+      d.setDate(d.getDate() + 1);
+    }
+    rows += '</tr>';
+  }
+  const inMonth = events.filter(ev => ev.start.slice(0, 7) <= month && (ev.end || ev.start).slice(0, 7) >= month);
+  return '<div class="doc-sheet acal-month-sheet"><div class="doc-head"><h2>ปฏิทินวิชาการ เดือน' + esc(acalMonthLabel(month)) + '</h2><div>' + esc(DB.settings.schoolName || 'สถานศึกษา') + ' • ปีการศึกษา ' + esc(year) + '</div></div>' +
+    '<table class="acal-doc-grid' + (Math.ceil((first.getDay() + new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()) / 7) > 5 ? ' acal-doc-6w' : '') + '"><thead><tr>' + ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'].map(x => '<th>' + x + '</th>').join('') + '</tr></thead><tbody>' + rows + '</tbody></table>' +
+    (inMonth.length ? '<div class="acal-doc-list">' + inMonth.map(ev => '<div><b>' + esc(acalRangeText(ev)) + '</b> ' + esc(ev.title) + (ev.noClass ? ' (งดการเรียนการสอน)' : '') + (ev.owner ? ' — ' + esc(ev.owner) : '') + '</div>').join('') + '</div>' : '') +
+    '</div>';
+}
+
+/** การ์ด "กำลังจะถึง" ในหน้าภาพรวมครู — 14 วันข้างหน้า */
+function academicUpcomingCardHtml() {
+  const today = todayISO(), until = shiftISODate(today, 14), seen = new Set(), list = [];
+  Object.keys(ensureAcademic().calendars).forEach(y => acalEvents(y).forEach(ev => {
+    if ((ev.end || ev.start) >= today && ev.start <= until && !seen.has(ev.id)) { seen.add(ev.id); list.push(ev); }
+  }));
+  if (!list.length) return '';
+  list.sort((a, b) => a.start.localeCompare(b.start));
+  return '<div class="card acal-upcoming"><div class="row"><div><h3 style="margin:0">ปฏิทินวิชาการ • 14 วันข้างหน้า</h3><div class="hint">จากฝ่ายวิชาการ</div></div>' +
+    '<div class="spacer"></div><button class="sm" data-go-tab="academic">ดูปฏิทินทั้งหมด</button></div>' +
+    '<div class="acal-up-list">' + list.slice(0, 6).map(ev => '<div class="acal-up-row"><span class="acal-dot acal-t-' + esc(ev.type) + '"></span>' +
+      '<span class="acal-up-date">' + esc(acalRangeText(ev)) + '</span><b>' + esc(ev.title) + '</b>' +
+      (ev.noClass ? ' <span class="badge bad">งดเรียน</span>' : '') + (ev.start <= today ? ' <span class="badge ok">วันนี้</span>' : '') + '</div>').join('') +
+    (list.length > 6 ? '<div class="hint">และอีก ' + (list.length - 6) + ' รายการ</div>' : '') + '</div></div>';
+}
+
+/* ---- ติดตามการส่งคะแนน ------------------------------------------------------ */
+/** ตัวเลขสรุปของสมุดหนึ่งเล่ม — ไม่มีคะแนนรายคน ส่งขึ้นให้ฝ่ายวิชาการเห็นความคืบหน้าได้ */
+function bookProgressOf(key) {
+  const parts = String(key).split('::'); if (parts.length !== 3 || !DB.books[key]) return null;
+  const cls = DB.classes.find(c => c.id === parts[0]), sub = DB.subjects.find(s => s.id === parts[1]);
+  if (!cls || !sub) return null;
+  const b = normalizeBook(DB.books[key]), sts = (cls.students || []).slice().sort((a, c) => num(a.no) - num(c.no));
+  const midMax = num(b.exams.midMax), finMax = num(b.exams.finalMax);
+  let cells = 0, filled = 0, complete = 0;
+  const counts = { '0': 0, 'มส': 0 };
+  sts.forEach(st => {
+    b.items.forEach(it => { cells++; if (itemScoreComplete(b, st.sid, it)) filled++; });
+    const ex = b.exam[st.sid] || {};
+    if (midMax > 0) { cells++; if (has(ex.mid)) filled++; }
+    if (finMax > 0) { cells++; if (has(ex.final)) filled++; }
+    const r = calcRow(b, st), att = attendanceStudentResult(cls.id, sub.id, st, parts[2]);
+    if (r.complete) complete++;
+    if (att && att.isMS) counts['มส']++;
+    else if (r.complete && String(r.grade) === '0') counts['0']++;
+  });
+  return { key: key, periodId: parts[2], classId: cls.id, className: cls.name || '', subjectId: sub.id, subjectCode: sub.code || '', subjectName: sub.name || '',
+    students: sts.length, items: b.items.length + (midMax > 0 ? 1 : 0) + (finMax > 0 ? 1 : 0),
+    filledPct: cells ? Math.round(filled * 1000 / cells) / 10 : 0, complete: complete, counts: counts };
+}
+const bookProgressOwner = () => String((fbUser && fbUser.email) || '').trim().toLowerCase();
+/** ส่งตัวเลขสรุปของเล่มที่ฉันสอนและเปลี่ยนไปจากครั้งก่อน — เรียกท้าย pushMyBooks
+    ส่งเฉพาะเล่มที่อยู่ในตารางสอนของฉัน เครื่องผู้ดูแลที่มีสมุดของคนอื่นจะได้ไม่ส่งในนามตัวเอง */
+async function pushBookProgress() {
+  const owner = bookProgressOwner();
+  if (!owner || !firebaseReady() || !fbSignedIn()) return 0;
+  const me = curTeacher() || {}, sigs = DB.cloud.progressSigs = DB.cloud.progressSigs || {}, pub = DB.cloud.publishedBooks || {};
+  const mine = new Set(); DB.periods.forEach(p => myTeachingPairs(p.id).forEach(x => mine.add(x.classId + '::' + x.subjectId + '::' + p.id)));
+  const jobs = [];
+  Object.keys(DB.books || {}).forEach(key => {
+    if (!mine.has(key) || !bookContentCount(DB.books[key])) return;
+    const sig = quickSig(JSON.stringify(DB.books[key])) + '|' + (pub[key] || '');
+    if (sigs[key] === sig) return;
+    const p = bookProgressOf(key); if (!p) return;
+    const id = bookDocId(key) + '__' + owner.replace(/[^A-Za-z0-9_-]/g, '_');
+    jobs.push(fbSetDoc(fbDb.collection('bookProgress').doc(id), fbPlain(Object.assign(p, { ownerId: owner, teacherId: me.id || '', teacherName: me.name || '',
+      learningArea: teacherArea(me), publishedAt: pub[key] || '', updatedAt: new Date().toISOString() })), 'ความคืบหน้าสมุดคะแนน')
+      .then(() => { sigs[key] = sig; }));
+  });
+  if (!jobs.length) return 0;
+  await Promise.all(jobs); save(true);
+  return jobs.length;
+}
+function markBookPublished(key, published) {
+  const pub = DB.cloud.publishedBooks = DB.cloud.publishedBooks || {};
+  if (published) pub[key] = new Date().toISOString(); else delete pub[key];
+  save(true);
+  pushBookProgress().catch(e => console.warn('book progress', e));
+}
+
+let acadProgress = { periodId: '', at: 0, list: null, error: '' };
+async function loadBookProgress(periodId, force) {
+  if (!force && acadProgress.periodId === periodId && acadProgress.list && Date.now() - acadProgress.at < 120000) return acadProgress.list;
+  if (!firebaseReady() || !fbSignedIn()) { acadProgress = { periodId: periodId, at: 0, list: null, error: 'offline' }; return null; }
+  try {
+    const snap = await fbDb.collection('bookProgress').where('periodId', '==', periodId).get({ source: 'server' });
+    acadProgress = { periodId: periodId, at: Date.now(), list: snap.docs.map(d => fbDecodeNested(d.data() || {})), error: '' };
+  } catch (e) {
+    acadProgress = { periodId: periodId, at: Date.now(), list: null, error: e && e.code === 'permission-denied' ? 'rules' : ((e && e.message) || 'error') };
+  }
+  return acadProgress.list;
+}
+/** รายวิชาที่ควรมีผลการเรียน = ครู × ห้อง × วิชา ในตารางสอนของภาคนั้น จับคู่กับตัวเลขที่ครูส่งขึ้นมา */
+function academicScoreRows(periodId) {
+  const progress = acadProgress.periodId === periodId && acadProgress.list ? acadProgress.list : [];
+  const teacherByEmail = email => DB.teachers.find(t => t.email && fbStaffId(t.email) === fbStaffId(email));
+  const seen = new Map();
+  (DB.timetable.entries || []).filter(e => e.periodId === periodId).forEach(e => {
+    const k = e.classId + '::' + e.subjectId; if (seen.has(k)) return;
+    const t = DB.teachers.find(x => x.id === e.teacherId) || {}, cls = DB.classes.find(c => c.id === e.classId) || {}, sub = DB.subjects.find(s => s.id === e.subjectId) || {};
+    seen.set(k, { classId: e.classId, subjectId: e.subjectId, className: cls.name || '–', subjectCode: sub.code || '', subjectName: sub.name || '–',
+      teacherName: t.name || '–', area: teacherArea(t) || 'ไม่ระบุกลุ่มสาระ', students: (cls.students || []).length, p: null });
+  });
+  progress.forEach(p => {
+    const k = p.classId + '::' + p.subjectId, row = seen.get(k), t = teacherByEmail(p.ownerId);
+    if (row) { if (!row.p || String(p.updatedAt) > String(row.p.updatedAt)) row.p = p; return; }
+    seen.set(k, { classId: p.classId, subjectId: p.subjectId, className: p.className, subjectCode: p.subjectCode, subjectName: p.subjectName,
+      teacherName: p.teacherName || (t || {}).name || p.ownerId, area: p.learningArea || teacherArea(t) || 'ไม่ระบุกลุ่มสาระ', students: p.students, p: p });
+  });
+  return Array.from(seen.values()).map(r => {
+    const p = r.p;
+    r.status = !p ? 'none' : (p.filledPct >= 100 && p.complete >= p.students && p.students > 0) ? 'done' : 'doing';
+    return r;
+  }).sort((a, b) => a.area.localeCompare(b.area, 'th') || String(a.teacherName).localeCompare(String(b.teacherName), 'th') ||
+    String(a.subjectCode).localeCompare(String(b.subjectCode)) || String(a.className).localeCompare(String(b.className), 'th'));
+}
+const ACAD_SCORE_STATUS = { none: ['ยังไม่เริ่ม / ยังไม่ซิงก์', 'bad'], doing: ['กำลังกรอก', 'warn'], done: ['คะแนนครบ', 'ok'] };
+function renderAcademicScores(body) {
+  const period = curPeriod(), pid = DB.ui.periodId;
+  if (!period) { body.innerHTML = '<div class="card empty">กรุณาเลือกปี/ภาคเรียนก่อน</div>'; return; }
+  if (acadProgress.periodId !== pid || !acadProgress.at) {
+    body.innerHTML = '<div class="card empty">กำลังโหลดความคืบหน้าจากส่วนกลาง…</div>';
+    loadBookProgress(pid).then(() => { if (DB.ui.tab === 'academic' && DB.ui.academicView === 'scores') renderAcademic(); });
+    return;
+  }
+  const rows = academicScoreRows(pid), area = DB.ui.acadArea || '', status = DB.ui.acadStatus || '';
+  const areas = Array.from(new Set(rows.map(r => r.area))).sort((a, b) => a.localeCompare(b, 'th'));
+  const list = rows.filter(r => (!area || r.area === area) && (!status || r.status === status));
+  const n = s => rows.filter(r => r.status === s).length;
+  const pubN = rows.filter(r => r.p && r.p.publishedAt).length;
+  const err = acadProgress.error === 'offline' ? 'ยังไม่ได้เข้าสู่ระบบด้วยบัญชีโรงเรียน จึงดึงความคืบหน้าของครูแต่ละคนไม่ได้'
+    : acadProgress.error === 'rules' ? 'ส่วนกลางยังไม่อนุญาตให้อ่านความคืบหน้า — ผู้ดูแลระบบต้องอัปเดตกฎ Firestore (firestore.rules) ก่อน'
+    : acadProgress.error ? 'ดึงข้อมูลไม่สำเร็จ: ' + acadProgress.error : '';
+  body.innerHTML = '<div class="card"><div class="row"><div><h3 style="margin:0">ติดตามการส่งคะแนน • ปี ' + esc(period.academicYear) + ' ภาค ' + esc(period.semester) + '</h3>' +
+      '<div class="hint tip">นับจากรายวิชาในตารางสอน เทียบกับตัวเลขที่เครื่องของครูส่งขึ้นมาอัตโนมัติหลังกรอกคะแนน (ไม่มีคะแนนรายคน) — ครูต้องเปิดแอปเวอร์ชันใหม่และเข้าสู่ระบบอย่างน้อยหนึ่งครั้ง ตัวเลขจึงจะขึ้น</div></div>' +
+      '<div class="spacer"></div><button class="sm" id="asReload">↻ โหลดใหม่</button><button class="sm" id="asPrint">🖨 พิมพ์รายวิชาที่ยังไม่ครบ</button></div>' +
+    (err ? '<div class="notice bad" style="margin-top:10px">' + esc(err) + '</div>' : '') +
+    '<div class="acad-tiles"><div class="acad-tile"><b>' + rows.length + '</b><span>รายวิชา-ห้อง ทั้งหมด</span></div>' +
+      '<div class="acad-tile ok"><b>' + n('done') + '</b><span>คะแนนครบ</span></div>' +
+      '<div class="acad-tile warn"><b>' + n('doing') + '</b><span>กำลังกรอก</span></div>' +
+      '<div class="acad-tile bad"><b>' + n('none') + '</b><span>ยังไม่เริ่ม / ยังไม่ซิงก์</span></div>' +
+      '<div class="acad-tile"><b>' + pubN + '</b><span>เผยแพร่ให้นักเรียนแล้ว</span></div></div>' +
+    '<div class="row" style="gap:8px;margin:10px 0"><select id="asArea"><option value="">ทุกกลุ่มสาระ</option>' + areas.map(a => '<option' + (a === area ? ' selected' : '') + '>' + esc(a) + '</option>').join('') + '</select>' +
+      '<select id="asStatus"><option value="">ทุกสถานะ</option>' + Object.keys(ACAD_SCORE_STATUS).map(k => '<option value="' + k + '"' + (k === status ? ' selected' : '') + '>' + esc(ACAD_SCORE_STATUS[k][0]) + '</option>').join('') + '</select>' +
+      '<span class="hint">แสดง ' + list.length + ' รายการ</span></div>' +
+    (list.length ? '<div class="tablewrap" style="max-height:62vh"><table><thead><tr><th>กลุ่มสาระ</th><th>ครูผู้สอน</th><th>รายวิชา</th><th>ห้อง</th><th>กรอกคะแนน</th><th>ครบรายคน</th><th>0 / มส.</th><th>เผยแพร่</th><th>อัปเดต</th><th>สถานะ</th></tr></thead><tbody>' +
+      list.map(r => { const p = r.p, st = ACAD_SCORE_STATUS[r.status];
+        return '<tr><td class="lt">' + esc(r.area) + '</td><td class="lt">' + esc(r.teacherName) + '</td><td class="lt">' + esc((r.subjectCode ? r.subjectCode + ' ' : '') + r.subjectName) + '</td><td>' + esc(r.className) + '</td>' +
+          '<td>' + (p ? '<div class="acad-bar"><span style="width:' + Math.min(100, num(p.filledPct)) + '%"></span></div><span class="hint">' + fmt(p.filledPct, 1) + '%</span>' : '–') + '</td>' +
+          '<td>' + (p ? p.complete + '/' + p.students : '–') + '</td>' +
+          '<td>' + (p ? ((p.counts || {})['0'] || 0) + ' / ' + ((p.counts || {})['มส'] || 0) : '–') + '</td>' +
+          '<td>' + (p && p.publishedAt ? '<span class="badge ok">' + esc(thaiDate(String(p.publishedAt).slice(0, 10))) + '</span>' : '<span class="hint">ยัง</span>') + '</td>' +
+          '<td><span class="hint">' + (p && p.updatedAt ? esc(thaiDate(String(p.updatedAt).slice(0, 10))) : '–') + '</span></td>' +
+          '<td><span class="badge ' + st[1] + '">' + esc(st[0]) + '</span></td></tr>'; }).join('') + '</tbody></table></div>'
+      : '<div class="empty">' + (rows.length ? 'ไม่มีรายการตามตัวกรอง' : 'ยังไม่มีรายวิชาในตารางสอนของภาคนี้') + '</div>') + '</div>';
+  $('#asReload', body).addEventListener('click', async e => { e.currentTarget.disabled = true; await loadBookProgress(pid, true); renderAcademic(); });
+  $('#asArea', body).addEventListener('change', e => { DB.ui.acadArea = e.target.value; save(); renderAcademic(); });
+  $('#asStatus', body).addEventListener('change', e => { DB.ui.acadStatus = e.target.value; save(); renderAcademic(); });
+  $('#asPrint', body).addEventListener('click', () => {
+    const left = rows.filter(r => r.status !== 'done');
+    const html = '<div class="doc-sheet">' + docHeader('รายวิชาที่ยังส่งผลการเรียนไม่ครบ') + '<div style="text-align:center;margin:-8px 0 8px">ภาคเรียนที่ ' + esc(period.semester) + ' ปีการศึกษา ' + esc(period.academicYear) +
+      ' • ข้อมูล ณ ' + esc(thaiDate(todayISO())) + '</div>' +
+      (left.length ? '<table class="doc-table"><thead><tr><th>ที่</th><th>กลุ่มสาระ</th><th>ครูผู้สอน</th><th>รายวิชา</th><th>ห้อง</th><th>กรอกแล้ว</th><th>สถานะ</th></tr></thead><tbody>' +
+        left.map((r, i) => '<tr><td style="text-align:center">' + (i + 1) + '</td><td>' + esc(r.area) + '</td><td>' + esc(r.teacherName) + '</td><td>' + esc((r.subjectCode ? r.subjectCode + ' ' : '') + r.subjectName) + '</td>' +
+          '<td style="text-align:center">' + esc(r.className) + '</td><td style="text-align:center">' + (r.p ? fmt(r.p.filledPct, 1) + '%' : '–') + '</td><td>' + esc(ACAD_SCORE_STATUS[r.status][0]) + '</td></tr>').join('') + '</tbody></table>'
+        : '<div style="text-align:center;margin:30px 0">ทุกรายวิชาส่งคะแนนครบแล้ว</div>') + acalSignHtml() + '</div>';
+    openDocumentPreview('รายวิชาที่ยังส่งผลการเรียนไม่ครบ', html);
+  });
+}
+
+/* ---- นักเรียน 0 ร มส. ทั้งโรงเรียน ------------------------------------------ */
+function renderAcademicPending(body) {
+  const stats = pendingResultStats(), reason = DB.ui.acadPrReason || '', level = DB.ui.acadPrLevel || '';
+  const levelOf = r => { const cls = DB.classes.find(c => c.id === r.classId); return classLevel(cls ? cls.name : r.className) || 'ไม่ระบุระดับชั้น'; };
+  const list = stats.items.filter(r => (!reason || r.reason === reason) && (!level || levelOf(r) === level))
+    .sort((a, b) => String(a.className).localeCompare(String(b.className), 'th') || num(a.no) - num(b.no));
+  const levels = Object.keys(stats.byLevel).sort((a, b) => a.localeCompare(b, 'th'));
+  body.innerHTML = '<div class="card"><div class="row"><div><h3 style="margin:0">นักเรียนที่มีผลการเรียน 0 ร มส. มผ. ทั้งโรงเรียน</h3>' +
+      '<div class="hint tip">ครูประจำวิชาเป็นผู้บันทึกและส่งขึ้นส่วนกลาง หน้านี้รวมของทุกคนให้ฝ่ายวิชาการติดตามการสอบแก้ตัว</div></div><div class="spacer"></div>' +
+      '<button class="sm" id="apPull">↻ ดึงล่าสุดจากส่วนกลาง</button><button class="sm" id="apPrint">🖨 พิมพ์บัญชีรายชื่อ</button></div>' +
+    '<div class="acad-tiles"><div class="acad-tile bad"><b>' + stats.students + '</b><span>นักเรียนที่ยังติด' + (stats.pctStudents != null ? ' (' + fmt(stats.pctStudents, 1) + '%)' : '') + '</span></div>' +
+      '<div class="acad-tile warn"><b>' + stats.count + '</b><span>รายวิชาที่ติด</span></div>' +
+      PENDING_REASONS.map(x => '<div class="acad-tile"><b>' + (stats.byReason[x.value] || 0) + '</b><span>ติด ' + esc(x.value) + '</span></div>').join('') +
+      '<div class="acad-tile ok"><b>' + stats.resolved + '</b><span>แก้ผ่านแล้ว</span></div>' +
+      '<div class="acad-tile"><b>' + stats.heavy + '</b><span>ติดตั้งแต่ 3 วิชา</span></div></div>' +
+    (levels.length ? '<div class="tablewrap" style="margin:10px 0"><table><thead><tr><th>ระดับชั้น</th><th>นักเรียน</th><th>รายวิชาที่ติด</th></tr></thead><tbody>' +
+      levels.map(lv => '<tr><td>' + esc(lv) + '</td><td>' + stats.byLevel[lv].sids.size + '</td><td>' + stats.byLevel[lv].subjects + '</td></tr>').join('') + '</tbody></table></div>' : '') +
+    '<div class="row" style="gap:8px;margin:10px 0"><select id="apReason"><option value="">ทุกผลที่ติด</option>' + PENDING_REASONS.map(x => '<option value="' + esc(x.value) + '"' + (x.value === reason ? ' selected' : '') + '>' + esc(x.value) + '</option>').join('') + '</select>' +
+      '<select id="apLevel"><option value="">ทุกระดับชั้น</option>' + levels.map(lv => '<option' + (lv === level ? ' selected' : '') + '>' + esc(lv) + '</option>').join('') + '</select>' +
+      '<span class="hint">แสดง ' + list.length + ' รายการ</span></div>' +
+    (list.length ? '<div class="tablewrap" style="max-height:60vh"><table><thead><tr><th>นักเรียน</th><th>ห้อง</th><th>วิชา</th><th>ผลที่ติด</th><th>ภาคที่ติด</th><th>ครูผู้บันทึก</th></tr></thead><tbody>' +
+      list.map(r => { const carry = pendingCarryTerms(r);
+        return '<tr><td class="lt"><b>' + esc(r.name) + '</b>' + (r.no ? '<div class="hint">เลขที่ ' + esc(r.no) + ' • ' + esc(r.sid) + '</div>' : '') + '</td><td>' + esc(r.className) + '</td>' +
+          '<td class="lt">' + esc((r.subjectCode ? r.subjectCode + ' ' : '') + r.subjectName) + '</td><td>' + pendingReasonBadge(r.reason) + '</td>' +
+          '<td>' + esc(periodText(r.periodId)) + (carry ? '<div class="hint badtext">ค้างมาแล้ว ' + carry + ' ภาคเรียน</div>' : '') + '</td>' +
+          '<td>' + esc(r.teacherName || r.ownerName || '–') + '</td></tr>'; }).join('') + '</tbody></table></div>'
+      : '<div class="empty">ไม่มีนักเรียนที่ค้างผลการเรียน' + (reason || level ? 'ตามตัวกรอง' : '') + '</div>') + '</div>';
+  $('#apReason', body).addEventListener('change', e => { DB.ui.acadPrReason = e.target.value; save(); renderAcademic(); });
+  $('#apLevel', body).addEventListener('change', e => { DB.ui.acadPrLevel = e.target.value; save(); renderAcademic(); });
+  $('#apPull', body).addEventListener('click', async e => {
+    if (!pendingSyncReady()) return toast('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อน', 'bad');
+    e.currentTarget.disabled = true;
+    try { const got = await pullPendingResults(); save(true); toast('ดึงแล้ว ' + got.total + ' รายการ', 'ok'); }
+    catch (err) { toast('ดึงไม่สำเร็จ: ' + ((err && err.message) || err), 'bad'); }
+    renderAcademic();
+  });
+  $('#apPrint', body).addEventListener('click', () => {
+    const byClass = {}; list.forEach(r => { (byClass[r.className || '–'] = byClass[r.className || '–'] || []).push(r); });
+    const html = '<div class="doc-sheet">' + docHeader('บัญชีรายชื่อนักเรียนที่มีผลการเรียน 0 ร มส. มผ.') + '<div style="text-align:center;margin:-8px 0 8px">ข้อมูล ณ ' + esc(thaiDate(todayISO())) +
+      ' • นักเรียน ' + new Set(list.map(r => r.sid)).size + ' คน ' + list.length + ' รายวิชา</div>' +
+      (list.length ? Object.keys(byClass).sort((a, b) => a.localeCompare(b, 'th')).map(c => '<div style="margin-top:8px"><b>ห้อง ' + esc(c) + '</b></div>' +
+        '<table class="doc-table"><thead><tr><th style="width:8%">เลขที่</th><th style="width:14%">เลขประจำตัว</th><th>ชื่อ - สกุล</th><th>รายวิชา</th><th style="width:9%">ผล</th><th style="width:18%">ภาคเรียน</th></tr></thead><tbody>' +
+        byClass[c].map(r => '<tr><td style="text-align:center">' + esc(r.no || '') + '</td><td style="text-align:center">' + esc(r.sid || '') + '</td><td>' + esc(r.name) + '</td>' +
+          '<td>' + esc((r.subjectCode ? r.subjectCode + ' ' : '') + r.subjectName) + '</td><td style="text-align:center">' + esc(r.reason) + '</td><td>' + esc(periodText(r.periodId)) + '</td></tr>').join('') +
+        '</tbody></table>').join('') : '<div style="text-align:center;margin:30px 0">ไม่มีรายการ</div>') + acalSignHtml() + '</div>';
+    openDocumentPreview('บัญชีนักเรียน 0 ร มส.', html);
+  });
+}
+
+/* ---- งานวิชาการตามรอบปี ------------------------------------------------------
+   แม่แบบงานประจำปีของฝ่ายวิชาการโรงเรียนมัธยมศึกษาตอนต้น เรียงตามเดือนของปีการศึกษา
+   เป็นค่าเริ่มต้นให้แก้ได้ทั้งหมด ไม่ได้บังคับ เพราะแต่ละโรงเรียนจัดงานไม่เหมือนกัน
+   ไม่ใส่ให้อัตโนมัติ ให้เจ้าหน้าที่กดเริ่มเอง กันสองเครื่องสร้างชุดซ้ำพร้อมกัน */
+const ACAD_TASK_GROUPS = ['หลักสูตร', 'การเรียนการสอน', 'วัดผลประเมินผล', 'ทะเบียน', 'ทดสอบระดับชาติ', 'นิเทศ/ประกันคุณภาพ', 'แนะแนว/รับนักเรียน', 'ทั่วไป'];
+function academicDefaultTasks() { return [
+  [5, 'ทั่วไป', 'ประชุมวางแผนและจัดทำแผนปฏิบัติการงานวิชาการประจำปี'],
+  [5, 'หลักสูตร', 'ทบทวนหลักสูตรสถานศึกษา โครงสร้างรายวิชา และคำอธิบายรายวิชา'],
+  [5, 'การเรียนการสอน', 'จัดครูเข้าสอนและจัดตารางสอน ภาคเรียนที่ 1'],
+  [5, 'ทั่วไป', 'เปิดภาคเรียนที่ 1 / ปฐมนิเทศนักเรียน ม.1'],
+  [5, 'การเรียนการสอน', 'ครูส่งแผนการจัดการเรียนรู้และโครงการสอน ภาคเรียนที่ 1'],
+  [6, 'ทะเบียน', 'รายงานข้อมูลจำนวนนักเรียน ณ 10 มิถุนายน'],
+  [6, 'หลักสูตร', 'นักเรียนเลือกชุมนุม / จัดกิจกรรมพัฒนาผู้เรียน'],
+  [6, 'วัดผลประเมินผล', 'คัดกรองการอ่านการเขียน ม.1 และนักเรียนที่ต้องช่วยเหลือ'],
+  [7, 'วัดผลประเมินผล', 'สอบกลางภาคเรียนที่ 1'],
+  [7, 'นิเทศ/ประกันคุณภาพ', 'นิเทศการจัดการเรียนการสอน ภาคเรียนที่ 1'],
+  [8, 'วัดผลประเมินผล', 'ติดตามนักเรียนที่ไม่ผ่านกลางภาคและการสอนซ่อมเสริม'],
+  [8, 'การเรียนการสอน', 'กิจกรรมสัปดาห์วิทยาศาสตร์ / กิจกรรมวิชาการ'],
+  [9, 'วัดผลประเมินผล', 'สอบปลายภาคเรียนที่ 1'],
+  [9, 'วัดผลประเมินผล', 'ประเมินคุณลักษณะอันพึงประสงค์ และการอ่าน คิดวิเคราะห์ และเขียน ภาคเรียนที่ 1'],
+  [10, 'วัดผลประเมินผล', 'ครูส่ง ปพ.5 และอนุมัติผลการเรียน ภาคเรียนที่ 1'],
+  [10, 'ทะเบียน', 'บันทึกผลการเรียนในระบบ SGS ภาคเรียนที่ 1'],
+  [10, 'วัดผลประเมินผล', 'สอบแก้ตัวนักเรียนที่ได้ 0 ร มส. ภาคเรียนที่ 1'],
+  [10, 'การเรียนการสอน', 'จัดครูเข้าสอนและจัดตารางสอน ภาคเรียนที่ 2'],
+  [11, 'ทั่วไป', 'เปิดภาคเรียนที่ 2'],
+  [11, 'ทะเบียน', 'รายงานข้อมูลจำนวนนักเรียน ณ 10 พฤศจิกายน'],
+  [11, 'การเรียนการสอน', 'ครูส่งแผนการจัดการเรียนรู้และโครงการสอน ภาคเรียนที่ 2'],
+  [12, 'วัดผลประเมินผล', 'สอบกลางภาคเรียนที่ 2'],
+  [12, 'นิเทศ/ประกันคุณภาพ', 'นิเทศการจัดการเรียนการสอน ภาคเรียนที่ 2'],
+  [12, 'ทดสอบระดับชาติ', 'เตรียมความพร้อมนักเรียน ม.3 ก่อนสอบ O-NET'],
+  [1, 'แนะแนว/รับนักเรียน', 'แนะแนวการศึกษาต่อนักเรียน ม.3'],
+  [1, 'แนะแนว/รับนักเรียน', 'วางแผนรับนักเรียน ม.1 ปีการศึกษาถัดไป'],
+  [2, 'ทดสอบระดับชาติ', 'สอบ O-NET ชั้น ม.3'],
+  [2, 'วัดผลประเมินผล', 'สอบปลายภาคเรียนที่ 2'],
+  [3, 'วัดผลประเมินผล', 'ครูส่ง ปพ.5 และอนุมัติผลการเรียน ภาคเรียนที่ 2'],
+  [3, 'ทะเบียน', 'จัดทำ ปพ.1 ปพ.2 ปพ.3 ผู้จบการศึกษาชั้น ม.3'],
+  [3, 'วัดผลประเมินผล', 'สอบแก้ตัวนักเรียนที่ได้ 0 ร มส. ภาคเรียนที่ 2'],
+  [3, 'แนะแนว/รับนักเรียน', 'รับสมัครและสอบคัดเลือกนักเรียน ม.1'],
+  [3, 'การเรียนการสอน', 'ครูส่งรายงานวิจัยในชั้นเรียน / บันทึกหลังการสอน'],
+  [4, 'นิเทศ/ประกันคุณภาพ', 'จัดทำรายงานการประเมินตนเองของสถานศึกษา (SAR)'],
+  [4, 'วัดผลประเมินผล', 'สรุปผลสัมฤทธิ์ทางการเรียนประจำปี'],
+  [4, 'หลักสูตร', 'ทบทวนหลักสูตรและวางแผนจัดครูเข้าสอนปีการศึกษาถัดไป']
+]; }
+const ACAD_MONTH_ORDER = [5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3, 4];
+function renderAcademicTasks(body) {
+  const year = acalCurYear(), staff = isAcademicStaff(), tasks = acadTaskStore(year).tasks;
+  const done = tasks.filter(t => t.done).length, nowMonth = new Date().getMonth() + 1;
+  const years = acalYearList(); if (!years.includes(year)) years.push(year);
+  const group = DB.ui.acadTaskGroup || '';
+  const shown = tasks.filter(t => !group || t.group === group);
+  body.innerHTML = '<div class="card"><div class="row"><div><h3 style="margin:0">งานวิชาการตามรอบปี</h3>' +
+      '<div class="hint tip">รายการงานประจำปีของฝ่ายวิชาการ ม.ต้น ติ๊กเมื่อเสร็จ กด “ลงปฏิทิน” เพื่อให้ครูทุกคนเห็นกำหนดการ</div></div><div class="spacer"></div>' +
+      '<div class="pick"><label>ปีการศึกษา</label><select id="atYear">' + years.map(y => '<option' + (y === year ? ' selected' : '') + '>' + esc(y) + '</option>').join('') + '</select></div>' +
+      (staff ? '<button class="sm primary" id="atAdd">＋ เพิ่มงาน</button>' : '') + '</div>' +
+    (tasks.length ? '<div class="row" style="gap:8px;margin:10px 0"><div class="acad-bar acad-bar-wide"><span style="width:' + (tasks.length ? done * 100 / tasks.length : 0) + '%"></span></div>' +
+        '<b>' + done + '/' + tasks.length + '</b><span class="hint">งานเสร็จแล้ว</span><div class="spacer"></div>' +
+        '<select id="atGroup"><option value="">ทุกงาน</option>' + ACAD_TASK_GROUPS.map(g => '<option' + (g === group ? ' selected' : '') + '>' + esc(g) + '</option>').join('') + '</select></div>' +
+      ACAD_MONTH_ORDER.map(m => {
+        const list = shown.filter(t => num(t.month) === m); if (!list.length) return '';
+        return '<h3 class="acad-task-month' + (m === nowMonth ? ' now' : '') + '">' + esc(THAI_MONTHS[m - 1]) + (m === nowMonth ? ' <span class="badge ok">เดือนนี้</span>' : '') + '</h3>' +
+          list.map(t => '<div class="acad-task' + (t.done ? ' done' : '') + '"><label><input type="checkbox" data-at-done="' + esc(t.id) + '"' + (t.done ? ' checked' : '') + (staff ? '' : ' disabled') + '>' +
+            '<span class="acad-task-title">' + esc(t.title) + '</span></label><span class="badge">' + esc(t.group || 'ทั่วไป') + '</span>' +
+            (t.eventId && acalEvents(year).some(e => e.id === t.eventId) ? '<span class="badge ok">ลงปฏิทินแล้ว</span>' : '') +
+            (t.done && t.doneBy ? '<span class="hint">เสร็จ ' + esc(thaiDate(String(t.doneAt || '').slice(0, 10))) + ' • ' + esc(t.doneBy) + '</span>' : '') +
+            (t.note ? '<div class="hint acad-task-note">' + esc(t.note) + '</div>' : '') +
+            (staff ? '<span class="spacer"></span>' + (t.eventId && acalEvents(year).some(e => e.id === t.eventId) ? '' : '<button class="sm" data-at-cal="' + esc(t.id) + '">ลงปฏิทิน</button>') +
+              '<button class="sm" data-at-edit="' + esc(t.id) + '">แก้</button>' : '') + '</div>').join('');
+      }).join('')
+      : '<div class="empty" style="margin-top:12px">ยังไม่มีรายการงานของปีการศึกษา ' + esc(year) +
+        (staff ? '<div style="margin-top:10px"><button class="primary" id="atSeed">เริ่มจากแม่แบบงานวิชาการ ม.ต้น (' + academicDefaultTasks().length + ' งาน)</button></div>' : '') + '</div>') + '</div>';
+  $('#atYear', body).addEventListener('change', e => { DB.ui.acalYear = e.target.value; DB.ui.acalMonth = ''; save(); renderAcademic(); });
+  const grp = $('#atGroup', body); if (grp) grp.addEventListener('change', e => { DB.ui.acadTaskGroup = e.target.value; save(); renderAcademic(); });
+  const seed = $('#atSeed', body);
+  if (seed) seed.addEventListener('click', () => {
+    const st = acadTaskStore(year);
+    academicDefaultTasks().forEach(x => { const t = { id: uid('at'), month: x[0], group: x[1], title: x[2], done: false, note: '' }; st.tasks.push(t); academicMark('task', year, t.id, 'put'); });
+    save(true); academicFlushAll(); renderAcademic(); toast('สร้างรายการงาน ' + st.tasks.length + ' งานแล้ว แก้ไขได้ตามบริบทของโรงเรียน', 'ok');
+  });
+  const add = $('#atAdd', body); if (add) add.addEventListener('click', () => openAcadTaskEditor(year, null));
+  $$('[data-at-edit]', body).forEach(b => b.addEventListener('click', () => openAcadTaskEditor(year, tasks.find(t => t.id === b.dataset.atEdit))));
+  $$('[data-at-done]', body).forEach(cb => cb.addEventListener('change', () => {
+    const t = tasks.find(x => x.id === cb.dataset.atDone); if (!t) return;
+    t.done = cb.checked; t.doneAt = cb.checked ? new Date().toISOString() : ''; t.doneBy = cb.checked ? acalWho() : '';
+    academicMark('task', year, t.id, 'put'); save(true); academicFlushAll(); renderAcademic();
+  }));
+  $$('[data-at-cal]', body).forEach(b => b.addEventListener('click', () => {
+    const t = tasks.find(x => x.id === b.dataset.atCal); if (!t) return;
+    const ce = num(year) - 543 + (num(t.month) <= 4 ? 1 : 0);
+    DB.ui.acalYear = year;
+    openAcalEditor(null, { title: t.title, type: /สอบ/.test(t.title) ? 'exam' : 'academic', start: ce + '-' + pad2(t.month) + '-01', owner: 'ฝ่ายวิชาการ', note: t.note || '', taskId: t.id });
+  }));
+}
+function openAcadTaskEditor(year, task) {
+  const t = task || { month: new Date().getMonth() + 1, group: 'ทั่วไป', title: '', note: '' };
+  openModal({ title: (task ? 'แก้ไขงาน' : 'เพิ่มงาน') + ' • ปีการศึกษา ' + year,
+    bodyHTML: '<div class="pick"><label>งาน</label><input id="atTitle" style="width:100%" value="' + esc(t.title) + '"></div>' +
+      '<div class="grid2" style="margin-top:10px"><div class="pick"><label>เดือน</label><select id="atMonth" style="width:100%">' + ACAD_MONTH_ORDER.map(m => '<option value="' + m + '"' + (m === num(t.month) ? ' selected' : '') + '>' + THAI_MONTHS[m - 1] + '</option>').join('') + '</select></div>' +
+        '<div class="pick"><label>หมวดงาน</label><select id="atGroupSel" style="width:100%">' + ACAD_TASK_GROUPS.map(g => '<option' + (g === t.group ? ' selected' : '') + '>' + esc(g) + '</option>').join('') + '</select></div></div>' +
+      '<div class="pick" style="margin-top:10px"><label>หมายเหตุ / ผู้รับผิดชอบ</label><textarea id="atNote" rows="2" style="width:100%">' + esc(t.note || '') + '</textarea></div>',
+    buttons: [{ label: 'ยกเลิก' }].concat(task ? [{ label: 'ลบงานนี้', cls: 'danger', async act(close) {
+      if (!await confirmBox('ลบงาน', 'ลบ <b>' + esc(task.title) + '</b>?', 'ลบ')) return;
+      const st = acadTaskStore(year); st.tasks = st.tasks.filter(x => x.id !== task.id);
+      academicMark('task', year, task.id, 'del'); save(true); academicFlushAll(); close(); renderAcademic();
+    } }] : []).concat([{ label: 'บันทึก', cls: 'primary', act(close, root) {
+      const title = $('#atTitle', root).value.trim(); if (!title) return toast('กรุณาใส่ชื่องาน', 'bad');
+      const st = acadTaskStore(year), next = Object.assign({}, task || { id: uid('at'), done: false }, { title: title, month: num($('#atMonth', root).value),
+        group: $('#atGroupSel', root).value, note: $('#atNote', root).value.trim() });
+      const i = st.tasks.findIndex(x => x.id === next.id); if (i >= 0) st.tasks[i] = next; else st.tasks.push(next);
+      academicMark('task', year, next.id, 'put'); save(true); academicFlushAll(); close(); renderAcademic();
+    } }]) });
+}
+
+/* ============================================================================
    13) Google Login
    ========================================================================== */
 let googleAccessToken = '';
@@ -16617,7 +17639,8 @@ function normalizeRoles(value) {
   const map = { teacher: 'teacher', ครู: 'teacher', head: 'head', 'หัวหน้ากลุ่มสาระ': 'head', 'หัวหน้ากลุ่มสาระฯ': 'head',
     'หัวหน้ากลุ่ม': 'head', executive: 'executive', 'ผู้บริหาร': 'executive', director: 'executive',
     admin: 'admin', 'ผู้ดูแลระบบ': 'admin', 'แอดมิน': 'admin',
-    affairs: 'affairs', 'กิจการนักเรียน': 'affairs', 'ฝ่ายกิจการนักเรียน': 'affairs', 'ฝ่ายปกครอง': 'affairs' };
+    affairs: 'affairs', 'กิจการนักเรียน': 'affairs', 'ฝ่ายกิจการนักเรียน': 'affairs', 'ฝ่ายปกครอง': 'affairs',
+    academic: 'academic', 'วิชาการ': 'academic', 'ฝ่ายวิชาการ': 'academic', 'งานวิชาการ': 'academic', 'วัดผล': 'academic' };
   // แยกคำในทุกกรณี รวมถึง array ที่มีสมาชิกเดียวแต่ใส่หลายบทบาทรวมกัน เช่น ["teacher head admin"]
   const raw = Array.isArray(value) ? value : [value];
   const list = raw.reduce((acc, x) => acc.concat(String(x == null ? '' : x).split(/[,\s]+/)), []);
@@ -17574,6 +18597,10 @@ function startFirebaseSync() {
     save(true); if (DB.ui.tab === 'affairs') render();
   }), quiet));
   ensureAffairsListeners();
+  /* ปฏิทินวิชาการ — ครูทุกคนอ่าน เพราะวันงดการเรียนการสอนมีผลกับการเช็กชื่อของทุกคน */
+  fbUnsub.push(fbDb.collection('academicCalendar').onSnapshot(snap => apply(() => academicApplySnapshot('cal', snap)), quiet));
+  fbUnsub.push(fbDb.collection('academicTasks').onSnapshot(snap => apply(() => academicApplySnapshot('task', snap)), quiet));
+  setTimeout(() => { academicFlushAll(true); }, 2500);   // ของที่กรอกไว้ตอนยังไม่ได้เข้าสู่ระบบ
 
   [['leaves', 'leaveRequests'], ['swaps', 'exchangeRequests']].forEach(pair => {
     fbUnsub.push(fbDb.collection(pair[0]).onSnapshot(snap => apply(() => {
@@ -17695,6 +18722,7 @@ async function pushMyBooks(onlyChanged) {
     })());
   });
   bookSyncSkipped = skipped;
+  pushBookProgress().catch(e => console.warn('book progress', e));   // ตัวเลขสรุปให้ฝ่ายวิชาการ แยกจากตัวสมุด
   if (!jobs.length) return 0;             // ไม่มีอะไรเปลี่ยน ไม่ต้องยิงเลย
   await Promise.all(jobs);
   if (written) await root.set({ email: myEmailForSync(), name: (curTeacher() || {}).name || '', updatedAt: stamp }, { merge: true });
@@ -19142,6 +20170,7 @@ async function publishBookToStudents(key) {
   await Promise.all(students.map(st =>
     studentCardRef(st.sid).collection('subjects').doc(docId)
       .set(fbPlain(studentSubjectPayload(book, cls, subject, st, periodId, key)))));
+  markBookPublished(key, true);
   return students.length;
 }
 
@@ -19152,6 +20181,7 @@ async function unpublishBookFromStudents(key) {
   const students = cls ? (cls.students || []).filter(st => String(st.sid || '').trim()) : [];
   const docId = bookDocId(key);
   await Promise.all(students.map(st => studentCardRef(st.sid).collection('subjects').doc(docId).delete().catch(() => {})));
+  markBookPublished(key, false);
   return students.length;
 }
 

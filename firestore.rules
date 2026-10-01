@@ -28,6 +28,7 @@ service cloud.firestore {
     function isExecutive() { return hasRole('executive'); }
     function isHead()      { return hasRole('head'); }
     function isAffairs()   { return hasRole('affairs'); }
+    function isAcademic()  { return hasRole('academic'); }
 
     /* ---------- บุคลากร ----------
        ทุกคนที่อยู่ในระบบอ่านรายชื่อได้ (ต้องใช้หาครูสอนแทนและแสดงภาพรวม)
@@ -353,6 +354,28 @@ service cloud.firestore {
       allow read: if isStaff() && (resource.data.owner == myId() || resource.data.requester == myId());
       allow create, update: if isStaff() && request.resource.data.owner == myId();
       allow delete: if isStaff() && resource.data.owner == myId();
+    }
+
+    /* ---------- ฝ่ายวิชาการ ----------
+       ปฏิทินวิชาการและงานตามรอบปี เอกสารละหนึ่งปีการศึกษา
+       ครูทุกคนอ่านได้ เพราะวันงดการเรียนการสอนมีผลกับการเช็กชื่อและเวลาเรียนของทุกคน
+       แก้ได้เฉพาะฝ่ายวิชาการกับผู้ดูแลระบบ */
+    match /academicCalendar/{year} {
+      allow read: if isStaff();
+      allow write: if isAcademic() || isAdmin();
+    }
+    match /academicTasks/{year} {
+      allow read: if isStaff();
+      allow write: if isAcademic() || isAdmin();
+    }
+
+    /* ---------- ความคืบหน้าสมุดคะแนน ----------
+       ตัวเลขสรุปรายเล่ม (กรอกแล้วกี่ % ครบกี่คน เผยแพร่หรือยัง) ไม่มีคะแนนรายคน
+       ครูแต่ละคนเขียนของตัวเอง ฝ่ายวิชาการใช้ติดตามการส่งผลการเรียน */
+    match /bookProgress/{docId} {
+      allow read: if isStaff();
+      allow create, update: if isStaff() && request.resource.data.ownerId == myId();
+      allow delete: if isAdmin() || (isStaff() && resource.data.ownerId == myId());
     }
 
     /* ปิดทุกอย่างที่ไม่ได้ระบุไว้ข้างบน */
