@@ -895,10 +895,13 @@ body:has(#sgsQuick:not([hidden])) .sync-fab,body:has(#sgsQuick:not([hidden])) .i
 .approval-item.bad{border-color:color-mix(in srgb,var(--bad) 45%,var(--line));background:color-mix(in srgb,var(--bad-bg) 60%,var(--panel))}
 /* ประวัติส่วนตัว */
 .ps-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
-.ps-grid .pick{display:grid;gap:4px}.ps-grid .pick input,.ps-grid .pick select{width:100%}
+/* ใช้คลาสของตัวเอง ไม่ใช้ .pick เพราะบนจอแคบแอปซ่อนป้ายของ .pick (ตัวเลือกบนแถบบน) ป้ายช่องในหน้านี้จะหายไปด้วย */
+.ps-f{display:grid;gap:4px;min-width:0}.ps-f>label{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:4px}.ps-f input,.ps-f select{width:100%;min-width:0}
 .ps-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
 .ps-box{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:2px;background:var(--panel)}
 .ps-box b{font-size:18px;font-variant-numeric:tabular-nums}
+.ps-box.warn{border-color:color-mix(in srgb,var(--bad) 50%,var(--line));background:color-mix(in srgb,var(--bad-bg) 60%,var(--panel))}
+.be-date{display:grid;grid-template-columns:minmax(3.6em,.8fr) minmax(4.8em,1fr) minmax(5.2em,1fr);gap:4px;min-width:0}.be-date select,.be-date input{width:100%!important;min-width:0}
 .ps-box.ready{border-color:color-mix(in srgb,var(--ok) 50%,var(--line));background:color-mix(in srgb,var(--ok-bg) 60%,var(--panel))}
 .ps-lock{border:0;background:none;padding:0 2px;cursor:pointer;font-size:14px;opacity:.55;min-height:0;box-shadow:none}
 .ps-lock.on{opacity:1}
@@ -3744,6 +3747,7 @@ const activityAcked = (act, teacherId) => !!((act.ack || {})[teacherId]);
 /** กดรับทราบกิจกรรมที่มาดึงนักเรียนในคาบของเรา */
 function acknowledgeActivity(id) {
   if (String(id).indexOf('dpa:') === 0) return ackDpaResult(String(id).slice(4));   // ปุ่มรับทราบในกระดิ่งใช้ตัวเดียวกัน
+  if (id === 'lic') return ackLicense();
   const act = (DB.timetable.activities || []).find(a => a.id === id); if (!act) return;
   const me = curTeacher(); if (!me) return;
   act.ack = Object.assign({}, act.ack || {}); act.ack[me.id] = new Date().toISOString();
@@ -3805,6 +3809,11 @@ function pendingApprovals() {
     title: 'รอหัวหน้ากลุ่มสาระจัดครูให้ ' + totalSlotCount(myHeadWait) + ' คาบ',
     detail: 'คุณเลือกให้หัวหน้ากลุ่มสาระจัดครูแทน ยังไม่ต้องดำเนินการเอง' });
 
+  /* ใบอนุญาตประกอบวิชาชีพใกล้หมดอายุ (ข้อมูลในเครื่องของเจ้าของเอง) */
+  const lic = licenseAlert();
+  if (lic) list.push({ tone: lic.st.expired || lic.st.days <= 60 ? 'bad' : 'warn', icon: '🪪', role: 'teacher', tab: 'personal', ackId: 'lic',
+    title: lic.type + (lic.st.expired ? ' หมดอายุแล้ว' : ' จะหมดอายุ ' + thaiDate(lic.expire)),
+    detail: (lic.st.expired ? 'หมดอายุ ' + thaiDate(lic.expire) + ' • ' : lic.st.text + ' • ') + 'ยื่นต่ออายุกับคุรุสภาให้ทันก่อนหมดอายุ แล้วแก้วันหมดอายุในหน้าประวัติส่วนตัว' });
   const pReq = (typeof personalReqIn !== 'undefined' ? personalReqIn : []).filter(r => r.status === 'pending');
   if (pReq.length) list.push({ tone: 'warn', icon: '🔒', role: 'teacher', tab: 'personal',
     title: 'มีคำขอดูประวัติส่วนตัวที่คุณล็อกไว้ ' + pReq.length + ' รายการ',
@@ -11641,9 +11650,6 @@ const PERSONAL_FIELDS = [
   { sec: 'general', k: 'schoolEmail', label: 'อีเมลโรงเรียน', type: 'email' },
   { sec: 'general', k: 'personalEmail', label: 'อีเมลสำรอง (ส่วนตัว)', type: 'email', lock: true },
   { sec: 'general', k: 'phone', label: 'เบอร์โทร', lock: true },
-  { sec: 'general', k: 'degree', label: 'ระดับวุฒิสูงสุด', type: 'select', opts: ['', 'ปริญญาตรี', 'ปริญญาโท', 'ปริญญาเอก'] },
-  { sec: 'general', k: 'education', label: 'ชื่อวุฒิการศึกษา', placeholder: 'เช่น ค.ม. การบริหารการศึกษา' },
-  { sec: 'general', k: 'major', label: 'วิชาเอก' },
   { sec: 'service', k: 'position', label: 'ตำแหน่ง', type: 'select', opts: ['', 'ครูผู้ช่วย', 'ครู', 'รองผู้อำนวยการสถานศึกษา', 'ผู้อำนวยการสถานศึกษา', 'พนักงานราชการ', 'ครูอัตราจ้าง', 'อื่น ๆ'] },
   { sec: 'service', k: 'rank', label: 'วิทยฐานะ', type: 'select', opts: RANK_OPTS },
   { sec: 'service', k: 'level', label: 'อันดับ', type: 'select', opts: ['', 'ครูผู้ช่วย', 'คศ.1', 'คศ.2', 'คศ.3', 'คศ.4', 'คศ.5'] },
@@ -11652,6 +11658,11 @@ const PERSONAL_FIELDS = [
   { sec: 'service', k: 'appointPosition', label: 'ตำแหน่งที่บรรจุ', placeholder: 'เช่น ครูผู้ช่วย' },
   { sec: 'service', k: 'teacherDate', label: 'วันที่ได้ดำรงตำแหน่งครู (พ้นครูผู้ช่วย)', type: 'date' },
   { sec: 'service', k: 'rankDate', label: 'วันที่ได้รับวิทยฐานะปัจจุบัน', type: 'date' },
+  { sec: 'license', k: 'licenseType', label: 'ประเภทใบอนุญาต', type: 'select', opts: ['', 'ใบอนุญาตประกอบวิชาชีพครู', 'ใบอนุญาตประกอบวิชาชีพผู้บริหารสถานศึกษา', 'หนังสืออนุญาตปฏิบัติการสอน (ชั่วคราว)', 'อื่น ๆ'] },
+  { sec: 'license', k: 'licenseNo', label: 'เลขที่ใบอนุญาต' },
+  { sec: 'license', k: 'licenseIssue', label: 'วันออกใบอนุญาต', type: 'date' },
+  { sec: 'license', k: 'licenseExpire', label: 'วันหมดอายุ', type: 'date' },
+  { sec: 'license', k: 'licenseStatus', label: 'การต่ออายุ', type: 'select', opts: ['', 'ยังไม่ถึงเวลาต่อ', 'กำลังเตรียมเอกสาร', 'ยื่นต่ออายุแล้ว รอใบใหม่', 'ได้ใบใหม่แล้ว (แก้วันหมดอายุเป็นใบใหม่)'] },
   { sec: 'salary', k: 'appointSalary', label: 'เงินเดือนบรรจุ (บาท)', type: 'number', lock: true },
   { sec: 'salary', k: 'currentSalary', label: 'เงินเดือนปัจจุบัน (บาท)', type: 'number', lock: true },
   { sec: 'salary', k: 'lastRaiseRound', label: 'รอบเลื่อนเงินเดือนล่าสุด', placeholder: 'เช่น 1 ต.ค. 2569', lock: true },
@@ -11660,7 +11671,12 @@ const PERSONAL_FIELDS = [
 const DECORATIONS = ['ร.จ.พ. เหรียญจักรพรรดิมาลา', 'บ.ม. เบญจมาภรณ์มงกุฎไทย', 'บ.ช. เบญจมาภรณ์ช้างเผือก', 'จ.ม. จัตุรถาภรณ์มงกุฎไทย', 'จ.ช. จัตุรถาภรณ์ช้างเผือก',
   'ต.ม. ตริตาภรณ์มงกุฎไทย', 'ต.ช. ตริตาภรณ์ช้างเผือก', 'ท.ม. ทวีติยาภรณ์มงกุฎไทย', 'ท.ช. ทวีติยาภรณ์ช้างเผือก', 'ป.ม. ประถมาภรณ์มงกุฎไทย', 'ป.ช. ประถมาภรณ์ช้างเผือก', 'อื่น ๆ'];
 /* ตารางที่เพิ่มแถวได้ — ชื่อแท็บในชีตตรงกับ title จะได้อ่านกลับได้ */
+const EDU_LEVELS = ['', 'มัธยมศึกษาตอนปลาย', 'ประกาศนียบัตรวิชาชีพ (ปวช.)', 'ประกาศนียบัตรวิชาชีพชั้นสูง (ปวส.)', 'ปริญญาตรี', 'ประกาศนียบัตรบัณฑิต', 'ปริญญาโท', 'ปริญญาเอก'];
 const PERSONAL_TABLES = [
+  { k: 'education', title: 'ประวัติการศึกษา', hint: 'เรียงจากต่ำไปสูง • ม.ปลายใส่ชื่อโรงเรียน • วิชาโทไม่มีก็เว้นว่างได้ ไม่บังคับกรอกทุกช่อง',
+    cols: [{ k: 'level', label: 'ระดับ', type: 'select', opts: EDU_LEVELS }, { k: 'school', label: 'สถานศึกษา (โรงเรียน/มหาวิทยาลัย)', wide: true },
+      { k: 'degree', label: 'ชื่อวุฒิ', placeholder: 'เช่น ค.บ. / ศษ.ม.' }, { k: 'major', label: 'วิชาเอก / แผนการเรียน' }, { k: 'minor', label: 'วิชาโท (ถ้ามี)' },
+      { k: 'year', label: 'ปีที่จบ (พ.ศ.)', type: 'number' }] },
   { k: 'raises', title: 'ประวัติการเลื่อนเงินเดือน', lock: true, hint: 'ใส่ทุกรอบที่จำได้ ใช้ดูแนวโน้มและประกอบการขอเครื่องราชฯ',
     cols: [{ k: 'round', label: 'รอบ', type: 'select', opts: ['', '1 เม.ย.', '1 ต.ค.'] }, { k: 'year', label: 'ปี พ.ศ.', type: 'number' },
       { k: 'percent', label: 'ร้อยละที่ได้', type: 'number', step: '0.01' }, { k: 'salary', label: 'เงินเดือนหลังเลื่อน', type: 'number' }, { k: 'note', label: 'หมายเหตุ' }] },
@@ -11685,6 +11701,16 @@ function personalLoad() {
   p = p && typeof p === 'object' ? p : {};
   p.fields = p.fields || {};
   PERSONAL_TABLES.forEach(t => { if (!Array.isArray(p[t.k])) p[t.k] = []; });
+  if (!p.eduInit) {
+    p.eduInit = true;
+    const f0 = p.fields || {};
+    if (!p.education.length) p.education = [{ level: 'มัธยมศึกษาตอนปลาย' }, { level: 'ปริญญาตรี' }];
+    if (f0.degree || f0.education || f0.major) {   // รุ่นก่อนเก็บวุฒิสูงสุดเป็นช่องเดี่ยว ย้ายเข้าตารางไม่ให้หาย
+      const lv = f0.degree || 'ปริญญาตรี', row = p.education.find(r => r.level === lv && !r.degree) || (p.education.push({ level: lv }), p.education[p.education.length - 1]);
+      row.degree = row.degree || f0.education || ''; row.major = row.major || f0.major || '';
+      delete f0.degree; delete f0.education; delete f0.major;
+    }
+  }
   if (!p.locks) { p.locks = {}; PERSONAL_FIELDS.concat(PERSONAL_TABLES).forEach(x => { if (x.lock) p.locks[x.k] = true; }); }
   const me = curTeacher();
   if (!p.fields.fullName && me && me.name) p.fields.fullName = me.name;   // ตั้งต้นจากโปรไฟล์ครู ไม่ต้องพิมพ์ซ้ำ
@@ -11711,7 +11737,7 @@ function ageParts(fromIso, toDate) {
   if (m < 0) { y--; m += 12; }
   return y < 0 ? null : { y, m, d };
 }
-const agePartsText = x => x ? x.y + ' ปี ' + x.m + ' เดือน' : '—';
+const agePartsText = x => !x ? '—' : x.y ? x.y + ' ปี ' + x.m + ' เดือน' : x.m ? x.m + ' เดือน' : x.d + ' วัน';
 const addYearsIso = (iso, n) => { const d = parseISODate(iso); if (!d) return ''; d.setFullYear(d.getFullYear() + n); return isoDate(d); };
 /* วันเกษียณ = 30 ก.ย. ของปีงบประมาณที่อายุครบ 60 ปี
    เกิด 2 ต.ค. – 31 ธ.ค. อายุครบ 60 ในปีงบประมาณถัดไป จึงเกษียณ 30 ก.ย. ของปีถัดจากปีที่อายุครบ */
@@ -11741,6 +11767,27 @@ function rankEligibility(f) {
   const ready = due <= isoDate(new Date());
   return { target: step.to, due, ready, years, baseLabel: step.baseLabel, text: ready ? 'ครบ ' + years + ' ปีแล้ว ขอได้ตั้งแต่ ' + thaiDate(due) : 'ขอได้ ' + thaiDate(due) + ' (อีก ' + agePartsText(left) + ')' };
 }
+/* ใบอนุญาตใกล้หมดอายุ: เตือนตั้งแต่ 6 เดือนก่อน (183 วัน) จนกว่าจะแก้วันหมดอายุเป็นใบใหม่ */
+function licenseState(f) {
+  const exp = parseISODate(f.licenseExpire); if (!exp) return null;
+  const today = parseISODate(todayISO()), days = Math.round((exp - today) / 86400000);
+  const renewed = /ได้ใบใหม่แล้ว/.test(f.licenseStatus || '');
+  const left = days >= 0 ? ageParts(todayISO(), exp) : null;
+  return { days, warn: !renewed && days <= 183, expired: days < 0,
+    text: days < 0 ? 'หมดอายุแล้ว ' + (-days) + ' วัน' : days === 0 ? 'หมดอายุวันนี้' : 'อีก ' + (left && (left.y || left.m) ? agePartsText(left) : days + ' วัน') };
+}
+/* เตือนในกระดิ่งของเจ้าของเท่านั้น (ข้อมูลอยู่ในเครื่องนี้) — กดรับทราบแล้วซ่อนได้ แต่ถ้าเหลือไม่ถึง 30 วันจะกลับมาเตือนอีก */
+function licenseAlert() {
+  let p; try { p = personalLoad(); } catch (e) { return null; }
+  const f = p.fields || {}, st = licenseState(f);
+  if (!st || !st.warn) return null;
+  if (p.licenseAck === f.licenseExpire && st.days > 30) return null;
+  return { st, expire: f.licenseExpire, type: f.licenseType || 'ใบอนุญาตประกอบวิชาชีพครู' };
+}
+function ackLicense() {
+  const p = personalLoad(); p.licenseAck = p.fields.licenseExpire || ''; personalSave(p);
+  updateAlertBell(); render(); toast('รับทราบแล้ว — จะเตือนอีกครั้งเมื่อเหลือไม่ถึง 30 วัน', 'ok');
+}
 /* ชั่วโมงอบรมของปีงบประมาณนี้ (1 ต.ค. – 30 ก.ย.) */
 function trainingHoursThisFY(rows) {
   const now = new Date(), fyStart = isoDate(new Date(now.getMonth() >= 9 ? now.getFullYear() : now.getFullYear() - 1, 9, 1));
@@ -11757,11 +11804,44 @@ function personalSummaryHtml(p) {
     box('เกษียณอายุราชการ', ret ? thaiDate(isoDate(ret)) : '—', left ? 'อีก ' + agePartsText(left) : '') +
     box(el.target ? 'ขอ' + (el.target === 'ครูชำนาญการ' ? 'มี' : 'เลื่อน') + 'วิทยฐานะ ' + el.target : 'วิทยฐานะ', el.ready ? 'ถึงเวลาแล้ว' : el.due ? thaiDate(el.due) : '—', el.text, el.ready ? 'ready' : '') +
     box('อบรมปีงบประมาณนี้', trainingHoursThisFY(p.training) + ' ชั่วโมง') +
+    (function () { const lic = licenseState(f); return box('ใบอนุญาตประกอบวิชาชีพ', lic ? thaiDate(f.licenseExpire) : '—', lic ? lic.text : 'ยังไม่ได้กรอกวันหมดอายุ', lic && lic.warn ? 'warn' : ''); })() +
     box('เงินเดือนปัจจุบัน', money(f.currentSalary), f.lastRaisePercent ? 'เลื่อนรอบล่าสุด ' + f.lastRaisePercent + '%' : '') + '</div>' +
     (svc && svc.y >= 25 ? '<div class="notice" style="margin-top:10px">รับราชการครบ 25 ปีแล้ว — ตรวจสิทธิ์ขอ <b>เหรียญจักรพรรดิมาลา</b> กับงานบุคคลของโรงเรียน</div>' : '');
 }
+/* ช่อง date ของเบราว์เซอร์แสดงปี ค.ศ. และรูปแบบตามภาษาเครื่อง ครูต้องแปลงในหัวเอง จึงทำช่องวัน/เดือน/ปี พ.ศ. เอง
+   ค่าที่เก็บยังเป็น ISO (ค.ศ.) เพื่อให้คำนวณอายุ/เกษียณ/วันหมดอายุได้ตรง */
+const TH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+function beDateHtml(attr, iso) {
+  const d = parseISODate(iso), dd = d ? d.getDate() : '', mm = d ? d.getMonth() + 1 : '', yy = d ? d.getFullYear() + 543 : '';
+  return '<span class="be-date" ' + attr + '><select data-be="d" aria-label="วัน"><option value="">วัน</option>' +
+    Array.from({ length: 31 }, (_, i) => '<option' + (i + 1 === dd ? ' selected' : '') + '>' + (i + 1) + '</option>').join('') + '</select>' +
+    '<select data-be="m" aria-label="เดือน"><option value="">เดือน</option>' + TH_MONTHS.map((m, i) => '<option value="' + (i + 1) + '"' + (i + 1 === mm ? ' selected' : '') + '>' + m + '</option>').join('') + '</select>' +
+    '<input data-be="y" type="number" inputmode="numeric" min="2400" max="2700" placeholder="พ.ศ." aria-label="ปี พ.ศ." value="' + yy + '"></span>';
+}
+/* ครบสามส่วนและเป็นวันจริงเท่านั้นจึงได้ค่า (31 ก.พ. ไม่ผ่าน) ปี 4 หลักที่ต่ำกว่า 2400 ถือว่ากรอกเป็น ค.ศ. มา แปลงให้ */
+function beDateValue(el) {
+  const d = num($('[data-be="d"]', el).value), m = num($('[data-be="m"]', el).value);
+  let y = num($('[data-be="y"]', el).value);
+  if (!d || !m || !y || String(y).length !== 4) return null;
+  if (y < 2400) y += 543;
+  const dt = new Date(y - 543, m - 1, d);
+  if (dt.getMonth() !== m - 1) return null;
+  return isoDate(dt);
+}
+const fieldValueOf = el => el.classList.contains('be-date') ? beDateValue(el) : el.value.trim();
+/* ชีตเก็บวันที่เป็น วว/ดด/ปปปป (พ.ศ.) อ่านง่าย อ่านกลับได้ทั้งแบบนี้และ ISO ของรุ่นก่อน */
+const isoToBe = iso => { const d = parseISODate(iso); return d ? pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + (d.getFullYear() + 543) : ''; };
+function beToIso(v) {
+  v = String(v == null ? '' : v).trim(); if (!v) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const m = v.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/); if (!m) return v;
+  let y = +m[3]; if (y > 2400) y -= 543;
+  const dt = new Date(y, +m[2] - 1, +m[1]);
+  return dt.getMonth() === +m[2] - 1 ? isoDate(dt) : v;
+}
 function personalInput(def, val, attr) {
   const v = val == null ? '' : String(val);
+  if (def.type === 'date') return beDateHtml(attr, v);
   if (def.type === 'select') {
     const opts = def.opts.indexOf(v) >= 0 || !v ? def.opts : def.opts.concat([v]);   // ค่าที่ดึงจากชีตแล้วไม่อยู่ในรายการ ต้องไม่หายเงียบ ๆ
     return '<select ' + attr + '>' + opts.map(o => '<option value="' + esc(o) + '"' + (o === v ? ' selected' : '') + '>' + esc(o || '—') + '</option>').join('') + '</select>';
@@ -11922,7 +12002,7 @@ function personalAdminHtml() {
 function renderPersonal() {
   const pane = $('#pane-personal'); if (!pane) return;
   const p = personalLoad(), f = p.fields, sh = personalSheetInfo(p), signed = personalReady();
-  const fieldsOf = sec => PERSONAL_FIELDS.filter(x => x.sec === sec).map(x => '<div class="pick"><label>' + lockBtn(p, x.k) + ' ' + esc(x.label) + '</label>' +
+  const fieldsOf = sec => PERSONAL_FIELDS.filter(x => x.sec === sec).map(x => '<div class="ps-f"><label>' + lockBtn(p, x.k) + ' ' + esc(x.label) + '</label>' +
     personalInput(x, f[x.k], 'data-pfield="' + x.k + '"') + '</div>').join('');
   pane.innerHTML =
     '<div class="card"><div class="row"><div><h3 style="margin:0">ประวัติส่วนตัว</h3>' +
@@ -11940,14 +12020,25 @@ function renderPersonal() {
     personalOwnerRequestsHtml() + personalOfficerHtml() + personalAdminHtml() +
     '<div class="card"><h3>ข้อมูลทั่วไป</h3><div class="ps-grid">' + fieldsOf('general') + '</div></div>' +
     '<div class="card"><h3>การรับราชการและวิทยฐานะ</h3><div class="ps-grid">' + fieldsOf('service') + '</div></div>' +
+    '<div class="card"><h3>ใบอนุญาตประกอบวิชาชีพ</h3><div class="hint tip">ใบอนุญาตประกอบวิชาชีพครูมีอายุ 5 ปี กรอกวันออกแล้วระบบเติมวันหมดอายุให้ • จะเตือนในกระดิ่งก่อนหมดอายุ 6 เดือน</div>' +
+      '<div class="ps-grid" style="margin-top:8px">' + fieldsOf('license') + '</div></div>' +
     '<div class="card"><h3>เงินเดือน</h3><div class="ps-grid">' + fieldsOf('salary') + '</div></div>' +
     PERSONAL_TABLES.map(t => personalTableHtml(p, t)).join('');
 
   const sync = () => { personalSave(p); const s = $('#psSummary', pane); if (s) s.innerHTML = personalSummaryHtml(p); };
-  $$('[data-pfield]', pane).forEach(el => el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => { f[el.dataset.pfield] = el.value.trim(); sync(); }));
-  $$('[data-pcell]', pane).forEach(el => el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => {
-    const [tk, i, ck] = el.dataset.pcell.split('|'); const row = p[tk][num(i)]; if (row) { row[ck] = el.value.trim(); sync(); }
-  }));
+  const evts = el => el.tagName === 'SELECT' ? ['change'] : el.tagName === 'INPUT' ? ['input'] : ['input', 'change'];
+  $$('[data-pfield]', pane).forEach(el => evts(el).forEach(ev => el.addEventListener(ev, () => {
+    const v = fieldValueOf(el), k = el.dataset.pfield;
+    if (v === null) return;   // วันที่ยังกรอกไม่ครบ ยังไม่บันทึก ไม่ล้างค่าเดิมทิ้งระหว่างพิมพ์
+    f[k] = v;
+    // ใบอนุญาตประกอบวิชาชีพครูมีอายุ 5 ปี — กรอกวันออกแล้วยังไม่มีวันหมดอายุ เติมให้
+    if (k === 'licenseIssue' && v && !f.licenseExpire) { f.licenseExpire = addYearsIso(v, 5); sync(); renderPersonal(); return; }
+    sync();
+  })));
+  $$('[data-pcell]', pane).forEach(el => evts(el).forEach(ev => el.addEventListener(ev, () => {
+    const v = fieldValueOf(el); if (v === null) return;
+    const [tk, i, ck] = el.dataset.pcell.split('|'); const row = p[tk][num(i)]; if (row) { row[ck] = v; sync(); }
+  })));
   $$('[data-plock]', pane).forEach(b => b.addEventListener('click', () => {
     const k = b.dataset.plock; p.locks[k] = !p.locks[k]; personalSave(p); renderPersonal();
     toast(p.locks[k] ? '🔒 ล็อก “' + personalLabelOf(k) + '” แล้ว — เห็นเฉพาะคุณ' : '🔓 ปลดล็อก “' + personalLabelOf(k) + '” — เจ้าหน้าที่วิทยฐานะเห็นได้', 'ok');
@@ -12016,10 +12107,10 @@ async function personalToSheet(p) {
     meta = { sheets: [{ properties: { title: 'ข้อมูลทั่วไป' } }] };
   }
   const tabs = [{ title: 'ข้อมูลทั่วไป', rows: [['หัวข้อ', 'ข้อมูล', 'รหัส (ห้ามแก้)', 'ล็อก']]
-      .concat(PERSONAL_FIELDS.map(x => [x.label, p.fields[x.k] || '', x.k, p.locks[x.k] ? 'ล็อก' : '']))
+      .concat(PERSONAL_FIELDS.map(x => [x.label, x.type === 'date' ? isoToBe(p.fields[x.k]) : p.fields[x.k] || '', x.k, p.locks[x.k] ? 'ล็อก' : '']))
       .concat(PERSONAL_TABLES.map(t => ['ตาราง ' + t.title, '', 'lock:' + t.k, p.locks[t.k] ? 'ล็อก' : '']))
       .concat([[], ['บันทึกจาก KruSpace', new Date().toLocaleString('th-TH'), '_at'], ['แก้ในชีตได้ แล้วกด “ดึงจากชีตของฉัน” ในแอป', '', '_note']]) }]
-    .concat(PERSONAL_TABLES.map(t => ({ title: t.title, rows: [t.cols.map(c => c.label)].concat(p[t.k].map(r => t.cols.map(c => r[c.k] || ''))) })));
+    .concat(PERSONAL_TABLES.map(t => ({ title: t.title, rows: [t.cols.map(c => c.label + (c.type === 'date' ? ' (วว/ดด/ปปปป พ.ศ.)' : ''))].concat(p[t.k].map(r => t.cols.map(c => c.type === 'date' ? isoToBe(r[c.k]) : r[c.k] || ''))) })));
   const have = new Set((meta.sheets || []).map(x => x.properties.title));
   const add = tabs.filter(t => !have.has(t.title)).map(t => ({ addSheet: { properties: { title: t.title, gridProperties: { frozenRowCount: 1 } } } }));
   if (add.length) await gsApi(GS_API + '/' + info.id + ':batchUpdate', 'POST', { requests: add });
@@ -12034,11 +12125,11 @@ async function personalFromSheet(id) {
   const res = await gsApi(GS_API + '/' + id + '/values:batchGet?' + ranges.join('&'));
   const vr = res.valueRanges || [], p = personalLoad();
   const general = ((vr[0] || {}).values || []).slice(1);
-  PERSONAL_FIELDS.forEach(x => { const row = general.find(r => r[2] === x.k); if (row) { p.fields[x.k] = String(row[1] == null ? '' : row[1]).trim(); if (row.length > 3) p.locks[x.k] = String(row[3] || '').trim() === 'ล็อก'; } });
+  PERSONAL_FIELDS.forEach(x => { const row = general.find(r => r[2] === x.k); if (row) { p.fields[x.k] = x.type === 'date' ? beToIso(row[1]) : String(row[1] == null ? '' : row[1]).trim(); if (row.length > 3) p.locks[x.k] = String(row[3] || '').trim() === 'ล็อก'; } });
   PERSONAL_TABLES.forEach((t, i) => {
     const lockRow = general.find(r => r[2] === 'lock:' + t.k); if (lockRow) p.locks[t.k] = String(lockRow[3] || '').trim() === 'ล็อก';
     const rows = ((vr[i + 1] || {}).values || []).slice(1).filter(r => r.some(c => String(c || '').trim()));
-    p[t.k] = rows.map(r => { const o = {}; t.cols.forEach((c, j) => { o[c.k] = String(r[j] == null ? '' : r[j]).trim(); }); return o; });
+    p[t.k] = rows.map(r => { const o = {}; t.cols.forEach((c, j) => { const v = String(r[j] == null ? '' : r[j]).trim(); o[c.k] = c.type === 'date' ? beToIso(v) : v; }); return o; });
   });
   p.sheet = { id: id, url: 'https://docs.google.com/spreadsheets/d/' + id, at: (p.sheet || {}).at || '' };
   return p;
