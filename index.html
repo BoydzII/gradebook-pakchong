@@ -893,6 +893,7 @@ body:has(#sgsQuick:not([hidden])) .sync-fab,body:has(#sgsQuick:not([hidden])) .i
 .accepted-box b{color:var(--ok)}
 .approval-item{align-items:flex-start;gap:10px}
 .approval-item.bad{border-color:color-mix(in srgb,var(--bad) 45%,var(--line));background:color-mix(in srgb,var(--bad-bg) 60%,var(--panel))}
+.approval-item.ok{border-color:color-mix(in srgb,var(--ok) 45%,var(--line));background:color-mix(in srgb,var(--ok-bg) 60%,var(--panel))}
 .approval-item.warn{border-color:color-mix(in srgb,var(--warn) 45%,var(--line));background:color-mix(in srgb,var(--warn-bg) 60%,var(--panel))}
 .approval-ico{width:28px;height:28px;flex:0 0 28px;display:grid;place-items:center;border-radius:9px;
   background:var(--panel);border:1px solid var(--line);font-weight:800}
@@ -3730,6 +3731,7 @@ const activityAcked = (act, teacherId) => !!((act.ack || {})[teacherId]);
 
 /** กดรับทราบกิจกรรมที่มาดึงนักเรียนในคาบของเรา */
 function acknowledgeActivity(id) {
+  if (String(id).indexOf('dpa:') === 0) return ackDpaResult(String(id).slice(4));   // ปุ่มรับทราบในกระดิ่งใช้ตัวเดียวกัน
   const act = (DB.timetable.activities || []).find(a => a.id === id); if (!act) return;
   const me = curTeacher(); if (!me) return;
   act.ack = Object.assign({}, act.ack || {}); act.ack[me.id] = new Date().toISOString();
@@ -3742,6 +3744,20 @@ function acknowledgeActivity(id) {
    ใช้อีเมลที่ล็อกอินเทียบกับช่อง officer จึงเห็นเฉพาะคิวของตัวเอง */
 const DPA_BOOKING_URL = 'https://boydzii.github.io/dpa-booking/';
 let dpaRequests = [];
+/* คิวที่เราเป็นผู้ขอ และเจ้าหน้าที่ตัดสินแล้ว (ตอบรับ/ไม่รับ) — แจ้งผู้ขอในกระดิ่งจนกดรับทราบ
+   ครูผู้ขอเขียนประกาศถึงตัวเองไม่ได้ตามกฎ จึงให้ KruSpace ของผู้ขอฟัง dpaSlots เองแบบเดียวกับฝั่งเจ้าหน้าที่
+   การรับทราบจำไว้ใน DB.ui (เฉพาะเครื่องนี้) ผูกกับเวลาที่เจ้าหน้าที่ตัดสิน ถ้าเปลี่ยนผลภายหลังจะขึ้นเตือนใหม่ */
+let dpaMine = [];
+const dpaSeenKey = s => s.id + '@' + (s.decidedAt || s.status);
+function dpaUnseen() { const seen = DB.ui.dpaSeen || {}; return dpaMine.filter(x => !seen[dpaSeenKey(x)]); }
+function ackDpaResult(id) {
+  const slot = dpaMine.find(x => x.id === id); if (!slot) return;
+  const seen = DB.ui.dpaSeen = Object.assign({}, DB.ui.dpaSeen || {});
+  seen[dpaSeenKey(slot)] = new Date().toISOString();
+  const keys = Object.keys(seen).sort((a, b) => String(seen[a]).localeCompare(String(seen[b])));
+  keys.slice(0, Math.max(0, keys.length - 60)).forEach(k => { delete seen[k]; });   // จำไว้แค่ 60 รายการล่าสุด ไม่ให้บวม
+  save(); updateAlertBell(); render(); toast('รับทราบผลการจองคิวแล้ว', 'ok');
+}
 
 function pendingApprovals() {
   const me = curTeacher(); if (!me || !curPeriod()) return [];
@@ -3777,6 +3793,9 @@ function pendingApprovals() {
     title: 'รอหัวหน้ากลุ่มสาระจัดครูให้ ' + totalSlotCount(myHeadWait) + ' คาบ',
     detail: 'คุณเลือกให้หัวหน้ากลุ่มสาระจัดครูแทน ยังไม่ต้องดำเนินการเอง' });
 
+  dpaUnseen().forEach(x => list.push({ tone: x.status === 'confirmed' ? 'ok' : 'warn', icon: '📅', role: 'teacher', url: DPA_BOOKING_URL, ackId: 'dpa:' + x.id,
+    title: x.status === 'confirmed' ? 'เจ้าหน้าที่ตอบรับคิว DPA ของคุณแล้ว' : 'เจ้าหน้าที่ไม่รับคิว DPA ของคุณ — เลือกเวลาใหม่ได้',
+    detail: thaiDate(x.date) + ' ' + (x.start || '') + ' น. • ' + (x.officerName || 'เจ้าหน้าที่') + (x.topic ? ' • ' + x.topic : '') + (x.officerNote ? ' • หมายเหตุ: ' + x.officerNote : '') }));
   if (dpaRequests.length) list.push({ tone: 'bad', icon: '📅', role: 'teacher', url: DPA_BOOKING_URL + '#work',
     title: 'คำขอจองคิว DPA รอคุณกดรับ ' + dpaRequests.length + ' รายการ',
     detail: dpaRequests.slice(0, 3).map(s => (s.teacherName || 'ครู') + ' ' + thaiDate(s.date) + ' ' + (s.start || '') + ' น.' + (s.topic ? ' (' + s.topic + ')' : '')).join(' • ') });
@@ -16981,6 +17000,14 @@ function startFirebaseSync() {
         .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
       updateAlertBell(); if (DB.ui.tab === 'dashboard') render();
     }, () => { dpaRequests = []; updateAlertBell(); }));
+  /* คิวของเราที่เจ้าหน้าที่ตอบรับหรือไม่รับแล้ว ตั้งแต่วันนี้ไป — ผู้ขอจะรู้ผลโดยไม่ต้องเปิดแอปจองคิวเช็กเอง */
+  if (fbUser && fbUser.email) fbUnsub.push(fbDb.collection('dpaSlots').where('teacherEmail', '==', fbStaffId(fbUser.email)).where('status', 'in', ['confirmed', 'declined'])
+    .onSnapshot(snap => {
+      const today = todayISO();
+      dpaMine = snap.docs.map(d => Object.assign({ id: d.id }, d.data())).filter(x => String(x.date || '') >= today)
+        .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+      updateAlertBell(); if (DB.ui.tab === 'dashboard') render();
+    }, () => { dpaMine = []; updateAlertBell(); }));
   fbUnsub.push(fbDb.collection('notices').where('date', '>=', isoDate(new Date(Date.now() - 30 * 86400000))).onSnapshot(snap => apply(() => {
     const waiting = outboxIdsOf('notice'), acking = outboxIdsOf('noticeack'), local = noticeList(), key = noticeAckKey(curTeacher());
     const localOf = id => local.find(y => y.id === id);
@@ -17019,7 +17046,7 @@ function startFirebaseSync() {
   });
 }
 
-function stopFirebaseSync() { fbUnsub.forEach(fn => { try { fn(); } catch (e) { } }); fbUnsub = []; dpaRequests = []; }
+function stopFirebaseSync() { fbUnsub.forEach(fn => { try { fn(); } catch (e) { } }); fbUnsub = []; dpaRequests = []; dpaMine = []; }
 
 /* ---------- สมุดคะแนนและการเช็กชื่อของครูแต่ละคน --------------------------
    เก็บแยกรายบุคคลใต้ books/{อีเมลของครู} ตามกฎความปลอดภัย เจ้าของเท่านั้นที่เข้าถึงได้
