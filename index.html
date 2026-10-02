@@ -144,6 +144,9 @@ button.sq-try:hover{background:#5a5666;border-color:#8a8696}
 .cs-chip{font-size:12.5px;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--brand) 10%,transparent);border:1px solid color-mix(in srgb,var(--brand) 30%,transparent)}
 .cs-sum td.num,.cs-sum th.num{text-align:right}
 .course-sheet .doc-table td{vertical-align:top}
+.cs-review-body{display:grid;gap:6px;line-height:1.6}
+.cs-review-note{padding:8px 12px;border-radius:10px;background:var(--warn-bg);border-left:3px solid var(--warn)}
+.cs-review-revise{border-color:var(--bad)}
 /* เอกสารโครงสร้างรายวิชาอ่านโดยครูและฝ่ายวิชาการ ใช้ขนาดแบบเอกสารราชการ (~14pt เนื้อความ 13pt ตาราง)
    กฎพิมพ์ทั่วไปของ .doc-sheet ย่อเหลือ 12px (9pt) ซึ่งเล็กเกินสำหรับตารางยาว ต้องใช้ตัวเลือกที่เจาะจงกว่าจึงชนะ */
 body.print-doc .doc-sheet.course-sheet,.doc-sheet.course-sheet{font-size:18.5px;line-height:1.55}
@@ -3135,7 +3138,9 @@ function renderTop() {
   if (headBadge) {
     const area = teacherArea(activeTeacher);
     const waiting = area ? (DB.timetable.leaveRequests || []).filter(l => (l.headApproval || {}).status === 'waiting' && teacherArea(DB.teachers.find(t => t.id === l.teacherId)) === area).length : 0;
-    headBadge.innerHTML = waiting ? '<span class="badge warn">' + waiting + '</span>' : '';
+    /* รวมโครงสร้างรายวิชารอตรวจของกลุ่มสาระเดียวกันเข้าไปในป้ายเดียว หัวหน้าจะได้เห็นว่ามีงานรอ */
+    const courseWaiting = area ? courseSubsLive.filter(x => x.status === 'submitted' && x.area === area && x.periodId === DB.ui.periodId).length : 0;
+    headBadge.innerHTML = waiting + courseWaiting ? '<span class="badge warn">' + (waiting + courseWaiting) + '</span>' : '';
   }
   const mode = $('#selStaffMode'), teacher = curTeacher();
   if (mode) {
@@ -8325,6 +8330,7 @@ function renderCourse() {
       (guess && guess !== c.type ? '<div class="hint tip" style="margin-top:8px">รหัสวิชา ' + esc(sub.code) + ' ดูเหมือนเป็น' + (guess === 'basic' ? 'รายวิชาพื้นฐาน' : 'รายวิชาเพิ่มเติม') + ' ตรวจอีกครั้งว่าเลือกถูก</div>' : '') +
       '<label class="cs-link"><input type="checkbox" id="csLink"' + (c.linkItems ? ' checked' : '') + '><span><b>เชื่อมโยงกับหัวข้อคะแนน</b> — หน้าหัวข้อคะแนนจะมีช่องเลือกหน่วยการเรียนรู้ ' +
         'และหน้านี้จะเทียบน้ำหนักที่วางแผนไว้กับคะแนนจากหัวข้อที่ผูกจริง ไม่เลือก = ใช้เป็นเอกสารโครงสร้างอย่างเดียว</span></label></div>' +
+    '<div id="csReviewHost"></div>' +
     '<div class="card"><div class="exec-head row"><div><div class="exec-eyebrow">LEARNING UNITS</div><h3>หน่วยการเรียนรู้</h3></div><div class="spacer"></div>' +
       '<button class="primary" id="csAdd">+ เพิ่มหน่วย</button>' +
       (c.units.length ? '<button id="csCopy">คัดลอกไปห้องอื่น</button><button id="csPrint">พิมพ์โครงสร้างรายวิชา</button>' : '') + '</div>' +
@@ -8376,6 +8382,7 @@ function renderCourse() {
   });
   if ($('#csCopy', pane)) $('#csCopy', pane).addEventListener('click', openCourseCopyRooms);
   if ($('#csPrint', pane)) $('#csPrint', pane).addEventListener('click', () => openDocumentPreview('โครงสร้างรายวิชา', courseDocHtml(b)));
+  drawCourseReview();
   /* ชื่อและสาระสำคัญบันทึกเงียบ ๆ ไม่วาดหน้าใหม่ ตัวหนังสือที่กำลังพิมพ์ช่องถัดไปจะได้ไม่หาย ส่วนตัวเลขวาดใหม่เพราะยอดสรุปต้องขยับตาม */
   $$('.cs-name, .cs-concept', pane).forEach(el => el.addEventListener('change', () => {
     const u = unitOf(el); if (!u) return;
@@ -8442,38 +8449,217 @@ function openCourseCopyRooms() {
     } }] });
 }
 
-/** เอกสารโครงสร้างรายวิชา A4 แนวตั้ง — ใช้ .doc-sheet ชุดเดียวกับเอกสารอื่น ฟอนต์ TH SarabunPSK พิมพ์ผ่าน printDocument */
-function courseDocHtml(b) {
-  const c = courseOf(b), s = DB.settings, sub = curSubject(), cls = curClass(), p = curPeriod() || {}, W = b.weights;
-  const indById = {}; indicatorRows().forEach(r => { indById[r.id] = r; });
-  const hours = c.units.reduce((a, u) => a + num(u.hours), 0), level = classLevel(cls.name);
-  const teacher = b.meta.teacherName || (curTeacher() || {}).name || '';
-  const area = b.meta.learningArea || teacherArea(curTeacher()) || '';
-  const cell = (v, center) => '<td' + (center ? ' style="text-align:center"' : '') + '>' + v + '</td>';
-  const unitRow = u => '<tr>' + cell(c.units.indexOf(u) + 1, true) + cell(esc(u.name)) +
-    cell(u.indicatorIds.map(id => indById[id]).filter(Boolean).map(r => esc(r.code || r.text)).join('<br>')) +
-    cell(esc(u.concept || '').replace(/\n/g, '<br>')) + cell(esc(u.hours), true) + cell(esc(u.score), true) + '</tr>';
+/** ภาพนิ่งของโครงสร้างรายวิชา — ใช้ทั้งพิมพ์ในเครื่อง และส่งให้หัวหน้ากลุ่มสาระตรวจ
+    หัวหน้ากลุ่มสาระอ่านสมุดคะแนนของครูคนอื่นไม่ได้ (กฎ books) จึงต้องส่งเป็นภาพนิ่งที่ครบในตัว
+    ตัวชี้วัดเก็บเป็นข้อความ ไม่ใช่ id เพราะ id ใช้ได้เฉพาะในสมุดเล่มของครูเจ้าของ */
+function courseViewOf(b) {
+  const c = courseOf(b), byId = {}; indicatorRows().forEach(r => { byId[r.id] = r; });
+  const sub = curSubject(), cls = curClass(), p = curPeriod() || {}, me = curTeacher() || {};
+  const rooms = Array.from(new Set((DB.timetable.entries || []).filter(e => e.periodId === DB.ui.periodId && e.subjectId === DB.ui.subjectId && e.teacherId === me.id)
+    .map(e => (DB.classes.find(x => x.id === e.classId) || {}).name).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'th', { numeric: true }));
+  return { type: c.type,
+    units: c.units.map(u => ({ name: u.name || '', concept: u.concept || '', hours: u.hours === '' ? '' : num(u.hours), score: u.score === '' ? '' : num(u.score),
+      section: u.section === 'after' ? 'after' : 'before',
+      indicators: u.indicatorIds.map(id => byId[id]).filter(Boolean).map(r => ({ code: r.code || '', text: r.text || '' })) })),
+    weights: { before: num(b.weights.before), mid: num(b.weights.mid), after: num(b.weights.after), final: num(b.weights.final) },
+    totalHours: num(b.meta.totalHours), credits: String(b.meta.credits || ''),
+    subjectCode: sub.code || '', subjectName: sub.name || '', area: b.meta.learningArea || teacherArea(me) || '',
+    level: classLevel(cls.name) || cls.name, rooms: rooms.length ? rooms : [cls.name],
+    semester: String(p.semester || ''), year: String(p.academicYear || ''), teacherName: b.meta.teacherName || me.name || '' };
+}
+
+/** เอกสารโครงสร้างรายวิชา A4 แนวตั้ง — ใช้ .doc-sheet ชุดเดียวกับเอกสารอื่น ฟอนต์ TH SarabunPSK */
+function courseSheetHtml(v) {
+  const s = DB.settings, W = v.weights, hours = v.units.reduce((a, u) => a + num(u.hours), 0);
+  const cell = (x, center) => '<td' + (center ? ' style="text-align:center"' : '') + '>' + x + '</td>';
+  const numbered = v.units.map((u, i) => ({ u: u, no: i + 1 }));
+  const unitRow = x => '<tr>' + cell(x.no, true) + cell(esc(x.u.name)) +
+    cell((x.u.indicators || []).map(r => esc(r.code || r.text)).join('<br>')) +
+    cell(esc(x.u.concept || '').replace(/\n/g, '<br>')) + cell(esc(x.u.hours), true) + cell(esc(x.u.score), true) + '</tr>';
   const examRow = (label, w) => '<tr>' + cell('', true) + '<td colspan="3"><b>' + label + '</b></td>' + cell('', true) + cell(fmt(w), true) + '</tr>';
   const pre = num(W.before) + num(W.after) + num(W.mid);
   return '<div class="doc-sheet course-sheet">' + (s.logoData ? '<img class="doc-logo" src="' + s.logoData + '" alt="ตราโรงเรียน">' : '') +
-    '<h2>โครงสร้างรายวิชา' + (c.type === 'additional' ? 'เพิ่มเติม' : 'พื้นฐาน') + '</h2>' +
-    '<div class="doc-head">' + esc(s.schoolName || '') + '<br>รายวิชา ' + esc(sub.name) + ' รหัสวิชา ' + esc(sub.code || '—') +
-      (area ? ' กลุ่มสาระการเรียนรู้' + esc(area.replace(/^กลุ่มสาระการเรียนรู้/, '')) : '') + '<br>' +
-      'ชั้น ' + esc(level || cls.name) + ' ภาคเรียนที่ ' + esc(p.semester || '') + ' ปีการศึกษา ' + esc(p.academicYear || '') +
-      ' เวลาเรียน ' + fmt(num(b.meta.totalHours) || hours) + ' ชั่วโมง' + (b.meta.credits ? ' จำนวน ' + esc(b.meta.credits) + ' หน่วยกิต' : '') + '</div>' +
+    '<h2>โครงสร้างรายวิชา' + (v.type === 'additional' ? 'เพิ่มเติม' : 'พื้นฐาน') + '</h2>' +
+    '<div class="doc-head">' + esc(s.schoolName || '') + '<br>รายวิชา ' + esc(v.subjectName) + ' รหัสวิชา ' + esc(v.subjectCode || '—') +
+      (v.area ? ' กลุ่มสาระการเรียนรู้' + esc(v.area.replace(/^กลุ่มสาระการเรียนรู้/, '')) : '') + '<br>' +
+      'ชั้น ' + esc(v.level) + ' ภาคเรียนที่ ' + esc(v.semester) + ' ปีการศึกษา ' + esc(v.year) +
+      ' เวลาเรียน ' + fmt(num(v.totalHours) || hours) + ' ชั่วโมง' + (v.credits ? ' จำนวน ' + esc(v.credits) + ' หน่วยกิต' : '') + '</div>' +
     '<table class="doc-table"><thead><tr><th style="width:7%">หน่วยที่</th><th style="width:20%">ชื่อหน่วยการเรียนรู้</th><th style="width:20%">' +
-      (c.type === 'additional' ? 'ผลการเรียนรู้' : 'มาตรฐานการเรียนรู้/ตัวชี้วัด') + '</th><th>สาระสำคัญ</th><th style="width:9%">เวลา<br>(ชั่วโมง)</th><th style="width:9%">น้ำหนัก<br>คะแนน</th></tr></thead><tbody>' +
-      c.units.filter(u => u.section === 'before').map(unitRow).join('') + examRow('สอบกลางภาค', W.mid) +
-      c.units.filter(u => u.section === 'after').map(unitRow).join('') + examRow('สอบปลายภาค', W.final) +
+      (v.type === 'additional' ? 'ผลการเรียนรู้' : 'มาตรฐานการเรียนรู้/ตัวชี้วัด') + '</th><th>สาระสำคัญ</th><th style="width:9%">เวลา<br>(ชั่วโมง)</th><th style="width:9%">น้ำหนัก<br>คะแนน</th></tr></thead><tbody>' +
+      numbered.filter(x => x.u.section !== 'after').map(unitRow).join('') + examRow('สอบกลางภาค', W.mid) +
+      numbered.filter(x => x.u.section === 'after').map(unitRow).join('') + examRow('สอบปลายภาค', W.final) +
       '<tr><td colspan="4" style="text-align:center"><b>รวมตลอดภาคเรียน</b></td>' + cell('<b>' + fmt(hours) + '</b>', true) +
         cell('<b>' + fmt(num(W.before) + num(W.after) + num(W.mid) + num(W.final)) + '</b>', true) + '</tr>' +
     '</tbody></table>' +
     '<div class="doc-line">อัตราส่วนคะแนน ระหว่างภาค : ปลายภาค = ' + fmt(pre) + ' : ' + fmt(W.final) + '</div>' +
-    '<div class="doc-sign"><div></div><div>ลงชื่อ ........................................ ครูผู้สอน<br>(' + esc(teacher || '........................................') + ')</div></div>' +
+    '<div class="doc-sign"><div></div><div>ลงชื่อ ........................................ ครูผู้สอน<br>(' + esc(v.teacherName || '........................................') + ')</div></div>' +
   '</div>';
 }
+const courseDocHtml = b => courseSheetHtml(courseViewOf(b));
 
-function renderItems() {
+/* ---- ส่งโครงสร้างรายวิชาให้หัวหน้ากลุ่มสาระตรวจ ------------------------------
+   คอลเลกชัน courseSubmissions หนึ่งเอกสารต่อ ครู + วิชา + ภาคเรียน (ส่งซ้ำ = แทนที่ฉบับเดิม)
+   status: submitted (รอตรวจ) → approved (ผ่าน) / revise (ให้แก้ไข) — ครูส่งฉบับใหม่ได้ทุกเมื่อ สถานะกลับเป็นรอตรวจ
+   ผลตรวจอยู่ในช่อง review ซึ่งกฎให้เฉพาะหัวหน้ากลุ่มสาระเดียวกัน (หรือแอดมิน) เขียนได้ ครูแก้ผลตรวจของตัวเองไม่ได้
+   ผู้บริหารนับว่าใครต้องส่งจากตารางสอน (ครู+วิชา ในภาคนี้) ไม่ใช่จากรายชื่อครูทั้งหมด
+   ครูช่วยสอนที่ไม่มีคาบในตารางจึงไม่ถูกนับว่าขาดส่ง */
+var courseSubsLive = [];   // var: renderTop อ่านค่านี้ทำป้ายบนแท็บหัวหน้ากลุ่มสาระ อาจถูกเรียกก่อนบรรทัดนี้ทำงาน
+const COURSE_STATUS = { submitted: ['รอหัวหน้ากลุ่มสาระตรวจ', 'warn'], approved: ['ผ่านแล้ว', 'ok'], revise: ['ให้แก้ไข', 'bad'], missing: ['ยังไม่ส่ง', 'bad'] };
+const courseStatusChip = st => '<span class="badge ' + (COURSE_STATUS[st] || COURSE_STATUS.missing)[1] + '">' + (COURSE_STATUS[st] || COURSE_STATUS.missing)[0] + '</span>';
+const courseSubId = (email, subjectId, periodId) => fbStaffId(email) + '__' + String(subjectId || '').replace(/[^A-Za-z0-9_-]/g, '_') + '__' + String(periodId || '').replace(/[^A-Za-z0-9_-]/g, '_');
+const thaiDateTime = iso => iso ? new Date(iso).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+
+function listenCourseSubmissions() {
+  const off = fbDb.collection('courseSubmissions').onSnapshot(snap => {
+    courseSubsLive = snap.docs.map(d => Object.assign({}, d.data(), { docId: d.id }));
+    /* แจ้งครูผู้ส่งเมื่อหัวหน้าตรวจแล้ว — จำผลที่เห็นแล้วไว้ใน DB.ui (เฉพาะเครื่อง) จะได้แจ้งครั้งเดียว ทั้งตอนเปิดแอปค้างอยู่และตอนเปิดแอปทีหลัง */
+    const me = myEmailForSync(), seen = DB.ui.courseReviewSeen = DB.ui.courseReviewSeen || {}; let changed = false;
+    courseSubsLive.filter(x => x.ownerId === me && x.review && x.review.at && x.status !== 'submitted' && seen[x.docId] !== x.review.at).forEach(x => {
+      toast('หัวหน้ากลุ่มสาระตรวจโครงสร้างรายวิชา ' + ((x.view || {}).subjectCode || '') + ' แล้ว: ' + (x.status === 'approved' ? 'ผ่าน' : 'ให้แก้ไข') + ' • ดูที่หน้าโครงสร้างรายวิชา', x.status === 'approved' ? 'ok' : 'warn');
+      seen[x.docId] = x.review.at; changed = true;
+    });
+    if (changed) save();
+    renderTop(); drawCourseReview();
+    if (DB.ui.tab === 'head' && $('#pane-head') && !modalStack.length) renderHeadArea();
+    if (DB.ui.tab === 'executive' && $('#pane-executive') && !modalStack.length) renderExecutive();
+  }, () => { courseSubsLive = []; });
+  return () => { off(); courseSubsLive = []; };
+}
+
+/** การ์ดสถานะการส่งตรวจบนหน้าโครงสร้างรายวิชา — วาดแยกจากหน้า เพื่อให้ผลตรวจที่เข้ามาสด ๆ ไม่ล้างช่องที่ครูกำลังพิมพ์ */
+function drawCourseReview() {
+  const host = $('#csReviewHost'); if (!host || !ready()) return;
+  const b = curBook(true), c = courseOf(b), me = curTeacher() || {}, email = myEmailForSync(), area = teacherArea(me);
+  const sub = email ? courseSubsLive.find(x => x.docId === courseSubId(email, DB.ui.subjectId, DB.ui.periodId)) : null;
+  const heads = headTeachersOfArea(area).map(t => t.name || t.email).filter(Boolean);
+  const online = firebaseReady() && fbSignedIn();
+  const edited = sub && sub.view && JSON.stringify(sub.view.units) !== JSON.stringify(courseViewOf(b).units);
+  const rv = (sub && sub.review) || {};
+  host.innerHTML = '<div class="card' + (sub && sub.status === 'revise' ? ' cs-review-revise' : '') + '"><div class="exec-head row"><div><div class="exec-eyebrow">REVIEW</div><h3>ส่งให้หัวหน้ากลุ่มสาระตรวจ</h3></div>' +
+      '<div class="spacer"></div>' + courseStatusChip(sub ? sub.status : 'missing') + '</div>' +
+    '<div class="cs-review-body">' +
+      (sub ? '<div>ส่งล่าสุด ' + esc(thaiDateTime(sub.submittedAt)) + '</div>' : '') +
+      (sub && sub.status !== 'submitted' && rv.at ? '<div>ตรวจโดย <b>' + esc(rv.byName || rv.by || '—') + '</b> เมื่อ ' + esc(thaiDateTime(rv.at)) + '</div>' +
+        (rv.note ? '<div class="cs-review-note">' + esc(rv.note).replace(/\n/g, '<br>') + '</div>' : '') : '') +
+      (sub && sub.status === 'submitted' && rv.at && rv.status === 'revise' ? '<div class="hint">ครั้งก่อนหัวหน้าให้แก้ไข: ' + esc(rv.note || '') + '</div>' : '') +
+      (edited ? '<div class="notice">แก้ไขโครงสร้างหลังส่งแล้ว — หัวหน้ายังเห็นฉบับเดิม กดส่งฉบับใหม่เมื่อแก้เสร็จ</div>' : '') +
+      (!area ? '<div class="notice bad">โปรไฟล์ของคุณยังไม่ระบุกลุ่มสาระ ส่งตรวจไม่ได้ — แจ้งผู้ดูแลระบบให้ใส่กลุ่มสาระ</div>'
+        : '<div class="hint">ส่งถึงหัวหน้ากลุ่มสาระ' + esc(area) + (heads.length ? ' (' + esc(heads.join(', ')) + ')' : ' — ยังไม่มีหัวหน้ากลุ่มสาระในระบบ') + '</div>') +
+      (!online ? '<div class="notice">ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อนจึงจะส่งได้</div>' : '') +
+    '</div>' +
+    '<div class="row" style="margin-top:10px"><div class="spacer"></div><button class="primary" id="csSubmit"' + (!online || !area || !c.units.length ? ' disabled' : '') + '>' +
+      (sub ? 'ส่งฉบับใหม่ให้หัวหน้าตรวจ' : 'ส่งให้หัวหน้ากลุ่มสาระตรวจ') + '</button></div></div>';
+  const btn = $('#csSubmit', host); if (btn) btn.addEventListener('click', () => submitCourseForReview(btn));
+}
+
+async function submitCourseForReview(btn) {
+  const b = curBook(true), c = courseOf(b), me = curTeacher() || {}, email = myEmailForSync();
+  if (!c.units.length) return toast('ยังไม่มีหน่วยการเรียนรู้', 'bad');
+  if (!(firebaseReady() && fbSignedIn() && email)) return toast('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อน', 'bad');
+  const view = courseViewOf(b);
+  if (!await confirmBox('ส่งโครงสร้างรายวิชา', 'ส่ง <b>' + esc(view.subjectCode + ' ' + view.subjectName) + '</b> ' + view.units.length + ' หน่วย ให้หัวหน้ากลุ่มสาระ' + esc(teacherArea(me)) + 'ตรวจ?' +
+    '<br><span class="hint">ส่งซ้ำได้ ฉบับใหม่จะแทนฉบับเดิมและกลับเป็นสถานะรอตรวจ</span>', 'ส่ง')) return;
+  btn.disabled = true;
+  try {
+    /* set แบบ merge ไม่แตะช่อง review — กฎห้ามครูแก้ผลตรวจ ผลครั้งก่อนจึงยังอยู่ให้ทั้งสองฝ่ายเห็นว่าแก้ตามแล้ว */
+    await fbDb.collection('courseSubmissions').doc(courseSubId(email, DB.ui.subjectId, DB.ui.periodId)).set(JSON.parse(JSON.stringify({
+      ownerId: email, teacherId: me.id || '', teacherName: me.name || '', area: teacherArea(me),
+      subjectId: DB.ui.subjectId, periodId: DB.ui.periodId, status: 'submitted', submittedAt: new Date().toISOString(), view: view })), { merge: true });
+    toast('ส่งให้หัวหน้ากลุ่มสาระตรวจแล้ว', 'ok');
+  } catch (e) { toast('ส่งไม่สำเร็จ: ' + fbErrorMessage(e), 'bad'); btn.disabled = false; }
+}
+
+/** คู่ ครู+วิชา ที่ต้องส่งโครงสร้างในภาคนี้ จากตารางสอน — เฉพาะรายวิชาที่รหัสบอกว่าเป็นพื้นฐาน/เพิ่มเติม
+    (กิจกรรมพัฒนาผู้เรียน โฮมรูม และวิชาที่ไม่มีรหัสแบบหลักสูตร ไม่ต้องมีโครงสร้างรายวิชา) */
+function courseExpected(periodId) {
+  const map = {};
+  (DB.timetable.entries || []).filter(e => e.periodId === periodId && !isHomeroomEntry(e)).forEach(e => {
+    const s = DB.subjects.find(x => x.id === e.subjectId); if (!s || !guessCourseType(s.code)) return;
+    const k = e.teacherId + '|' + e.subjectId; if (!map[k]) map[k] = { teacherId: e.teacherId, subject: s };
+  });
+  return Object.values(map);
+}
+/** สรุปรายกลุ่มสาระ: ครูที่ต้องส่ง • ส่งครบ • ผ่านครบ • รอตรวจ • ขาดส่ง (นับเป็นคน — ครูสอนหลายวิชาต้องส่งครบทุกวิชาจึงนับว่าส่งแล้ว) */
+function courseSubmissionStats(periodId) {
+  const subs = courseSubsLive.filter(x => x.periodId === periodId), areas = {};
+  courseExpected(periodId).forEach(x => {
+    const t = DB.teachers.find(tt => tt.id === x.teacherId); if (!t) return;
+    const email = String(t.email || '').trim().toLowerCase(), area = teacherArea(t) || NO_AREA_LABEL;
+    const sub = subs.find(s => s.subjectId === x.subject.id && (s.teacherId === t.id || (email && s.ownerId === email)));
+    const A = areas[area] = areas[area] || { area: area, byTeacher: {} };
+    const T = A.byTeacher[t.id] = A.byTeacher[t.id] || { teacher: t, subjects: [] };
+    T.subjects.push({ subject: x.subject, status: sub ? sub.status : 'missing', sub: sub || null });
+  });
+  return Object.values(areas).map(A => {
+    const ts = Object.values(A.byTeacher).sort((a, b) => String(a.teacher.name || '').localeCompare(String(b.teacher.name || ''), 'th'));
+    const has = (T, st) => T.subjects.some(x => x.status === st);
+    return { area: A.area, teachers: ts, total: ts.length,
+      submitted: ts.filter(T => !has(T, 'missing')).length,
+      approved: ts.filter(T => T.subjects.every(x => x.status === 'approved')).length,
+      waiting: ts.filter(T => has(T, 'submitted')).length,
+      missing: ts.filter(T => has(T, 'missing')) };
+  }).sort((a, b) => a.area.localeCompare(b.area, 'th'));
+}
+const missingSubjectsText = T => T.subjects.filter(x => x.status === 'missing').map(x => x.subject.code || x.subject.name).join(', ');
+
+/** การ์ดในหน้าหัวหน้ากลุ่มสาระ — รายการรอตรวจขึ้นก่อน แล้วตามด้วยครูที่ยังไม่ส่ง */
+function headCourseCardHtml(area, isAdminView) {
+  const st = courseSubmissionStats(DB.ui.periodId).find(x => x.area === area);
+  const subs = courseSubsLive.filter(x => x.periodId === DB.ui.periodId && x.area === area)
+    .sort((a, b) => (a.status === 'submitted' ? 0 : 1) - (b.status === 'submitted' ? 0 : 1) || String(b.submittedAt || '').localeCompare(String(a.submittedAt || '')));
+  return '<div class="card"><div class="row"><h3 style="margin:0">โครงสร้างรายวิชา</h3><div class="spacer"></div>' +
+      (st ? '<span class="badge">ต้องส่ง ' + st.total + ' คน</span><span class="badge ok">ส่งครบ ' + st.submitted + '</span><span class="badge ' + (st.missing.length ? 'bad' : 'ok') + '">ขาดส่ง ' + st.missing.length + '</span>' : '') + '</div>' +
+    (subs.length ? '<div class="alert-list" style="margin-top:10px">' + subs.map(x => '<div class="alert-item"><div><b>' + esc(x.teacherName || x.ownerId) + ' • ' + esc(((x.view || {}).subjectCode || '') + ' ' + ((x.view || {}).subjectName || '')) + '</b>' +
+        '<div class="hint">ส่งเมื่อ ' + esc(thaiDateTime(x.submittedAt)) + ' • ' + ((x.view || {}).units || []).length + ' หน่วย' + (x.review && x.review.at && x.status !== 'submitted' ? ' • ตรวจโดย ' + esc(x.review.byName || '') : '') + '</div></div>' +
+        courseStatusChip(x.status) + '<button class="sm' + (x.status === 'submitted' ? ' primary' : '') + '" data-cs-review="' + esc(x.docId) + '">' + (x.status === 'submitted' && !isAdminView ? 'ตรวจ' : 'ดู') + '</button></div>').join('') + '</div>'
+      : '<div class="empty" style="margin-top:10px">ยังไม่มีครูในกลุ่มสาระส่งโครงสร้างรายวิชาภาคนี้</div>') +
+    (st && st.missing.length ? '<div class="notice" style="margin-top:10px"><b>ยังไม่ส่ง ' + st.missing.length + ' คน:</b> ' +
+      st.missing.map(T => esc(T.teacher.name || T.teacher.email) + ' <span class="hint">(' + esc(missingSubjectsText(T)) + ')</span>').join(' • ') + '</div>' : '') +
+  '</div>';
+}
+function wireHeadCourseCard(pane, isAdminView) {
+  $$('[data-cs-review]', pane).forEach(btn => btn.addEventListener('click', () => openCourseReview(btn.dataset.csReview, isAdminView)));
+}
+
+/** หัวหน้ากลุ่มสาระเปิดดูฉบับที่ครูส่ง แล้วให้ผ่าน / ส่งกลับให้แก้ไข พร้อมข้อเสนอแนะ */
+function openCourseReview(docId, readOnly) {
+  const x = courseSubsLive.find(s => s.docId === docId); if (!x || !x.view) return toast('ไม่พบเอกสาร', 'bad');
+  const me = curTeacher() || {}, rv = x.review || {};
+  const decide = status => async (close, root) => {
+    const note = $('#csReviewNote', root).value.trim().slice(0, 1000);
+    if (status === 'revise' && !note) return toast('กรุณาเขียนสิ่งที่ต้องแก้ไข ครูจะได้แก้ถูกจุด', 'bad');
+    try {
+      await fbDb.collection('courseSubmissions').doc(docId).update({ status: status,
+        review: { status: status, by: myEmailForSync(), byName: me.name || '', at: new Date().toISOString(), note: note } });
+      close(); toast(status === 'approved' ? 'บันทึกว่าผ่านแล้ว ครูผู้ส่งจะเห็นผลทันที' : 'ส่งกลับให้แก้ไขแล้ว', 'ok');
+    } catch (e) { toast('บันทึกไม่สำเร็จ: ' + fbErrorMessage(e), 'bad'); }
+  };
+  openModal({ title: 'โครงสร้างรายวิชา — ' + (x.teacherName || x.ownerId), wide: true,
+    bodyHTML: '<div class="row" style="margin-bottom:8px">' + courseStatusChip(x.status) + '<span class="hint">ส่งเมื่อ ' + esc(thaiDateTime(x.submittedAt)) +
+        ((x.view.rooms || []).length ? ' • สอนห้อง ' + esc(x.view.rooms.join(', ')) : '') + '</span></div>' +
+      (rv.at ? '<div class="hint" style="margin-bottom:8px">ผลตรวจครั้งล่าสุด: ' + esc((COURSE_STATUS[rv.status] || [''])[0]) + ' โดย ' + esc(rv.byName || '') + ' ' + esc(thaiDateTime(rv.at)) + (rv.note ? ' — ' + esc(rv.note) : '') + '</div>' : '') +
+      '<div id="docPreviewBox" style="max-height:52vh;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:8px"><div id="docPreviewFit" style="overflow:hidden">' +
+        '<div id="docPreviewPage" style="width:210mm;transform-origin:top left">' + courseSheetHtml(x.view) + '</div></div></div><div class="hint" id="docPreviewScale"></div>' +
+      (readOnly ? '' : '<div class="pick" style="margin-top:10px;display:grid;gap:4px"><label>ข้อเสนอแนะ (ต้องเขียนเมื่อส่งกลับให้แก้ไข)</label><textarea id="csReviewNote" rows="3" style="width:100%">' + esc(x.status === 'submitted' ? '' : rv.note || '') + '</textarea></div>'),
+    buttons: [{ label: 'ปิด' }, { label: 'พิมพ์', act(close) { close(); printDocument(courseSheetHtml(x.view)); } }].concat(readOnly ? [] :
+      [{ label: 'ส่งกลับให้แก้ไข', cls: 'danger', act: decide('revise') }, { label: 'ผ่าน', cls: 'primary', act: decide('approved') }]),
+    onMount(root) { fitDocPreview(root); afterFontsReady(() => fitDocPreview(root)); } });
+}
+
+/** การ์ดในหน้าผู้บริหาร — แต่ละกลุ่มสาระส่งกี่คน ขาดส่งกี่คน ใครบ้าง */
+function courseExecCardHtml() {
+  const rows = courseSubmissionStats(DB.ui.periodId);
+  const sum = k => rows.reduce((a, r) => a + (k === 'missing' ? r.missing.length : r[k]), 0);
+  return '<div class="card"><div class="row"><div><h3 style="margin:0">การส่งโครงสร้างรายวิชา</h3><div class="hint">นับจากตารางสอนภาคนี้ เฉพาะรายวิชาพื้นฐาน/เพิ่มเติม • ครูสอนหลายวิชาต้องส่งครบทุกวิชาจึงนับว่าส่งแล้ว</div></div>' +
+      '<div class="spacer"></div><span class="badge ' + (sum('missing') ? 'bad' : 'ok') + '">ขาดส่ง ' + sum('missing') + ' / ' + sum('total') + ' คน</span></div>' +
+    (rows.length ? '<div class="tablewrap" style="margin-top:10px"><table><thead><tr><th>กลุ่มสาระ</th><th class="num">ต้องส่ง</th><th class="num">ส่งครบ</th><th class="num">ผ่านแล้ว</th><th class="num">รอตรวจ</th><th class="num">ขาดส่ง</th><th>ครูที่ยังไม่ส่ง</th></tr></thead><tbody>' +
+      rows.map(r => '<tr><td><b>' + esc(r.area) + '</b></td><td class="num">' + r.total + '</td><td class="num">' + r.submitted + '</td><td class="num">' + r.approved + '</td><td class="num">' + r.waiting + '</td>' +
+        '<td class="num">' + (r.missing.length ? '<b style="color:var(--bad)">' + r.missing.length + '</b>' : '0') + '</td>' +
+        '<td>' + (r.missing.length ? '<details><summary>' + r.missing.length + ' คน</summary>' + r.missing.map(T => '<div>' + esc(T.teacher.name || T.teacher.email) + ' <span class="hint">' + esc(missingSubjectsText(T)) + '</span></div>').join('') + '</details>' : '<span class="hint">ครบแล้ว</span>') + '</td></tr>').join('') +
+      '<tr><td><b>รวม</b></td><td class="num"><b>' + sum('total') + '</b></td><td class="num"><b>' + sum('submitted') + '</b></td><td class="num"><b>' + sum('approved') + '</b></td><td class="num"><b>' + sum('waiting') + '</b></td><td class="num"><b>' + sum('missing') + '</b></td><td></td></tr>' +
+      '</tbody></table></div>'
+    : '<div class="empty" style="margin-top:10px">ยังไม่มีข้อมูลตารางสอนของภาคนี้ จึงยังนับไม่ได้ว่าใครต้องส่ง</div>') + '</div>';
+}function renderItems() {
   const pane = $('#pane-items');
   const gate = gateMsg(true);
   if (gate) { pane.innerHTML = '<div class="card">' + gate + '</div>'; return; }
@@ -13680,13 +13866,14 @@ function renderHeadArea() {
       return '<div class="alert-item"><div><b>' + esc(t.name || '—') + ' • ' + esc(exchangeReasonLabel(l)) + '</b><div class="hint">' + thaiDate(l.fromDate) + (l.toDate !== l.fromDate ? ' ถึง ' + thaiDate(l.toDate) : '') + ' • รวม ' + leaveDays(l) + ' วัน • ' + l.requestIds.length + ' คาบ' + (l.note ? '<br>' + esc(l.note) : '') + '</div></div><div class="spacer"></div>' +
         '<button class="sm" data-head-doc="' + l.id + '">ดูใบลา</button>' + (canApprove() ? '<button class="sm danger" data-head-reject="' + l.id + '">ไม่เห็นชอบ</button><button class="sm primary" data-head-endorse="' + l.id + '">เห็นควรอนุญาต</button>' : '<span class="badge">อ่านอย่างเดียว</span>') + '</div>';
     }).join('') + '</div>' : '<div class="empty">ไม่มีใบลารอความเห็น</div>') + '</div>' +
-    headCoverCard(area) +
+    headCourseCardHtml(area, isAdminView) + headCoverCard(area) +
     '<div class="card"><h3>สถิติการลาของครูในกลุ่มสาระ</h3>' + leaveStatsTable(stats, false) + '</div>' +
     '<div class="card"><h3>ครูในกลุ่มสาระและภาระงาน</h3><div class="tablewrap"><table><thead><tr><th>ชื่อ</th><th>บทบาท</th><th>ห้องที่ปรึกษา</th><th>คาบ/สัปดาห์</th><th>ห้องที่สอน</th></tr></thead><tbody>' +
       members.map(t => { const own = entries.filter(e => e.teacherId === t.id), rooms = new Set(own.map(e => (DB.classes.find(c => c.id === e.classId) || {}).name).filter(Boolean)), home = DB.classes.find(c => c.id === t.homeroomClassId);
         return '<tr><td><b>' + esc(t.name || t.email || '—') + '</b></td><td>' + (t.roles || []).map(r => '<span class="level-tag">' + esc(roleLabel(r)) + '</span>').join(' ') + '</td><td>' + esc(home ? home.name : '—') + '</td><td>' + own.length + '</td><td>' + esc(Array.from(rooms).join(', ') || '—') + '</td></tr>'; }).join('') +
       '</tbody></table></div></div>';
   wirePicker();
+  wireHeadCourseCard(pane, isAdminView);
   $$('[data-head-cover]', pane).forEach(b => b.addEventListener('click', () => openHeadCoverPicker(b.dataset.headCover)));
   $$('[data-head-doc]', pane).forEach(b => b.addEventListener('click', () => openLeaveDocument(b.dataset.headDoc)));
   $$('[data-head-endorse]', pane).forEach(b => b.addEventListener('click', () => decideLeave(b.dataset.headEndorse, 'approve', 'head')));
@@ -14482,7 +14669,7 @@ const EXEC_CARD_SECTION = [
   [/ประกาศและนัดหมาย/, 'overview'],
   [/สัดส่วนสถานะ|กลุ่มสาระการเรียนรู้|รายละเอียดรายวิชา/, 'attendance'],
   [/นักเรียนที่ควรติดตาม|ขาดเรียนติดต่อ|ไม่ครบจำนวน|ข้อมูลนักเรียนทั้งหมด/, 'students'],
-  [/คงค้างผลการเรียน/, 'academic'],
+  [/คงค้างผลการเรียน|โครงสร้างรายวิชา/, 'academic'],
   [/กิจการนักเรียน/, 'affairs'],
   [/การลาและการสอนแทน|ภาระงานสอน/, 'staff']];
 const execSection = () => EXEC_SECTIONS.some(x => x.key === DB.ui.execSection) ? DB.ui.execSection : 'overview';
@@ -14586,6 +14773,7 @@ function renderExecutive() {
       ranking.slice(0, 5).map(r => '<tr><td><b>' + esc(r.name) + '</b></td><td>' + esc(r.area || '—') + '</td><td>' + r.substitute + '</td><td><b>' + r.total + '</b></td></tr>').join('') + '</tbody></table></div>' : '<div class="empty">ยังไม่มีการสอนแทน</div>') + '</div></div></div>');
   $('#execGoLeaves').addEventListener('click', () => setTab('leaves'));
   $$('[data-exec-area]', pane).forEach(btn => btn.addEventListener('click', () => { DB.ui.execArea = btn.dataset.execArea; save(); renderExecutive(); }));
+  pane.insertAdjacentHTML('beforeend', courseExecCardHtml());
   wireExecStudentPanels(pane);
   renderTeachingLoad(pane);
   mountNoticeCard(pane);
@@ -18930,6 +19118,7 @@ function startFirebaseSync() {
   const quiet = () => {};
 
   fbUnsub.push(listenLoginRequests());
+  fbUnsub.push(listenCourseSubmissions());
   fbUnsub.push(fbDb.collection('staff').onSnapshot(snap => apply(() => {
     const stray = snap.docs.filter(fbIsStrayStaffDoc);
     // แอดมินลบเอกสารผีทิ้งจากส่วนกลาง (กฎให้แอดมินลบได้) ครูทั่วไปแค่ข้ามไป

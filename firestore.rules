@@ -379,6 +379,27 @@ service cloud.firestore {
     }
 
     /* ปิดทุกอย่างที่ไม่ได้ระบุไว้ข้างบน */
+    /* ---------- ส่งโครงสร้างรายวิชาให้หัวหน้ากลุ่มสาระตรวจ ----------
+       หนึ่งเอกสารต่อ ครู + วิชา + ภาคเรียน • บุคลากรทุกคนอ่านได้ (หัวหน้าและผู้บริหารต้องเห็นยอดส่ง/ขาดส่ง)
+       ครูเจ้าของส่งหรือส่งซ้ำได้เฉพาะสถานะ "รอตรวจ" และห้ามแตะช่อง review (ผลตรวจ)
+       หัวหน้ากลุ่มสาระเดียวกับผู้ส่ง (หรือแอดมิน) เขียนได้เฉพาะ status + review เป็น ผ่าน / ให้แก้ไข */
+    match /courseSubmissions/{docId} {
+      allow read: if isStaff();
+      allow create: if isStaff()
+        && request.resource.data.ownerId == myId()
+        && request.resource.data.status == 'submitted'
+        && !('review' in request.resource.data);
+      allow update: if isStaff() && (
+           (resource.data.ownerId == myId()
+             && request.resource.data.ownerId == myId()
+             && request.resource.data.status == 'submitted'
+             && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['review']))
+        || ((isAdmin() || (isHead() && myDoc().data.learningArea == resource.data.area))
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'review'])
+             && request.resource.data.status in ['approved', 'revise']));
+      allow delete: if isAdmin() || (isStaff() && resource.data.ownerId == myId());
+    }
+
     /* ---------- แจ้งเข้าสู่ระบบไม่ได้ ----------
        ครูที่ยังไม่มีชื่อใน staff เข้าสู่ระบบไม่ได้ จึงต้องส่งคำขอได้โดยไม่ต้องล็อกอิน (ข้อยกเว้นเดียวของหลักการด้านบน)
        กันสแปมด้วยการตรวจทุกช่องเข้ม และรหัสเอกสาร = อีเมล (แบบเดียวกับ staff) หนึ่งอีเมลมีได้คำขอเดียว
