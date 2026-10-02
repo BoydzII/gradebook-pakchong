@@ -144,6 +144,28 @@ button.sq-try:hover{background:#5a5666;border-color:#8a8696}
 .cs-chip{font-size:12.5px;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--brand) 10%,transparent);border:1px solid color-mix(in srgb,var(--brand) 30%,transparent)}
 .cs-sum td.num,.cs-sum th.num{text-align:right}
 .course-sheet .doc-table td{vertical-align:top}
+/* หน้าพรีโหลด ช่อประดู่แดง — อยู่เหนือทุกอย่างรวมกล่องข้อความ สีพื้นเดียวกับหน้าแรกจึงต่อกันเนียนตอนจางหาย */
+.app-loader{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  background:radial-gradient(ellipse at 50% 40%,#2a1216 0%,#0c0b10 62%);color:#f4f1f8;text-align:center;padding:24px;overflow:hidden;
+  transition:opacity .35s ease;font-family:inherit}
+.app-loader[hidden]{display:none}
+.app-loader.out{opacity:0;pointer-events:none}
+.al-bouquet{width:min(300px,72vw);height:auto;filter:drop-shadow(0 8px 24px rgba(214,32,46,.25))}
+.al-f{transform-box:fill-box;transform-origin:center;animation:alBloom 2.1s ease-in-out infinite}
+@keyframes alBloom{0%,100%{transform:scale(.82);opacity:.75}45%{transform:scale(1.08);opacity:1}}
+.al-logo{width:46px;height:46px;object-fit:contain;margin-top:4px;opacity:.95}
+.al-title{font-size:20px;font-weight:700;margin-top:4px}
+.al-step{font-size:14px;color:#c9c2d6;min-height:1.6em}
+.al-step::after{content:'';display:inline-block;width:1.2em;text-align:left;animation:alDots 1.2s steps(4) infinite}
+@keyframes alDots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}
+.al-slow{display:none;margin-top:10px;font-size:14px;color:#ffd078;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
+.app-loader.slow .al-slow{display:flex}
+.al-slow button{background:#d6202e;color:#fff;border:0;border-radius:999px;padding:6px 14px;font:inherit;font-weight:700}
+.al-slow button+button{background:rgba(255,255,255,.14)}
+.al-petals{position:absolute;inset:0;pointer-events:none}
+.al-petals i{position:absolute;top:-24px;width:10px;height:14px;border-radius:60% 60% 60% 10%;background:#d6202e;opacity:.7;animation:alFall 6.5s linear infinite}
+@keyframes alFall{0%{transform:translate(0,0) rotate(0)}100%{transform:translate(40px,110vh) rotate(320deg)}}
+@media (prefers-reduced-motion:reduce){.al-petals{display:none}.al-f{animation:alBloom 3s ease-in-out infinite}.al-step::after{animation:none}}
 .cs-review-body{display:grid;gap:6px;line-height:1.6}
 .cs-review-note{padding:8px 12px;border-radius:10px;background:var(--warn-bg);border-left:3px solid var(--warn)}
 .cs-review-revise{border-color:var(--bad)}
@@ -1688,6 +1710,10 @@ tr.conduct-void td{opacity:.55}tr.conduct-void td b{text-decoration:line-through
 </style>
 </head>
 <body>
+<!-- หน้าพรีโหลด ช่อประดู่แดง (ดอกไม้ประจำโรงเรียน) — ขึ้นทันทีตั้งแต่เบราว์เซอร์อ่านถึงบรรทัดนี้ ก่อนสคริปต์ 1.4MB ทำงาน
+     ตอนเปิดแอปจอเคยว่างนิ่งจนครูคิดว่าค้าง ใช้ซ้ำตอนเข้าสู่ระบบด้วย (appLoader.show/step/hide) -->
+<div id="appLoader" class="app-loader" role="status" aria-live="polite"><div class="al-petals" aria-hidden="true"><i style="left:18%;animation-delay:0s"></i><i style="left:34%;animation-delay:1.6s"></i><i style="left:57%;animation-delay:.7s"></i><i style="left:72%;animation-delay:2.3s"></i><i style="left:86%;animation-delay:1.1s"></i></div><svg class="al-bouquet" viewBox="0 0 170 130" aria-hidden="true"><defs><g id="alFlower"><g fill="#d6202e"><ellipse cx="0" cy="-7" rx="4.4" ry="7"/><ellipse cx="0" cy="-7" rx="4.4" ry="7" transform="rotate(72)"/><ellipse cx="0" cy="-7" rx="4.4" ry="7" transform="rotate(144)"/><ellipse cx="0" cy="-7" rx="4.4" ry="7" transform="rotate(216)"/><ellipse cx="0" cy="-7" rx="4.4" ry="7" transform="rotate(288)"/></g><circle r="3" fill="#ffd34d"/><circle r="1.2" fill="#b8860b"/></g></defs><path d="M20 124 C52 104 70 86 92 34 M70 90 C92 76 108 60 126 70 M58 100 C56 88 58 80 60 70 M84 80 C92 74 98 70 100 66 M80 86 C78 70 76 60 74 52 M92 70 C100 60 108 52 112 48 M92 34 C94 26 95 20 96 16 M104 40 C110 34 115 31 118 30 M84 44 C80 40 76 37 72 34 M118 64 C126 60 134 58 140 56 M110 74 C118 78 126 82 132 86 M66 64 C62 60 58 57 54 54 M96 78 C100 80 104 82 108 84" fill="none" stroke="#3f6b3a" stroke-width="2.6" stroke-linecap="round"/><g fill="#4f8a47"><ellipse cx="44" cy="108" rx="9" ry="4" transform="rotate(-28 44 108)"/><ellipse cx="118" cy="64" rx="8" ry="3.6" transform="rotate(20 118 64)"/><ellipse cx="66" cy="86" rx="7" ry="3.4" transform="rotate(-50 66 86)"/></g><g class="al-f" style="animation-delay:0s"><use href="#alFlower" transform="translate(92 34) scale(1.0)"/></g><g class="al-f" style="animation-delay:0.25s"><use href="#alFlower" transform="translate(112 48) scale(0.85)"/></g><g class="al-f" style="animation-delay:0.5s"><use href="#alFlower" transform="translate(74 52) scale(0.9)"/></g><g class="al-f" style="animation-delay:0.75s"><use href="#alFlower" transform="translate(100 66) scale(0.8)"/></g><g class="al-f" style="animation-delay:1.0s"><use href="#alFlower" transform="translate(126 70) scale(0.7)"/></g><g class="al-f" style="animation-delay:1.25s"><use href="#alFlower" transform="translate(82 78) scale(0.75)"/></g><g class="al-f" style="animation-delay:1.5s"><use href="#alFlower" transform="translate(60 70) scale(0.65)"/></g><g class="al-f" style="animation-delay:0.4s"><use href="#alFlower" transform="translate(96 16) scale(0.6)"/></g><g class="al-f" style="animation-delay:0.9s"><use href="#alFlower" transform="translate(118 30) scale(0.62)"/></g><g class="al-f" style="animation-delay:1.1s"><use href="#alFlower" transform="translate(72 34) scale(0.58)"/></g><g class="al-f" style="animation-delay:1.6s"><use href="#alFlower" transform="translate(140 56) scale(0.55)"/></g><g class="al-f" style="animation-delay:1.85s"><use href="#alFlower" transform="translate(132 86) scale(0.5)"/></g><g class="al-f" style="animation-delay:2.0s"><use href="#alFlower" transform="translate(54 54) scale(0.5)"/></g><g class="al-f" style="animation-delay:0.15s"><use href="#alFlower" transform="translate(108 84) scale(0.55)"/></g></svg><img class="al-logo" src="./icons/school-logo.png" alt="" onerror="this.remove()"><div class="al-title">กำลังเปิด KruSpace…</div><div class="al-step">เตรียมข้อมูลในเครื่อง</div><div class="al-slow">โหลดนานผิดปกติ <button type="button" onclick="location.reload()">รีเฟรช</button><button type="button" onclick="var e=document.getElementById('appLoader');e.hidden=true">ปิดหน้านี้</button></div></div>
+<script>/* กันค้าง: ถ้าสคริปต์หลักพังกลางทาง หน้าพรีโหลดต้องไม่บังจอตลอดไป ครบ 12 วินาทีขึ้นปุ่มรีเฟรช/ปิด */window.__bootLoaderTimer=setTimeout(function(){var e=document.getElementById("appLoader");if(e&&!e.hidden)e.classList.add("slow")},12000);</script>
 
 <div id="roleGateway" class="role-gateway"></div>
 
@@ -18939,6 +18965,25 @@ function fbErrorMessage(e) {
    หน้าต่างเข้าสู่ระบบของ firebaseapp.com ซึ่งคนละเว็บกับแอป จึงส่งผลกลับไม่ได้ ค้างเป็นจอขาว
    ("missing initial state ... storage-partitioned browser environment") — ตรวจด้วย isIOSDevice() ที่มีอยู่แล้ว */
 /* เบราว์เซอร์ในตัวแอปแชต — Google ไม่ยอมให้ลงชื่อเข้าใช้ในนี้เลย (disallowed_useragent) ต้องบอกให้เปิดใน Safari/Chrome */
+/** หน้าพรีโหลดช่อประดู่แดง (#appLoader อยู่บนสุดของ body) ใช้ทั้งตอนเปิดแอปและตอนเข้าสู่ระบบ */
+const appLoader = {
+  show(title, step) {
+    const el = document.getElementById('appLoader'); if (!el) return;
+    clearTimeout(appLoader._t); el.classList.remove('out', 'slow'); el.hidden = false;
+    el.querySelector('.al-title').textContent = title || 'กำลังเข้าสู่ระบบ…'; appLoader.step(step);
+  },
+  step(text) { const el = document.getElementById('appLoader'); if (el) el.querySelector('.al-step').textContent = text || ''; },
+  hide() {
+    const el = document.getElementById('appLoader'); clearTimeout(window.__bootLoaderTimer); if (!el || el.hidden) return;
+    el.classList.add('out'); clearTimeout(appLoader._t);
+    appLoader._t = setTimeout(() => { el.hidden = true; el.classList.remove('out', 'slow'); }, 380);
+  }
+};
+/** รอให้เบราว์เซอร์วาดจอจริงหนึ่งรอบ — งานวาดหน้าจอหลังล็อกอินทำรวดเดียวไม่พัก ถ้าไม่รอก่อน พรีโหลดจะไม่ทันขึ้น
+    สำรองด้วย setTimeout เพราะเบราว์เซอร์หยุด requestAnimationFrame เมื่อหน้าต่างไม่ได้อยู่บนจอ (สลับแท็บ/ล็อกจอ)
+    ถ้ารอแต่ rAF พรีโหลดจะค้างบังจอจนกว่าจะกลับมาที่แท็บ */
+const nextPaint = () => new Promise(r => { let done = false; const go = () => { if (!done) { done = true; r(); } };
+  requestAnimationFrame(() => requestAnimationFrame(go)); setTimeout(go, 150); });
 const inAppBrowserName = () => { const ua = navigator.userAgent; return / Line\//i.test(ua) ? 'LINE' : /FBAN|FBAV/.test(ua) ? 'Facebook' : /Instagram/.test(ua) ? 'Instagram' : ''; };
 /* เปิดจากแชต LINE: เติม openExternalBrowser=1 ให้ LINE ส่งต่อไปเบราว์เซอร์หลักของเครื่อง (ไอโฟน = Safari) เอง
    ครูส่วนใหญ่กดลิงก์จากกลุ่ม LINE แล้วติดอยู่ในเบราว์เซอร์ของ LINE ซึ่ง Google ไม่ยอมให้เข้าสู่ระบบ
@@ -18987,7 +19032,7 @@ function googleTokenSignIn() {
   });
 }
 
-async function firebaseSignIn() {
+async function firebaseSignIn(onAuthed) {
   if (!initFirebase()) throw new Error('ยังไม่ได้ตั้งค่า Firebase ในไฟล์ config.js');
   const inApp = inAppBrowserName();
   if (inApp) throw new Error('เปิดผ่าน ' + inApp + ' เข้าสู่ระบบ Google ไม่ได้ กด ⋯ แล้วเลือก "เปิดใน Safari" หรือเปิดในเบราว์เซอร์ก่อน');
@@ -18999,6 +19044,8 @@ async function firebaseSignIn() {
     provider.setCustomParameters({ prompt: 'select_account' });
     cred = await fbAuth.signInWithPopup(provider);
   }
+  /* ได้บัญชีจาก Google แล้ว — ขึ้นพรีโหลดตรงนี้ ไม่ใช่ตอนกดปุ่ม เพราะจะไปบังหน้าต่างเลือกบัญชีบนไอโฟน */
+  if (onAuthed) onAuthed();
   const email = String((cred.user || {}).email || '').toLowerCase();
   if (!email) { await fbAuth.signOut(); throw new Error('บัญชีนี้ไม่มีอีเมล'); }
   let staff = null;
@@ -20302,7 +20349,7 @@ function openStaffRoleLogin(role) {
   const legacy = !firebaseConfigured();
   if (firebaseConfigured()) buttons.push({ label: 'เข้าสู่ระบบด้วย Google', cls: 'primary', async act(close) {
     try {
-      const r = await firebaseSignIn();
+      const r = await firebaseSignIn(() => appLoader.show('กำลังเข้าสู่ระบบ…', 'ตรวจสิทธิ์จากฐานข้อมูลกลาง'));
       if (!r.teacher) return toast('จับคู่โปรไฟล์ไม่สำเร็จ', 'bad');
       if (!gatewayModeOf(r.teacher, role)) {
         const have = (r.teacher.roles || []).map(roleLabel).join(', ') || 'ไม่มีบทบาทใดเลย';
@@ -20310,9 +20357,12 @@ function openStaffRoleLogin(role) {
         return toast('บัญชีนี้ไม่มีสิทธิ์' + roleLabel(role) + ' • สิทธิ์ที่มีคือ ' + have +
           ' (แก้ฟิลด์ roles ของอีเมลนี้ในคอลเลกชัน staff)', 'bad');
       }
+      appLoader.step('กำลังเตรียมหน้าจอ'); await nextPaint();
       startFirebaseSync();
       close(); completeStaffLogin(r.teacher, role);
+      await nextPaint();
     } catch (e) { toast(fbErrorMessage(e) + (fbSignInMethod ? ' [' + fbSignInMethod + ' • ' + (appVersionText || '?') + ']' : ''), 'bad'); }
+    finally { appLoader.hide(); }   // ทุกทางออก (สำเร็จ ไม่มีสิทธิ์ ผิดพลาด) ต้องปิดพรีโหลด ไม่งั้นจอถูกบังค้าง
   } });
   if (legacy && staffApiUrl()) buttons.push({ label: 'เข้าสู่ระบบด้วยบัญชีโรงเรียน (Apps Script)', async act(close) {
     try {
@@ -21255,6 +21305,8 @@ if (syncChipEl) syncChipEl.addEventListener('click', () => {
 });
 renderSyncChip();
 renderOnlineState();
+/* เปิดแอปเสร็จ (หน้าแรกหรือหน้าที่ค้างไว้วาดแล้ว) — รอเฟรมถัดไปให้จอวาดจริงก่อนค่อยจางพรีโหลดออก */
+nextPaint().then(() => appLoader.hide());
 </script>
 </body>
 </html>
