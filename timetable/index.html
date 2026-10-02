@@ -1,0 +1,1625 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>จัดตารางสอน · KruSpace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f5f3ee; --panel: #fbfaf7; --ink: #1a211d; --ink2: #5b655f; --line: #d9d5cb; --line2: #ece8de;
+  --accent: #0d6b4d; --accent-ink: #fff; --bad: #c22f1f; --bad-bg: #fbe3df; --ok-bg: #dcefe4; --warn: #9a6a00;
+  --w-quiet: 300; --w-body: 400; --w-loud: 800;
+  --r: 4px;
+  --f: 'Sarabun', 'Leelawadee UI', 'Noto Sans Thai', Tahoma, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12160f; --panel: #181d16; --ink: #e7eae2; --ink2: #98a294; --line: #2c3429; --line2: #212820;
+    --accent: #52c79a; --accent-ink: #08130e; --bad: #ff8b7a; --bad-bg: #3a1c17; --ok-bg: #173226; --warn: #e1b04a;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12160f; --panel: #181d16; --ink: #e7eae2; --ink2: #98a294; --line: #2c3429; --line2: #212820;
+  --accent: #52c79a; --accent-ink: #08130e; --bad: #ff8b7a; --bad-bg: #3a1c17; --ok-bg: #173226; --warn: #e1b04a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: var(--w-body) 15px/1.7 var(--f); }
+button, input, select { font: inherit; color: inherit; }
+b, .loud { font-weight: var(--w-loud); }
+.q { font-weight: var(--w-quiet); color: var(--ink2); }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ---------- แถบบน ---------- */
+header.top { display: flex; align-items: baseline; gap: 28px; padding: 14px 24px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+header.top h1 { margin: 0; font-size: 26px; font-weight: var(--w-loud); line-height: 1.3; white-space: nowrap; }
+header.top .per { font-weight: var(--w-quiet); color: var(--ink2); }
+nav.tabs { display: flex; gap: 22px; flex: 1; flex-wrap: wrap; }
+nav.tabs button { background: none; border: 0; border-bottom: 3px solid transparent; padding: 8px 0 7px; cursor: pointer; color: var(--ink2); font-size: 15px; }
+nav.tabs button[aria-selected="true"] { color: var(--ink); border-color: var(--accent); font-weight: var(--w-loud); }
+.tools { display: flex; gap: 6px; align-items: center; padding-bottom: 8px; margin-left: auto; }
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: var(--r); padding: 3px 12px; cursor: pointer; white-space: nowrap; }
+.btn:hover { border-color: var(--ink2); }
+.btn.pri { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: var(--w-loud); }
+.btn.bad { color: var(--bad); }
+.btn[disabled] { opacity: .4; cursor: default; }
+.btn.sm { padding: 0 8px; font-size: 13px; }
+
+/* ---------- โครงหน้า จัดตาราง ---------- */
+main { padding: 0; }
+.work { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: calc(100vh - 62px); }
+aside.rail { border-right: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; max-height: calc(100vh - 62px); position: sticky; top: 0; align-self: start; }
+.seg { display: flex; border-bottom: 1px solid var(--line); }
+.seg button { flex: 1; border: 0; background: none; padding: 8px 0; cursor: pointer; color: var(--ink2); border-bottom: 3px solid transparent; }
+.seg button[aria-pressed="true"] { color: var(--ink); font-weight: var(--w-loud); border-color: var(--ink); }
+.rail input[type=search] { margin: 10px 12px; padding: 5px 10px; border: 1px solid var(--line); border-radius: var(--r); background: var(--bg); }
+.list { overflow: auto; flex: 1; padding-bottom: 12px; }
+.list .grp { padding: 10px 14px 2px; font-size: 13px; color: var(--ink2); font-weight: var(--w-quiet); }
+.list button { display: flex; width: 100%; gap: 8px; justify-content: space-between; background: none; border: 0; text-align: left; padding: 2px 14px; cursor: pointer; line-height: 1.6; }
+.list button:hover { background: var(--line2); }
+.list button[aria-current="true"] { background: var(--ink); color: var(--bg); }
+.list .n { color: var(--ink2); font-size: 13px; }
+.list button[aria-current="true"] .n { color: var(--bg); opacity: .7; }
+.list .dot { color: var(--bad); font-weight: var(--w-loud); }
+.stage { padding: 18px 24px 60px; min-width: 0; }
+.stage h2 { margin: 0; font-size: 34px; line-height: 1.35; font-weight: var(--w-loud); text-wrap: balance; }
+.stage .sub { margin: 0 0 14px; color: var(--ink2); font-weight: var(--w-quiet); }
+
+/* ---------- กริดตาราง ---------- */
+table.grid { border-collapse: collapse; width: 100%; table-layout: fixed; background: var(--panel); }
+.grid th, .grid td { border: 1px solid var(--line); padding: 0; height: 74px; vertical-align: top; }
+.grid thead th { height: auto; padding: 4px 2px; font-weight: var(--w-body); background: var(--bg); }
+.grid thead th small { display: block; color: var(--ink2); font-weight: var(--w-quiet); font-size: 12px; line-height: 1.3; }
+.grid tbody th { width: 74px; font-weight: var(--w-loud); background: var(--bg); vertical-align: middle; text-align: center; }
+.grid td.drop-ok { background: var(--ok-bg); outline: 2px solid var(--accent); outline-offset: -2px; }
+.grid td.drop-no { background: var(--bad-bg); }
+.grid td.un { background: repeating-linear-gradient(135deg, transparent 0 6px, var(--line2) 6px 7px); }
+.grid td.un::after { content: '✕ ไม่ว่าง'; display: block; text-align: center; color: var(--ink2); font-size: 12px; padding-top: 24px; }
+.blk { --h: 200; position: relative; height: 100%; padding: 3px 6px 3px 9px; border-left: 5px solid hsl(var(--h) 45% 48%); background: hsl(var(--h) 55% 95%); cursor: grab; font-size: 13px; line-height: 1.4; overflow: hidden; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .blk { background: hsl(var(--h) 25% 17%); } }
+:root[data-theme="dark"] .blk { background: hsl(var(--h) 25% 17%); }
+.blk .a { font-weight: var(--w-loud); font-size: 13.5px; display: block; }
+.blk .b, .blk .c { display: block; color: var(--ink2); font-weight: var(--w-body); }
+.blk.bad { background: var(--bad-bg); border-left-color: var(--bad); }
+.blk.sel { outline: 2px solid var(--ink); outline-offset: -2px; }
+.blk .lk { position: absolute; right: 4px; top: 1px; font-size: 11px; color: var(--ink2); }
+.blk + .blk { border-top: 1px dashed var(--line); }
+.blk.dragging { opacity: .35; }
+.bar { margin: 10px 0 0; display: flex; gap: 8px; align-items: center; min-height: 32px; flex-wrap: wrap; }
+.bar .info { margin-right: auto; }
+
+.tray { margin-top: 26px; border-top: 1px solid var(--ink); padding-top: 8px; }
+.tray.over { background: var(--ok-bg); }
+.tray h3 { margin: 0; font-size: 20px; font-weight: var(--w-loud); }
+.tray .cards { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; min-height: 42px; }
+.tray .blk { width: 190px; height: auto; min-height: 56px; border: 1px solid var(--line); border-left: 5px solid hsl(var(--h) 45% 48%); }
+.tray .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+
+/* ---------- ตรวจชน / อาคาร / ตั้งค่า ---------- */
+.page { padding: 22px 24px 70px; max-width: 1180px; }
+.page h2 { margin: 0 0 4px; font-size: 34px; font-weight: var(--w-loud); line-height: 1.35; }
+.page h3 { margin: 34px 0 6px; font-size: 20px; font-weight: var(--w-loud); border-top: 1px solid var(--ink); padding-top: 8px; }
+.kpis { display: flex; gap: 0; margin: 14px 0 0; flex-wrap: wrap; }
+.kpis div { padding: 0 28px 0 0; margin-right: 28px; border-right: 1px solid var(--line); }
+.kpis div:last-child { border: 0; }
+.kpis b { display: block; font-size: 44px; line-height: 1.1; font-weight: var(--w-loud); font-variant-numeric: tabular-nums; }
+.kpis b.bad { color: var(--bad); }
+.kpis span { color: var(--ink2); font-size: 14px; }
+table.t { border-collapse: collapse; width: 100%; }
+.t th { text-align: left; font-weight: var(--w-quiet); color: var(--ink2); font-size: 13px; border-bottom: 1px solid var(--ink); padding: 3px 8px 3px 0; }
+.t td { border-bottom: 1px solid var(--line2); padding: 3px 8px 3px 0; vertical-align: top; }
+.t td.r, .t th.r { text-align: right; font-variant-numeric: tabular-nums; }
+a.go { color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.ok { color: var(--accent); font-weight: var(--w-loud); }
+.bldgs { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 0 40px; }
+.heat { border-collapse: collapse; margin: 6px 0 10px; }
+.heat td { width: 30px; height: 22px; text-align: center; font-size: 11px; border: 1px solid var(--bg); color: var(--ink); }
+.heat th { font-size: 11px; font-weight: var(--w-quiet); color: var(--ink2); padding: 0 4px; }
+.bar1 { height: 6px; background: var(--line2); }
+.bar1 i { display: block; height: 100%; background: var(--accent); }
+.form { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px 16px; margin-top: 8px; }
+.form label { display: block; font-size: 13px; color: var(--ink2); }
+.form input, .form select { width: 100%; padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); }
+.note { border-left: 4px solid var(--warn); padding: 4px 12px; background: var(--panel); margin: 10px 0; }
+.note.bad { border-color: var(--bad); }
+.note.ok { border-color: var(--accent); }
+#toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 6px 18px; border-radius: var(--r); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 50; max-width: 90vw; }
+#toast.on { opacity: 1; }
+#toast.bad { background: var(--bad); color: #fff; }
+.modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 40; padding: 16px; }
+.modal { background: var(--bg); border: 1px solid var(--ink); max-width: 640px; width: 100%; max-height: 90vh; overflow: auto; padding: 18px 22px; }
+.modal h3 { margin: 0 0 8px; font-size: 22px; font-weight: var(--w-loud); border: 0; padding: 0; }
+.modal .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.empty { padding: 40px 0; color: var(--ink2); }
+.empty h2 { color: var(--ink); }
+.cols { display: grid; grid-template-columns: 2fr 5fr; gap: 40px; }
+
+/* ---------- พิมพ์ ---------- */
+#printArea { display: none; }
+.sheet { page-break-after: always; break-after: page; padding: 0; }
+.sheet h1 { margin: 0; font-size: 20px; font-weight: var(--w-loud); }
+.sheet .s { margin: 0 0 6px; font-size: 13px; color: #444; }
+.sheet table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+.sheet th, .sheet td { border: 1px solid #333; padding: 2px 4px; font-size: 11.5px; line-height: 1.3; height: 15mm; vertical-align: top; color: #000; }
+.sheet thead th { height: auto; background: #eee; font-weight: 500; }
+.sheet thead small { display: block; font-weight: 300; font-size: 10px; }
+.sheet tbody th { width: 16mm; background: #eee; text-align: center; vertical-align: middle; }
+.sheet td b { font-weight: 800; display: block; }
+.sheet .leg { margin-top: 8px; font-size: 11px; columns: 2; }
+.prev .sheet { border: 1px solid var(--line); padding: 14px; margin: 14px 0; background: #fff; color: #000; max-width: 1050px; }
+@media print {
+  @page { size: A4 landscape; margin: 10mm; }
+  body { background: #fff; }
+  #app, #toast, #modalRoot { display: none !important; }
+  #printArea { display: block; }
+}
+@media (max-width: 900px) {
+  .work { grid-template-columns: 1fr; }
+  aside.rail { position: static; max-height: 300px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .stage h2, .page h2 { font-size: 26px; }
+  .stage { padding: 14px 10px 50px; overflow-x: auto; }
+  table.grid { min-width: 820px; }
+  header.top { padding: 10px 12px 0; gap: 12px; }
+  .cols { grid-template-columns: 1fr; gap: 10px; }
+}
+
+/* ---------- ส่วนเพิ่ม: กิจกรรมร่วม พักเที่ยง ภาพรวม วิชาและสถานที่ ---------- */
+.blk.act { border-left-style: double; border-left-width: 6px; }
+.blk.act .b { font-style: italic; }
+.grid td.lunch { background: repeating-linear-gradient(45deg, transparent 0 5px, var(--line2) 5px 6px); }
+.grid td.lunch::after { content: 'พักเที่ยง'; display: block; text-align: center; color: var(--ink2); font-size: 12px; padding-top: 26px; }
+.subseg { display: inline-flex; border: 1px solid var(--ink); margin: 12px 0 4px; }
+.subseg button { background: none; border: 0; padding: 3px 18px; cursor: pointer; color: var(--ink2); }
+.subseg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); font-weight: var(--w-loud); }
+details.ov { border-top: 1px solid var(--line); padding: 4px 0; }
+details.ov summary { cursor: pointer; padding: 3px 0; }
+details.ov .cols { grid-template-columns: auto 1fr; padding: 8px 0 12px; align-items: start; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; padding: 3px 0; border-bottom: 1px solid var(--line2); }
+.chips .lvall { min-width: 110px; }
+.chip { border: 1px solid var(--line); padding: 0 8px; border-radius: var(--r); cursor: pointer; }
+input.cell, select.cell { width: 100%; min-width: 70px; padding: 1px 6px; border: 1px solid transparent; background: transparent; border-radius: var(--r); }
+input.cell:hover, select.cell:hover, input.cell:focus, select.cell:focus { border-color: var(--line); background: var(--panel); }
+input.cell.s { max-width: 100px; }
+.chipb { border: 1px solid var(--line); background: none; padding: 0 6px; margin: 1px 2px 1px 0; font-size: 12px; cursor: pointer; border-radius: var(--r); color: var(--ink2); }
+.chipb[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: var(--w-loud); }
+#chgLoc { max-width: 200px; }
+
+.blk.mtg { --h: 40; cursor: default; background: repeating-linear-gradient(135deg, var(--panel) 0 7px, var(--line2) 7px 8px); border-left: 5px solid var(--warn); }
+.blk.mtg .a { color: var(--warn); }
+.t td.bad { color: var(--bad); font-weight: var(--w-loud); }
+.grid td > .blk:not(:only-child) { height: auto; min-height: 36px; }
+.grid td > .blk:not(:only-child) .c { display: none; }
+
+/* แท็บอยู่บรรทัดเดียว: แคบเกินให้เลื่อนแนวนอนเฉพาะแถบแท็บ */
+header.top { flex-wrap: nowrap; gap: 20px; align-items: flex-end; }
+header.top h1 { font-size: 22px; padding-bottom: 6px; flex: none; }
+nav.tabs { flex-wrap: nowrap; gap: 16px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+nav.tabs::-webkit-scrollbar { display: none; }
+nav.tabs button { flex: none; white-space: nowrap; }
+.tools { flex: none; }
+.tools .per { white-space: nowrap; }
+@media (max-width: 900px) { header.top { gap: 10px; } header.top h1 { font-size: 18px; } .tools .per { display: none; } }
+@media (max-width: 760px) { header.top { flex-wrap: wrap; } nav.tabs { order: 3; flex: 1 0 100%; } .tools { margin-left: auto; } }
+nav.tabs { gap: 13px; } nav.tabs button { font-size: 14px; }
+@media (max-width: 1050px) { .tools .per { display: none; } }
+@media (max-width: 1050px) and (min-width: 761px) { header.top { gap: 12px; padding-left: 16px; padding-right: 16px; } header.top h1 { font-size: 20px; } nav.tabs { gap: 11px; } .tools .btn { padding: 3px 8px; } }
+
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="printArea"></div>
+<div id="toast" role="status"></div>
+<div id="modalRoot"></div>
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="../config.js"></script>
+<script id="core">
+/* ตรรกะล้วน ไม่แตะ DOM — ใช้ทั้งในหน้าเว็บ, Web Worker และ selftest ใน Node */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.TT = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  const DAYS = [
+    { v: 1, label: 'จันทร์', short: 'จ.' }, { v: 2, label: 'อังคาร', short: 'อ.' }, { v: 3, label: 'พุธ', short: 'พ.' },
+    { v: 4, label: 'พฤหัสบดี', short: 'พฤ.' }, { v: 5, label: 'ศุกร์', short: 'ศ.' }
+  ];
+  const DEFAULT_TIMES = ['08:30', '09:20', '10:10', '11:00', '11:50', '12:40', '13:30', '14:20', '15:10'];
+  const XLS_HEAD = ['ปีการศึกษา', 'ภาคเรียน', 'อีเมลครู', 'ชื่อครู', 'เบอร์โทร', 'กลุ่มสาระ', 'วัน', 'คาบ', 'รหัสวิชา', 'ชื่อวิชา', 'ห้องเรียน', 'สถานที่'];
+
+  const LOC_KINDS = ['ห้องเรียนทั่วไป', 'พลศึกษา/สนาม', 'ดนตรี', 'นาฏศิลป์', 'ศิลปะ', 'ห้องปฏิบัติการ (Lab)', 'คอมพิวเตอร์', 'การงานอาชีพ', 'อื่น ๆ'];
+  const DEFAULT_LUNCH = { 1: 4, 2: 4, 3: 4, 4: 5, 5: 5, 6: 5 };
+  function inferLocKind(name) {
+    name = String(name || '');
+    if (/^ห้อง\s*\d/.test(name)) return LOC_KINDS[0];
+    if (/ดนตรี/.test(name)) return 'ดนตรี';
+    if (/นาฏ/.test(name)) return 'นาฏศิลป์';
+    if (/ศิลป/.test(name)) return 'ศิลปะ';
+    if (/ฟุตบอล|กรีฑา|บาส|แบด|ลีลาศ|วอลเลย์|ว่ายน้ำ|สนาม|ยิม|พละ|โดม/.test(name)) return 'พลศึกษา/สนาม';
+    if (/lab|แล็บ|ปฏิบัติการ|เคมี|ฟิสิกส์|ชีว/i.test(name)) return 'ห้องปฏิบัติการ (Lab)';
+    if (/คอม/.test(name)) return 'คอมพิวเตอร์';
+    if (/การงาน/.test(name)) return 'การงานอาชีพ';
+    return 'อื่น ๆ';
+  }
+  /** เติมฟิลด์ที่โมเดลรุ่นเก่าไม่มี */
+  function migrate(model) {
+    const st = model.settings;
+    if (!st.lunch) { st.lunch = Object.assign({}, DEFAULT_LUNCH); if ((st.noBlockAfter || []).join() === '4') st.noBlockAfter = []; }
+    if (!st.noBlockAfter) st.noBlockAfter = [];
+    if (!model.roles) model.roles = [];
+    if (!model.meetings) model.meetings = {};
+    Object.values(model.teachers).forEach(t => { if (!t.roles) t.roles = []; });
+    Object.values(model.subjects).forEach(x => { if (!x.kind) x.kind = 'normal'; if (!x.locKinds) x.locKinds = []; });
+    Object.keys(model.locations).forEach(k => { const l = model.locations[k]; if (!l.name) l.name = k; if (!l.kind) l.kind = inferLocKind(k); });
+    return model;
+  }
+
+  /* ---------- ชื่อและข้อความ ---------- */
+  /** ยุบช่องว่างซ้ำ และแปลง ํา (U+0E4D U+0E32) เป็น ำ — ไฟล์โรงเรียนและ PDF ใช้ไม่เหมือนกัน */
+  function normName(s) {
+    return String(s == null ? '' : s).replace(/ํา/g, 'ำ').replace(/[\s ]+/g, ' ').trim();
+  }
+  const normHead = s => normName(s).replace(/\s/g, '').toLowerCase();
+  const fbStaffId = email => String(email || '').trim().toLowerCase().replace(/[^a-z0-9@._-]/g, '_');
+
+  function dayFromText(t) {
+    t = normName(t);
+    const n = parseInt(t, 10);
+    if (n >= 1 && n <= 5 && /^\d$/.test(t)) return n;
+    const map = { 'จันทร์': 1, 'จ': 1, 'จ.': 1, 'อังคาร': 2, 'อ': 2, 'อ.': 2, 'พุธ': 3, 'พ': 3, 'พ.': 3, 'พฤหัสบดี': 4, 'พฤหัส': 4, 'พฤ': 4, 'พฤ.': 4, 'ศุกร์': 5, 'ศ': 5, 'ศ.': 5 };
+    return map[t] || 0;
+  }
+  function slotFromText(t) {
+    t = normName(t);
+    if (/เข้าแถว|homeroom/i.test(t)) return 0;
+    return /^\d+$/.test(t) && +t >= 1 && +t <= 12 ? +t : -1;
+  }
+
+  /* ---------- ห้องเรียน / อาคาร ---------- */
+  /** ม.4/9ญ → ระดับ 4, ห้อง 9, กลุ่มย่อย ญ (แม่ = ม.4/9) */
+  function classInfo(name) {
+    const m = /^ม\.?\s*(\d)\s*\/\s*(\d+)\s*(.*)$/.exec(normName(name));
+    if (!m) return { level: 0, room: 0, suffix: '', parent: '' };
+    return { level: +m[1], room: +m[2], suffix: m[3] || '', parent: m[3] ? 'ม.' + m[1] + '/' + m[2] : '' };
+  }
+  /** เลขหลักแรกของห้อง 3 หลัก = อาคาร ที่เหลือ (การงาน1, ฟุตบอล ฯลฯ) = ห้องพิเศษ/สนาม */
+  function defaultBuilding(loc) {
+    const m = /(?:^|\s)(\d)\d\d\s*$/.exec(normName(loc));
+    return m ? m[1] : 'X';
+  }
+  const buildingOf = (model, loc) => (model.locations[loc] && model.locations[loc].building) || defaultBuilding(loc);
+  const buildingName = (model, b) => (model.settings.buildings && model.settings.buildings[b]) || (b === 'X' ? 'ห้องพิเศษ/สนาม' : 'อาคาร ' + b);
+
+  /* ---------- โมเดล ---------- */
+  function newModel() {
+    return {
+      version: 1, school: 'โรงเรียนปากช่อง', period: { year: '', semester: '', id: '' },
+      settings: { maxPerDay: 7, maxSlot: 9, noBlockAfter: [], lunch: Object.assign({}, DEFAULT_LUNCH), times: DEFAULT_TIMES.slice(), buildings: {} },
+      teachers: {}, classes: {}, subjects: {}, locations: {}, entries: {}, pool: {}, roles: [], meetings: {}, seq: 0, cloud: null
+    };
+  }
+  const nextId = (model, p) => p + (++model.seq).toString(36) + Math.random().toString(36).slice(2, 5);
+
+  /** สร้างความสัมพันธ์ห้องแม่/กลุ่มย่อย: rel[id] = ห้องที่ชนกับห้องนี้ (ตัวเอง แม่ ลูก) */
+  function classRelations(model) {
+    const byName = {};
+    Object.values(model.classes).forEach(c => { byName[c.name] = c; });
+    const rel = {};
+    Object.values(model.classes).forEach(c => { rel[c.id] = new Set([c.id]); });
+    Object.values(model.classes).forEach(c => {
+      const p = classInfo(c.name).parent, pc = p && byName[p];
+      if (pc) { c.parentId = pc.id; rel[c.id].add(pc.id); rel[pc.id].add(c.id); } else delete c.parentId;
+    });
+    return rel;
+  }
+
+  /** อ่านตาราง (อาร์เรย์ของแถว) รูปแบบเดียวกับไฟล์ "พร้อมนำเข้า" ของ KruSpace */
+  function parseRows(rows, prev) {
+    if (!rows || rows.length < 2) throw new Error('ไม่พบข้อมูลในชีต');
+    const heads = rows[0].map(normHead);
+    const col = names => heads.findIndex(h => names.some(n => h.includes(normHead(n))));
+    const ix = {
+      year: col(['ปีการศึกษา']), sem: col(['ภาคเรียน']), email: col(['อีเมลครู', 'email']), teacher: col(['ชื่อครู', 'ครูผู้สอน']),
+      phone: col(['เบอร์โทร']), area: col(['กลุ่มสาระ']), day: col(['วัน']), slot: col(['คาบ']),
+      code: col(['รหัสวิชา']), subj: col(['ชื่อวิชา', 'รายวิชา']), cls: col(['ห้องเรียน', 'ชั้นเรียน']), room: col(['สถานที่', 'ห้องสอน'])
+    };
+    const miss = [['ชื่อครู', ix.teacher], ['วัน', ix.day], ['คาบ', ix.slot], ['รหัสวิชา', ix.code], ['ห้องเรียน', ix.cls]].filter(x => x[1] < 0).map(x => x[0]);
+    if (miss.length) throw new Error('ขาดคอลัมน์สำคัญ: ' + miss.join(', '));
+    const model = newModel();
+    if (prev) { model.school = prev.school; model.settings = prev.settings; }
+    const issues = [], seenT = {};
+    const get = (r, i) => i >= 0 && r[i] != null ? String(r[i]).trim() : '';
+    rows.slice(1).forEach((r, n) => {
+      const tname = normName(get(r, ix.teacher)), cname = normName(get(r, ix.cls)), code = normName(get(r, ix.code));
+      if (!tname && !cname && !code) return;
+      const day = dayFromText(get(r, ix.day)), slot = slotFromText(get(r, ix.slot));
+      if (!tname || !cname || !code || !day || slot < 1) { issues.push({ row: n + 2, msg: 'ข้อมูลไม่ครบหรือวัน/คาบไม่ถูกต้อง (ข้ามแถวนี้)' }); return; }
+      if (!model.period.year) { model.period.year = get(r, ix.year); model.period.semester = get(r, ix.sem); }
+      const tid = 'tn:' + tname;
+      const t = model.teachers[tid] || (model.teachers[tid] = { id: tid, name: tname, email: '', area: '', unavail: [] });
+      const em = get(r, ix.email).toLowerCase();
+      if (em && !t.email) t.email = em;
+      if (!t.area && get(r, ix.area)) t.area = normName(get(r, ix.area));
+      seenT[tid] = 1;
+      const cid = 'c:' + cname;
+      if (!model.classes[cid]) { const ci = classInfo(cname); model.classes[cid] = { id: cid, name: cname, level: ci.level, room: ci.room }; }
+      const sid = 's:' + code;
+      if (!model.subjects[sid]) model.subjects[sid] = { id: sid, code: code, name: normName(get(r, ix.subj)) || code, area: t.area };
+      const loc = normName(get(r, ix.room));
+      if (loc && !model.locations[loc]) model.locations[loc] = { name: loc, building: defaultBuilding(loc), kind: inferLocKind(loc) };
+      model.seq++;
+      const id = 'e' + model.seq.toString(36);
+      model.entries[id] = { id: id, teacherId: tid, subjectId: sid, classId: cid, day: day, slot: slot, room: loc };
+    });
+    classRelations(model);
+    migrate(model);
+    // วิชาที่ใช้สถานที่พิเศษ (สนาม ห้องดนตรี ฯลฯ) จำประเภทไว้ ให้ตัวจัดอัตโนมัติเลือกห้องว่างให้ได้
+    Object.values(model.entries).forEach(e => { const l = model.locations[e.room], sb = model.subjects[e.subjectId]; if (l && sb && l.kind !== LOC_KINDS[0] && l.kind !== 'อื่น ๆ' && !sb.locKinds.includes(l.kind)) sb.locKinds.push(l.kind); });
+    return { model: model, issues: issues };
+  }
+
+  /** ชีต "กิจกรรมร่วม": วัน คาบ รหัสวิชา ชื่อวิชา ห้องเรียน สถานที่ — ไม่มีครู */
+  function parseActivities(model, rows) {
+    if (!rows || rows.length < 2) return 0;
+    const heads = rows[0].map(normHead), col = n => heads.findIndex(h => h.includes(normHead(n)));
+    const ix = { day: col('วัน'), slot: col('คาบ'), code: col('รหัสวิชา'), subj: col('ชื่อวิชา'), cls: col('ห้องเรียน'), room: col('สถานที่') };
+    if (ix.day < 0 || ix.slot < 0 || ix.code < 0 || ix.cls < 0) return 0;
+    const get = (r, i) => i >= 0 && r[i] != null ? String(r[i]).trim() : '';
+    let n = 0;
+    rows.slice(1).forEach(r => {
+      const day = dayFromText(get(r, ix.day)), slot = slotFromText(get(r, ix.slot)), code = normName(get(r, ix.code)), cname = normName(get(r, ix.cls));
+      if (!day || slot < 1 || !code || !cname) return;
+      const cid = 'c:' + cname; if (!model.classes[cid]) { const ci = classInfo(cname); model.classes[cid] = { id: cid, name: cname, level: ci.level, room: ci.room }; }
+      const sid = 's:' + code; if (!model.subjects[sid]) model.subjects[sid] = { id: sid, code: code, name: normName(get(r, ix.subj)) || code, area: '', kind: 'activity', locKinds: [] };
+      const loc = normName(get(r, ix.room)); if (loc && !model.locations[loc]) model.locations[loc] = { name: loc, building: defaultBuilding(loc), kind: inferLocKind(loc) };
+      model.seq++; const id = 'e' + model.seq.toString(36);
+      model.entries[id] = { id: id, teacherId: '', subjectId: sid, classId: cid, day: day, slot: slot, room: loc, grp: 'g' + day + '-' + slot + '-' + code };
+      n++;
+    });
+    classRelations(model);
+    return n;
+  }
+  /** ชีต "ประชุม": ชื่อการประชุม บทบาท วัน คาบ จำนวนคาบ สถานที่ + ชีต "บทบาทครู": ชื่อครู บทบาท */
+  function exportMeetingRows(model) {
+    const rows = [['ชื่อการประชุม/ภารกิจ', 'บทบาทที่ต้องเข้า', 'วัน', 'คาบ', 'จำนวนคาบ', 'สถานที่']];
+    Object.values(model.meetings).sort((a, b) => a.day - b.day || a.slot - b.slot).forEach(m => rows.push([m.name, (m.roles || []).join(', '), DAYS[m.day - 1].label, String(m.slot), String(m.span || 1), m.room || '']));
+    return rows;
+  }
+  function exportRoleRows(model) {
+    const rows = [['ชื่อครู', 'อีเมลครู', 'บทบาท']];
+    Object.values(model.teachers).filter(t => (t.roles || []).length).sort((a, b) => a.name.localeCompare(b.name, 'th')).forEach(t => rows.push([t.name, t.email, t.roles.join(', ')]));
+    return rows;
+  }
+  function parseMeetings(model, mRows, rRows) {
+    let n = 0;
+    if (rRows && rRows.length > 1) {
+      const h = rRows[0].map(normHead), ci = { n: h.findIndex(x => x.includes('ชื่อครู')), e: h.findIndex(x => x.includes('อีเมล')), r: h.findIndex(x => x.includes('บทบาท')) };
+      const byMail = {}, byName = {}; Object.values(model.teachers).forEach(t => { if (t.email) byMail[t.email] = t; byName[normName(t.name)] = t; });
+      rRows.slice(1).forEach(r => {
+        const t = (ci.e >= 0 && byMail[String(r[ci.e] || '').trim().toLowerCase()]) || byName[normName(r[ci.n])]; if (!t || ci.r < 0) return;
+        String(r[ci.r] || '').split(',').map(normName).filter(Boolean).forEach(x => { if (!model.roles.includes(x)) model.roles.push(x); if (!t.roles.includes(x)) t.roles.push(x); });
+      });
+    }
+    if (mRows && mRows.length > 1) {
+      const h = mRows[0].map(normHead), ix = { n: h.findIndex(x => x.includes('ชื่อการประชุม')), r: h.findIndex(x => x.includes('บทบาท')), d: h.findIndex(x => x === 'วัน'), s: h.findIndex(x => x === 'คาบ'), p: h.findIndex(x => x.includes('จำนวนคาบ')), l: h.findIndex(x => x.includes('สถานที่')) };
+      mRows.slice(1).forEach(r => {
+        const name = normName(r[ix.n]), day = dayFromText(r[ix.d]), slot = slotFromText(r[ix.s]); if (!name || !day || slot < 1) return;
+        const roles = String(r[ix.r] || '').split(',').map(normName).filter(Boolean); roles.forEach(x => { if (!model.roles.includes(x)) model.roles.push(x); });
+        model.seq++; const id = 'm' + model.seq.toString(36);
+        model.meetings[id] = { id: id, name: name, roles: roles, day: day, slot: slot, span: Math.max(1, +r[ix.p] || 1), room: normName(r[ix.l]) }; n++;
+      });
+    }
+    return n;
+  }
+  function exportActivityRows(model) {
+    const rows = [['วัน', 'คาบ', 'รหัสวิชา', 'ชื่อวิชา', 'ห้องเรียน', 'สถานที่']];
+    Object.values(model.entries).filter(e => !e.teacherId).map(e => ({ e: e, s: model.subjects[e.subjectId], c: model.classes[e.classId] })).filter(x => x.s && x.c)
+      .sort((a, b) => a.e.day - b.e.day || a.e.slot - b.e.slot || a.s.code.localeCompare(b.s.code) || a.c.name.localeCompare(b.c.name, 'th'))
+      .forEach(x => rows.push([DAYS[x.e.day - 1].label, String(x.e.slot), x.s.code, x.s.name, x.c.name, x.e.room]));
+    return rows;
+  }
+
+  /** ส่งออกเป็นแถวรูปแบบเดียวกับไฟล์พร้อมนำเข้า (เรียงครู วัน คาบ) */
+  function exportRows(model) {
+    const rows = [XLS_HEAD.slice()];
+    Object.values(model.entries).map(e => ({ e: e, t: model.teachers[e.teacherId], s: model.subjects[e.subjectId], c: model.classes[e.classId] }))
+      .filter(x => x.t && x.s && x.c)
+      .sort((a, b) => a.t.name.localeCompare(b.t.name, 'th') || a.e.day - b.e.day || a.e.slot - b.e.slot)
+      .forEach(x => rows.push([model.period.year, model.period.semester, x.t.email, x.t.name, '', x.t.area, DAYS[x.e.day - 1].label, String(x.e.slot), x.s.code, x.s.name, x.c.name, x.e.room]));
+    return rows;
+  }
+
+  /** ครูที่ต้องเข้าประชุม = ครูที่มีบทบาทตรงกับบทบาทที่ประชุมกำหนด */
+  function meetingTeachers(model, mt) {
+    const rs = mt.roles || [];
+    return Object.values(model.teachers).filter(t => (t.roles || []).some(r => rs.includes(r)));
+  }
+
+  /* ---------- ดัชนีตรวจชน ---------- */
+  const K = (d, s, id) => d + '|' + s + '|' + id;
+  function push(map, k, id) { (map.get(k) || map.set(k, []).get(k)).push(id); }
+  function pull(map, k, id) { const a = map.get(k); if (!a) return; const i = a.indexOf(id); if (i >= 0) a.splice(i, 1); if (!a.length) map.delete(k); }
+
+  class Index {
+    constructor(model) {
+      this.m = model; this.rel = classRelations(model);
+      this.T = new Map(); this.C = new Map(); this.L = new Map(); this.perDay = new Map(); this.M = new Map();
+      Object.values(model.entries).forEach(e => this.add(e));
+      this.buildMeetings();
+    }
+    /** ช่องที่ครูติดประชุม/ภารกิจ: K(วัน,คาบ,ครู) → {name, room, id} */
+    buildMeetings() {
+      this.M = new Map();
+      Object.values(this.m.meetings || {}).forEach(mt => { const ts = meetingTeachers(this.m, mt); for (let k = 0; k < (mt.span || 1); k++) ts.forEach(t => this.M.set(K(mt.day, mt.slot + k, t.id), { id: mt.id, name: mt.name, room: mt.room || '' })); });
+    }
+    sharedLoc(loc) { const l = this.m.locations[loc]; return !loc || (l && l.shared); }
+    add(e) {
+      if (e.teacherId) { push(this.T, K(e.day, e.slot, e.teacherId), e.id); const k = e.teacherId + '|' + e.day; this.perDay.set(k, (this.perDay.get(k) || 0) + 1); }
+      push(this.C, K(e.day, e.slot, e.classId), e.id);
+      if (!this.sharedLoc(e.room)) push(this.L, K(e.day, e.slot, e.room), e.id);
+    }
+    remove(e) {
+      if (e.teacherId) { pull(this.T, K(e.day, e.slot, e.teacherId), e.id); const k = e.teacherId + '|' + e.day; const n = (this.perDay.get(k) || 1) - 1; if (n > 0) this.perDay.set(k, n); else this.perDay.delete(k); }
+      pull(this.C, K(e.day, e.slot, e.classId), e.id);
+      if (!this.sharedLoc(e.room)) pull(this.L, K(e.day, e.slot, e.room), e.id);
+    }
+    /** คืนสิ่งที่ชนสำหรับคาบ 1 ช่อง (ไม่นับ id ใน ignore) */
+    clash(x, day, slot, ignore) {
+      const out = { teacher: [], cls: [], loc: [] }, ok = id => !(ignore && ignore.has(id));
+      if (x.teacherId) (this.T.get(K(day, slot, x.teacherId)) || []).forEach(id => { if (ok(id)) out.teacher.push(id); });
+      const rel = this.rel[x.classId] || [x.classId];
+      rel.forEach(cid => (this.C.get(K(day, slot, cid)) || []).forEach(id => { if (ok(id)) out.cls.push(id); }));
+      if (!this.sharedLoc(x.room)) (this.L.get(K(day, slot, x.room)) || []).forEach(id => { if (ok(id)) out.loc.push(id); });
+      return out;
+    }
+    /** พักเที่ยงของระดับชั้นของห้องนี้ตรงกับคาบนี้ไหม */
+    lunchAt(classId, slot) { const c = this.m.classes[classId], l = (this.m.settings.lunch || {})[c ? c.level : 0]; return !!l && l === slot; }
+    /** ตรวจว่าวางบล็อกได้ไหม — block[i] อยู่ที่คาบ slot + (block.offs ? block.offs[i] : i) (หลายห้องพร้อมกันใช้ offs ซ้ำได้) */
+    canPlace(block, day, slot, ignore) {
+      const st = this.m.settings, why = [], off = i => (block.offs ? block.offs[i] : i);
+      if (day < 1 || day > 5) return { ok: false, why: ['วันไม่ถูกต้อง'] };
+      let mx = 0; block.forEach((b, i) => { mx = Math.max(mx, off(i)); });
+      if (slot < 1 || slot + mx > st.maxSlot) return { ok: false, why: ['เกินจำนวนคาบต่อวัน'] };
+      for (let k = 1; k <= mx; k++) if ((st.noBlockAfter || []).includes(slot + k - 1)) return { ok: false, why: ['คาบคู่ข้ามช่วงพักไม่ได้'] };
+      block.forEach((b, i) => {
+        const s = slot + off(i), t = b.teacherId && this.m.teachers[b.teacherId];
+        if (t && (t.unavail || []).includes(day + '-' + s)) why.push('ครูไม่ว่างคาบนี้');
+        if (t && this.M.has(K(day, s, t.id))) why.push('ครูติดประชุม/ภารกิจคาบนี้');
+        if (this.lunchAt(b.classId, s)) why.push('คาบพักเที่ยงของระดับชั้นนี้');
+        const c = this.clash(b, day, s, ignore);
+        if (c.teacher.length) why.push('ครูมีสอนคาบนี้แล้ว');
+        if (c.cls.length) why.push('ห้องเรียนมีเรียนคาบนี้แล้ว');
+        if (c.loc.length) why.push('สถานที่ถูกใช้แล้ว');
+      });
+      return { ok: !why.length, why: Array.from(new Set(why)) };
+    }
+    /** สถานที่ชนิดที่ต้องการที่ว่างทุกคาบของบล็อก (ไว้ให้ระบบเลือกให้) */
+    freeLocations(kinds, day, slot, span, ignore) {
+      return Object.keys(this.m.locations).filter(n => { const l = this.m.locations[n]; if (!kinds.includes(l.kind) || l.shared) return false; for (let k = 0; k < span; k++) if ((this.L.get(K(day, slot + k, n)) || []).some(id => !(ignore && ignore.has(id)))) return false; return true; });
+    }
+    /** คาบที่ชนกันทั้งหมดในโมเดล (รายงาน) */
+    allClashes() {
+      const res = { teacher: [], cls: [], loc: [] };
+      this.T.forEach((ids, k) => { if (ids.length > 1) res.teacher.push({ key: k, ids: ids.slice() }); });
+      this.L.forEach((ids, k) => { if (ids.length > 1) res.loc.push({ key: k, ids: ids.slice() }); });
+      const seen = new Set();
+      this.C.forEach((ids, k) => {
+        const [d, s] = k.split('|'), cid = k.slice(d.length + s.length + 2);
+        const all = [];
+        (this.rel[cid] || [cid]).forEach(r => (this.C.get(K(d, s, r)) || []).forEach(id => all.push(id)));
+        const uniq = Array.from(new Set(all));
+        if (uniq.length > 1) { const sig = d + '|' + s + '|' + uniq.sort().join(','); if (!seen.has(sig)) { seen.add(sig); res.cls.push({ key: k, ids: uniq }); } }
+      });
+      return res;
+    }
+  }
+
+  /** หน่วยที่ลากด้วยกัน: กิจกรรมร่วม (grp เดียวกัน หลายห้องพร้อมกัน) หรือบล็อกคาบต่อเนื่องของครู */
+  function moveUnit(model, idx, id) {
+    const e = model.entries[id]; if (!e) return [];
+    if (!e.grp) return blockOf(model, idx, id);
+    const all = Object.values(model.entries).filter(x => x.grp === e.grp && x.day === e.day).sort((a, b) => a.slot - b.slot || a.classId.localeCompare(b.classId));
+    const mn = all[0].slot; all.offs = all.map(x => x.slot - mn);
+    return all;
+  }
+  /** บล็อกคาบต่อเนื่อง (ครู วิชา ห้อง สถานที่ เดียวกัน คาบติดกัน) ที่ entry นี้อยู่ */
+  function blockOf(model, idx, id) {
+    const e = model.entries[id]; if (!e) return [];
+    const same = o => o && o.subjectId === e.subjectId && o.classId === e.classId && o.room === e.room && o.day === e.day;
+    if (!e.teacherId) return [e];
+    const find = s => { const a = idx.T.get(K(e.day, s, e.teacherId)); const o = a && model.entries[a[0]]; return same(o) ? o : null; };
+    const noB = model.settings.noBlockAfter || [];
+    let lo = e.slot, hi = e.slot;
+    while (!noB.includes(lo - 1) && find(lo - 1)) lo--;
+    while (!noB.includes(hi) && find(hi + 1)) hi++;
+    const out = []; for (let s = lo; s <= hi; s++) out.push(find(s) || e);
+    return out;
+  }
+
+  /* ---------- ตรวจรายงานคุณภาพ ---------- */
+  function report(model) {
+    const idx = new Index(model), cl = idx.allClashes(), st = model.settings;
+    const over = [];
+    idx.perDay.forEach((n, k) => { if (n > st.maxPerDay) { const i = k.lastIndexOf('|'); over.push({ teacherId: k.slice(0, i), day: +k.slice(i + 1), n: n }); } });
+    // ครูข้ามอาคารในคาบติดกัน
+    const hop = [];
+    Object.values(model.teachers).forEach(t => {
+      for (let d = 1; d <= 5; d++) for (let s = 1; s < st.maxSlot; s++) {
+        const a = model.entries[(idx.T.get(K(d, s, t.id)) || [])[0]], b = model.entries[(idx.T.get(K(d, s + 1, t.id)) || [])[0]];
+        if (a && b && a.room && b.room) { const ba = buildingOf(model, a.room), bb = buildingOf(model, b.room); if (ba !== 'X' && bb !== 'X' && ba !== bb) hop.push({ teacherId: t.id, day: d, slot: s, from: ba, to: bb }); }
+      }
+    });
+    const unav = [];
+    Object.values(model.entries).forEach(e => { const t = model.teachers[e.teacherId]; if (t && (t.unavail || []).includes(e.day + '-' + e.slot)) unav.push(e.id); });
+    const bad = Object.values(model.entries).filter(e => e.slot > st.maxSlot).map(e => e.id);
+    const lunch = Object.values(model.entries).filter(e => idx.lunchAt(e.classId, e.slot)).map(e => e.id);
+    const meet = []; Object.values(model.entries).forEach(e => { const x = e.teacherId && idx.M.get(K(e.day, e.slot, e.teacherId)); if (x) meet.push({ entryId: e.id, meeting: x.name }); });
+    return { clashes: cl, over: over, hop: hop, unavail: unav, beyond: bad, lunch: lunch, meet: meet, pool: Object.keys(model.pool).length };
+  }
+
+  /* ---------- ตัวช่วยจัดอัตโนมัติ ---------- */
+  function rng(seed) { let s = seed >>> 0 || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; }
+
+  /**
+   * payload = { model, cardIds, timeMs, seed, restarts }  — model ต้องมี entries/pool/classes/teachers/locations/settings
+   * card ใน pool = {id, teacherId, subjectId, classId, room, span}
+   * คืน { placed:[{cardId,day,slot}], moved:[{entryId,day,slot}], failed:[cardId], ms }
+   */
+  function runSolve(p) {
+    const t0 = Date.now(), model = p.model, st = model.settings, budget = p.timeMs || 4000;
+    const ids = p.cardIds || Object.keys(model.pool);
+    let best = null, attempt = 0;
+    while (attempt === 0 || (Date.now() - t0 < budget && attempt < (p.restarts || 40) && best.failed.length)) {
+      const r = solveOnce(model, ids, (p.seed || 7) + attempt * 7919, t0 + budget);
+      if (!best || r.failed.length < best.failed.length) best = r;
+      attempt++;
+    }
+    best.ms = Date.now() - t0; best.attempts = attempt;
+    return best;
+  }
+
+  function solveOnce(model, ids, seed, deadline) {
+    const R = rng(seed), st = model.settings;
+    // สำเนาโมเดลเบา ๆ เพื่อไม่แตะของจริง
+    const work = { settings: st, teachers: model.teachers, classes: model.classes, locations: model.locations, subjects: model.subjects, meetings: model.meetings || {}, roles: model.roles || [], entries: {}, pool: {} };
+    const flexKinds = c => (!c.room && work.subjects[c.subjectId] && work.subjects[c.subjectId].locKinds || []);
+    Object.values(model.entries).forEach(e => { work.entries[e.id] = e; });
+    const idx = new Index(work);
+    const auto = new Set();      // entry id ที่วางในรอบนี้ (ขยับได้)
+    const cards = ids.map(id => model.pool[id]).filter(Boolean);
+    const load = {}; cards.forEach(c => { load[c.teacherId || ''] = (load[c.teacherId || ''] || 0) + c.span; });
+    const teacherCount = {}; Object.values(model.entries).forEach(e => { teacherCount[e.teacherId] = (teacherCount[e.teacherId] || 0) + 1; });
+    const difficulty = c => (c.span - 1) * 6 + ((teacherCount[c.teacherId] || 0) + (load[c.teacherId] || 0)) / 4 + (c.room && !/^ห้อง/.test(c.room) ? 6 : 0) + R() * 3;
+    const queue = cards.slice().sort((a, b) => difficulty(b) - difficulty(a));
+    const placed = {};           // cardId -> {day,slot,entryIds}
+    const ejectedIds = [];
+    let seq = 0;
+
+    const mkBlock = (c, day, slot, room) => { const b = [], offs = []; for (let k = 0; k < c.span; k++) (c.classIds || [c.classId]).forEach(cid => { b.push({ id: 'a' + (++seq), teacherId: c.teacherId || '', subjectId: c.subjectId, classId: cid, room: room != null ? room : c.room, day: day, slot: slot + k, cardId: c.id }); offs.push(k); }); b.offs = offs; return b; };
+    const put = (c, day, slot, room) => { const b = mkBlock(c, day, slot, room); b.forEach(e => { work.entries[e.id] = e; idx.add(e); auto.add(e.id); }); placed[c.id] = { day: day, slot: slot, room: room != null ? room : c.room, ids: b.map(e => e.id), card: c }; };
+    const unput = c => { const pl = placed[c.id]; if (!pl) return; pl.ids.forEach(id => { idx.remove(work.entries[id]); delete work.entries[id]; auto.delete(id); }); delete placed[c.id]; };
+
+    const dayEntries = (tid, day) => { const arr = []; for (let s = 1; s <= st.maxSlot; s++) if ((idx.T.get(K(day, s, tid)) || []).length) arr.push(s); return arr; };
+    const classDay = (cid, day) => { const arr = []; for (let s = 1; s <= st.maxSlot; s++) if ((idx.C.get(K(day, s, cid)) || []).length) arr.push(s); return arr; };
+    const gaps = arr => { if (arr.length < 2) return 0; arr = arr.slice().sort((a, b) => a - b); return arr[arr.length - 1] - arr[0] + 1 - arr.length; };
+
+    function score(c0, day, slot, room) {
+      const c = room != null ? Object.assign({}, c0, { room: room }) : c0;
+      let sc = R() * 0.6;
+      const te = dayEntries(c.teacherId, day), ce = classDay(c.classId, day);
+      const span = []; for (let k = 0; k < c.span; k++) span.push(slot + k);
+      sc += (gaps(te.concat(span)) - gaps(te)) * 3;
+      sc += (gaps(ce.concat(span)) - gaps(ce)) * 2.5;
+      if (te.length + c.span > 6) sc += (te.length + c.span - 6) * 4;
+      if (ce.length + c.span > 7) sc += (ce.length + c.span - 7) * 3;
+      // วิชาเดียวกันห้องเดียวกันซ้ำวันเดียวกัน (นอกคาบคู่)
+      if (c.span === 1) { for (const s of ce) { const a = idx.C.get(K(day, s, c.classId)); const e = a && work.entries[a[0]]; if (e && e.subjectId === c.subjectId) { sc += 8; break; } } }
+      // อาคารคาบติดกัน
+      const bl = buildingOf(work, c.room);
+      [slot - 1, slot + c.span].forEach(s => { const a = idx.T.get(K(day, s, c.teacherId)); const e = a && work.entries[a[0]]; if (e && e.room) { const b2 = buildingOf(work, e.room); if (bl !== 'X' && b2 !== 'X' && b2 !== bl) sc += 5; } });
+      // กระจายวันของวิชานี้ในห้องนี้
+      let sameDays = 0; for (let d = 1; d <= 5; d++) if (d !== day) for (let s = 1; s <= st.maxSlot; s++) { const a = idx.C.get(K(d, s, c.classId)); const e = a && work.entries[a[0]]; if (e && e.subjectId === c.subjectId) { sameDays++; break; } }
+      sc -= sameDays * 1.2;
+      return sc;
+    }
+
+    function candidates(c) {
+      const out = [], blk = mkBlock(c, 0, 0);
+      const kinds = flexKinds(c);
+      for (let d = 1; d <= 5; d++) for (let s = 1; s + c.span - 1 <= st.maxSlot; s++) {
+        const r = idx.canPlace(blk, d, s); if (!r.ok) continue;
+        if (kinds.length) { const fl = idx.freeLocations(kinds, d, s, c.span); if (!fl.length) continue; out.push([d, s, fl[Math.floor(R() * fl.length)]]); }
+        else out.push([d, s]);
+      }
+      return out;
+    }
+    /** ช่องที่ชนแต่ขยับผู้ขวางออกได้ (เฉพาะที่ระบบวางเองในรอบนี้) */
+    function ejectable(c) {
+      if (flexKinds(c).length) return [];
+      const out = [], blk = mkBlock(c, 0, 0);
+      for (let d = 1; d <= 5; d++) for (let s = 1; s + c.span - 1 <= st.maxSlot; s++) {
+        const blockers = new Set(); let hard = false;
+        for (let k = 0; k < blk.length && !hard; k++) {
+          if (idx.lunchAt(blk[k].classId, s + blk.offs[k])) { hard = true; break; }
+          const cl = idx.clash(blk[k], d, s + blk.offs[k]);
+          [].concat(cl.teacher, cl.cls, cl.loc).forEach(id => { if (auto.has(id)) blockers.add(work.entries[id].cardId); else hard = true; });
+        }
+        if (hard) continue;
+        if (c.teacherId) { let mtg = false; for (let k = 0; k < c.span; k++) if (idx.M.has(K(d, s + k, c.teacherId))) mtg = true; if (mtg) continue; }
+        const t = work.teachers[c.teacherId];
+        if (t && (t.unavail || []).some(u => { const [ud, us] = u.split('-').map(Number); return ud === d && us >= s && us < s + c.span; })) continue;
+        if (c.span > 1 && (st.noBlockAfter || []).some(x => x >= s && x < s + c.span - 1)) continue;
+        if (blockers.size && blockers.size <= 2) out.push([d, s, Array.from(blockers)]);
+      }
+      return out.sort((a, b) => a[2].length - b[2].length || R() - 0.5);
+    }
+
+    function tryPlace(c, depth) {
+      if (Date.now() > deadline) return false;
+      const cands = candidates(c);
+      if (cands.length) {
+        let bestS = 1e9, bp = null;
+        cands.forEach(([d, s, loc]) => { const sc = score(c, d, s, loc); if (sc < bestS) { bestS = sc; bp = [d, s, loc]; } });
+        put(c, bp[0], bp[1], bp[2]); return true;
+      }
+      if (depth <= 0) return false;
+      const ej = ejectable(c).slice(0, 12);
+      for (const [d, s, blockers] of ej) {
+        const saved = blockers.map(id => placed[id]).filter(Boolean);
+        blockers.forEach(id => unput(placed[id].card));
+        put(c, d, s);
+        let ok = true; const re = [];
+        for (const b of saved) { if (tryPlace(b.card, depth - 1)) re.push(b.card); else { ok = false; break; } }
+        if (ok) return true;
+        re.forEach(unput); unput(c);
+        saved.forEach(b => put(b.card, b.day, b.slot, b.room));
+      }
+      return false;
+    }
+
+    const failed = [];
+    queue.forEach(c => { if (!tryPlace(c, 3)) failed.push(c.id); });
+    // ลองซ้ำอีกรอบสำหรับที่ค้าง (ตำแหน่งอาจเปลี่ยนไปแล้ว)
+    for (let i = failed.length - 1; i >= 0; i--) { const c = model.pool[failed[i]]; if (Date.now() < deadline && tryPlace(c, 4)) failed.splice(i, 1); }
+    const placedOut = Object.keys(placed).map(id => ({ cardId: id, day: placed[id].day, slot: placed[id].slot, room: placed[id].room }));
+    return { placed: placedOut, failed: failed, moved: [] };
+  }
+
+  /* ---------- KruSpace (Firestore) ---------- */
+  const numSlot = s => (/^\d+$/.test(String(s)) ? +s : 0);
+
+  /** สร้างโมเดลจากข้อมูลส่วนกลาง (ไม่ดึงรายชื่อนักเรียนมา) */
+  function modelFromCloud(cloud, period, prev) {
+    const model = newModel();
+    if (prev) { model.school = prev.school; model.settings = prev.settings; }
+    model.period = { year: String(period.academicYear), semester: String(period.semester), id: period.id };
+    const remap = {};
+    (cloud.staff || []).forEach(s => {
+      const id = s.id || ('t_' + fbStaffId(s.email));
+      model.teachers[id] = { id: id, name: normName(s.name), email: String(s.email || '').toLowerCase(), area: s.learningArea || '', unavail: [] };
+      (s.legacyIds || []).forEach(o => { remap[o] = id; });
+    });
+    (cloud.classes || []).forEach(c => { const ci = classInfo(c.name); model.classes[c.id] = { id: c.id, name: normName(c.name), level: ci.level, room: ci.room }; });
+    (cloud.subjects || []).forEach(s => { model.subjects[s.id] = { id: s.id, code: s.code || '', name: s.name || s.code || '' }; });
+    const skipped = [];
+    ((cloud.timetable || {}).entries || []).filter(e => e.periodId === period.id).forEach(e => {
+      const slot = numSlot(e.slotId), tid = remap[e.teacherId] || e.teacherId;
+      if (!slot) { skipped.push(e); return; }
+      if (!model.teachers[tid] || !model.classes[e.classId] || !model.subjects[e.subjectId]) { skipped.push(e); return; }
+      const loc = normName(e.room);
+      if (loc && !model.locations[loc]) model.locations[loc] = { name: loc, building: defaultBuilding(loc), kind: inferLocKind(loc) };
+      model.entries[e.id] = { id: e.id, teacherId: tid, subjectId: e.subjectId, classId: e.classId, day: +e.day, slot: slot, room: loc };
+    });
+    classRelations(model);
+    migrate(model);
+    model.cloud = { periodId: period.id, loaded: Date.now() };
+    return { model: model, skipped: skipped.length };
+  }
+
+  /** จับคู่ครู/ห้อง/วิชาในโมเดลกับข้อมูลส่วนกลาง ตรงตัวเท่านั้น ไม่เดา */
+  function matchCloud(model, cloud) {
+    const tById = {}, tByMail = {}, tByName = {}, cById = {}, cByName = {}, sById = {}, sByCode = {};
+    (cloud.staff || []).forEach(s => { const id = s.id || ('t_' + fbStaffId(s.email)); tById[id] = id; if (s.email) tByMail[String(s.email).toLowerCase()] = id; tByName[normName(s.name)] = tByName[normName(s.name)] === undefined ? id : null; (s.legacyIds || []).forEach(o => { tById[o] = id; }); });
+    (cloud.classes || []).forEach(c => { cById[c.id] = c.id; cByName[normName(c.name)] = c.id; });
+    (cloud.subjects || []).forEach(s => { sById[s.id] = s.id; if (s.code) sByCode[String(s.code).toLowerCase()] = s.id; });
+    const map = { t: {}, c: {}, s: {} }, miss = { teachers: [], classes: [], subjects: [] };
+    Object.values(model.teachers).forEach(t => { const id = tById[t.id] || (t.email && tByMail[t.email]) || tByName[normName(t.name)]; if (id) map.t[t.id] = id; else miss.teachers.push(t.name); });
+    Object.values(model.classes).forEach(c => { const id = cById[c.id] || cByName[c.name]; if (id) map.c[c.id] = id; else miss.classes.push(c.name); });
+    Object.values(model.subjects).forEach(s => { const id = sById[s.id] || (s.code && sByCode[String(s.code).toLowerCase()]); if (id) map.s[s.id] = id; else miss.subjects.push(s.code); });
+    return { map: map, missing: miss };
+  }
+
+  /** วางแผนเผยแพร่: รายการคาบใหม่ + ตัวเลขเปลี่ยนแปลง (ไม่เขียนอะไรทั้งสิ้น) */
+  function planPublish(model, cloud, periodId) {
+    const m = matchCloud(model, cloud), tt = cloud.timetable || {}, old = (tt.entries || []).filter(e => e.periodId === periodId);
+    const keep = old.filter(e => !numSlot(e.slotId));                       // เข้าแถว/อื่น ๆ ไม่แตะ
+    const oldByKey = {}; old.filter(e => numSlot(e.slotId)).forEach(e => { oldByKey[e.teacherId + '|' + e.day + '|' + e.slotId] = e; });
+    const missing = m.missing, blocked = missing.teachers.length + missing.classes.length + missing.subjects.length;
+    const out = [], stats = { added: 0, changed: 0, same: 0, removed: 0, kept: keep.length };
+    const used = new Set();
+    stats.activities = 0;
+    Object.values(model.entries).forEach(e => {
+      if (!e.teacherId) { stats.activities++; return; }
+      const tid = m.map.t[e.teacherId], cid = m.map.c[e.classId], sid = m.map.s[e.subjectId];
+      if (!tid || !cid || !sid) return;
+      const key = tid + '|' + e.day + '|' + e.slot, o = oldByKey[key];
+      let ne = { id: o ? o.id : 'tt_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4), periodId: periodId, teacherId: tid, day: e.day, slotId: String(e.slot), subjectId: sid, classId: cid, room: e.room || '' };
+      if (o) { used.add(key); if (o.subjectId === sid && o.classId === cid && (o.room || '') === (e.room || '')) { stats.same++; ne = Object.assign({}, o); } else stats.changed++; } else stats.added++;
+      out.push(ne);
+    });
+    Object.keys(oldByKey).forEach(k => { if (!used.has(k)) stats.removed++; });
+    return { entries: keep.concat(out), stats: stats, missing: missing, blocked: blocked > 0 };
+  }
+
+  return { meetingTeachers, exportMeetingRows, exportRoleRows, parseMeetings, LOC_KINDS, DEFAULT_LUNCH, inferLocKind, migrate, parseActivities, exportActivityRows, moveUnit, modelFromCloud, matchCloud, planPublish, DAYS, DEFAULT_TIMES, XLS_HEAD, normName, fbStaffId, dayFromText, slotFromText, classInfo, defaultBuilding, buildingOf, buildingName,
+    newModel, nextId, classRelations, parseRows, exportRows, Index, blockOf, report, runSolve, K };
+});
+
+</script>
+<script>
+/* ส่วนหน้าจอของแอปจัดตารางสอน — ตรรกะทั้งหมดอยู่ใน core.js (TT) */
+(function () {
+  'use strict';
+  const $ = (s, r) => (r || document).querySelector(s);
+  const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const clone = o => (o == null ? o : JSON.parse(JSON.stringify(o)));
+  const DAYS = TT.DAYS;
+
+  const S = {
+    model: TT.newModel(), idx: null, tab: 'grid', mode: 'teacher', sel: { teacher: '', class: '', loc: '' },
+    filter: '', hist: { undo: [], redo: [] }, unavailMode: false, drag: null, selBlock: '', showAllPool: false,
+    busy: '', fb: null, cloudCache: null, printKind: 'teacher', printScope: 'one', dirty: false
+  };
+  const M = () => S.model;
+
+  /* ================= ข้อความและตัวช่วยเล็ก ================= */
+  let toastT;
+  function toast(msg, bad) { const t = $('#toast'); t.textContent = msg; t.className = 'on' + (bad ? ' bad' : ''); clearTimeout(toastT); toastT = setTimeout(() => { t.className = ''; }, bad ? 4200 : 2200); }
+  function modal(title, body, buttons) {
+    const root = $('#modalRoot');
+    root.innerHTML = '<div class="modal-bg"><div class="modal" role="dialog" aria-label="' + esc(title) + '"><h3>' + esc(title) + '</h3><div>' + body + '</div><div class="row"></div></div></div>';
+    const row = $('.row', root), close = () => { root.innerHTML = ''; };
+    (buttons || [{ label: 'ปิด' }]).forEach(b => { const x = document.createElement('button'); x.className = 'btn ' + (b.cls || ''); x.textContent = b.label; x.onclick = () => { if (b.act) { if (b.act(close) === false) return; } close(); }; row.appendChild(x); });
+    $('.modal-bg', root).onclick = e => { if (e.target.classList.contains('modal-bg')) close(); };
+    return close;
+  }
+  const shortName = n => String(n || '').replace(/^(ว่าที่\s*ร\.?ต\.?\s*(หญิง)?|ดร\.|นางสาว|น\.ส\.|นาย|นาง|ครู)\s*/, '');
+  const areaHue = a => { a = a || ''; const t = [['ไทย', 25], ['คณิต', 215], ['วิทยาศาสตร์', 150], ['สังคม', 45], ['สุข', 340], ['ศิลป', 285], ['การงาน', 90], ['ต่างประเทศ', 190], ['แนะแนว', 60], ['EP', 250], ['สำนักงาน', 0]]; const f = t.find(x => a.includes(x[0])); return f ? f[1] : 170; };
+  const subjHue = e => { const s = M().subjects[e.subjectId], t = M().teachers[e.teacherId]; return areaHue((t && t.area) || (s && s.area) || ''); };
+  const slotsN = () => M().settings.maxSlot;
+  const timeOf = s => (M().settings.times || [])[s - 1] || '';
+  const sortTh = (a, b) => a.localeCompare(b, 'th');
+
+  /* ================= ข้อมูล: บันทึกในเครื่อง ================= */
+  const DBN = 'kruspace-timetable-studio';
+  function idb() { return new Promise((res, rej) => { const r = indexedDB.open(DBN, 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+  async function idbPut(k, v) { try { const db = await idb(); await new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error); }); } catch (e) { /* โหมดส่วนตัว: ใช้ต่อได้ แค่ไม่จำ */ } }
+  async function idbGet(k) { try { const db = await idb(); return await new Promise((res, rej) => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); } catch (e) { return null; } }
+  let saveT;
+  function changed() { S.dirty = true; clearTimeout(saveT); saveT = setTimeout(() => { idbPut('model', M()); S.dirty = false; }, 700); }
+  function useModel(m) { TT.migrate(m); S.model = m; S.idx = new TT.Index(m); S.hist = { undo: [], redo: [] }; S.selBlock = ''; const f = k => Object.keys(m[k])[0] || ''; S.sel = { teacher: '', class: '', loc: '' }; ensureSel(); }
+  function ensureSel() {
+    const m = M(), first = (obj, key) => Object.values(obj).sort((a, b) => sortTh(a[key] || a, b[key] || b))[0];
+    if (!m.teachers[S.sel.teacher]) { const t = Object.values(m.teachers).sort((a, b) => sortTh(a.name, b.name))[0]; S.sel.teacher = t ? t.id : ''; }
+    if (!m.classes[S.sel.class]) { const c = classList()[0]; S.sel.class = c ? c.id : ''; }
+    if (!m.locations[S.sel.loc]) { const l = Object.keys(m.locations).sort(sortTh)[0]; S.sel.loc = l || ''; }
+  }
+  const classList = () => Object.values(M().classes).sort((a, b) => a.level - b.level || a.room - b.room || sortTh(a.name, b.name));
+
+  /* ================= การแก้ไขพร้อมย้อนกลับ ================= */
+  function applyStore(k, id, val) {
+    const m = M();
+    if (k === 'e') { const cur = m.entries[id]; if (cur) S.idx.remove(cur); if (val) { m.entries[id] = clone(val); S.idx.add(m.entries[id]); } else delete m.entries[id]; }
+    else if (k === 'p') { if (val) m.pool[id] = clone(val); else delete m.pool[id]; }
+    else if (k === 't') { if (m.teachers[id]) m.teachers[id].unavail = clone(val) || []; }
+  }
+  function tx(label, fn) {
+    const ops = [], get = (k, id) => clone(k === 'e' ? M().entries[id] : k === 'p' ? M().pool[id] : (M().teachers[id] || {}).unavail);
+    const set = (k, id, val) => { ops.push({ k: k, id: id, before: get(k, id), after: clone(val) }); applyStore(k, id, val); };
+    fn({ setE: (id, v) => set('e', id, v), setP: (id, v) => set('p', id, v), setT: (id, v) => set('t', id, v) });
+    if (!ops.length) return;
+    S.hist.undo.push({ label: label, ops: ops }); if (S.hist.undo.length > 300) S.hist.undo.shift(); S.hist.redo = [];
+    changed(); render();
+  }
+  function undo() { const h = S.hist.undo.pop(); if (!h) return toast('ไม่มีอะไรให้ย้อน'); h.ops.slice().reverse().forEach(o => applyStore(o.k, o.id, o.before)); S.hist.redo.push(h); changed(); render(); toast('ย้อนกลับ: ' + h.label); }
+  function redo() { const h = S.hist.redo.pop(); if (!h) return; h.ops.forEach(o => applyStore(o.k, o.id, o.after)); S.hist.undo.push(h); changed(); render(); toast('ทำซ้ำ: ' + h.label); }
+  document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && /INPUT|SELECT|TEXTAREA/.test(e.target.tagName) === false) { if (e.key === 'z') { e.preventDefault(); undo(); } else if (e.key === 'y') { e.preventDefault(); redo(); } } });
+
+  /* ================= มุมมอง: ใครอยู่ช่องไหน ================= */
+  function viewEntries() {
+    const m = M(), out = [];
+    if (S.mode === 'teacher') { const id = S.sel.teacher; Object.values(m.entries).forEach(e => { if (e.teacherId === id) out.push(e); }); }
+    else if (S.mode === 'class') { const rel = S.idx.rel[S.sel.class] || new Set([S.sel.class]); Object.values(m.entries).forEach(e => { if (rel.has(e.classId)) out.push(e); }); }
+    else { const l = S.sel.loc; Object.values(m.entries).forEach(e => { if (e.room === l) out.push(e); }); }
+    return out;
+  }
+  function poolFor() {
+    const m = M(), all = Object.values(m.pool);
+    if (S.showAllPool) return all;
+    if (S.mode === 'teacher') return all.filter(c => c.teacherId === S.sel.teacher);
+    if (S.mode === 'class') { const rel = S.idx.rel[S.sel.class] || new Set([S.sel.class]); return all.filter(c => (c.classIds || [c.classId]).some(id => rel.has(id))); }
+    return all.filter(c => c.room === S.sel.loc);
+  }
+  const hasClash = e => { const c = S.idx.clash(e, e.day, e.slot, new Set([e.id])); return c.teacher.length + c.cls.length + c.loc.length > 0 || ((M().teachers[e.teacherId] || {}).unavail || []).includes(e.day + '-' + e.slot) || S.idx.lunchAt(e.classId, e.slot) || (!!e.teacherId && S.idx.M.has(TT.K(e.day, e.slot, e.teacherId))); };
+  function lines(e) {
+    const m = M(), s = m.subjects[e.subjectId] || {}, t = m.teachers[e.teacherId], c = m.classes[e.classId] || {};
+    const tn = t ? shortName(t.name) : 'ไม่ระบุครู', cn = e.classIds && e.classIds.length > 1 ? e.classIds.length + ' ห้อง' : c.name;
+    if (S.mode === 'teacher') return [s.name || s.code, cn, e.room];
+    if (S.mode === 'class') return [s.name || s.code, tn, e.room];
+    return [s.name || s.code, tn, cn];
+  }
+  function blkHTML(e, pool) {
+    const m = M(), s = m.subjects[e.subjectId] || {}, l = lines(e);
+    return '<div class="blk' + (!e.teacherId ? ' act' : '') + (!pool && hasClash(e) ? ' bad' : '') + (S.selBlock === e.id ? ' sel' : '') + '" draggable="true" data-id="' + esc(e.id) + '" data-pool="' + (pool ? 1 : '') + '" style="--h:' + subjHue(e) + '" title="' + esc((s.code || '') + ' ' + (s.name || '') + (e.classIds ? ' · ' + e.classIds.map(id => (m.classes[id] || {}).name).join(', ') : '')) + '">' +
+      (e.locked ? '<span class="lk">🔒</span>' : '') + '<span class="a">' + esc(l[0]) + '</span><span class="b">' + esc(l[1]) + '</span><span class="c">' + esc(l[2]) + '</span></div>';
+  }
+
+  function gridHTML() {
+    const m = M(), n = slotsN(), by = {};
+    viewEntries().forEach(e => { (by[e.day + '-' + e.slot] = by[e.day + '-' + e.slot] || []).push(e); });
+    const unav = S.mode === 'teacher' ? ((m.teachers[S.sel.teacher] || {}).unavail || []) : [];
+    let h = '<table class="grid"><thead><tr><th></th>';
+    for (let s = 1; s <= n; s++) h += '<th>คาบ ' + s + '<small class="num">' + esc(timeOf(s)) + '</small></th>';
+    h += '</tr></thead><tbody>';
+    DAYS.forEach(d => {
+      h += '<tr><th>' + d.label + '</th>';
+      for (let s = 1; s <= n; s++) {
+        const oc = by[d.v + '-' + s] || [], mt = S.mode === 'teacher' ? S.idx.M.get(TT.K(d.v, s, S.sel.teacher)) : null;
+        if (oc.length === 1 && !mt) {
+          const blk = TT.blockOf(m, S.idx, oc[0].id).filter(x => (by[x.day + '-' + x.slot] || []).length === 1 && by[x.day + '-' + x.slot][0].id === x.id);
+          if (blk.length > 1 && blk[0].slot === s) {
+            h += '<td colspan="' + blk.length + '" data-d="' + d.v + '" data-s="' + s + '">' + blk.map((x, i) => i === 0 ? blkHTML(x) : '').join('').replace('draggable="true"', 'draggable="true" data-span="' + blk.length + '"') + '</td>'; s += blk.length - 1; continue;
+          }
+          h += '<td data-d="' + d.v + '" data-s="' + s + '">' + blkHTML(oc[0]) + '</td>'; continue;
+        }
+        const lunchCell = S.mode === 'class' && !oc.length && S.idx.lunchAt(S.sel.class, s);
+        h += '<td data-d="' + d.v + '" data-s="' + s + '"' + (unav.includes(d.v + '-' + s) && !mt ? ' class="un"' : lunchCell ? ' class="lunch"' : '') + '>' + oc.map(e => blkHTML(e)).join('') + (mt ? '<div class="blk mtg"><span class="a">📌 ' + esc(mt.name) + '</span><span class="b">ประชุม/ภารกิจ</span><span class="c">' + esc(mt.room) + '</span></div>' : '') + '</td>';
+      }
+      h += '</tr>';
+    });
+    return h + '</tbody></table>';
+  }
+
+  /* ================= หน้า: จัดตาราง ================= */
+  function entityName() {
+    const m = M();
+    if (S.mode === 'teacher') { const t = m.teachers[S.sel.teacher]; return t ? { n: t.name, s: [t.area, t.email].concat((t.roles || []).length ? ['บทบาท: ' + t.roles.join(', ')] : []).filter(Boolean).join(' · ') } : { n: '—', s: '' }; }
+    if (S.mode === 'class') { const c = m.classes[S.sel.class]; return { n: c ? c.name : '—', s: 'ตารางเรียนนักเรียน' }; }
+    const l = S.sel.loc; return { n: l || '—', s: TT.buildingName(m, TT.buildingOf(m, l)) };
+  }
+  function railHTML() {
+    const m = M(), f = TT.normName(S.filter).toLowerCase(), cnt = {}, bad = new Set();
+    Object.values(m.entries).forEach(e => { const k = S.mode === 'teacher' ? e.teacherId : S.mode === 'class' ? e.classId : e.room; cnt[k] = (cnt[k] || 0) + 1; });
+    if (S.badCache) S.badCache.forEach(k => bad.add(k));
+    let rows = '';
+    const item = (id, label, n) => '<button data-pick="' + esc(id) + '"' + (S.sel[S.mode] === id ? ' aria-current="true"' : '') + '><span>' + (bad.has(id) ? '<span class="dot">● </span>' : '') + esc(label) + '</span><span class="n num">' + (n || 0) + '</span></button>';
+    if (S.mode === 'teacher') {
+      const groups = {};
+      Object.values(m.teachers).filter(t => !f || (t.name + ' ' + t.email).toLowerCase().includes(f)).forEach(t => { (groups[t.area || 'ไม่ระบุกลุ่มสาระ'] = groups[t.area || 'ไม่ระบุกลุ่มสาระ'] || []).push(t); });
+      Object.keys(groups).sort(sortTh).forEach(g => { rows += '<div class="grp">' + esc(g) + '</div>'; groups[g].sort((a, b) => sortTh(a.name, b.name)).forEach(t => { rows += item(t.id, t.name, cnt[t.id]); }); });
+    } else if (S.mode === 'class') {
+      let lv = 0;
+      classList().filter(c => !f || c.name.toLowerCase().includes(f)).forEach(c => { if (c.level !== lv) { lv = c.level; rows += '<div class="grp">มัธยมศึกษาปีที่ ' + lv + '</div>'; } rows += item(c.id, c.name, cnt[c.id]); });
+    } else {
+      const by = {};
+      Object.keys(m.locations).filter(l => !f || l.toLowerCase().includes(f)).forEach(l => { const b = TT.buildingOf(m, l); (by[b] = by[b] || []).push(l); });
+      Object.keys(by).sort((a, b) => a === 'X' ? 1 : b === 'X' ? -1 : a.localeCompare(b)).forEach(b => { rows += '<div class="grp">' + esc(TT.buildingName(m, b)) + '</div>'; by[b].sort(sortTh).forEach(l => { rows += item(l, l, cnt[l]); }); });
+    }
+    return rows || '<div class="grp">ไม่พบรายการ</div>';
+  }
+  function updateBad() {
+    const r = S.idx.allClashes(), b = new Set(), m = M();
+    ['teacher', 'cls', 'loc'].forEach(k => r[k].forEach(c => c.ids.forEach(id => { const e = m.entries[id]; if (!e) return; b.add(e.teacherId); b.add(e.classId); b.add(e.room); })));
+    S.badCache = b;
+  }
+  function trayHTML() {
+    const cards = poolFor(), all = Object.keys(M().pool).length;
+    return '<section class="tray" id="tray"><h3>คาบที่ยังไม่ลง <span class="num">' + cards.length + '</span>' + (S.showAllPool ? '' : ' <span class="q">จากทั้งโรงเรียน ' + all + '</span>') + '</h3>' +
+      '<div class="row"><label><input type="checkbox" id="allPool"' + (S.showAllPool ? ' checked' : '') + '> แสดงของทั้งโรงเรียน</label>' +
+      '<button class="btn pri" data-act="auto"' + (all ? '' : ' disabled') + '>จัดคาบที่เหลือให้อัตโนมัติ (' + all + ')</button>' +
+      '<button class="btn" data-act="reshuffle">จัดใหม่ทั้ง' + (S.mode === 'class' ? 'ห้องนี้' : S.mode === 'teacher' ? 'ครูคนนี้' : 'สถานที่นี้') + '</button>' +
+      '<button class="btn" data-act="addLoad">＋ เพิ่มภาระสอน</button><button class="btn" data-act="addJoint">＋ กิจกรรมร่วม (ไม่ระบุครู)</button></div>' +
+      '<div class="cards">' + (cards.length ? cards.map(c => blkHTML(c, true).replace('class="blk', 'class="blk pc').replace('<span class="a">', '<span class="a">' + (c.span > 1 ? '[คู่ ' + c.span + '] ' : ''))).join('') : '<span class="q">ลากบัตรวิชาจากตารางมาวางที่นี่เพื่อถอนออก · ไม่มีคาบค้าง</span>') + '</div></section>';
+  }
+  function barHTML() {
+    const m = M(), e = m.entries[S.selBlock];
+    if (S.unavailMode) return '<div class="bar"><span class="info"><b>โหมดกำหนดเวลาไม่ว่าง</b> — คลิกช่องว่างเพื่อสลับ “ครูไม่ว่าง”</span><button class="btn" data-act="unavailOff">เสร็จ</button></div>';
+    if (!e) return '<div class="bar"><span class="q info">คลิกบัตรวิชาเพื่อล็อก/ถอน · ลากไปช่องที่ต้องการ (ช่องเขียว = วางได้ ช่องแดง = ชน) · Ctrl+Z ย้อนกลับ</span>' +
+      (S.mode === 'teacher' ? '<button class="btn" data-act="unavailOn">กำหนดเวลาไม่ว่างของครู</button>' : '') + '</div>';
+    const s = m.subjects[e.subjectId] || {}, t = m.teachers[e.teacherId], c = m.classes[e.classId] || {};
+    const blk = TT.moveUnit(m, S.idx, e.id), locked = blk.some(x => x.locked), joint = !e.teacherId;
+    const cls = joint ? Array.from(new Set(blk.map(x => (m.classes[x.classId] || {}).name))).sort(sortTh) : [c.name];
+    const slots = Array.from(new Set(blk.map(x => x.slot))).sort((a, b) => a - b);
+    return '<div class="bar"><span class="info"><b>' + esc((s.code || '') + ' ' + (s.name || '')) + '</b> · ' + (joint ? '<i>กิจกรรมร่วม ' + cls.length + ' ห้อง</i>' : esc(t ? t.name : '')) + ' · ' + esc(cls.length > 3 ? cls.slice(0, 3).join(', ') + '…' : cls.join(', ')) + ' · ' + DAYS[e.day - 1].label + ' คาบ ' + slots.join('–') + '</span>' +
+      locSelectHTML(blk, s) +
+      '<button class="btn" data-act="lock">' + (locked ? 'ปลดล็อก' : 'ล็อก') + '</button><button class="btn" data-act="unplace">ถอนออก</button><button class="btn bad" data-act="del">ลบ</button></div>';
+  }
+  /** เลือกสถานที่ใหม่ให้คาบที่เลือก — ประเภทที่วิชานี้ใช้อยู่ขึ้นก่อน ห้องที่ไม่ว่างกดไม่ได้ */
+  function locSelectHTML(blk, subj) {
+    const m = M(), cur = blk[0].room || '', ign = new Set(blk.map(x => x.id));
+    const busy = n => { const l = m.locations[n]; if (!l || l.shared) return false; return blk.some(x => (S.idx.L.get(TT.K(x.day, x.slot, n)) || []).some(id => !ign.has(id))); };
+    const pref = (subj && subj.locKinds) || [], kinds = pref.concat(TT.LOC_KINDS.filter(k => !pref.includes(k)));
+    let h = '<label class="q">สถานที่ <select id="chgLoc"><option value=""' + (cur ? '' : ' selected') + '>(ไม่ระบุ)</option>';
+    kinds.forEach(k => {
+      const ls = Object.keys(m.locations).filter(n => m.locations[n].kind === k).sort(sortTh); if (!ls.length) return;
+      h += '<optgroup label="' + esc(k + (pref.includes(k) ? ' ★' : '')) + '">' + ls.map(n => '<option value="' + esc(n) + '"' + (n === cur ? ' selected' : '') + (n !== cur && busy(n) ? ' disabled' : '') + '>' + esc(n) + (n !== cur && busy(n) ? ' (ไม่ว่าง)' : '') + '</option>').join('') + '</optgroup>';
+    });
+    return h + '</select></label>';
+  }
+  function gridPageHTML() {
+    const en = entityName();
+    return '<div class="work"><aside class="rail"><div class="seg">' + [['teacher', 'ครู'], ['class', 'ห้องเรียน'], ['loc', 'สถานที่']].map(x => '<button data-mode="' + x[0] + '" aria-pressed="' + (S.mode === x[0]) + '">' + x[1] + '</button>').join('') + '</div>' +
+      '<input type="search" id="flt" placeholder="ค้นหา" value="' + esc(S.filter) + '"><div class="list" id="list">' + railHTML() + '</div></aside>' +
+      '<div class="stage"><h2>' + esc(en.n) + '</h2><p class="sub">' + esc(en.s) + ' · <span class="num">' + viewEntries().length + '</span> คาบ/สัปดาห์</p>' +
+      '<div id="gridBox">' + gridHTML() + '</div><div id="barBox">' + barHTML() + '</div>' + trayHTML() + '</div></div>';
+  }
+
+  /* ---------- ลากวาง ---------- */
+  function dragBlock(el) {
+    const m = M();
+    if (el.dataset.pool) {
+      const c = m.pool[el.dataset.id]; if (!c) return null;
+      const cids = c.classIds || [c.classId], b = [], offs = [];
+      for (let k = 0; k < c.span; k++) cids.forEach(cid => { b.push({ teacherId: c.teacherId || '', subjectId: c.subjectId, classId: cid, room: c.room }); offs.push(k); });
+      b.offs = offs;
+      const kinds = !c.room && (m.subjects[c.subjectId] || {}).locKinds || [];
+      return { kind: 'pool', id: c.id, block: b, ignore: new Set(), flex: kinds.length ? kinds : null, span: c.span, joint: !c.teacherId };
+    }
+    const blk = TT.moveUnit(m, S.idx, el.dataset.id);
+    if (!blk.length) return null;
+    return { kind: 'entry', id: el.dataset.id, block: blk, ignore: new Set(blk.map(x => x.id)), joint: !blk[0].teacherId };
+  }
+  /** ตรวจช่องปลายทาง: กฎชน + กิจกรรมร่วมต้องวางในมุมมองห้อง/สถานที่ + วิชาที่ให้ระบบเลือกสถานที่ต้องมีห้องว่าง */
+  function dropCheck(d, day, slot) {
+    if (d.joint && S.mode === 'teacher') return { ok: false, why: ['กิจกรรมร่วมวางในมุมมองห้องเรียนหรือสถานที่'] };
+    const r = S.idx.canPlace(d.block, day, slot, d.ignore);
+    if (r.ok && d.flex && !S.idx.freeLocations(d.flex, day, slot, d.span).length) return { ok: false, why: ['ไม่มีสถานที่ว่างตามประเภทที่กำหนด'] };
+    return r;
+  }
+  function markDrop() {
+    const d = S.drag; if (!d) return;
+    $$('#gridBox td[data-d]').forEach(td => {
+      const r = dropCheck(d, +td.dataset.d, +td.dataset.s);
+      td.classList.toggle('drop-ok', r.ok); td.classList.toggle('drop-no', !r.ok); td.title = r.ok ? '' : r.why.join(' · ');
+    });
+  }
+  function clearDrop() { S.drag = null; $$('#gridBox td').forEach(td => td.classList.remove('drop-ok', 'drop-no')); $$('.dragging').forEach(x => x.classList.remove('dragging')); const t = $('#tray'); if (t) t.classList.remove('over'); }
+  function makeEntries(api, c, day, slot, room) {
+    const m = M(), cids = c.classIds || [c.classId], grp = c.teacherId ? undefined : TT.nextId(m, 'g');
+    for (let k = 0; k < c.span; k++) cids.forEach(cid => { const id = TT.nextId(m, 'e'); api.setE(id, { id: id, teacherId: c.teacherId || '', subjectId: c.subjectId, classId: cid, room: room != null ? room : c.room, day: day, slot: slot + k, grp: grp }); });
+  }
+  function bindGrid(root) {
+    root.addEventListener('dragstart', e => {
+      const b = e.target.closest && e.target.closest('.blk'); if (!b) return;
+      S.drag = dragBlock(b); if (!S.drag) return;
+      e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', b.dataset.id);
+      setTimeout(() => { b.classList.add('dragging'); markDrop(); }, 0);
+    });
+    root.addEventListener('dragend', clearDrop);
+    root.addEventListener('dragover', e => {
+      if (!S.drag) return;
+      const td = e.target.closest('#gridBox td[data-d]'), tray = e.target.closest('#tray');
+      if (td && td.classList.contains('drop-ok')) e.preventDefault();
+      if (tray && S.drag.kind === 'entry') { e.preventDefault(); tray.classList.add('over'); } else { const t = $('#tray'); if (t) t.classList.remove('over'); }
+    });
+    root.addEventListener('drop', e => {
+      const d = S.drag; if (!d) return;
+      const td = e.target.closest('#gridBox td[data-d]'), tray = e.target.closest('#tray');
+      e.preventDefault();
+      if (tray && d.kind === 'entry') { const b = d.block; clearDrop(); if (b.some(x => x.locked)) return toast('บัตรนี้ล็อกอยู่ ปลดล็อกก่อน', true); unplace(b); return; }
+      if (!td) return clearDrop();
+      const day = +td.dataset.d, slot = +td.dataset.s, r = dropCheck(d, day, slot);
+      if (!r.ok) { clearDrop(); return toast('วางไม่ได้: ' + r.why.join(' · '), true); }
+      if (d.kind === 'entry' && d.block.some(x => x.locked)) { clearDrop(); return toast('บัตรนี้ล็อกอยู่ ปลดล็อกก่อน', true); }
+      const blk = d.block, kind = d.kind, id = d.id; clearDrop();
+      if (kind === 'entry') tx('ย้ายคาบ', api => { blk.forEach((x, i) => api.setE(x.id, Object.assign({}, x, { day: day, slot: slot + (blk.offs ? blk.offs[i] : i) }))); });
+      else tx('วางคาบ', api => { const c = M().pool[id]; let room = c.room; if (d.flex) { const fl = S.idx.freeLocations(d.flex, day, slot, c.span); room = fl[Math.floor(Math.random() * fl.length)]; } makeEntries(api, c, day, slot, room); api.setP(id, null); });
+    });
+  }
+  function unplace(blk) {
+    const m = M(), f = blk[0], joint = !f.teacherId;
+    tx('ถอนคาบ', api => {
+      blk.forEach(x => api.setE(x.id, null)); const id = TT.nextId(m, 'p');
+      if (joint) { const cids = Array.from(new Set(blk.map(x => x.classId))); api.setP(id, { id: id, teacherId: '', subjectId: f.subjectId, classId: cids[0], classIds: cids, room: f.room, span: new Set(blk.map(x => x.slot)).size }); }
+      else api.setP(id, { id: id, teacherId: f.teacherId, subjectId: f.subjectId, classId: f.classId, room: f.room, span: blk.length });
+    });
+  }
+
+  /* ---------- จัดอัตโนมัติ (Worker) ---------- */
+  function solveInWorker(payload) {
+    return new Promise(res => {
+      let done = false; const fallback = () => { if (done) return; done = true; setTimeout(() => res(TT.runSolve(payload)), 30); };
+      try {
+        const src = document.getElementById('core').textContent + ';self.onmessage=function(e){postMessage(TT.runSolve(e.data))}';
+        const w = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+        w.onmessage = e => { done = true; w.terminate(); res(e.data); };
+        w.onerror = () => { w.terminate(); fallback(); };
+        w.postMessage(payload);
+      } catch (e) { fallback(); }
+    });
+  }
+  const lightModel = (entries, pool) => { const m = M(); return { settings: m.settings, teachers: m.teachers, classes: m.classes, subjects: m.subjects, locations: m.locations, entries: entries, pool: pool }; };
+
+  async function runAuto(scope) {
+    const m = M(); if (S.busy) return;
+    let entries = Object.assign({}, m.entries), pool = Object.assign({}, m.pool), remove = [];
+    if (scope) {   // จัดใหม่: ถอนของที่ไม่ล็อกในขอบเขตออกมาเป็นการ์ดก่อน
+      const inScope = e => scope === 'all' || (S.mode === 'teacher' ? e.teacherId === S.sel.teacher : S.mode === 'class' ? (S.idx.rel[S.sel.class] || new Set()).has(e.classId) && e.classId === S.sel.class : e.room === S.sel.loc);
+      const seen = new Set();
+      Object.values(m.entries).filter(e => e.teacherId && inScope(e) && !e.locked).forEach(e => {
+        if (seen.has(e.id)) return; const blk = TT.blockOf(m, S.idx, e.id).filter(x => !x.locked && inScope(x)); if (!blk.length) return;
+        blk.forEach(x => { seen.add(x.id); delete entries[x.id]; remove.push(x.id); });
+        const id = TT.nextId(m, 'p'); pool[id] = { id: id, teacherId: e.teacherId, subjectId: e.subjectId, classId: e.classId, room: e.room, span: blk.length };
+      });
+    }
+    const ids = Object.keys(pool); if (!ids.length) return toast('ไม่มีคาบให้จัด');
+    S.busy = 'auto'; modal('กำลังจัดตาราง…', '<p>ระบบกำลังลองวางบัตรวิชา ' + ids.length + ' ใบ โดยไม่ให้ชนกัน ใช้เวลาไม่กี่วินาที</p>', []);
+    const res = await solveInWorker({ model: lightModel(entries, pool), cardIds: ids, timeMs: ids.length > 600 ? 20000 : 8000, seed: (Date.now() % 100000) + 1 });
+    S.busy = ''; $('#modalRoot').innerHTML = '';
+    const okN = res.placed.length, badN = res.failed.length;
+    modal('ผลการจัดอัตโนมัติ', '<div class="kpis"><div><b class="num">' + okN + '</b><span>ใบที่จัดลงได้</span></div><div><b class="num ' + (badN ? 'bad' : '') + '">' + badN + '</b><span>ใบที่ยังหาที่ลงไม่ได้</span></div></div>' +
+      '<p class="q">ทุกใบที่ลงจะไม่ชนกับครู ห้องเรียน สถานที่ หรือเวลาที่ครูไม่ว่าง' + (remove.length ? ' · จะถอน ' + remove.length + ' คาบเดิมที่ไม่ล็อกออกก่อนแล้วจัดใหม่' : '') + ' · ยืนยันแล้วย้อนกลับได้ด้วย Ctrl+Z</p>', [
+      { label: 'ยกเลิก' },
+      { label: 'ใช้ผลนี้', cls: 'pri', act: () => {
+        tx(scope ? 'จัดใหม่อัตโนมัติ' : 'จัดอัตโนมัติ', api => {
+          remove.forEach(id => api.setE(id, null));
+          const placed = new Map(res.placed.map(p => [p.cardId, p]));
+          Object.keys(pool).forEach(id => { const c = pool[id], p = placed.get(id); if (p) { makeEntries(api, c, p.day, p.slot, p.room); if (m.pool[id]) api.setP(id, null); } else if (!m.pool[id]) api.setP(id, c); });
+        });
+        toast('จัดลง ' + okN + ' ใบ' + (badN ? ' · ค้าง ' + badN : ''));
+      } }]);
+  }
+
+  function addLoadDialog() {
+    const m = M(), dl = (id, arr) => '<datalist id="' + id + '">' + arr.map(x => '<option value="' + esc(x) + '">').join('') + '</datalist>';
+    const cur = S.mode === 'teacher' ? (m.teachers[S.sel.teacher] || {}).name : '', curC = S.mode === 'class' ? (m.classes[S.sel.class] || {}).name : '', curL = S.mode === 'loc' ? S.sel.loc : '';
+    modal('เพิ่มภาระสอน', '<p class="q">สร้างบัตรวิชาที่ยังไม่ลงตาราง แล้วลากวางเองหรือให้ระบบจัดให้</p><div class="form">' +
+      '<label>ครู<input id="ldT" list="dlT" value="' + esc(cur || '') + '"></label><label>รายวิชา (รหัสหรือชื่อ)<input id="ldS" list="dlS"></label>' +
+      '<label>ห้องเรียน<input id="ldC" list="dlC" value="' + esc(curC || '') + '"></label><label>สถานที่<input id="ldL" list="dlL" value="' + esc(curL || '') + '"></label>' +
+      '<label>จำนวนบัตร<input id="ldN" type="number" min="1" max="12" value="1"></label><label>คาบต่อเนื่อง (1 = คาบเดี่ยว, 2 = คาบคู่)<input id="ldSp" type="number" min="1" max="4" value="1"></label></div>' +
+      dl('dlT', Object.values(m.teachers).map(t => t.name).sort(sortTh)) + dl('dlS', Object.values(m.subjects).map(s => s.code + ' ' + s.name).sort(sortTh)) + dl('dlC', classList().map(c => c.name)) + dl('dlL', Object.keys(m.locations).sort(sortTh)), [
+      { label: 'ยกเลิก' },
+      { label: 'เพิ่ม', cls: 'pri', act: () => {
+        const t = Object.values(m.teachers).find(x => x.name === TT.normName($('#ldT').value)), sv = TT.normName($('#ldS').value), s = Object.values(m.subjects).find(x => (x.code + ' ' + x.name) === sv || x.code === sv || x.name === sv), c = Object.values(m.classes).find(x => x.name === TT.normName($('#ldC').value));
+        const room = TT.normName($('#ldL').value), n = Math.max(1, Math.min(12, +$('#ldN').value || 1)), sp = Math.max(1, Math.min(4, +$('#ldSp').value || 1));
+        if (!t || !s || !c) { toast('เลือกครู วิชา ห้องเรียนให้ตรงกับรายการ', true); return false; }
+        if (room && !m.locations[room]) { m.locations[room] = { name: room, building: TT.defaultBuilding(room) }; }
+        tx('เพิ่มภาระสอน', api => { for (let i = 0; i < n; i++) { const id = TT.nextId(m, 'p'); api.setP(id, { id: id, teacherId: t.id, subjectId: s.id, classId: c.id, room: room, span: sp }); } });
+      } }]);
+  }
+
+  /* ================= หน้า: ตรวจชน ================= */
+  function entLabel(e) { const m = M(), s = m.subjects[e.subjectId] || {}, t = m.teachers[e.teacherId] || {}, c = m.classes[e.classId] || {}; return esc(s.code || '') + ' ' + esc(s.name || '') + ' · ' + esc(shortName(t.name)) + ' · ' + esc(c.name) + (e.room ? ' · ' + esc(e.room) : ''); }
+  function checkHTML() {
+    const m = M(), r = TT.report(m), c = r.clashes, tot = c.teacher.length + c.cls.length + c.loc.length;
+    const go = (mode, id) => 'data-go="' + mode + '" data-gid="' + esc(id) + '"';
+    const slotTxt = k => { const p = k.split('|'); return DAYS[p[0] - 1].label + ' คาบ ' + p[1]; };
+    const sect = (title, arr, fn) => '<h3>' + title + ' <span class="num">' + arr.length + '</span></h3>' + (arr.length ? '<table class="t"><tbody>' + arr.slice(0, 200).map(fn).join('') + '</tbody></table>' + (arr.length > 200 ? '<p class="q">แสดง 200 รายการแรก</p>' : '') : '<p class="ok">ไม่พบ</p>');
+    const hopArr = r.hop.slice(); const unavailN = r.unavail.length;
+    return '<div class="page"><h2>ตรวจชนและคุณภาพตาราง</h2><p class="q">ตรวจจากข้อมูลปัจจุบันทั้งโรงเรียน</p>' +
+      '<div class="kpis"><div><b class="num ' + (tot ? 'bad' : '') + '">' + tot + '</b><span>จุดที่ชนกัน</span></div><div><b class="num">' + r.pool + '</b><span>คาบที่ยังไม่ลง</span></div><div><b class="num">' + r.over.length + '</b><span>ครูสอนเกิน ' + m.settings.maxPerDay + ' คาบ/วัน</span></div><div><b class="num">' + hopArr.length + '</b><span>ข้ามอาคารคาบติดกัน</span></div><div><b class="num">' + unavailN + '</b><span>คาบตรงเวลาที่ครูไม่ว่าง</span></div><div><b class="num ' + (r.lunch.length ? 'bad' : '') + '">' + r.lunch.length + '</b><span>คาบตกเวลาพักเที่ยง</span></div><div><b class="num ' + (r.meet.length ? 'bad' : '') + '">' + r.meet.length + '</b><span>คาบสอนชนประชุม/ภารกิจ</span></div></div>' +
+      sect('ครูสอนซ้อนกัน', c.teacher, x => { const e = m.entries[x.ids[0]]; return '<tr><td><a class="go" ' + go('teacher', e.teacherId) + '>' + esc((m.teachers[e.teacherId] || {}).name) + '</a></td><td>' + slotTxt(x.key) + '</td><td>' + x.ids.map(id => entLabel(m.entries[id])).join('<br>') + '</td></tr>'; }) +
+      sect('ห้องเรียนมีเรียนซ้อนกัน', c.cls, x => { const e = m.entries[x.ids[0]]; return '<tr><td><a class="go" ' + go('class', e.classId) + '>' + esc((m.classes[e.classId] || {}).name) + '</a></td><td>' + slotTxt(x.key) + '</td><td>' + x.ids.map(id => entLabel(m.entries[id])).join('<br>') + '</td></tr>'; }) +
+      sect('สถานที่ถูกใช้ซ้อนกัน', c.loc, x => { const e = m.entries[x.ids[0]]; return '<tr><td><a class="go" ' + go('loc', e.room) + '>' + esc(e.room) + '</a></td><td>' + slotTxt(x.key) + '</td><td>' + x.ids.map(id => entLabel(m.entries[id])).join('<br>') + '</td></tr>'; }) +
+      sect('คาบสอนที่ชนกับประชุม/ภารกิจ', r.meet, x => { const e = m.entries[x.entryId]; return '<tr><td><a class="go" ' + go('teacher', e.teacherId) + '>' + esc((m.teachers[e.teacherId] || {}).name) + '</a></td><td>' + DAYS[e.day - 1].label + ' คาบ ' + e.slot + '</td><td>' + entLabel(e) + ' <b>ชน</b> 📌 ' + esc(x.meeting) + '</td></tr>'; }) +
+      sect('คาบที่ตรงเวลาพักเที่ยงของระดับชั้น', r.lunch.map(id => ({ id: id })), x => { const e = m.entries[x.id]; return '<tr><td><a class="go" ' + go('class', e.classId) + '>' + esc((m.classes[e.classId] || {}).name) + '</a></td><td>' + DAYS[e.day - 1].label + ' คาบ ' + e.slot + '</td><td>' + entLabel(e) + '</td></tr>'; }) +
+      sect('ครูสอนเกินจำนวนคาบต่อวัน', r.over, x => '<tr><td><a class="go" ' + go('teacher', x.teacherId) + '>' + esc((m.teachers[x.teacherId] || {}).name) + '</a></td><td>' + DAYS[x.day - 1].label + '</td><td class="r">' + x.n + ' คาบ</td></tr>') +
+      sect('ครูต้องเดินข้ามอาคารในคาบติดกัน', hopArr, x => '<tr><td><a class="go" ' + go('teacher', x.teacherId) + '>' + esc((m.teachers[x.teacherId] || {}).name) + '</a></td><td>' + DAYS[x.day - 1].label + ' คาบ ' + x.slot + '→' + (x.slot + 1) + '</td><td>' + esc(TT.buildingName(m, x.from)) + ' → ' + esc(TT.buildingName(m, x.to)) + '</td></tr>') + '</div>';
+  }
+
+  /* ================= หน้า: ภาพรวมอาคาร ================= */
+  function ovBld() {
+    const m = M(), n = slotsN(), cap = n * 5, by = {}, use = {};
+    Object.values(m.entries).forEach(e => { if (e.room) { const k = e.room; use[k] = use[k] || []; use[k].push(e); } });
+    Object.keys(m.locations).forEach(l => { const b = TT.buildingOf(m, l); (by[b] = by[b] || []).push(l); });
+    const keys = Object.keys(by).sort((a, b) => a === 'X' ? 1 : b === 'X' ? -1 : a.localeCompare(b));
+    if (!keys.length) return '<p class="q">ยังไม่มีข้อมูลสถานที่</p>';
+    return '<p class="q">การใช้ห้องต่อสัปดาห์ (เต็ม = ' + cap + ' คาบ) · แผนที่ความร้อนแสดงจำนวนห้องที่มีการใช้ในแต่ละคาบ</p><div class="bldgs">' + keys.map(b => {
+      const ls = by[b].sort(sortTh), heat = {}; let total = 0;
+      ls.forEach(l => (use[l] || []).forEach(e => { heat[e.day + '-' + e.slot] = (heat[e.day + '-' + e.slot] || 0) + 1; total++; }));
+      const mx = Math.max(1, ...Object.values(heat));
+      let h = '<table class="heat"><tr><th></th>' + Array.from({ length: n }, (_, i) => '<th>' + (i + 1) + '</th>').join('') + '</tr>';
+      DAYS.forEach(d => { h += '<tr><th>' + d.short + '</th>'; for (let s = 1; s <= n; s++) { const v = heat[d.v + '-' + s] || 0; h += '<td style="background:color-mix(in srgb, var(--accent) ' + Math.round(v / mx * 85) + '%, transparent)" title="' + v + ' ห้อง">' + (v || '') + '</td>'; } h += '</tr>'; });
+      h += '</table>';
+      return '<section><h3>' + esc(TT.buildingName(m, b)) + '</h3><p class="q num">' + ls.length + ' ห้อง · ใช้ ' + total + ' คาบ (' + Math.round(total / Math.max(1, ls.length * cap) * 100) + '% ของเต็ม)</p>' + h +
+        '<table class="t"><tbody>' + ls.map(l => { const u = (use[l] || []).length; return '<tr><td><a class="go" data-go="loc" data-gid="' + esc(l) + '">' + esc(l) + '</a></td><td style="width:38%"><div class="bar1"><i style="width:' + Math.round(u / cap * 100) + '%"></i></div></td><td class="r">' + u + '</td></tr>'; }).join('') + '</tbody></table></section>';
+    }).join('') + '</div>';
+  }
+
+  /* ================= หน้า: พิมพ์ ================= */
+  function sheetHTML(kind, id) {
+    const m = M(), n = slotsN(); let ents = [], title = '', sub = '';
+    const per = 'ปีการศึกษา ' + m.period.year + ' ภาคเรียนที่ ' + m.period.semester;
+    if (kind === 'teacher') { const t = m.teachers[id]; ents = Object.values(m.entries).filter(e => e.teacherId === id); title = 'ตารางสอน ' + t.name; sub = t.area; }
+    else if (kind === 'class') { const rel = S.idx.rel[id] || new Set([id]); ents = Object.values(m.entries).filter(e => rel.has(e.classId)); title = 'ตารางเรียน ห้อง ' + m.classes[id].name; }
+    else { ents = Object.values(m.entries).filter(e => e.room === id); title = 'ตารางการใช้ห้อง ' + id; sub = TT.buildingName(m, TT.buildingOf(m, id)); }
+    const by = {}; ents.forEach(e => { (by[e.day + '-' + e.slot] = by[e.day + '-' + e.slot] || []).push(e); });
+    const mtgCell = (d, s) => { const x = kind === 'teacher' && S.idx.M.get(TT.K(d, s, id)); return x ? '<b>📌 ' + esc(x.name) + '</b>ประชุม/ภารกิจ' + (x.room ? ' · ' + esc(x.room) : '') : ''; };
+    const cell = e => { const s = m.subjects[e.subjectId] || {}, t = m.teachers[e.teacherId] || {}, c = m.classes[e.classId] || {}; const l2 = kind === 'teacher' ? c.name : shortName(t.name); const l3 = kind === 'loc' ? c.name : e.room; return '<b>' + esc(s.code) + '</b>' + esc(s.name) + '<br>' + esc(l2) + (l3 ? ' · ' + esc(l3) : ''); };
+    let h = '<div class="sheet"><h1>' + esc(m.school) + ' — ' + esc(title) + '</h1><p class="s">' + esc(per) + (sub ? ' · ' + esc(sub) : '') + ' · ' + ents.length + ' คาบ/สัปดาห์</p><table><thead><tr><th></th>';
+    for (let s = 1; s <= n; s++) h += '<th>คาบ ' + s + '<small>' + esc(timeOf(s)) + '</small></th>';
+    h += '</tr></thead><tbody>';
+    DAYS.forEach(d => {
+      h += '<tr><th>' + d.label + '</th>';
+      for (let s = 1; s <= n; s++) {
+        const oc = by[d.v + '-' + s] || [], mc = mtgCell(d.v, s);
+        if (oc.length === 0 && mc) { h += '<td>' + mc + '</td>'; continue; }
+        if (oc.length === 1 && !mc) { const e = oc[0]; let span = 1; while (s + span <= n) { const nx = by[d.v + '-' + (s + span)]; if (nx && nx.length === 1 && nx[0].subjectId === e.subjectId && nx[0].classId === e.classId && nx[0].teacherId === e.teacherId && !(m.settings.noBlockAfter || []).includes(s + span - 1)) span++; else break; } h += '<td' + (span > 1 ? ' colspan="' + span + '"' : '') + '>' + cell(e) + '</td>'; s += span - 1; }
+        else h += '<td>' + oc.map(cell).join('<hr>') + (mc ? '<hr>' + mc : '') + '</td>';
+      }
+      h += '</tr>';
+    });
+    h += '</tbody></table>';
+    if (kind === 'class') { const seen = {}; ents.forEach(e => { seen[e.subjectId + '|' + e.teacherId] = e; }); h += '<div class="leg">' + Object.values(seen).sort((a, b) => sortTh((m.subjects[a.subjectId] || {}).code || '', (m.subjects[b.subjectId] || {}).code || '')).map(e => esc((m.subjects[e.subjectId] || {}).code) + ' ' + esc((m.subjects[e.subjectId] || {}).name) + ' — ' + esc((m.teachers[e.teacherId] || {}).name || 'กิจกรรมร่วม')).join('<br>') + '</div>'; }
+    return h + '</div>';
+  }
+  function printIds() {
+    const m = M(), k = S.printKind;
+    const all = k === 'teacher' ? Object.values(m.teachers).filter(t => Object.values(m.entries).some(e => e.teacherId === t.id)).sort((a, b) => sortTh(a.name, b.name)).map(t => t.id) : k === 'class' ? classList().map(c => c.id) : Object.keys(m.locations).sort(sortTh);
+    if (S.printScope === 'one') return [S.sel[k === 'loc' ? 'loc' : k]].filter(Boolean);
+    if (S.printScope.startsWith('lv') && k === 'class') return classList().filter(c => 'lv' + c.level === S.printScope).map(c => c.id);
+    return all;
+  }
+  function printHTML() {
+    const ids = printIds();
+    return '<div class="page"><h2>พิมพ์ตาราง</h2><p class="q">กระดาษ A4 แนวนอน · ในหน้าต่างพิมพ์ของเบราว์เซอร์เลือก “บันทึกเป็น PDF” เพื่อได้ไฟล์</p>' +
+      '<div class="form"><label>ประเภท<select id="pk"><option value="teacher"' + (S.printKind === 'teacher' ? ' selected' : '') + '>ตารางสอนครู</option><option value="class"' + (S.printKind === 'class' ? ' selected' : '') + '>ตารางเรียนนักเรียน (ห้อง)</option><option value="loc"' + (S.printKind === 'loc' ? ' selected' : '') + '>ตารางการใช้ห้อง/สถานที่</option></select></label>' +
+      '<label>ขอบเขต<select id="ps"><option value="one"' + (S.printScope === 'one' ? ' selected' : '') + '>เฉพาะที่เลือกในหน้าจัดตาราง</option><option value="all"' + (S.printScope === 'all' ? ' selected' : '') + '>ทั้งหมด</option>' + (S.printKind === 'class' ? [1, 2, 3, 4, 5, 6].map(l => '<option value="lv' + l + '"' + (S.printScope === 'lv' + l ? ' selected' : '') + '>ทั้งชั้น ม.' + l + '</option>').join('') : '') + '</select></label></div>' +
+      '<p><button class="btn pri" data-act="print"' + (ids.length ? '' : ' disabled') + '>พิมพ์ ' + ids.length + ' แผ่น</button></p>' +
+      '<div class="prev">' + ids.slice(0, 3).map(id => sheetHTML(S.printKind, id)).join('') + (ids.length > 3 ? '<p class="q">แสดงตัวอย่าง 3 แผ่นแรก</p>' : '') + '</div></div>';
+  }
+
+  /* ================= หน้า: ตั้งค่า / ไฟล์ ================= */
+  function settingsHTML() {
+    const m = M(), st = m.settings, bs = Array.from(new Set(Object.keys(m.locations).map(l => TT.buildingOf(m, l)))).sort((a, b) => a === 'X' ? 1 : b === 'X' ? -1 : a.localeCompare(b));
+    return '<div class="page"><h2>ตั้งค่าและไฟล์</h2>' +
+      '<h3>ข้อมูลตาราง</h3><div class="form"><label>ชื่อโรงเรียน (หัวกระดาษพิมพ์)<input data-set="school" value="' + esc(m.school) + '"></label><label>ปีการศึกษา<input data-set="year" value="' + esc(m.period.year) + '"></label><label>ภาคเรียน<input data-set="semester" value="' + esc(m.period.semester) + '"></label>' +
+      '<label>จำนวนคาบต่อวัน<input type="number" min="1" max="12" data-set="maxSlot" value="' + st.maxSlot + '"></label><label>ครูสอนได้สูงสุดต่อวัน (เตือน)<input type="number" min="1" max="12" data-set="maxPerDay" value="' + st.maxPerDay + '"></label>' +
+      '<label>คาบคู่ห้ามข้ามหลังคาบที่ (เพิ่มเติม คั่นด้วย , ปกติเว้นว่าง)<input data-set="noBlockAfter" value="' + esc((st.noBlockAfter || []).join(',')) + '"></label></div>' +
+      '<h3>พักเที่ยงตามระดับชั้น</h3><p class="q">คาบพักเที่ยงของระดับชั้นนั้น ๆ จะไม่ถูกลงวิชา (ลากไม่ได้ ตัวจัดอัตโนมัติไม่ใช้) ปรับได้ทุกปีการศึกษา เช่น ม.ต้นพักคาบ 4 ม.ปลายพักคาบ 5 หรือพักพร้อมกันทั้งโรงเรียน</p>' +
+      '<div class="form" style="grid-template-columns:repeat(auto-fill,minmax(130px,1fr))">' + [1, 2, 3, 4, 5, 6].map(l => '<label>ม.' + l + '<select data-lunch="' + l + '"><option value="0"' + (!(st.lunch || {})[l] ? ' selected' : '') + '>ไม่มีพัก</option>' + Array.from({ length: st.maxSlot }, (_, i) => '<option value="' + (i + 1) + '"' + ((st.lunch || {})[l] === i + 1 ? ' selected' : '') + '>คาบ ' + (i + 1) + '</option>').join('') + '</select></label>').join('') + '</div>' +
+      '<p><button class="btn" data-act="lunch" data-v="split">ม.ต้นพักคาบ 4 · ม.ปลายพักคาบ 5</button> <button class="btn" data-act="lunch" data-v="4">ทุกระดับพักคาบ 4</button> <button class="btn" data-act="lunch" data-v="5">ทุกระดับพักคาบ 5</button></p>' +
+      '<h3>เวลาแต่ละคาบ</h3><div class="form" style="grid-template-columns:repeat(auto-fill,minmax(90px,1fr))">' + Array.from({ length: 12 }, (_, i) => '<label>คาบ ' + (i + 1) + '<input data-time="' + i + '" value="' + esc((st.times || [])[i] || '') + '"></label>').join('') + '</div>' +
+      '<h3>อาคาร</h3><p class="q">ระบบเดาอาคารจากเลขหลักแรกของห้อง 3 หลัก (เช่น ห้อง 814 → อาคาร 8) ห้องอื่นอยู่กลุ่มห้องพิเศษ/สนาม ตั้งชื่ออาคารได้ที่นี่</p><div class="form">' + bs.map(b => '<label>' + (b === 'X' ? 'ห้องพิเศษ/สนาม' : 'อาคาร ' + b) + '<input data-bname="' + b + '" value="' + esc(TT.buildingName(m, b)) + '"></label>').join('') + '</div>' +
+      '<h3>ไฟล์</h3><p><button class="btn" data-act="open">เปิดไฟล์ตารางสอน (.xlsx)</button> <button class="btn" data-act="xlsx">ส่งออกรูปแบบนำเข้า KruSpace (.xlsx)</button> <button class="btn" data-act="xlsxMatrix">ส่งออกตารางรายคน/รายห้อง (.xlsx)</button> <button class="btn" data-act="demo">โหลดข้อมูลตัวอย่างสมมติ</button></p>' +
+      '<p><button class="btn" data-act="jsonOut">สำรองโปรเจกต์ (.json)</button> <button class="btn" data-act="jsonIn">กู้จากไฟล์สำรอง</button> <button class="btn bad" data-act="wipe">ล้างข้อมูลในเครื่องนี้</button></p>' +
+      '<div class="note">ข้อมูลครูและตารางเก็บในเบราว์เซอร์เครื่องนี้เท่านั้น (ไม่อัปโหลดที่ใด) จนกว่าจะกด “เผยแพร่” ในหน้า KruSpace</div>' +
+      '<input type="file" id="fileIn" accept=".xlsx,.xls" hidden><input type="file" id="jsonFile" accept=".json" hidden></div>';
+  }
+  function emptyHTML() {
+    return '<div class="page"><div class="empty"><h2>ยังไม่มีข้อมูลตาราง</h2><p>เริ่มจากเปิดไฟล์ตารางสอน (.xlsx รูปแบบเดียวกับไฟล์ “พร้อมนำเข้า”) หรือดึงจาก KruSpace หรือลองข้อมูลตัวอย่างสมมติก่อน</p>' +
+      '<p><button class="btn pri" data-act="open">เปิดไฟล์ตารางสอน (.xlsx)</button> <button class="btn" data-tab="sync">ดึงจาก KruSpace</button> <button class="btn" data-act="demo">ลองข้อมูลตัวอย่าง</button></p></div><input type="file" id="fileIn" accept=".xlsx,.xls" hidden></div>';
+  }
+  function dl(name, blobPart, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([blobPart], { type: type || 'application/octet-stream' })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); }
+  function writeXlsx(rows, name, sheet) { const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), sheet || 'ตารางสอน'); XLSX.writeFile(wb, name); }
+  function matrixWorkbook() {
+    const m = M(), wb = XLSX.utils.book_new(), n = slotsN(), used = new Set();
+    const add = (name, ents, kind, tid) => {
+      let nm = String(name).replace(/[\\/?*\[\]:]/g, '-').slice(0, 28), k = 1; while (used.has(nm)) nm = nm.slice(0, 25) + '_' + (++k); used.add(nm);
+      const rows = [['', ...Array.from({ length: n }, (_, i) => 'คาบ ' + (i + 1))]];
+      DAYS.forEach(d => rows.push([d.label, ...Array.from({ length: n }, (_, i) => ents.filter(e => e.day === d.v && e.slot === i + 1).map(e => { const s = m.subjects[e.subjectId] || {}, c = m.classes[e.classId] || {}, t = m.teachers[e.teacherId] || {}; return (s.code || '') + ' ' + (s.name || '') + ' ' + (kind === 'teacher' ? c.name : shortName(t.name)) + (e.room ? ' ' + e.room : ''); }).concat(tid ? [mtgAt(tid, d.v, i)].filter(Boolean) : []).join(' / '))]));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), nm);
+    };
+    const mtgAt = (tid, d, i) => { const x = S.idx.M.get(TT.K(d, i + 1, tid)); return x ? '📌 ' + x.name : ''; };
+    Object.values(m.teachers).sort((a, b) => sortTh(a.name, b.name)).forEach(t => { const e = Object.values(m.entries).filter(x => x.teacherId === t.id); if (e.length) add('ครู ' + shortName(t.name), e, 'teacher', t.id); });
+    classList().forEach(c => add('ห้อง ' + c.name.replace('ม.', 'ม'), Object.values(m.entries).filter(e => (S.idx.rel[c.id] || new Set([c.id])).has(e.classId)), 'class'));
+    return wb;
+  }
+  async function loadXlsxFile(file) {
+    try {
+      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' }), name = wb.SheetNames.find(x => /ตารางสอน/.test(x) && !/ตัวอย่าง/.test(x)) || wb.SheetNames[0];
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' }), r = TT.parseRows(rows, M());
+      const an = wb.SheetNames.find(x => /กิจกรรมร่วม/.test(x)); if (an) r.acts = TT.parseActivities(r.model, XLSX.utils.sheet_to_json(wb.Sheets[an], { header: 1, defval: '' }));
+      const mn = wb.SheetNames.find(x => x === 'ประชุม'), rn = wb.SheetNames.find(x => x === 'บทบาทครู'); if (mn || rn) r.meets = TT.parseMeetings(r.model, mn ? XLSX.utils.sheet_to_json(wb.Sheets[mn], { header: 1, defval: '' }) : null, rn ? XLSX.utils.sheet_to_json(wb.Sheets[rn], { header: 1, defval: '' }) : null);
+      const go = () => { useModel(r.model); changed(); S.tab = 'grid'; render(); toast('นำเข้า ' + Object.keys(r.model.entries).length + ' คาบ · ครู ' + Object.keys(r.model.teachers).length + ' คน'); };
+      const m = r.model, nb = new Set(Object.keys(m.locations).map(l => TT.buildingOf(m, l)).filter(b => b !== 'X')).size;
+      const body = '<div class="kpis"><div><b class="num">' + Object.keys(m.entries).length + '</b><span>คาบ</span></div><div><b class="num">' + Object.keys(m.teachers).length + '</b><span>ครู</span></div><div><b class="num">' + Object.values(m.classes).filter(c => !TT.classInfo(c.name).parent).length + '</b><span>ห้องเรียน</span></div><div><b class="num">' + nb + '</b><span>อาคาร</span></div></div>' +
+        (r.meets ? '<div class="note ok">พบการประชุม/ภารกิจ ' + r.meets + ' รายการ</div>' : '') + (r.acts ? '<div class="note ok">พบชีต “กิจกรรมร่วม” ' + r.acts + ' คาบ (ไม่ระบุครู)</div>' : '') + (r.issues.length ? '<div class="note">ข้าม ' + r.issues.length + ' แถวที่ข้อมูลไม่ครบ (แถว ' + r.issues.slice(0, 8).map(i => i.row).join(', ') + (r.issues.length > 8 ? '…' : '') + ')</div>' : '') +
+        (Object.keys(M().entries).length ? '<div class="note bad">ข้อมูลตารางที่เปิดอยู่ตอนนี้จะถูกแทนที่ (ควรสำรอง .json ก่อน)</div>' : '');
+      modal('ตรวจไฟล์ก่อนนำเข้า', body, [{ label: 'ยกเลิก' }, { label: 'นำเข้า', cls: 'pri', act: go }]);
+    } catch (e) { toast('อ่านไฟล์ไม่ได้: ' + e.message, true); }
+  }
+  function demo() {
+    const m = TT.newModel(); m.period = { year: '2569', semester: '1', id: '' }; m.school = 'โรงเรียนตัวอย่าง';
+    const areas = ['ภาษาไทย', 'คณิตศาสตร์', 'วิทยาศาสตร์และเทคโนโลยี', 'สังคมศึกษา ศาสนาและวัฒนธรรม', 'ภาษาต่างประเทศ', 'ศิลปะ', 'การงานอาชีพ', 'สุขศึกษาและพลศึกษา'];
+    const codes = ['ท', 'ค', 'ว', 'ส', 'อ', 'ศ', 'ง', 'พ'], per = [3, 4, 3, 3, 3, 1, 1, 1];
+    areas.forEach((a, i) => { for (let k = 0; k < 3; k++) { const id = 'tn:ครูตัวอย่าง ' + (i * 3 + k + 1); m.teachers[id] = { id: id, name: 'ครูตัวอย่าง ' + (i * 3 + k + 1), email: '', area: a, unavail: [] }; } });
+    const cls = ['ม.1/1', 'ม.1/2', 'ม.1/3', 'ม.2/1', 'ม.2/2', 'ม.2/3']; cls.forEach(c => { const ci = TT.classInfo(c); m.classes['c:' + c] = { id: 'c:' + c, name: c, level: ci.level, room: ci.room }; });
+    areas.forEach((a, i) => { m.subjects['s:' + codes[i] + '1101'] = { id: 's:' + codes[i] + '1101', code: codes[i] + '1101', name: a.split(' ')[0].slice(0, 22), area: a }; });
+    for (let r = 0; r < 12; r++) { const l = 'ห้อง ' + [2, 4, 5, 6, 7, 8][r % 6] + String(10 + r).padStart(2, '0'); m.locations[l] = { name: l, building: TT.defaultBuilding(l) }; }
+    TT.classRelations(m); m.seq = 0;
+    const locs = Object.keys(m.locations); let pi = 0;
+    cls.forEach((c, ci) => areas.forEach((a, i) => { const t = Object.values(m.teachers).filter(x => x.area === a)[ci % 3]; for (let k = 0; k < per[i]; k++) { const id = 'p' + (++pi); m.pool[id] = { id: id, teacherId: t.id, subjectId: 's:' + codes[i] + '1101', classId: 'c:' + c, room: locs[ci * 2 % locs.length], span: 1 }; } }));
+    const res = TT.runSolve({ model: m, timeMs: 3000, seed: 11 });
+    res.placed.forEach(p => { const c = m.pool[p.cardId]; const id = 'e' + (++m.seq); m.entries[id] = { id: id, teacherId: c.teacherId, subjectId: c.subjectId, classId: c.classId, room: c.room, day: p.day, slot: p.slot }; delete m.pool[p.cardId]; });
+    useModel(m); changed(); S.tab = 'grid'; render(); toast('โหลดข้อมูลตัวอย่างสมมติแล้ว (' + Object.keys(m.entries).length + ' คาบ)');
+  }
+
+  /* ================= หน้า: KruSpace (Firestore) ================= */
+  function scriptLoad(src) { return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('โหลด ' + src + ' ไม่ได้')); document.head.appendChild(s); }); }
+  async function fbInit() {
+    if (S.fb) return S.fb;
+    if (!window.GRADEBOOK_CONFIG || !GRADEBOOK_CONFIG.firebase || !GRADEBOOK_CONFIG.firebase.apiKey) throw new Error('ไม่พบ config.js ของ KruSpace');
+    if (!window.firebase) { await scriptLoad('../vendor/firebase-app-compat.js'); await scriptLoad('../vendor/firebase-auth-compat.js'); await scriptLoad('../vendor/firebase-firestore-compat.js'); }
+    const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(GRADEBOOK_CONFIG.firebase);
+    S.fb = { auth: firebase.auth(app), db: firebase.firestore(app), user: null, admin: false, periods: [] };
+    S.fb.auth.onAuthStateChanged(async u => { S.fb.user = u; S.fb.admin = false; if (u) { try { const d = await S.fb.db.collection('staff').doc(TT.fbStaffId(u.email)).get(); S.fb.admin = !!(d.exists && (d.data().roles || []).includes('admin')); } catch (e) { /* อ่านสิทธิ์ไม่ได้ */ } } if (S.tab === 'sync') render(); });
+    return S.fb;
+  }
+  const decodeNested = v => Array.isArray(v) ? v.map(decodeNested) : v && typeof v === 'object' ? (Array.isArray(v.__arr) ? decodeNested(v.__arr) : Object.keys(v).reduce((o, k) => { o[k] = decodeNested(v[k]); return o; }, {})) : v;
+  async function fetchCloud(periodId) {
+    const db = S.fb.db, sh = async n => { const d = await db.collection('shared').doc(n).get({ source: 'server' }); return d.exists ? decodeNested(d.data().items) || [] : []; };
+    const staffSnap = await db.collection('staff').get({ source: 'server' });
+    const staff = staffSnap.docs.map(d => Object.assign({ email: d.id }, d.data())).filter(s => s.active !== false);
+    const [classes, subjects, periods] = await Promise.all([sh('classes'), sh('subjects'), sh('periods')]);
+    let timetable = null;
+    if (periodId) { const d = await db.collection('timetable').doc(periodId).get({ source: 'server' }); timetable = d.exists ? decodeNested(d.data()) : { entries: [], exceptions: [], term: null }; }
+    return { staff: staff, classes: classes.map(c => ({ id: c.id, name: c.name })), subjects: subjects, periods: periods, timetable: timetable };
+  }
+  function syncHTML() {
+    const f = S.fb, m = M();
+    let h = '<div class="page"><h2>เชื่อมกับ KruSpace</h2><p class="q">อ่านรายชื่อครู ห้องเรียน วิชา และตารางสอนจากฐานข้อมูลกลาง แล้วเผยแพร่ตารางที่จัดเสร็จกลับไป (เฉพาะผู้ดูแลระบบ) · ไม่ดึงรายชื่อนักเรียนมาแอปนี้</p>';
+    if (!f) return h + '<p><button class="btn pri" data-act="fbStart">เริ่มเชื่อมต่อ</button></p></div>';
+    if (!f.user) return h + '<p><button class="btn pri" data-act="fbLogin">เข้าสู่ระบบด้วย Google</button></p><div class="note">ต้องใช้บัญชีที่มีสิทธิ์ใน KruSpace · ถ้าเปิดแอปนี้จากโดเมนใหม่ ต้องเพิ่มโดเมนใน Firebase Console → Authentication → Authorized domains ก่อน</div></div>';
+    h += '<p>ผู้ใช้: <b>' + esc(f.user.email) + '</b> · ' + (f.admin ? '<span class="ok">ผู้ดูแลระบบ (เผยแพร่ได้)</span>' : '<span class="q">อ่านได้อย่างเดียว (ไม่ใช่แอดมิน)</span>') + ' <button class="btn sm" data-act="fbLogout">ออกจากระบบ</button></p>';
+    h += '<h3>1 · ดึงข้อมูลจาก KruSpace</h3><p><button class="btn" data-act="fbPeriods">ดูรายการปี/ภาคเรียน</button></p>';
+    if (f.periods.length) h += '<p>' + f.periods.map(p => '<button class="btn" data-act="fbLoad" data-pid="' + esc(p.id) + '">โหลดปี ' + esc(p.academicYear) + ' ภาค ' + esc(p.semester) + '</button>').join(' ') + '</p>';
+    h += '<h3>2 · เผยแพร่ตารางที่จัดแล้ว</h3>' + (Object.keys(m.entries).length ? '<p class="q">ตารางในแอปนี้: ' + Object.keys(m.entries).length + ' คาบ · ' + (m.cloud ? 'มาจาก KruSpace ปี ' + esc(m.period.year) + '/' + esc(m.period.semester) : 'ยังไม่ได้ผูกกับ KruSpace') + '</p>' : '<p class="q">ยังไม่มีตารางในแอป</p>') +
+      '<div class="form"><label>ปี/ภาคเรียนปลายทาง<select id="pubP">' + f.periods.map(p => '<option value="' + esc(p.id) + '"' + (m.period.id === p.id || (String(p.academicYear) === m.period.year && String(p.semester) === m.period.semester) ? ' selected' : '') + '>ปี ' + esc(p.academicYear) + ' ภาค ' + esc(p.semester) + '</option>').join('') + '</select></label></div>' +
+      '<p><label><input type="checkbox" id="pubDry" checked> ทดลองเท่านั้น (แสดงสรุปการเปลี่ยนแปลงโดยไม่เขียนจริง)</label></p>' +
+      '<p><button class="btn pri" data-act="fbPublish"' + (f.admin && f.periods.length ? '' : ' disabled') + '>ตรวจและเผยแพร่</button></p>' +
+      '<div class="note">ก่อนเผยแพร่จริง ระบบจะดาวน์โหลดไฟล์สำรองตารางเดิมให้ก่อนเสมอ · คาบที่ครูมีอยู่แล้วและไม่เปลี่ยนจะคงรหัสเดิมไว้ (ข้อมูลเช็กชื่อไม่หลุด) · หลังเผยแพร่ ให้เครื่องแอดมินที่เปิด KruSpace ค้างอยู่รีเฟรชหน้าก่อนแก้ตารางต่อ</div></div>';
+    return h;
+  }
+  async function fbPeriods() { try { await fbInit(); const c = await fetchCloud(null); S.fb.periods = c.periods; render(); if (!c.periods.length) toast('ไม่พบปี/ภาคเรียนใน KruSpace', true); } catch (e) { toast('เชื่อมต่อไม่สำเร็จ: ' + e.message, true); } }
+  async function fbLoad(pid) {
+    const p = S.fb.periods.find(x => x.id === pid); if (!p) return;
+    const run = async () => {
+      try { toast('กำลังโหลด…'); const c = await fetchCloud(pid), r = TT.modelFromCloud(c, p, M()); useModel(r.model); changed(); S.tab = 'grid'; render(); toast('โหลด ' + Object.keys(r.model.entries).length + ' คาบ' + (r.skipped ? ' · ข้าม ' + r.skipped + ' รายการ (เข้าแถว/ข้อมูลไม่ครบ)' : '')); }
+      catch (e) { toast('โหลดไม่สำเร็จ: ' + e.message, true); }
+    };
+    if (Object.keys(M().entries).length) modal('แทนที่ตารางที่เปิดอยู่?', '<p>ตารางในแอปตอนนี้ ' + Object.keys(M().entries).length + ' คาบ จะถูกแทนที่ด้วยข้อมูลจาก KruSpace (ควรสำรอง .json ก่อน)</p>', [{ label: 'ยกเลิก' }, { label: 'โหลดแทนที่', cls: 'pri', act: run }]); else run();
+  }
+  async function fbPublish() {
+    const pid = $('#pubP').value, dry = $('#pubDry').checked, p = S.fb.periods.find(x => x.id === pid);
+    try {
+      toast('กำลังเทียบกับของเดิม…');
+      const cloud = await fetchCloud(pid), plan = TT.planPublish(M(), cloud, pid), st = plan.stats, ms = plan.missing;
+      const body = '<div class="kpis"><div><b class="num">' + st.added + '</b><span>เพิ่ม</span></div><div><b class="num">' + st.changed + '</b><span>แก้</span></div><div><b class="num ' + (st.removed ? 'bad' : '') + '">' + st.removed + '</b><span>ลบ</span></div><div><b class="num">' + st.same + '</b><span>เหมือนเดิม</span></div></div>' +
+        (plan.blocked ? '<div class="note bad"><b>เผยแพร่ไม่ได้</b> — มีข้อมูลที่ยังไม่มีใน KruSpace: ครู ' + ms.teachers.length + ' · ห้อง ' + ms.classes.length + ' · วิชา ' + ms.subjects.length + '<br>' + esc(ms.teachers.slice(0, 5).concat(ms.classes.slice(0, 5), ms.subjects.slice(0, 5)).join(', ')) + '<br>ให้เพิ่มใน KruSpace ก่อน (ผ่านเมนูนำเข้า) หรือแก้ชื่อให้ตรง</div>' : '') +
+        ((M().meetings && Object.keys(M().meetings).length) ? '<div class="note">การประชุม/ภารกิจไม่ถูกเผยแพร่ขึ้น KruSpace (ใช้ในแอปนี้เพื่อกันชนคาบสอนและพิมพ์ตาราง)</div>' : '') + (st.activities ? '<div class="note">กิจกรรมร่วมที่ไม่ระบุครู ' + st.activities + ' คาบ ไม่ถูกเผยแพร่ (KruSpace เก็บคาบต่อครู) — ส่งออกเป็นชีต “กิจกรรมร่วม” ในไฟล์ .xlsx แทน</div>' : '') + '<p class="q">' + (dry ? 'โหมดทดลอง: จะไม่เขียนอะไรลง KruSpace' : '<b>จะเขียนทับตารางปี ' + esc(p ? p.academicYear : '') + ' ภาค ' + esc(p ? p.semester : '') + ' จริง</b> หลังดาวน์โหลดไฟล์สำรองให้') + ' · คาบเข้าแถว ' + st.kept + ' รายการไม่ถูกแตะ</p>';
+      modal(dry ? 'สรุปการเปลี่ยนแปลง (ทดลอง)' : 'ยืนยันเผยแพร่', body, [{ label: 'ปิด' }].concat(dry || plan.blocked ? [] : [{ label: 'เผยแพร่จริง', cls: 'pri', act: () => { doPublish(pid, cloud, plan); } }]));
+    } catch (e) { toast('เผยแพร่ไม่สำเร็จ: ' + e.message, true); }
+  }
+  async function doPublish(pid, cloud, plan) {
+    try {
+      const stamp = new Date().toISOString().replace(/[:T]/g, '').slice(0, 13);
+      dl('สำรองตารางเดิม-' + pid + '-' + stamp + '.json', JSON.stringify(cloud.timetable || {}), 'application/json');
+      const data = { entries: plan.entries, exceptions: (cloud.timetable || {}).exceptions || [], term: (cloud.timetable || {}).term || null };
+      const size = new Blob([JSON.stringify(data)]).size; if (size > 1000000) throw new Error('ข้อมูลใหญ่เกินเพดาน 1 MiB ของ Firestore (' + Math.round(size / 1024) + ' KB)');
+      await S.fb.db.collection('timetable').doc(pid).set(data);
+      toast('เผยแพร่แล้ว · ' + plan.entries.length + ' คาบ');
+    } catch (e) { toast('เผยแพร่ไม่สำเร็จ: ' + e.message, true); }
+  }
+
+  /* ================= กิจกรรมร่วม (ไม่ระบุครู): คณะสี สวดมนต์ ลูกเสือ ชุมนุม ================= */
+  function jointDialog() {
+    const m = M(), acts = Object.values(m.subjects).filter(x => x.kind === 'activity').sort((a, b) => sortTh(a.code, b.code)), byLv = {};
+    classList().filter(c => !c.parentId).forEach(c => { (byLv[c.level] = byLv[c.level] || []).push(c); });
+    const cur = S.mode === 'class' ? S.sel.class : '';
+    let h = '<p class="q">กิจกรรมที่หลายห้องเรียนพร้อมกันโดยไม่ระบุครู ลงตารางครั้งเดียวได้ทุกห้อง ไม่นับเป็นภาระสอนของครูคนใด ลากย้ายจะย้ายไปพร้อมกันทุกห้อง</p><div class="form">' +
+      '<label>กิจกรรมที่มีอยู่<select id="jsSub"><option value="">— สร้างกิจกรรมใหม่ —</option>' + acts.map(x => '<option value="' + esc(x.id) + '">' + esc(x.code + ' ' + x.name) + '</option>').join('') + '</select></label>' +
+      '<label>รหัส (กรณีสร้างใหม่)<input id="jsCode" placeholder="เช่น ก31901"></label><label>ชื่อกิจกรรม (กรณีสร้างใหม่)<input id="jsName" placeholder="คณะสี / สวดมนต์ / ลูกเสือ / ชุมนุม"></label>' +
+      '<label>จำนวนคาบต่อเนื่อง<input id="jsSpan" type="number" min="1" max="4" value="1"></label><label>สถานที่ (เว้นว่างได้)<input id="jsLoc" list="dlJL"></label></div>' +
+      '<datalist id="dlJL">' + Object.keys(m.locations).sort(sortTh).map(l => '<option value="' + esc(l) + '">').join('') + '</datalist>' +
+      '<p style="margin-top:12px"><b>ห้องที่เรียนร่วมกัน</b></p>';
+    Object.keys(byLv).forEach(lv => { h += '<div class="chips"><label class="lvall"><input type="checkbox" data-lvall="' + lv + '"> <b>ม.' + lv + ' ทั้งชั้น</b></label>' + byLv[lv].map(c => '<label class="chip"><input type="checkbox" class="jsC" data-lv="' + lv + '" value="' + esc(c.id) + '"' + (c.id === cur ? ' checked' : '') + '> ' + esc(c.name.replace('ม.' + lv + '/', '')) + '</label>').join('') + '</div>'; });
+    modal('เพิ่มกิจกรรมร่วม', h, [{ label: 'ยกเลิก' }, { label: 'เพิ่มเข้าคาบที่ยังไม่ลง', cls: 'pri', act: () => {
+      const ids = $$('.jsC').filter(x => x.checked).map(x => x.value); if (!ids.length) { toast('เลือกห้องที่เรียนร่วมกันอย่างน้อย 1 ห้อง', true); return false; }
+      let sid = $('#jsSub').value;
+      if (!sid) {
+        const code = TT.normName($('#jsCode').value), name = TT.normName($('#jsName').value);
+        if (!code || !name) { toast('กรอกรหัสและชื่อกิจกรรม หรือเลือกจากรายการ', true); return false; }
+        sid = 's:' + code; if (m.subjects[sid]) { toast('รหัส ' + code + ' มีอยู่แล้ว เลือกจากรายการแทน', true); return false; }
+        m.subjects[sid] = { id: sid, code: code, name: name, area: '', kind: 'activity', locKinds: [] };
+      }
+      const room = TT.normName($('#jsLoc').value); if (room && !m.locations[room]) m.locations[room] = { name: room, building: TT.defaultBuilding(room), kind: TT.inferLocKind(room) };
+      const span = Math.max(1, Math.min(4, +$('#jsSpan').value || 1)), id = TT.nextId(m, 'p');
+      S.mode = 'class'; S.sel.class = ids[0]; S.filter = '';
+      tx('เพิ่มกิจกรรมร่วม', api => api.setP(id, { id: id, teacherId: '', subjectId: sid, classId: ids[0], classIds: ids, room: room, span: span }));
+      toast('เพิ่มแล้ว — ลากบัตรจากช่อง “คาบที่ยังไม่ลง” ไปวางในตารางห้องเรียน');
+    } }]);
+  }
+
+  /* ================= หน้า: ภาพรวม (กลุ่มสาระ / อาคาร / ระดับชั้น) ================= */
+  const NOAREA = 'ไม่ระบุกลุ่มสาระ', JOINT = 'กิจกรรมร่วม (ไม่ระบุครู)';
+  function heatTbl(map, mx) {
+    const n = slotsN();
+    let h = '<table class="heat"><tr><th></th>' + Array.from({ length: n }, (_, i) => '<th>' + (i + 1) + '</th>').join('') + '</tr>';
+    DAYS.forEach(d => { h += '<tr><th>' + d.short + '</th>'; for (let s = 1; s <= n; s++) { const v = map[d.v + '-' + s] || 0; h += '<td style="background:color-mix(in srgb, var(--accent) ' + Math.round(v / Math.max(1, mx) * 85) + '%, transparent)" title="' + v + '">' + (v || '') + '</td>'; } h += '</tr>'; });
+    return h + '</table>';
+  }
+  const lvHead = '<th class="r">ม.1</th><th class="r">ม.2</th><th class="r">ม.3</th><th class="r">ม.4</th><th class="r">ม.5</th><th class="r">ม.6</th>';
+  function ovArea() {
+    const m = M(), A = {}, get = n => A[n] || (A[n] = { name: n, teachers: new Set(), load: {}, periods: 0, lv: {}, heat: {}, subj: new Set() });
+    Object.values(m.teachers).forEach(t => get(t.area || NOAREA).teachers.add(t.id));
+    Object.values(m.entries).forEach(e => {
+      const t = m.teachers[e.teacherId], a = get(t ? (t.area || NOAREA) : JOINT), lv = (m.classes[e.classId] || {}).level || 0, k = e.day + '-' + e.slot;
+      a.periods++; a.lv[lv] = (a.lv[lv] || 0) + 1; a.heat[k] = (a.heat[k] || 0) + 1; a.subj.add(e.subjectId);
+      if (t) a.load[t.id] = (a.load[t.id] || 0) + 1;
+    });
+    const list = Object.values(A).sort((a, b) => b.periods - a.periods), maxLoad = Math.max(1, ...list.map(a => Math.max(0, ...Object.values(a.load))));
+    const totT = list.reduce((x, a) => x + a.teachers.size, 0), totP = list.reduce((x, a) => x + a.periods, 0);
+    let h = '<p class="q">คาบสอนต่อสัปดาห์แยกตามกลุ่มสาระของครูผู้สอน · คลิกชื่อครูเพื่อไปจัดตาราง</p><div class="kpis"><div><b class="num">' + list.filter(a => a.name !== JOINT).length + '</b><span>กลุ่มสาระ</span></div><div><b class="num">' + totT + '</b><span>ครู</span></div><div><b class="num">' + totP + '</b><span>คาบสอนรวม</span></div></div>' +
+      '<h3>สรุปรายกลุ่มสาระ</h3><table class="t"><thead><tr><th>กลุ่มสาระการเรียนรู้</th><th class="r">ครู</th><th class="r">คาบ/สัปดาห์</th><th class="r">เฉลี่ย/ครู</th><th class="r">มากสุด</th><th class="r">วิชา</th>' + lvHead + '</tr></thead><tbody>' +
+      list.map(a => { const ld = Object.values(a.load), mx = Math.max(0, ...ld); return '<tr><td><b>' + esc(a.name) + '</b></td><td class="r">' + a.teachers.size + '</td><td class="r">' + a.periods + '</td><td class="r">' + (a.teachers.size && a.name !== JOINT ? (a.periods / a.teachers.size).toFixed(1) : '—') + '</td><td class="r">' + (mx || '—') + '</td><td class="r">' + a.subj.size + '</td>' + [1, 2, 3, 4, 5, 6].map(l => '<td class="r">' + (a.lv[l] || '') + '</td>').join('') + '</tr>'; }).join('') + '</tbody></table>';
+    list.forEach(a => {
+      const ts = Object.values(m.teachers).filter(t => (t.area || NOAREA) === a.name).sort((x, y) => (a.load[y.id] || 0) - (a.load[x.id] || 0) || sortTh(x.name, y.name)), mx = Math.max(1, ...Object.values(a.heat));
+      h += '<details class="ov"><summary><b>' + esc(a.name) + '</b> <span class="q num">' + a.teachers.size + ' คน · ' + a.periods + ' คาบ</span></summary><div class="cols">' + heatTbl(a.heat, mx) +
+        (ts.length ? '<table class="t"><tbody>' + ts.map(t => '<tr><td><a class="go" data-go="teacher" data-gid="' + esc(t.id) + '">' + esc(t.name) + '</a></td><td style="width:30%"><div class="bar1"><i style="width:' + Math.round((a.load[t.id] || 0) / maxLoad * 100) + '%"></i></div></td><td class="r">' + (a.load[t.id] || 0) + '</td></tr>').join('') + '</tbody></table>' : '<p class="q">ไม่ผูกกับครู</p>') + '</div></details>';
+    });
+    return h;
+  }
+  function ovLevel() {
+    const m = M(), L = {}, areas = new Set(), root = c => c.parentId || c.id;
+    [1, 2, 3, 4, 5, 6].forEach(l => { L[l] = { classes: {}, heat: {}, area: {}, teach: 0 }; });
+    const cell = {};     // root|day|slot → true
+    Object.values(m.classes).forEach(c => { if (L[c.level] && !c.parentId) L[c.level].classes[c.id] = { c: c, slots: {}, days: {} }; });
+    Object.values(m.entries).forEach(e => {
+      const c = m.classes[e.classId]; if (!c || !L[c.level]) return; const lv = L[c.level], t = m.teachers[e.teacherId], a = t ? (t.area || NOAREA) : JOINT, r = root(c), rc = lv.classes[r]; areas.add(a);
+      lv.area[a] = (lv.area[a] || 0) + 1; lv.teach++;
+      if (rc) { const k = e.day + '-' + e.slot; if (!rc.slots[k]) { rc.slots[k] = 1; lv.heat[k] = (lv.heat[k] || 0) + 1; } (rc.days[e.day] = rc.days[e.day] || []).push(e.slot); }
+    });
+    const ar = Array.from(areas).sort((a, b) => a === JOINT ? 1 : b === JOINT ? -1 : sortTh(a, b));
+    let h = '<p class="q">คาบเรียนต่อสัปดาห์ของแต่ละระดับชั้น · “คาบว่างแทรก” คือคาบที่ว่างระหว่างคาบแรกกับคาบสุดท้ายของวัน (ไม่นับเวลาพักเที่ยง)</p>' +
+      '<h3>สรุปรายระดับชั้น</h3><table class="t"><thead><tr><th>ระดับ</th><th class="r">ห้อง</th><th class="r">คาบเรียน/ห้อง</th><th class="r">คาบสอนรวม</th><th>พักเที่ยง</th>' + ar.map(a => '<th class="r">' + esc(a.replace(/ศาสนาและวัฒนธรรม|และเทคโนโลยี|และพลศึกษา/, '…')) + '</th>').join('') + '</tr></thead><tbody>' +
+      [1, 2, 3, 4, 5, 6].map(l => { const lv = L[l], cs = Object.values(lv.classes), tot = cs.reduce((x, c) => x + Object.keys(c.slots).length, 0), lu = (m.settings.lunch || {})[l]; return '<tr><td><b>ม.' + l + '</b></td><td class="r">' + cs.length + '</td><td class="r">' + (cs.length ? (tot / cs.length).toFixed(1) : '—') + '</td><td class="r">' + lv.teach + '</td><td>' + (lu ? 'คาบ ' + lu : 'ไม่มี') + '</td>' + ar.map(a => '<td class="r">' + (lv.area[a] || '') + '</td>').join('') + '</tr>'; }).join('') + '</tbody></table>';
+    [1, 2, 3, 4, 5, 6].forEach(l => {
+      const lv = L[l], cs = Object.values(lv.classes).sort((a, b) => a.c.room - b.c.room), mx = Math.max(1, ...Object.values(lv.heat)), lu = (m.settings.lunch || {})[l];
+      h += '<details class="ov"><summary><b>มัธยมศึกษาปีที่ ' + l + '</b> <span class="q num">' + cs.length + ' ห้อง · พักเที่ยง ' + (lu ? 'คาบ ' + lu : 'ไม่มี') + '</span></summary><div class="cols">' + heatTbl(lv.heat, mx) +
+        '<table class="t"><thead><tr><th>ห้อง</th><th class="r">คาบเรียน</th><th class="r">คาบว่างแทรก</th></tr></thead><tbody>' + cs.map(rc => {
+          let gaps = 0; Object.values(rc.days).forEach(a => { a.sort((x, y) => x - y); for (let s = a[0]; s <= a[a.length - 1]; s++) if (!a.includes(s) && s !== lu) gaps++; });
+          return '<tr><td><a class="go" data-go="class" data-gid="' + esc(rc.c.id) + '">' + esc(rc.c.name) + '</a></td><td class="r">' + Object.keys(rc.slots).length + '</td><td class="r">' + (gaps || '') + '</td></tr>'; }).join('') + '</tbody></table></div></details>';
+    });
+    return h;
+  }
+  function overviewHTML() {
+    const v = S.ov || 'area';
+    return '<div class="page"><h2>ภาพรวม</h2><div class="subseg">' + [['area', 'กลุ่มสาระการเรียนรู้'], ['bld', 'อาคารเรียน'], ['level', 'ระดับชั้น']].map(x => '<button data-ov="' + x[0] + '" aria-pressed="' + (v === x[0]) + '">' + x[1] + '</button>').join('') + '</div>' +
+      (v === 'area' ? ovArea() : v === 'bld' ? ovBld() : ovLevel()) + '</div>';
+  }
+
+  /* ================= หน้า: วิชาและสถานที่ ================= */
+  const AREA_DEFAULT = ['ภาษาไทย', 'คณิตศาสตร์', 'วิทยาศาสตร์และเทคโนโลยี', 'สังคมศึกษา ศาสนาและวัฒนธรรม', 'สุขศึกษาและพลศึกษา', 'ศิลปะ', 'การงานอาชีพ', 'ภาษาต่างประเทศ', 'กลุ่มงานแนะแนว'];
+  function areaList(extra) { const m = M(), set = new Set(AREA_DEFAULT); Object.values(m.teachers).forEach(t => { if (t.area) set.add(t.area); }); Object.values(m.subjects).forEach(x => { if (x.area) set.add(x.area); }); if (extra) set.add(extra); return Array.from(set).sort(sortTh); }
+  function usage() { const m = M(), su = {}, lu = {}; [m.entries, m.pool].forEach(o => Object.values(o).forEach(e => { su[e.subjectId] = (su[e.subjectId] || 0) + 1; if (e.room) lu[e.room] = (lu[e.room] || 0) + 1; })); return { su: su, lu: lu }; }
+  const opt = (arr, cur) => arr.map(x => '<option value="' + esc(Array.isArray(x) ? x[0] : x) + '"' + ((Array.isArray(x) ? x[0] : x) === cur ? ' selected' : '') + '>' + esc(Array.isArray(x) ? x[1] : x) + '</option>').join('');
+  function resHTML() {
+    const m = M(), u = usage(), lim = S.resLimit || 100, q = TT.normName(S.rq || '').toLowerCase(), ql = TT.normName(S.rl || '').toLowerCase(), kf = S.rlk || '';
+    const subs = Object.values(m.subjects).filter(x => !q || (x.code + ' ' + x.name).toLowerCase().includes(q)).sort((a, b) => sortTh(a.code, b.code));
+    const locs = Object.keys(m.locations).filter(n => (!ql || n.toLowerCase().includes(ql)) && (!kf || m.locations[n].kind === kf)).sort(sortTh);
+    const kindsNG = TT.LOC_KINDS.filter(k => k !== TT.LOC_KINDS[0]), blds = Array.from(new Set(Object.keys(m.locations).map(l => TT.buildingOf(m, l)))).sort();
+    const cnt = {}; TT.LOC_KINDS.forEach(k => { cnt[k] = 0; }); Object.values(m.locations).forEach(l => { cnt[l.kind] = (cnt[l.kind] || 0) + 1; });
+    let h = '<div class="page"><h2>วิชาและสถานที่</h2><p class="q">เพิ่ม/แก้รหัสวิชา ชื่อวิชา และสถานที่สอน (สนามพละ ห้องดนตรี นาฏศิลป์ ศิลปะ ห้อง Lab ฯลฯ) — วิชาที่ผูกประเภทสถานที่ไว้ ตัวจัดอัตโนมัติจะเลือกห้องว่างให้เอง และเปลี่ยนสถานที่ของคาบที่ลงแล้วได้จากแถบใต้ตาราง</p>' +
+      '<h3>สถานที่สอน <span class="num">' + Object.keys(m.locations).length + '</span></h3>' +
+      '<div class="kpis">' + TT.LOC_KINDS.filter(k => cnt[k]).map(k => '<div><b class="num">' + cnt[k] + '</b><span>' + esc(k) + '</span></div>').join('') + '</div>' +
+      '<div class="form" style="margin-top:14px"><label>ชื่อสถานที่/ห้องใหม่<input id="nlN" placeholder="เช่น ห้องดนตรี 2, ห้อง 512, Lab เคมี 3"></label><label>อาคาร<input id="nlB" list="dlB" placeholder="เว้นว่าง = เดาจากเลขห้อง"></label><datalist id="dlB">' + blds.map(b => '<option value="' + esc(b) + '">').join('') + '</datalist>' +
+      '<label>ประเภท<select id="nlK">' + opt(TT.LOC_KINDS, '') + '</select></label><label><input type="checkbox" id="nlS"> ใช้ร่วมกันหลายห้องพร้อมกันได้ (เช่น สนามกว้าง)</label></div><p><button class="btn pri" data-act="addLoc">เพิ่มสถานที่</button></p>' +
+      '<div class="form"><label>ค้นหาสถานที่<input id="rlq" value="' + esc(S.rl || '') + '"></label><label>ประเภท<select id="rlk"><option value="">ทุกประเภท</option>' + opt(TT.LOC_KINDS, kf) + '</select></label></div>' +
+      '<table class="t"><thead><tr><th>ชื่อ</th><th>อาคาร (X = พิเศษ)</th><th>ประเภท</th><th>ใช้ร่วมได้</th><th class="r">คาบที่ใช้</th><th></th></tr></thead><tbody>' +
+      locs.slice(0, lim).map(n => { const l = m.locations[n], id = esc(n); return '<tr><td><input class="cell" data-lf="name" data-lid="' + id + '" value="' + id + '"></td><td><input class="cell s" data-lf="building" data-lid="' + id + '" value="' + esc(TT.buildingOf(m, n)) + '"></td><td><select class="cell" data-lf="kind" data-lid="' + id + '">' + opt(TT.LOC_KINDS, l.kind) + '</select></td><td><input type="checkbox" data-lf="shared" data-lid="' + id + '"' + (l.shared ? ' checked' : '') + '></td><td class="r">' + (u.lu[n] || 0) + '</td><td><button class="btn sm bad" data-act="delLoc" data-lid="' + id + '"' + (u.lu[n] ? ' disabled title="ยังมีคาบใช้อยู่"' : '') + '>ลบ</button></td></tr>'; }).join('') + '</tbody></table>' +
+      (locs.length > lim ? '<p><button class="btn" data-act="moreRes">แสดงเพิ่ม (เหลือ ' + (locs.length - lim) + ')</button></p>' : '') +
+      '<h3>รายวิชา <span class="num">' + Object.keys(m.subjects).length + '</span></h3>' +
+      '<div class="form"><label>รหัสวิชา<input id="nsC" placeholder="เช่น พ21101"></label><label>ชื่อวิชา<input id="nsN"></label><label>กลุ่มสาระ<select id="nsA"><option value="">— ไม่ระบุ —</option>' + opt(areaList(), '') + '</select></label><label>ชนิด<select id="nsK">' + opt([['normal', 'วิชาปกติ (มีครูผู้สอน)'], ['activity', 'กิจกรรมร่วม (ไม่ระบุครู)']], 'normal') + '</select></label></div><p><button class="btn pri" data-act="addSubj">เพิ่มวิชา</button></p>' +
+      '<div class="form"><label>ค้นหา (รหัสหรือชื่อ)<input id="rsq" value="' + esc(S.rq || '') + '"></label></div>' +
+      '<table class="t"><thead><tr><th>รหัสวิชา</th><th>ชื่อวิชา</th><th>กลุ่มสาระ</th><th>ชนิด</th><th>สถานที่ที่ใช้ได้ (ให้ระบบเลือกให้)</th><th class="r">คาบ</th><th></th></tr></thead><tbody>' +
+      subs.slice(0, lim).map(x => { const id = esc(x.id); return '<tr><td><input class="cell s" data-sf="code" data-sid="' + id + '" value="' + esc(x.code) + '"></td><td><input class="cell" data-sf="name" data-sid="' + id + '" value="' + esc(x.name) + '"></td><td><select class="cell" data-sf="area" data-sid="' + id + '"><option value="">—</option>' + opt(areaList(x.area), x.area || '') + '</select></td><td><select class="cell" data-sf="kind" data-sid="' + id + '">' + opt([['normal', 'ปกติ'], ['activity', 'กิจกรรมร่วม']], x.kind) + '</select></td><td>' + kindsNG.map(k => '<button class="chipb" data-lk="' + esc(k) + '" data-sid="' + id + '" aria-pressed="' + x.locKinds.includes(k) + '">' + esc(k.replace(' (Lab)', '')) + '</button>').join('') + '</td><td class="r">' + (u.su[x.id] || 0) + '</td><td><button class="btn sm bad" data-act="delSubj" data-sid="' + id + '"' + (u.su[x.id] ? ' disabled title="ยังมีคาบใช้อยู่"' : '') + '>ลบ</button></td></tr>'; }).join('') + '</tbody></table>' +
+      (subs.length > lim ? '<p><button class="btn" data-act="moreRes">แสดงเพิ่ม (เหลือ ' + (subs.length - lim) + ')</button></p>' : '') +
+      '<h3>ห้องเรียนนักเรียน <span class="num">' + Object.values(m.classes).filter(c => !c.parentId).length + '</span></h3><div class="form"><label>เพิ่มห้อง (รูปแบบ ม.1/15 หรือกลุ่มย่อย ม.4/9ญ)<input id="ncN"></label></div><p><button class="btn pri" data-act="addCls">เพิ่มห้องเรียน</button></p></div>';
+    return h;
+  }
+  function rebuildIdx() { TT.classRelations(M()); S.idx = new TT.Index(M()); ensureSel(); }
+  function editSubject(t) {
+    const m = M(), sb = m.subjects[t.dataset.sid], f = t.dataset.sf, v = t.value; if (!sb) return;
+    if (f === 'code') { const c = TT.normName(v); if (!c || Object.values(m.subjects).some(x => x !== sb && x.code === c)) { toast(c ? 'รหัส ' + c + ' ซ้ำกับวิชาอื่น' : 'รหัสวิชาว่างไม่ได้', true); return render(); } sb.code = c; }
+    else if (f === 'name') { const n = TT.normName(v); if (!n) { toast('ชื่อวิชาว่างไม่ได้', true); return render(); } sb.name = n; }
+    else if (f === 'area') sb.area = v; else if (f === 'kind') sb.kind = v;
+    changed(); render(); toast('บันทึกแล้ว');
+  }
+  function editLocation(t) {
+    const m = M(), lid = t.dataset.lid, loc = m.locations[lid], f = t.dataset.lf; if (!loc) return;
+    if (f === 'name') {
+      const n = TT.normName(t.value);
+      if (!n || (n !== lid && m.locations[n])) { toast(n ? 'มีสถานที่ชื่อ “' + n + '” อยู่แล้ว' : 'ชื่อว่างไม่ได้', true); return render(); }
+      if (n !== lid) { m.locations[n] = Object.assign({}, loc, { name: n }); delete m.locations[lid]; [m.entries, m.pool].forEach(o => Object.values(o).forEach(e => { if (e.room === lid) e.room = n; })); if (S.sel.loc === lid) S.sel.loc = n; }
+    } else if (f === 'building') loc.building = TT.normName(t.value) || TT.defaultBuilding(lid);
+    else if (f === 'kind') loc.kind = t.value; else if (f === 'shared') loc.shared = t.checked || undefined;
+    rebuildIdx(); changed(); render(); toast('บันทึกแล้ว');
+  }
+  function addSubject() {
+    const m = M(), code = TT.normName($('#nsC').value), name = TT.normName($('#nsN').value);
+    if (!code || !name) return toast('กรอกรหัสวิชาและชื่อวิชา', true);
+    const id = 's:' + code; if (m.subjects[id] || Object.values(m.subjects).some(x => x.code === code)) return toast('รหัส ' + code + ' มีอยู่แล้ว', true);
+    m.subjects[id] = { id: id, code: code, name: name, area: $('#nsA').value, kind: $('#nsK').value, locKinds: [] };
+    changed(); render(); toast('เพิ่มวิชา ' + code + ' แล้ว');
+  }
+  function addLocation() {
+    const m = M(), n = TT.normName($('#nlN').value); if (!n) return toast('กรอกชื่อสถานที่', true);
+    if (m.locations[n]) return toast('มีสถานที่ชื่อนี้อยู่แล้ว', true);
+    m.locations[n] = { name: n, building: TT.normName($('#nlB').value) || TT.defaultBuilding(n), kind: $('#nlK').value, shared: $('#nlS').checked || undefined };
+    rebuildIdx(); changed(); render(); toast('เพิ่ม ' + n + ' แล้ว');
+  }
+  function addClassRoom() {
+    const m = M(), n = TT.normName($('#ncN').value), ci = TT.classInfo(n);
+    if (!ci.level) return toast('ใช้รูปแบบ ม.1/15', true);
+    const id = 'c:' + n; if (m.classes[id]) return toast('มีห้องนี้อยู่แล้ว', true);
+    m.classes[id] = { id: id, name: n, level: ci.level, room: ci.room };
+    rebuildIdx(); changed(); render(); toast('เพิ่มห้อง ' + n + ' แล้ว');
+  }
+  function delSubject(id) { const m = M(), u = usage(); if (u.su[id]) return toast('ยังมีคาบใช้วิชานี้อยู่', true); delete m.subjects[id]; changed(); render(); }
+  function delLocation(id) { const m = M(), u = usage(); if (u.lu[id]) return toast('ยังมีคาบใช้สถานที่นี้อยู่', true); delete m.locations[id]; rebuildIdx(); changed(); render(); }
+
+
+  /* ================= หน้า: ภารกิจและประชุม ================= */
+  function refreshMeetings() { S.idx.buildMeetings(); changed(); render(); }
+  const teacherByName = n => Object.values(M().teachers).find(t => t.name === TT.normName(n));
+  function dutyHTML() {
+    const m = M(), has = Object.keys(m.teachers).length > 0, mts = Object.values(m.meetings).sort((a, b) => a.day - b.day || a.slot - b.slot), n = slotsN();
+    if (!has) return '<div class="page"><div class="empty"><h2>ยังไม่มีรายชื่อครู</h2><p>เปิดไฟล์ตารางสอนหรือดึงจาก KruSpace ก่อน แล้วจึงกำหนดบทบาทและการประชุมได้</p></div></div>';
+    const busyN = mt => { const ts = TT.meetingTeachers(m, mt); let c = 0; ts.forEach(t => { for (let k = 0; k < (mt.span || 1); k++) if ((S.idx.T.get(TT.K(mt.day, mt.slot + k, t.id)) || []).length) c++; }); return c; };
+    let h = '<div class="page"><h2>ภารกิจและประชุม</h2><p class="q">กำหนดบทบาทเฉพาะของครู (เช่น หัวหน้าระดับ ทีมวิชาการ) แล้วตั้งการประชุมตามบทบาท — คาบประชุมจะปรากฏในตารางของครูที่มีบทบาทนั้นแทนคาบสอน ลากคาบสอนลงไม่ได้ และตัวจัดอัตโนมัติจะเลี่ยงให้</p>' +
+      '<h3>บทบาท <span class="num">' + m.roles.length + '</span></h3>' +
+      '<div class="form"><label>ชื่อบทบาทใหม่<input id="nrN" list="dlRole" placeholder="เช่น ทีมวิชาการ"></label></div><datalist id="dlRole">' + ['หัวหน้าระดับ ม.ต้น', 'หัวหน้าระดับ ม.ปลาย', 'ทีมวิชาการ', 'หัวหน้ากลุ่มสาระ', 'ฝ่ายวัดผล', 'หัวหน้างานแนะแนว'].map(x => '<option value="' + x + '">').join('') + '</datalist>' +
+      '<p><button class="btn pri" data-act="addRole">เพิ่มบทบาท</button> ' + ['หัวหน้าระดับ ม.ต้น', 'หัวหน้าระดับ ม.ปลาย', 'ทีมวิชาการ'].filter(x => !m.roles.includes(x)).map(x => '<button class="btn sm" data-act="quickRole" data-v="' + x + '">＋ ' + x + '</button>').join(' ') + '</p>';
+    if (!m.roles.length) h += '<p class="q">ยังไม่มีบทบาท เริ่มจากเพิ่มบทบาทด้านบน</p>';
+    m.roles.forEach(r => {
+      const ts = Object.values(m.teachers).filter(t => (t.roles || []).includes(r)).sort((a, b) => sortTh(a.name, b.name)), id = esc(r);
+      h += '<div class="chips"><b style="min-width:170px">' + id + ' <span class="q num">' + ts.length + ' คน</span></b>' + ts.map(t => '<span class="chip">' + esc(t.name) + ' <button class="chipb" data-act="takeRole" data-role="' + id + '" data-tid="' + esc(t.id) + '" title="เอาออกจากบทบาท">✕</button></span>').join('') +
+        '<input class="cell" style="max-width:200px;border-color:var(--line)" list="dlTch" data-rolein="' + id + '" placeholder="＋ พิมพ์ชื่อครู"> <button class="btn sm" data-act="giveRole" data-role="' + id + '">เพิ่มครู</button> <button class="btn sm bad" data-act="delRole" data-role="' + id + '">ลบบทบาท</button></div>';
+    });
+    h += '<datalist id="dlTch">' + Object.values(m.teachers).map(t => '<option value="' + esc(t.name) + '">').join('') + '</datalist>' +
+      '<h3>การประชุม/ภารกิจ <span class="num">' + mts.length + '</span></h3>' +
+      '<div class="form"><label>ชื่อการประชุม<input id="nmN" placeholder="เช่น ประชุมวิชาการ"></label><label>วัน<select id="nmD">' + opt(DAYS.map(d => [String(d.v), d.label]), '1') + '</select></label><label>คาบ<select id="nmS">' + opt(Array.from({ length: n }, (_, i) => [String(i + 1), 'คาบ ' + (i + 1)]), '1') + '</select></label><label>จำนวนคาบ<input id="nmP" type="number" min="1" max="4" value="1"></label><label>สถานที่ (ไม่บังคับ)<input id="nmL" list="dlJL2"></label></div>' +
+      '<datalist id="dlJL2">' + Object.keys(m.locations).sort(sortTh).map(l => '<option value="' + esc(l) + '">').join('') + '</datalist>' +
+      '<p class="q" style="margin:6px 0 0">บทบาทที่ต้องเข้าประชุม</p><div class="chips">' + (m.roles.length ? m.roles.map(r => '<label class="chip"><input type="checkbox" class="nmR" value="' + esc(r) + '"> ' + esc(r) + '</label>').join('') : '<span class="q">เพิ่มบทบาทก่อน</span>') + '</div>' +
+      '<p><button class="btn pri" data-act="addMtg">เพิ่มการประชุม</button></p>';
+    h += mts.length ? '<table class="t"><thead><tr><th>ชื่อ</th><th>บทบาทที่เข้า</th><th>วัน</th><th>คาบ</th><th class="r">จำนวนคาบ</th><th class="r">ครูที่เข้า</th><th class="r">ชนคาบสอน</th><th></th></tr></thead><tbody>' + mts.map(mt => { const id = esc(mt.id), nb = busyN(mt); return '<tr><td><input class="cell" data-mf="name" data-mid="' + id + '" value="' + esc(mt.name) + '"></td><td>' + esc((mt.roles || []).join(', ')) + '</td><td><select class="cell" data-mf="day" data-mid="' + id + '">' + opt(DAYS.map(d => [String(d.v), d.label]), String(mt.day)) + '</select></td><td><select class="cell" data-mf="slot" data-mid="' + id + '">' + opt(Array.from({ length: n }, (_, i) => [String(i + 1), 'คาบ ' + (i + 1)]), String(mt.slot)) + '</select></td><td class="r"><input class="cell s" type="number" min="1" max="4" data-mf="span" data-mid="' + id + '" value="' + (mt.span || 1) + '"></td><td class="r">' + TT.meetingTeachers(m, mt).length + '</td><td class="r ' + (nb ? 'bad' : '') + '">' + (nb || '') + '</td><td><button class="btn sm bad" data-act="delMtg" data-mid="' + id + '">ลบ</button></td></tr>'; }).join('') + '</tbody></table><p class="q">“ชนคาบสอน” = จำนวนครูที่มีคาบสอนอยู่ในเวลาประชุมนั้นแล้ว ดูรายชื่อในแท็บ “ตรวจชน” แล้วย้ายคาบสอนออก</p>' : '<p class="q">ยังไม่มีการประชุม</p>';
+    return h + '</div>';
+  }
+  function addRole() { const m = M(), n = TT.normName($('#nrN').value); if (!n) return toast('กรอกชื่อบทบาท', true); if (m.roles.includes(n)) return toast('มีบทบาทนี้แล้ว', true); m.roles.push(n); changed(); render(); toast('เพิ่มบทบาท ' + n + ' แล้ว'); }
+  function delRole(r) { const m = M(); m.roles = m.roles.filter(x => x !== r); Object.values(m.teachers).forEach(t => { t.roles = (t.roles || []).filter(x => x !== r); }); Object.values(m.meetings).forEach(mt => { mt.roles = (mt.roles || []).filter(x => x !== r); }); refreshMeetings(); }
+  function giveRole(r) { const inp = $$('[data-rolein]').find(x => x.dataset.rolein === r), t = inp && teacherByName(inp.value); if (!t) return toast('เลือกชื่อครูให้ตรงกับรายการ', true); if (!(t.roles || (t.roles = [])).includes(r)) t.roles.push(r); refreshMeetings(); toast('เพิ่ม ' + t.name + ' ในบทบาท ' + r); }
+  function takeRole(r, tid) { const t = M().teachers[tid]; if (t) t.roles = (t.roles || []).filter(x => x !== r); refreshMeetings(); }
+  function addMeeting() {
+    const m = M(), name = TT.normName($('#nmN').value), roles = $$('.nmR').filter(x => x.checked).map(x => x.value);
+    if (!name) return toast('กรอกชื่อการประชุม', true); if (!roles.length) return toast('เลือกบทบาทที่ต้องเข้าประชุมอย่างน้อย 1 บทบาท', true);
+    const id = TT.nextId(m, 'm'), room = TT.normName($('#nmL').value); if (room && !m.locations[room]) m.locations[room] = { name: room, building: TT.defaultBuilding(room), kind: TT.inferLocKind(room) };
+    m.meetings[id] = { id: id, name: name, roles: roles, day: +$('#nmD').value, slot: +$('#nmS').value, span: Math.max(1, Math.min(4, +$('#nmP').value || 1)), room: room };
+    S.idx.buildMeetings(); const nb = TT.report(m).meet.length; changed(); render();
+    toast('เพิ่มการประชุมแล้ว · ครู ' + TT.meetingTeachers(m, m.meetings[id]).length + ' คน' + (nb ? ' · มีคาบสอนชน ' + nb + ' คาบ (ดูแท็บตรวจชน)' : ''), !!nb);
+  }
+  function delMeeting(id) { delete M().meetings[id]; refreshMeetings(); }
+  function editMeeting(t) {
+    const mt = M().meetings[t.dataset.mid], f = t.dataset.mf; if (!mt) return;
+    if (f === 'name') { const v = TT.normName(t.value); if (!v) { toast('ชื่อว่างไม่ได้', true); return render(); } mt.name = v; }
+    else if (f === 'span') mt.span = Math.max(1, Math.min(4, +t.value || 1)); else mt[f] = +t.value;
+    refreshMeetings();
+  }
+
+  /* ================= เรนเดอร์หลัก ================= */
+  const TABS = [['grid', 'จัดตาราง'], ['check', 'ตรวจชน'], ['bld', 'ภาพรวม'], ['res', 'วิชาและสถานที่'], ['duty', 'ภารกิจและประชุม'], ['print', 'พิมพ์'], ['set', 'ตั้งค่าและไฟล์'], ['sync', 'KruSpace']];
+  function render() {
+    const m = M(), has = Object.keys(m.entries).length + Object.keys(m.pool).length > 0;
+    updateBad();
+    const per = m.period.year ? 'ปี ' + m.period.year + ' ภาค ' + m.period.semester : '';
+    let body;
+    if (S.tab === 'sync') body = syncHTML();
+    else if (S.tab === 'set') body = settingsHTML();
+    else if (S.tab === 'res') body = resHTML();
+    else if (S.tab === 'duty' && !has) body = dutyHTML();
+    else if (!has) body = emptyHTML();
+    else body = S.tab === 'grid' ? gridPageHTML() : S.tab === 'check' ? checkHTML() : S.tab === 'bld' ? overviewHTML() : S.tab === 'res' ? resHTML() : S.tab === 'duty' ? dutyHTML() : printHTML();
+    const scroll = { y: window.scrollY, l: $('#list') ? $('#list').scrollTop : 0 };
+    $('#app').innerHTML = '<header class="top"><h1>จัดตารางสอน</h1><nav class="tabs" role="tablist">' + TABS.map(t => '<button role="tab" data-tab="' + t[0] + '" aria-selected="' + (S.tab === t[0]) + '">' + t[1] + '</button>').join('') + '</nav>' +
+      '<div class="tools"><span class="per num">' + esc(per) + '</span><button class="btn" data-act="undo"' + (S.hist.undo.length ? '' : ' disabled') + '>↶ ย้อน</button><button class="btn" data-act="redo"' + (S.hist.redo.length ? '' : ' disabled') + '>↷ ทำซ้ำ</button></div></header><main>' + body + '</main>';
+    if ($('#list')) $('#list').scrollTop = scroll.l; window.scrollTo(0, scroll.y);
+    if (window.__dropListeners !== S) { window.__dropListeners = S; bindGrid(document.getElementById('app')); }
+  }
+
+  /* ================= เหตุการณ์ (delegation) ================= */
+  document.addEventListener('click', e => {
+    const t = e.target;
+    const tab = t.closest('[data-tab]'); if (tab) { S.tab = tab.dataset.tab; if (S.tab === 'sync' && !S.fb) { /* รอผู้ใช้กดเริ่ม */ } render(); return; }
+    const mode = t.closest('[data-mode]'); if (mode) { S.mode = mode.dataset.mode; S.filter = ''; S.selBlock = ''; ensureSel(); render(); return; }
+    const pick = t.closest('[data-pick]'); if (pick) { S.sel[S.mode] = pick.dataset.pick; S.selBlock = ''; render(); return; }
+    const go = t.closest('[data-go]'); if (go) { S.mode = go.dataset.go; S.sel[S.mode] = go.dataset.gid; S.tab = 'grid'; S.selBlock = ''; render(); window.scrollTo(0, 0); return; }
+    const ov = t.closest('[data-ov]'); if (ov) { S.ov = ov.dataset.ov; render(); return; }
+    const lk = t.closest('[data-lk]'); if (lk) { const sb = M().subjects[lk.dataset.sid], k = lk.dataset.lk; sb.locKinds = sb.locKinds.includes(k) ? sb.locKinds.filter(x => x !== k) : sb.locKinds.concat([k]); changed(); render(); return; }
+    const act = t.closest('[data-act]'); if (act) return doAct(act.dataset.act, act);
+    const blk = t.closest('#gridBox .blk'); if (blk && blk.dataset.id) { S.selBlock = S.selBlock === blk.dataset.id ? '' : blk.dataset.id; $('#gridBox').innerHTML = gridHTML(); $('#barBox').innerHTML = barHTML(); return; }
+    const td = t.closest('#gridBox td[data-d]');
+    if (td && S.unavailMode && S.mode === 'teacher' && !td.querySelector('.blk')) {
+      const id = S.sel.teacher, key = td.dataset.d + '-' + td.dataset.s, cur = (M().teachers[id].unavail || []).slice(), i = cur.indexOf(key);
+      if (i >= 0) cur.splice(i, 1); else cur.push(key);
+      tx('เวลาไม่ว่างของครู', api => api.setT(id, cur));
+    }
+  });
+  document.addEventListener('input', e => {
+    const t = e.target;
+    if (t.id === 'flt') { S.filter = t.value; $('#list').innerHTML = railHTML(); }
+    if (t.id === 'rsq') { S.rq = t.value; const pos = t.selectionStart; render(); const n = $('#rsq'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }
+    if (t.id === 'rlq') { S.rl = t.value; const pos = t.selectionStart; render(); const n = $('#rlq'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }
+  });
+  document.addEventListener('change', e => {
+    const t = e.target, m = M(), st = m.settings;
+    if (t.dataset.lvall) { $$('.jsC[data-lv="' + t.dataset.lvall + '"]').forEach(x => { x.checked = t.checked; }); return; }
+    if (t.id === 'chgLoc') { const blk = TT.moveUnit(m, S.idx, S.selBlock), v = t.value; return tx('เปลี่ยนสถานที่', api => blk.forEach(x => api.setE(x.id, Object.assign({}, x, { room: v })))); }
+    if (t.dataset.lunch) { st.lunch = Object.assign({}, st.lunch); st.lunch[t.dataset.lunch] = +t.value || 0; changed(); updateBad(); toast('บันทึกแล้ว · คาบที่ตกเวลาพัก ' + TT.report(m).lunch.length); return; }
+    if (t.dataset.mf) return editMeeting(t);
+    if (t.dataset.sf) return editSubject(t);
+    if (t.dataset.lf) return editLocation(t);
+    if (t.id === 'allPool') { S.showAllPool = t.checked; render(); }
+    else if (t.id === 'rlk') { S.rlk = t.value; render(); }
+    else if (t.id === 'pk') { S.printKind = t.value; S.printScope = 'one'; render(); }
+    else if (t.id === 'ps') { S.printScope = t.value; render(); }
+    else if (t.dataset.set) {
+      const k = t.dataset.set, v = t.value;
+      if (k === 'school') m.school = v; else if (k === 'year') m.period.year = v; else if (k === 'semester') m.period.semester = v;
+      else if (k === 'noBlockAfter') st.noBlockAfter = v.split(',').map(x => +x.trim()).filter(x => x > 0);
+      else st[k] = Math.max(1, Math.min(12, +v || st[k]));
+      changed(); toast('บันทึกแล้ว');
+    } else if (t.dataset.time !== undefined) { st.times = st.times || []; st.times[+t.dataset.time] = t.value; changed(); }
+    else if (t.dataset.bname) { st.buildings = st.buildings || {}; st.buildings[t.dataset.bname] = t.value; changed(); toast('บันทึกแล้ว'); }
+    else if (t.id === 'fileIn' && t.files[0]) { loadXlsxFile(t.files[0]); t.value = ''; }
+    else if (t.id === 'jsonFile' && t.files[0]) { t.files[0].text().then(x => { try { const j = JSON.parse(x); if (!j.entries || !j.teachers) throw new Error('ไม่ใช่ไฟล์สำรองของแอปนี้'); useModel(j); changed(); render(); toast('กู้ข้อมูลแล้ว'); } catch (er) { toast(er.message, true); } }); t.value = ''; }
+  });
+  function doAct(a, el) {
+    const m = M();
+    switch (a) {
+      case 'undo': return undo(); case 'redo': return redo();
+      case 'auto': return runAuto(null); case 'reshuffle': return modal('จัดใหม่?', '<p>ถอนคาบที่ไม่ล็อกในขอบเขตนี้ออก แล้วให้ระบบจัดลงใหม่ ดูผลก่อนยืนยันได้</p>', [{ label: 'ยกเลิก' }, { label: 'จัดใหม่ทั้งโรงเรียน', act: () => { runAuto('all'); } }, { label: 'จัดใหม่เฉพาะที่เลือก', cls: 'pri', act: () => { runAuto('sel'); } }]);
+      case 'addLoad': return addLoadDialog();
+      case 'unavailOn': S.unavailMode = true; return render(); case 'unavailOff': S.unavailMode = false; return render();
+      case 'lock': { const blk = TT.moveUnit(m, S.idx, S.selBlock), v = !blk.some(x => x.locked); return tx(v ? 'ล็อก' : 'ปลดล็อก', api => blk.forEach(x => api.setE(x.id, Object.assign({}, x, { locked: v || undefined })))); }
+      case 'unplace': { const blk = TT.moveUnit(m, S.idx, S.selBlock); if (blk.some(x => x.locked)) return toast('บัตรนี้ล็อกอยู่', true); S.selBlock = ''; return unplace(blk); }
+      case 'del': { const blk = TT.moveUnit(m, S.idx, S.selBlock); S.selBlock = ''; return tx('ลบคาบ', api => blk.forEach(x => api.setE(x.id, null))); }
+      case 'print': { $('#printArea').innerHTML = printIds().map(id => sheetHTML(S.printKind, id)).join(''); return setTimeout(() => window.print(), 60); }
+      case 'open': case 'jsonIn': { const inp = $(a === 'open' ? '#fileIn' : '#jsonFile'); if (inp) return inp.click(); S.tab = 'set'; render(); return setTimeout(() => $(a === 'open' ? '#fileIn' : '#jsonFile').click(), 50); }
+      case 'xlsx': { const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(TT.exportRows(m)), 'ตารางสอน'); const ar = TT.exportActivityRows(m); if (ar.length > 1) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ar), 'กิจกรรมร่วม'); const mr = TT.exportMeetingRows(m); if (mr.length > 1) { XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(mr), 'ประชุม'); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(TT.exportRoleRows(m)), 'บทบาทครู'); } return XLSX.writeFile(wb, 'ตารางสอน-' + (m.period.year || 'ใหม่') + '-' + (m.period.semester || '') + '-ส่งออก.xlsx'); }
+      case 'xlsxMatrix': return XLSX.writeFile(matrixWorkbook(), 'ตารางรายคนรายห้อง-' + (m.period.year || '') + '.xlsx');
+      case 'jsonOut': return dl('สำรองตารางสอน-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(m), 'application/json');
+      case 'demo': return demo();
+      case 'addJoint': return jointDialog();
+      case 'lunch': { const v = el.dataset.v; m.settings.lunch = v === 'split' ? Object.assign({}, TT.DEFAULT_LUNCH) : { 1: +v, 2: +v, 3: +v, 4: +v, 5: +v, 6: +v }; changed(); render(); return toast('ตั้งพักเที่ยงแล้ว · คาบที่ตกเวลาพัก ' + TT.report(m).lunch.length); }
+      case 'addRole': return addRole(); case 'delRole': return delRole(el.dataset.role); case 'giveRole': return giveRole(el.dataset.role); case 'takeRole': return takeRole(el.dataset.role, el.dataset.tid);
+      case 'addMtg': return addMeeting(); case 'delMtg': return delMeeting(el.dataset.mid); case 'quickRole': $('#nrN').value = el.dataset.v; return addRole();
+      case 'addSubj': return addSubject(); case 'addLoc': return addLocation(); case 'addCls': return addClassRoom();
+      case 'delSubj': return delSubject(el.dataset.sid); case 'delLoc': return delLocation(el.dataset.lid);
+      case 'moreRes': S.resLimit = (S.resLimit || 100) + 200; return render();
+      case 'wipe': return modal('ล้างข้อมูลในเครื่องนี้?', '<p>ลบตารางและรายชื่อที่เก็บในเบราว์เซอร์นี้ทั้งหมด (ข้อมูลใน KruSpace ไม่ถูกแตะ)</p>', [{ label: 'ยกเลิก' }, { label: 'ล้าง', cls: 'bad', act: () => { useModel(TT.newModel()); idbPut('model', M()); render(); toast('ล้างแล้ว'); } }]);
+      case 'fbStart': return fbInit().then(() => render()).catch(e => toast('เชื่อมต่อไม่สำเร็จ: ' + e.message, true));
+      case 'fbLogin': return fbInit().then(() => S.fb.auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())).catch(e => toast('เข้าสู่ระบบไม่สำเร็จ: ' + e.message, true));
+      case 'fbLogout': return S.fb.auth.signOut().then(() => { S.fb.periods = []; render(); });
+      case 'fbPeriods': return fbPeriods(); case 'fbLoad': return fbLoad(el.dataset.pid); case 'fbPublish': return fbPublish();
+    }
+  }
+  /* fbStart ต้องเริ่มระบบก่อนถึงจะแสดงปุ่มเข้าสู่ระบบ */
+  const _da = doAct;
+
+  /* ================= เริ่มต้น ================= */
+  (async function boot() {
+    const saved = await idbGet('model');
+    if (saved && saved.entries) { try { useModel(saved); } catch (e) { useModel(TT.newModel()); } } else useModel(TT.newModel());
+    if (S.model.settings.maxSlot === undefined) S.model.settings = TT.newModel().settings;
+    render();
+    window.__TT = { S: S, render: render };   // ไว้ตรวจในเบราว์เซอร์
+  })();
+})();
+
+</script>
+</body>
+</html>

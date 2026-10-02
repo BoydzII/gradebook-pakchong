@@ -5,7 +5,7 @@
    วิธีอัปเดตแอปหลังแก้โค้ด: เปลี่ยนเลขเวอร์ชันที่ CACHE_VERSION แล้วอัปโหลดใหม่
    ผู้ใช้จะเห็นแถบแจ้ง "มีเวอร์ชันใหม่" ให้กดอัปเดต */
 
-const CACHE_VERSION = 'v175';
+const CACHE_VERSION = 'v176';
 const CACHE_NAME = 'gradebook-' + CACHE_VERSION;
 
 /* ไฟล์แกนของแอป โหลดไว้ล่วงหน้าให้เปิดออฟไลน์ได้ */
@@ -69,6 +69,10 @@ self.addEventListener('fetch', event => {
   const url = new URL(req.url);
   // ข้ามคำขอข้ามโดเมนทั้งหมด (Google Sign-In, Sheets API, Drive) ให้วิ่งตรงตามปกติ
   if (url.origin !== self.location.origin) return;
+  /* แอปจัดตารางสอน (./timetable/) เป็นหน้าแยก ห้ามผ่านตัวจัดการหน้าเว็บด้านล่าง
+     เพราะมันเก็บทุกหน้าที่เปิดลงแคชคีย์ './' — หน้าตารางสอนจะไปทับหน้าหลักของ KruSpace
+     แล้วตอนออฟไลน์เปิด KruSpace จะได้หน้าตารางสอนแทน */
+  if (url.pathname.includes('/timetable/')) return;
   // sw.js ปล่อยวิ่งตรงไปเน็ตเสมอ หน้าเว็บอ่านเลขเวอร์ชันล่าสุดจากไฟล์นี้ ถ้าตอบจากแคชจะได้เลขเก่าของตัวเอง
   if (url.pathname.endsWith('/sw.js')) return;
   // รายชื่อไฟล์เสียงคู่มือ: เอาของใหม่จากเน็ตก่อน ออฟไลน์ค่อยใช้ในแคช

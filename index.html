@@ -3133,7 +3133,10 @@ const TAB_SECTIONS = [
   { label: 'งานประจำวัน', tabs: ['dashboard', 'attendance', 'exchange', 'activities'] },
   { label: 'คะแนนและ ปพ.5', tabs: ['scores', 'items', 'indicators', 'groups', 'assess', 'summary'] },
   { label: 'ข้อมูลโรงเรียน', tabs: ['students', 'schedule', 'personal', 'settings'] },
-  { label: 'บริหารและอนุมัติ', tabs: ['head', 'executive', 'leaves', 'affairs', 'academic', 'admin'] }
+  /* แยกตามฝ่ายงานของโรงเรียน ครูหาเมนูของฝ่ายตัวเองได้ทันที — หมวดที่บทบาทนั้นไม่มีหน้าให้เข้าจะถูกซ่อนเอง */
+  { label: 'งานบริหาร', tabs: ['head', 'executive', 'leaves', 'admin'] },
+  { label: 'งานวิชาการ', tabs: ['academic'] },
+  { label: 'งานกิจการนักเรียน', tabs: ['affairs'] }
 ];
 
 /* งานหลักของแต่ละบทบาท ใช้จัดปุ่มบนแถบล่างของมือถือ */
@@ -3148,6 +3151,8 @@ const PRIMARY_TABS = { teacher: ['dashboard', 'attendance', 'scores', 'exchange'
 const PINNED_TABS = ['dashboard', 'attendance', 'scores', 'groups'];
 const isPinnedTab = (tab, mode) => PINNED_TABS.indexOf(tab) >= 0 || (mode !== 'teacher' && tab === homeTabOfRole(mode));
 /* ทุกหน้าที่บทบาทนี้เข้าได้ (รวมที่อยู่ในเมนู) */
+const canOpenTimetableStudio = () => ['admin', 'academic'].includes(DB.ui.staffMode || 'teacher');
+const openTimetableStudio = () => window.open('./timetable/', '_blank', 'noopener');
 const allowedTabs = () => $$('#tabs button').map(b => b.dataset.tab).filter(t => canSeeTab(t, DB.ui.staffMode || 'teacher'));
 const visibleTabButtons = () => $$('#tabs button').filter(b => allowedTabs().indexOf(b.dataset.tab) >= 0);
 
@@ -3197,6 +3202,9 @@ function openTabSheet() {
       /* ลิงก์แอปจองคิว DPA ไว้ในหมวดข้อมูลโรงเรียนต่อจากตารางสอน ให้ครูเห็นพร้อมเมนูหลักโดยไม่ต้องหาในแถบเครื่องมือ
          แอปอยู่โดเมนเดียวกัน (boydzii.github.io) ใช้ Firebase ชุดเดียวกัน จึงใช้การเข้าสู่ระบบเดียวกับ KruSpace ไม่ต้องล็อกอินซ้ำ */
       const extra = { 'ข้อมูลโรงเรียน': '<button data-sheet-act="dpabook"><span class="ts-ico">📅</span>จองคิว DPA</button>' };
+      /* แอปจัดตารางสอน (./timetable/) แยกไฟล์ไว้ ไม่ให้ index.html ที่ครูทุกคนโหลดโตขึ้น — โดเมนเดียวกันจึงใช้การเข้าสู่ระบบร่วมกัน
+         ให้เฉพาะแอดมินกับฝ่ายวิชาการ เพราะเป็นงานจัดตารางของทั้งโรงเรียน */
+      if (canOpenTimetableStudio()) extra['งานวิชาการ'] = '<button data-sheet-act="timetable"><span class="ts-ico">▦</span>จัดตารางสอน</button>';
       if (left.length) groups.push({ label: 'อื่น ๆ', tabs: left });   // หน้าที่เพิ่มใหม่ยังไม่ได้จัดหมวด จะได้ไม่หายไปเงียบ ๆ
       return groups.filter(g => g.tabs.length || extra[g.label]).map(g =>
         '<div class="tabsheet-sec">' + esc(g.label) + '</div><div class="tabsheet-grid">' +
@@ -3225,6 +3233,7 @@ function openTabSheet() {
     if (act === 'guide') { window.open('./guide.html' + (DB.ui.staffMode === 'executive' ? '?mode=exec' : ''), '_blank', 'noopener'); return; }
     /* แอปจองคิว DPA/วิทยฐานะ เป็นแอปแยก (repo dpa-booking) ใช้บัญชี Google และรายชื่อครูชุดเดียวกัน เปิดแท็บใหม่ไม่ทิ้งงานที่ค้างอยู่ */
     if (act === 'dpabook') { window.open('https://boydzii.github.io/dpa-booking/', '_blank', 'noopener'); return; }
+    if (act === 'timetable') { openTimetableStudio(); return; }
     if (act === 'theme') { const t = $('#btnTheme'); if (t) t.click(); return; }
     if (act === 'promode') { toggleProMode(); return; }
     if (act === 'pullschool') return openTopPull();
@@ -3690,6 +3699,7 @@ const SEARCH_INDEX = [
   { t: 'เกณฑ์คะแนนพฤติกรรม', w: 'ตั้งค่า รายการพฤติกรรม', tab: 'affairs', pre: { affairsView: 'config' }, card: 'เกณฑ์คะแนน' },
   { t: 'ปฏิทินวิชาการ', w: 'ปฏิทิน วันหยุด วันสำคัญ กิจกรรม สอบ', tab: 'academic', pre: { academicView: 'calendar' } },
   { t: 'ติดตามการส่งคะแนน', w: 'ฝ่ายวิชาการ ส่ง ปพ.5 ความคืบหน้า', tab: 'academic', pre: { academicView: 'scores' } },
+  { t: 'จัดตารางสอน', w: 'จัดตาราง ตารางเรียน ตรวจชน ลากวาง ฝ่ายวิชาการ', roles: ['admin', 'academic'], act: () => openTimetableStudio() },
   { t: 'งานวิชาการตามรอบปี', w: 'ฝ่ายวิชาการ งานประจำปี O-NET ปพ.1', tab: 'academic', pre: { academicView: 'tasks' } },
   { t: 'ข้อมูลครูและสิทธิ์ใช้งาน', w: 'ครู บทบาท สิทธิ์ เพิ่มครู', tab: 'admin', pre: { adminSection: 'people' }, card: 'ข้อมูลครูและสิทธิ์' },
   { t: 'ครูที่ปรึกษาแยกรายห้อง', w: 'ครูประจำชั้น homeroom', tab: 'admin', pre: { adminSection: 'people' }, card: 'ครูที่ปรึกษาแยกรายห้อง' },
@@ -3719,7 +3729,7 @@ function globalSearchHits(q, ctx) {
   const mode = DB.ui.staffMode || 'teacher', words = q.split(/\s+/).filter(Boolean);
   const matches = hay => { hay = hay.toLowerCase(); return words.every(w => hay.includes(w)); };
   const groups = [];
-  const pages = SEARCH_INDEX.filter(e => (!e.tab || canSeeTab(e.tab, mode)) && matches(e.t + ' ' + (e.w || '') + ' ' + (e.tab ? tabLabelOf(e.tab) : ''))).slice(0, 8);
+  const pages = SEARCH_INDEX.filter(e => (!e.tab || canSeeTab(e.tab, mode)) && (!e.roles || e.roles.includes(mode)) && matches(e.t + ' ' + (e.w || '') + ' ' + (e.tab ? tabLabelOf(e.tab) : ''))).slice(0, 8);
   if (pages.length) groups.push({ title: 'หน้าและกล่องในแอป', items: pages.map(e => ({
     html: '<span class="gs-ico">' + (e.act ? '⚑' : '▸') + '</span><span class="gs-text"><b>' + esc(e.t) + '</b><span class="hint" style="display:block">' + esc(e.act ? 'เปิดหน้าต่าง' : tabLabelOf(e.tab)) + '</span></span><span class="spacer"></span><span class="gs-go">›</span>',
     run: () => goToSearchTarget(e) })) });
@@ -16874,12 +16884,13 @@ function renderAcademic() {
   const year = acalCurYear(), staff = isAcademicStaff(), offline = !(firebaseReady() && fbSignedIn()), waiting = academicPendingCount();
   pane.innerHTML = '<div class="card dash-hero"><div class="row" style="position:relative;z-index:1"><div><div class="hero-sub">ACADEMIC AFFAIRS</div>' +
       '<h1>' + (academicWatcher() ? 'ฝ่ายวิชาการ' : 'ปฏิทินวิชาการ') + '</h1><div class="hero-sub">ปฏิทินวิชาการ • การส่งผลการเรียน • งานตามรอบปี • ปีการศึกษา ' + esc(year) + '</div></div>' +
-      '<div class="spacer"></div>' + (staff ? '<button class="primary" id="acAdd">＋ เพิ่มกิจกรรม</button>' : '') + '</div></div>' +
+      '<div class="spacer"></div>' + (staff ? '<button id="acTimetable" style="margin-right:6px">▦ จัดตารางสอน</button>' : '') + (staff ? '<button class="primary" id="acAdd">＋ เพิ่มกิจกรรม</button>' : '') + '</div></div>' +
     (staff && offline ? '<div class="notice" style="margin-bottom:12px">ยังไม่ได้เข้าสู่ระบบด้วยบัญชีโรงเรียน สิ่งที่กรอกจะเก็บไว้ในเครื่องนี้ก่อน แล้วส่งขึ้นส่วนกลางเมื่อเข้าสู่ระบบ</div>' : '') +
     (staff && waiting && !offline ? '<div class="notice warn" style="margin-bottom:12px">มี ' + waiting + ' รายการที่ยังส่งขึ้นส่วนกลางไม่สำเร็จ <button class="sm" id="acRetry">ส่งอีกครั้ง</button></div>' : '') +
     (!staff ? '<div class="notice" style="margin-bottom:12px">ฝ่ายวิชาการเป็นผู้กรอกปฏิทินนี้ หน้านี้ดูได้อย่างเดียว</div>' : '') +
     (views.length > 1 ? '<div class="row affairs-views" style="gap:6px;margin-bottom:12px">' + views.map(v => '<button class="sm' + (v[0] === view ? ' primary' : '') + '" data-ac-view="' + v[0] + '">' + esc(v[1]) + '</button>').join('') + '</div>' : '') +
     '<div id="acBody"></div>';
+  const ttBtn = $('#acTimetable', pane); if (ttBtn) ttBtn.addEventListener('click', openTimetableStudio);
   const add = $('#acAdd', pane); if (add) add.addEventListener('click', () => openAcalEditor(null, { start: todayISO() }));
   const retry = $('#acRetry', pane); if (retry) retry.addEventListener('click', async () => { retry.disabled = true; await academicFlushAll(); renderAcademic(); });
   $$('[data-ac-view]', pane).forEach(b => b.addEventListener('click', () => { DB.ui.academicView = b.dataset.acView; save(); renderAcademic(); }));
