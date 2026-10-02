@@ -110,9 +110,12 @@ button.primary{background:var(--brand);color:var(--brand-ink);border-color:var(-
 /* ปุ่มทดลองใช้ส่งคะแนน SGS ใช้สีเหลืองให้แยกจากปุ่มเข้าสู่ระบบ (น้ำเงิน) ชัด ๆ ว่าเป็นทางเลือกรอง ตัวหนังสือเข้มคงที่เพราะพื้นเหลืองไม่เปลี่ยนตามโหมดมืด */
 button.sq-try{background:#f5c518;border-color:#dcae00;color:#3a2a00;font-weight:700}
 button.sq-try:hover{background:#ffd43b;border-color:#dcae00}
-.sq-try-card{margin-top:18px;padding-top:14px;border-top:1px dashed var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
-.sq-try-card:first-child{margin:0 0 14px;padding:0 0 14px;border-top:0;border-bottom:1px dashed var(--line)}
-.sq-try-text{flex:1 1 260px;font-size:13.5px;color:var(--muted);line-height:1.6}
+/* หน้าทางเข้า: ปุ่มทดลองใช้ลอยอยู่มุมขวาล่าง เหนือแถบท้ายพอดี — ไม่ใส่ไว้ในแถว flex ของแถบท้าย เพราะข้อความท้ายหน้ายาว
+   จอ 1280px ก็ตัดเป็นสองบรรทัดแล้ว ปุ่มจะถูกดันตกขอบจอ ส่วนจอแคบ (มือถือ) ให้กลับมาอยู่ในแถวเต็มความกว้างแทน ไม่ไปบังช่องนักเรียน */
+.gw-foot{position:relative}
+.gw-foot button.sq-try{position:absolute;right:max(clamp(16px,4vw,56px),env(safe-area-inset-right));bottom:calc(100% + 6px);z-index:3;padding:9px 18px;border-radius:999px;font-size:14px;box-shadow:0 6px 18px rgba(245,197,24,.28)}
+@media (max-width:720px){.gw-foot button.sq-try{position:static;width:100%;order:-1;margin-bottom:4px}}
+.gw-foot button.sq-try:focus-visible{outline:2px solid #fff;outline-offset:2px}
 .login-google-only{font-size:15px;color:var(--ink);line-height:1.7}
 button.primary:hover{filter:brightness(1.08)}
 button.danger{color:var(--bad);border-color:var(--line)}
@@ -11489,13 +11492,6 @@ function bindSgsQuick(host) {
   });
 }
 
-/** การ์ดชวนให้ลองใช้ — ในกล่องเข้าสู่ระบบครูวางไว้ล่างสุด เป็นทางเลือกรองต่อจากปุ่ม Google
-    ถ้าเป็นลูกแรกของกล่อง (กล่องสร้างผู้ดูแลคนแรก) CSS :first-child จะย้ายเส้นคั่นไปไว้ด้านล่างแทน */
-const sgsQuickEntryHtml = () =>
-  '<div class="sq-try-card"><div class="sq-try-text"><b>รวมคะแนนไว้ใน Excel แล้ว?</b> ' +
-  'ลองใช้แค่ตัวช่วยส่งคะแนนเข้า SGS ไม่ต้องเข้าสู่ระบบ ไม่ยุ่งกับฐานข้อมูลกลาง</div>' +
-  '<button class="sq-try" data-sq-open>ทดลองใช้งาน — ส่งคะแนนเข้า SGS อย่างเดียว</button></div>';
-
 /* ผูกที่เอกสารครั้งเดียว ปุ่มจึงไปโผล่ในกล่องไหนก็ได้โดยไม่ต้องไปแก้ onMount ของกล่องนั้น
    ปิดกล่องด้วยการกดปุ่มปิดของมันเอง เพื่อให้การปลดล็อกการเลื่อนหน้าทำงานตามปกติ */
 document.addEventListener('click', e => {
@@ -19609,7 +19605,9 @@ function showRoleGateway() {
     '<footer class="gw-foot"><span class="keys"><kbd>←</kbd> <kbd>→</kbd> เลือก • <kbd>Enter</kbd> เข้าสู่ระบบ</span>' +
       '<span class="touch">แตะช่องเพื่อเลือก • แตะอีกครั้งเพื่อเข้าสู่ระบบ</span>' +
       '<span>ข้อมูลนักเรียนเป็นข้อมูลส่วนบุคคล ควรเข้าใช้ด้วยบัญชีของตนเองและออกจากระบบทุกครั้ง</span>' +
-      '<span class="gw-store">KruSpace • ' + esc(storageText) + '</span></footer>';
+      '<span class="gw-store">KruSpace • ' + esc(storageText) + '</span>' +
+      /* ทางเข้าโหมดทดลองส่งคะแนน SGS อยู่หน้าแรกเลย ครูที่ยังไม่อยากเข้าระบบไม่ต้องกดเข้าช่องครูก่อน — คลิกจับด้วยตัวฟัง [data-sq-open] ที่ผูกไว้กับเอกสาร */
+      '<button type="button" class="sq-try" data-sq-open title="ไม่ต้องเข้าสู่ระบบ ไม่ยุ่งกับฐานข้อมูลกลาง">ทดลองใช้งาน — ส่งคะแนนเข้า SGS</button></footer>';
   bindGatewayStage(gateway);
 }
 
@@ -19668,7 +19666,7 @@ function bindGatewayStage(gateway) {
   $('.gw-stage', gateway).addEventListener('mouseleave', () => { if (canHover()) pick(-1); });
   gateway.gwKeys = e => {
     if (gateway.hidden || modalStack.length) return;
-    if (e.target.closest && e.target.closest('.gw-help')) return;   // Enter บนปุ่มคู่มือ ให้เปิดคู่มือ ไม่ใช่เข้าช่องที่เลือก
+    if (e.target.closest && e.target.closest('.gw-help, [data-sq-open]')) return;   // Enter บนปุ่มคู่มือ/ปุ่มทดลองใช้ ให้ทำงานของปุ่มนั้น ไม่ใช่เข้าช่องที่เลือก
     if (e.key === 'ArrowRight') { e.preventDefault(); pick((cur + 1) % slots.length); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); pick((cur + slots.length - 1) % slots.length); }
     else if ((e.key === 'Enter' || e.key === ' ') && cur >= 0) { e.preventDefault(); enter(cur); }
@@ -19686,7 +19684,7 @@ function completeStaffLogin(teacher, gateRole) {
 }
 
 function openBootstrapAdmin() {
-  openModal({ title: 'สร้างผู้ดูแลระบบคนแรก', bodyHTML: sgsQuickEntryHtml() + '<div class="notice">ยังไม่มีบัญชีบุคลากร กรุณาสร้างผู้ดูแลระบบเริ่มต้นก่อน แล้วจึงนำเข้าข้อมูลครูคนอื่นในหน้าหลังบ้าน</div><div class="grid2" style="margin-top:12px"><div class="pick"><label>ชื่อผู้ดูแลระบบ</label><input id="bootstrapAdminName" style="width:100%"></div><div class="pick"><label>อีเมล Gmail/โรงเรียน</label><input id="bootstrapAdminEmail" type="email" style="width:100%"></div></div>', buttons: [{ label: 'ยกเลิก' }, { label: 'สร้างและเข้าสู่ระบบ', cls: 'primary', act(close, root) { const name = $('#bootstrapAdminName', root).value.trim(), email = $('#bootstrapAdminEmail', root).value.trim(); if (!name || !email) return toast('กรุณากรอกชื่อและอีเมล', 'bad'); const teacher = { id: uid('teacher'), name: name, email: email, phone: '', homeroomClassId: '', roles: ['teacher', 'executive', 'admin'] }; DB.teachers.push(teacher); close(); completeStaffLogin(teacher, 'admin'); } }], onMount(root) { $('#bootstrapAdminName', root).focus(); } });
+  openModal({ title: 'สร้างผู้ดูแลระบบคนแรก', bodyHTML: '<div class="notice">ยังไม่มีบัญชีบุคลากร กรุณาสร้างผู้ดูแลระบบเริ่มต้นก่อน แล้วจึงนำเข้าข้อมูลครูคนอื่นในหน้าหลังบ้าน</div><div class="grid2" style="margin-top:12px"><div class="pick"><label>ชื่อผู้ดูแลระบบ</label><input id="bootstrapAdminName" style="width:100%"></div><div class="pick"><label>อีเมล Gmail/โรงเรียน</label><input id="bootstrapAdminEmail" type="email" style="width:100%"></div></div>', buttons: [{ label: 'ยกเลิก' }, { label: 'สร้างและเข้าสู่ระบบ', cls: 'primary', act(close, root) { const name = $('#bootstrapAdminName', root).value.trim(), email = $('#bootstrapAdminEmail', root).value.trim(); if (!name || !email) return toast('กรุณากรอกชื่อและอีเมล', 'bad'); const teacher = { id: uid('teacher'), name: name, email: email, phone: '', homeroomClassId: '', roles: ['teacher', 'executive', 'admin'] }; DB.teachers.push(teacher); close(); completeStaffLogin(teacher, 'admin'); } }], onMount(root) { $('#bootstrapAdminName', root).focus(); } });
 }
 
 function openStaffRoleLogin(role) {
@@ -19727,7 +19725,7 @@ function openStaffRoleLogin(role) {
       ? '<b>แนะนำ:</b> กด “เข้าสู่ระบบด้วย Google” แล้วเลือกบัญชีของโรงเรียน ระบบจะตรวจสิทธิ์จากฐานข้อมูลกลาง ใช้ได้ทั้งคอม มือถือ และไอแพด'
       : staffApiUrl()
       ? '<b>แนะนำ:</b> กด “เข้าสู่ระบบด้วยบัญชีโรงเรียน” ระบบจะตรวจสิทธิ์จากฐานข้อมูลกลาง ใช้ได้ทั้งคอม มือถือ และไอแพด'
-      : '<b>สำหรับการใช้งานจริง:</b> ควรตั้งค่าระบบบุคลากรกลางที่หน้าผู้ดูแลระบบก่อน ปุ่ม “เข้าใช้บนเครื่องนี้” ยังไม่ใช่การยืนยันตัวตนที่ปลอดภัย') + '</div>') + (role === 'teacher' ? sgsQuickEntryHtml() : ''), buttons: buttons });
+      : '<b>สำหรับการใช้งานจริง:</b> ควรตั้งค่าระบบบุคลากรกลางที่หน้าผู้ดูแลระบบก่อน ปุ่ม “เข้าใช้บนเครื่องนี้” ยังไม่ใช่การยืนยันตัวตนที่ปลอดภัย') + '</div>'), buttons: buttons });
 }
 
 function staffLogout() {
