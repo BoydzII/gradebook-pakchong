@@ -107,6 +107,13 @@ button:hover{border-color:var(--brand);transform:translateY(-1px)}
 /* ระหว่างสลับโหมดสี ให้ทุกอย่างเปลี่ยนทันที กันสีพื้นค้างค่าเดิมจนอ่านตัวหนังสือไม่ออก */
 html.theme-switching *,html.theme-switching *::before,html.theme-switching *::after{transition:none!important;animation:none!important}
 button.primary{background:var(--brand);color:var(--brand-ink);border-color:var(--brand);font-weight:600}
+/* ปุ่มทดลองใช้ส่งคะแนน SGS ใช้สีเหลืองให้แยกจากปุ่มเข้าสู่ระบบ (น้ำเงิน) ชัด ๆ ว่าเป็นทางเลือกรอง ตัวหนังสือเข้มคงที่เพราะพื้นเหลืองไม่เปลี่ยนตามโหมดมืด */
+button.sq-try{background:#f5c518;border-color:#dcae00;color:#3a2a00;font-weight:700}
+button.sq-try:hover{background:#ffd43b;border-color:#dcae00}
+.sq-try-card{margin-top:18px;padding-top:14px;border-top:1px dashed var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.sq-try-card:first-child{margin:0 0 14px;padding:0 0 14px;border-top:0;border-bottom:1px dashed var(--line)}
+.sq-try-text{flex:1 1 260px;font-size:13.5px;color:var(--muted);line-height:1.6}
+.login-google-only{font-size:15px;color:var(--ink);line-height:1.7}
 button.primary:hover{filter:brightness(1.08)}
 button.danger{color:var(--bad);border-color:var(--line)}
 button.danger:hover{border-color:var(--bad);background:var(--bad-bg)}
@@ -11482,12 +11489,12 @@ function bindSgsQuick(host) {
   });
 }
 
-/** การ์ดชวนให้ลองใช้ ใส่ไว้บนสุดของกล่องเข้าสู่ระบบครู แยกจากปุ่มเข้าสู่ระบบให้ชัด */
+/** การ์ดชวนให้ลองใช้ — ในกล่องเข้าสู่ระบบครูวางไว้ล่างสุด เป็นทางเลือกรองต่อจากปุ่ม Google
+    ถ้าเป็นลูกแรกของกล่อง (กล่องสร้างผู้ดูแลคนแรก) CSS :first-child จะย้ายเส้นคั่นไปไว้ด้านล่างแทน */
 const sgsQuickEntryHtml = () =>
-  '<div class="notice ok" style="margin:0 0 14px"><b>ยังไม่อยากกรอกข้อมูลทั้งระบบ?</b> ' +
-  'ถ้ารวมคะแนนไว้ใน Excel อยู่แล้ว และอยากได้แค่ตัวช่วยกรอกคะแนนลง SGS' +
-  '<div class="row" style="margin-top:9px"><button class="primary" data-sq-open>ทดลองใช้งาน — ส่งคะแนนเข้า SGS อย่างเดียว</button></div>' +
-  '<div class="hint" style="margin-top:6px">ไม่ต้องเข้าสู่ระบบ ไม่ยุ่งกับฐานข้อมูลกลาง วางรายชื่อกับคะแนนแล้วส่งเข้า SGS ของจริงได้เลย</div></div>';
+  '<div class="sq-try-card"><div class="sq-try-text"><b>รวมคะแนนไว้ใน Excel แล้ว?</b> ' +
+  'ลองใช้แค่ตัวช่วยส่งคะแนนเข้า SGS ไม่ต้องเข้าสู่ระบบ ไม่ยุ่งกับฐานข้อมูลกลาง</div>' +
+  '<button class="sq-try" data-sq-open>ทดลองใช้งาน — ส่งคะแนนเข้า SGS อย่างเดียว</button></div>';
 
 /* ผูกที่เอกสารครั้งเดียว ปุ่มจึงไปโผล่ในกล่องไหนก็ได้โดยไม่ต้องไปแก้ onMount ของกล่องนั้น
    ปิดกล่องด้วยการกดปุ่มปิดของมันเอง เพื่อให้การปลดล็อกการเลื่อนหน้าทำงานตามปกติ */
@@ -19689,6 +19696,9 @@ function openStaffRoleLogin(role) {
   if (!profiles.length && (role === 'admin' || role === 'teacher') && !DB.teachers.length && !firebaseConfigured() && !staffApiUrl()) return openBootstrapAdmin();
   const profileOptions = profiles.map(t => '<option value="' + t.id + '">' + esc(t.name || t.email || 'ไม่ระบุชื่อ') + (t.email ? ' • ' + esc(t.email) : '') + '</option>').join('');
   const buttons = [{ label: 'ยกเลิก' }];
+  /* มีฐานข้อมูลกลาง (Firebase) แล้ว ให้เหลือทางเดียวคือ Google — ทางอื่น (โปรไฟล์ในเครื่อง, Apps Script, Google เฉพาะเครื่อง)
+     ทำให้ครูสับสนและข้ามการตรวจสิทธิ์จากส่วนกลางได้ เก็บไว้เฉพาะเครื่องที่ยังไม่ได้ตั้ง Firebase ไม่งั้นจะไม่มีทางเข้าเลย */
+  const legacy = !firebaseConfigured();
   if (firebaseConfigured()) buttons.push({ label: 'เข้าสู่ระบบด้วย Google', cls: 'primary', async act(close) {
     try {
       const r = await firebaseSignIn();
@@ -19703,21 +19713,21 @@ function openStaffRoleLogin(role) {
       close(); completeStaffLogin(r.teacher, role);
     } catch (e) { toast(fbErrorMessage(e), 'bad'); }
   } });
-  if (staffApiUrl()) buttons.push({ label: 'เข้าสู่ระบบด้วยบัญชีโรงเรียน (Apps Script)', async act(close) {
+  if (legacy && staffApiUrl()) buttons.push({ label: 'เข้าสู่ระบบด้วยบัญชีโรงเรียน (Apps Script)', async act(close) {
     try {
       const r = await loginWithCentralStaff(role);
       if (!gatewayModeOf(r.teacher, role)) return toast('บัญชีนี้ไม่มีสิทธิ์ ' + roleLabel(role), 'bad');
       close(); completeStaffLogin(r.teacher, role);
     } catch (e) { toast(e.message, 'bad'); }
   } });
-  if (DB.cloud && DB.cloud.clientId) buttons.push({ label: 'เข้าสู่ระบบด้วย Google (เฉพาะเครื่องนี้)', async act(close) { try { await googleLogin(); const email = String(DB.cloud.accountEmail || '').toLowerCase(), matched = DB.teachers.find(t => String(t.email || '').toLowerCase() === email); if (!matched) return toast('อีเมลนี้ยังไม่มีในฐานข้อมูลบุคลากร', 'bad'); if (!gatewayModeOf(matched, role)) return toast('บัญชีนี้ไม่มีสิทธิ์ ' + roleLabel(role), 'bad'); close(); completeStaffLogin(matched, role); } catch (e) { toast('เข้าสู่ระบบ Google ไม่สำเร็จ: ' + e.message, 'bad'); } } });
-  if (profiles.length) buttons.push({ label: 'เข้าใช้บนเครื่องนี้', act(close, root) { const teacher = DB.teachers.find(t => t.id === $('#staffLocalProfile', root).value); if (!teacher) return toast('กรุณาเลือกโปรไฟล์', 'bad'); close(); completeStaffLogin(teacher, role); } });
-  openModal({ title: 'เข้าสู่ระบบ' + roleLabel(role), bodyHTML: (role === 'teacher' ? sgsQuickEntryHtml() : '') + (profiles.length ? '<div class="pick"><label>โปรไฟล์บุคลากรในเครื่องนี้</label><select id="staffLocalProfile" style="width:100%">' + profileOptions + '</select></div>' : (!DB.teachers.length && (firebaseConfigured() || staffApiUrl()) ? '<div class="notice">เครื่องนี้ยังไม่มีข้อมูลบุคลากร กดเข้าสู่ระบบด้วยบัญชีโรงเรียนเพื่อดึงสิทธิ์จากฐานข้อมูลกลาง</div>' : '<div class="notice bad">ยังไม่มีบุคลากรที่ได้รับสิทธิ์ ' + esc(roleLabel(role)) + ' กรุณาให้ผู้ดูแลระบบกำหนดสิทธิ์ก่อน</div>')) +
+  if (legacy && DB.cloud && DB.cloud.clientId) buttons.push({ label: 'เข้าสู่ระบบด้วย Google (เฉพาะเครื่องนี้)', async act(close) { try { await googleLogin(); const email = String(DB.cloud.accountEmail || '').toLowerCase(), matched = DB.teachers.find(t => String(t.email || '').toLowerCase() === email); if (!matched) return toast('อีเมลนี้ยังไม่มีในฐานข้อมูลบุคลากร', 'bad'); if (!gatewayModeOf(matched, role)) return toast('บัญชีนี้ไม่มีสิทธิ์ ' + roleLabel(role), 'bad'); close(); completeStaffLogin(matched, role); } catch (e) { toast('เข้าสู่ระบบ Google ไม่สำเร็จ: ' + e.message, 'bad'); } } });
+  if (legacy && profiles.length) buttons.push({ label: 'เข้าใช้บนเครื่องนี้', act(close, root) { const teacher = DB.teachers.find(t => t.id === $('#staffLocalProfile', root).value); if (!teacher) return toast('กรุณาเลือกโปรไฟล์', 'bad'); close(); completeStaffLogin(teacher, role); } });
+  openModal({ title: 'เข้าสู่ระบบ' + roleLabel(role), bodyHTML: (!legacy ? '<div class="login-google-only">กด <b>เข้าสู่ระบบด้วย Google</b> แล้วเลือกบัญชีของโรงเรียน</div>' : (profiles.length ? '<div class="pick"><label>โปรไฟล์บุคลากรในเครื่องนี้</label><select id="staffLocalProfile" style="width:100%">' + profileOptions + '</select></div>' : (!DB.teachers.length && (firebaseConfigured() || staffApiUrl()) ? '<div class="notice">เครื่องนี้ยังไม่มีข้อมูลบุคลากร กดเข้าสู่ระบบด้วยบัญชีโรงเรียนเพื่อดึงสิทธิ์จากฐานข้อมูลกลาง</div>' : '<div class="notice bad">ยังไม่มีบุคลากรที่ได้รับสิทธิ์ ' + esc(roleLabel(role)) + ' กรุณาให้ผู้ดูแลระบบกำหนดสิทธิ์ก่อน</div>')) +
     '<div class="portal-login-note" style="margin-top:12px">' + (firebaseConfigured()
       ? '<b>แนะนำ:</b> กด “เข้าสู่ระบบด้วย Google” แล้วเลือกบัญชีของโรงเรียน ระบบจะตรวจสิทธิ์จากฐานข้อมูลกลาง ใช้ได้ทั้งคอม มือถือ และไอแพด'
       : staffApiUrl()
       ? '<b>แนะนำ:</b> กด “เข้าสู่ระบบด้วยบัญชีโรงเรียน” ระบบจะตรวจสิทธิ์จากฐานข้อมูลกลาง ใช้ได้ทั้งคอม มือถือ และไอแพด'
-      : '<b>สำหรับการใช้งานจริง:</b> ควรตั้งค่าระบบบุคลากรกลางที่หน้าผู้ดูแลระบบก่อน ปุ่ม “เข้าใช้บนเครื่องนี้” ยังไม่ใช่การยืนยันตัวตนที่ปลอดภัย') + '</div>', buttons: buttons });
+      : '<b>สำหรับการใช้งานจริง:</b> ควรตั้งค่าระบบบุคลากรกลางที่หน้าผู้ดูแลระบบก่อน ปุ่ม “เข้าใช้บนเครื่องนี้” ยังไม่ใช่การยืนยันตัวตนที่ปลอดภัย') + '</div>') + (role === 'teacher' ? sgsQuickEntryHtml() : ''), buttons: buttons });
 }
 
 function staffLogout() {
