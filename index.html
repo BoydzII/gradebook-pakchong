@@ -123,6 +123,9 @@ button.sq-try:hover{background:#5a5666;border-color:#8a8696}
 @media (max-width:720px){.gw-actions{position:static;width:100%;order:-1;margin-bottom:4px}.gw-actions button{flex:1 1 0;padding:9px 10px;font-size:13.5px}}
 .lr-row{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line)}
 .lr-row .lr-who{flex:1 1 260px;line-height:1.6}
+.gw-inapp{flex:1 1 100%;order:-2;padding:10px 14px;border-radius:12px;background:#f5c518;color:#3a2a00;font-size:14px;line-height:1.6}
+.gw-inapp button{margin-left:6px;background:#3a2a00;color:#fff;border-color:#3a2a00}
+.gw-ver button[data-gw-update]{background:#d6202e;color:#fff;border-color:#d6202e;font-weight:700}
 .login-google-only{font-size:15px;color:var(--ink);line-height:1.7}
 button.primary:hover{filter:brightness(1.08)}
 button.danger{color:var(--bad);border-color:var(--line)}
@@ -18508,6 +18511,34 @@ function fbErrorMessage(e) {
    ("missing initial state ... storage-partitioned browser environment") — ตรวจด้วย isIOSDevice() ที่มีอยู่แล้ว */
 /* เบราว์เซอร์ในตัวแอปแชต — Google ไม่ยอมให้ลงชื่อเข้าใช้ในนี้เลย (disallowed_useragent) ต้องบอกให้เปิดใน Safari/Chrome */
 const inAppBrowserName = () => { const ua = navigator.userAgent; return / Line\//i.test(ua) ? 'LINE' : /FBAN|FBAV/.test(ua) ? 'Facebook' : /Instagram/.test(ua) ? 'Instagram' : ''; };
+/* เปิดจากแชต LINE: เติม openExternalBrowser=1 ให้ LINE ส่งต่อไปเบราว์เซอร์หลักของเครื่อง (ไอโฟน = Safari) เอง
+   ครูส่วนใหญ่กดลิงก์จากกลุ่ม LINE แล้วติดอยู่ในเบราว์เซอร์ของ LINE ซึ่ง Google ไม่ยอมให้เข้าสู่ระบบ
+   มีพารามิเตอร์อยู่แล้วแต่ยังอยู่ใน LINE = LINE ไม่ยอมเปิดออก ห้ามสั่งซ้ำ ไม่งั้นวนไม่จบ ให้หน้าแรกขึ้นแถบบอกวิธีแทน
+   คืนค่า URL ที่พาไป (หรือ '' ถ้าไม่พา) ไว้ให้ทดสอบได้โดยไม่ต้องเปลี่ยนหน้าจริง */
+function leaveLineBrowser(go) {
+  if (inAppBrowserName() !== 'LINE') return '';
+  const u = new URL(location.href);
+  if (u.searchParams.has('openExternalBrowser')) return '';
+  u.searchParams.set('openExternalBrowser', '1');
+  (go || (url => location.replace(url)))(u.href);
+  return u.href;
+}
+leaveLineBrowser();
+/** แถบเตือนบนหน้าแรกเมื่อยังเปิดอยู่ในแอปแชต — บอกวิธีออกไป Safari พร้อมปุ่มคัดลอกลิงก์ */
+function inAppNoticeHtml() {
+  const name = inAppBrowserName(); if (!name) return '';
+  return '<div class="gw-inapp" role="alert"><b>กำลังเปิดผ่าน ' + esc(name) + '</b> ซึ่งเข้าสู่ระบบ Google ไม่ได้ — ' +
+    'กด ⋯ มุมขวาบน แล้วเลือก “เปิดใน Safari” (แอนดรอยด์: “เปิดในเบราว์เซอร์”) หรือคัดลอกลิงก์ไปวางเอง ' +
+    '<button type="button" class="sm" data-copy-app-link>คัดลอกลิงก์</button></div>';
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-copy-app-link]'); if (!b) return;
+  const u = new URL(location.href); u.searchParams.delete('openExternalBrowser');
+  try { await navigator.clipboard.writeText(u.href); toast('คัดลอกลิงก์แล้ว นำไปวางในช่องที่อยู่ของ Safari', 'ok'); }
+  catch (err) { window.prompt('คัดลอกลิงก์นี้ไปวางใน Safari', u.href); }
+});
+/* ชื่อวิธีเข้าสู่ระบบล่าสุด ต่อท้ายข้อความผิดพลาด — ภาพหน้าจอจากครูจะบอกได้ทันทีว่าเครื่องนั้นใช้ทางไหน (เคยเดาผิดว่าเป็นแคชหรือเบราว์เซอร์) */
+let fbSignInMethod = '';
 
 /** iOS: ขอโทเคนจากบริการลงชื่อเข้าใช้ของ Google โดยตรง (หน้าต่างของ accounts.google.com ส่งผลกลับด้วย postMessage
     ซึ่ง iOS ไม่บล็อก) แล้วนำโทเคนไปยืนยันกับ Firebase — ต้องเรียกตรงจากการกดปุ่ม ห้ามมี await ก่อนหน้า ไม่งั้นหน้าต่างโดนบล็อก */
@@ -18532,7 +18563,8 @@ async function firebaseSignIn() {
   const inApp = inAppBrowserName();
   if (inApp) throw new Error('เปิดผ่าน ' + inApp + ' เข้าสู่ระบบ Google ไม่ได้ กด ⋯ แล้วเลือก "เปิดใน Safari" หรือเปิดในเบราว์เซอร์ก่อน');
   let cred;
-  if (isIOSDevice() && ((window.GRADEBOOK_CONFIG || {}).firebase || {}).webClientId) cred = await googleTokenSignIn();
+  fbSignInMethod = isIOSDevice() && ((window.GRADEBOOK_CONFIG || {}).firebase || {}).webClientId ? 'ios-gis' : 'popup';
+  if (fbSignInMethod === 'ios-gis') cred = await googleTokenSignIn();
   else {
     const provider = new firebase.auth.GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
@@ -19737,15 +19769,19 @@ function showRoleGateway() {
       /* ปุ่มคู่มือ (guide.html) — ยังไม่ต้องเข้าสู่ระบบก็เปิดดูได้ เลือกช่องผู้บริหารไว้จะพาไปโหมดผู้บริหาร (ดู bindGatewayStage) */
       '<a class="gw-help" href="./guide.html" target="_blank" rel="noopener" title="คู่มือการใช้งาน" aria-label="คู่มือการใช้งาน"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4.5h5.6a2.4 2.4 0 0 1 2.4 2.4v12.6a2.2 2.2 0 0 0-2.2-2.2H4z M20 4.5h-5.6a2.4 2.4 0 0 0-2.4 2.4v12.6a2.2 2.2 0 0 1 2.2-2.2H20z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></a></header>' +
     gatewayStageHtml() +
-    '<footer class="gw-foot"><span class="keys"><kbd>←</kbd> <kbd>→</kbd> เลือก • <kbd>Enter</kbd> เข้าสู่ระบบ</span>' +
+    '<footer class="gw-foot">' + inAppNoticeHtml() + '<span class="keys"><kbd>←</kbd> <kbd>→</kbd> เลือก • <kbd>Enter</kbd> เข้าสู่ระบบ</span>' +
       '<span class="touch">แตะช่องเพื่อเลือก • แตะอีกครั้งเพื่อเข้าสู่ระบบ</span>' +
       '<span>ข้อมูลนักเรียนเป็นข้อมูลส่วนบุคคล ควรเข้าใช้ด้วยบัญชีของตนเองและออกจากระบบทุกครั้ง</span>' +
       '<span class="gw-store">KruSpace • ' + esc(storageText) + '</span>' +
+      /* เลขเวอร์ชันและปุ่มอัปเดตต้องอยู่หน้าแรกด้วย — ปุ่มในแอปต้องเข้าสู่ระบบก่อน ครูที่ติดเวอร์ชันเก่าจนเข้าไม่ได้จึงไม่มีทางอัปเดตเอง */
+      '<span class="gw-ver"><span data-app-version></span> <button type="button" class="sm" data-gw-update hidden>อัปเดตแอป</button></span>' +
       /* ปุ่มที่ใช้ได้โดยไม่ต้องเข้าสู่ระบบอยู่หน้าแรกเลย — คลิกจับด้วยตัวฟัง [data-lr-open] / [data-sq-open] ที่ผูกไว้กับเอกสาร
          แจ้งเข้าสู่ระบบไม่ได้ = ครูที่ยังไม่มีชื่อในฐานข้อมูลบุคลากร ส่งชื่อ เบอร์ อีเมลให้แอดมินเพิ่ม (ดู openLoginRequest) */
       '<div class="gw-actions"><button type="button" class="lr-open" data-lr-open>แจ้งเข้าสู่ระบบไม่ได้</button>' +
       '<button type="button" class="sq-try" data-sq-open title="ไม่ต้องเข้าสู่ระบบ ไม่ยุ่งกับฐานข้อมูลกลาง">ทดลองใช้งาน — ส่งคะแนนเข้า SGS</button></div></footer>';
   bindGatewayStage(gateway);
+  /* เลื่อนไปรอบถัดไป: ตอนเปิดแอปหน้านี้อาจถูกวาดก่อนบรรทัดที่ประกาศ appVersionText (let) จะทำงาน เรียกตรง ๆ จะพังทั้งหน้า */
+  setTimeout(() => { renderAppVersionChips(); askAppVersion(); checkLatestVersion(); }, 0);
 }
 
 /* ---- หน้าทางเข้า: เลือกช่องทางเข้าแบบเลือกตัวละคร ----------------------------
@@ -19846,7 +19882,7 @@ function openStaffRoleLogin(role) {
       }
       startFirebaseSync();
       close(); completeStaffLogin(r.teacher, role);
-    } catch (e) { toast(fbErrorMessage(e), 'bad'); }
+    } catch (e) { toast(fbErrorMessage(e) + (fbSignInMethod ? ' [' + fbSignInMethod + ' • ' + (appVersionText || '?') + ']' : ''), 'bad'); }
   } });
   if (legacy && staffApiUrl()) buttons.push({ label: 'เข้าสู่ระบบด้วยบัญชีโรงเรียน (Apps Script)', async act(close) {
     try {
@@ -20700,6 +20736,7 @@ function renderAppVersionChips() {
   /* เขียว = เป็นเวอร์ชันล่าสุดแล้ว • แดง = บนเว็บมีเวอร์ชันใหม่กว่าที่ใช้อยู่ • ยังไม่รู้ = สีปกติ */
   const known = appVersionText && latestVersionText;
   const old = known && versionNum(latestVersionText) > versionNum(appVersionText);
+  $$('[data-gw-update]').forEach(btn => { if (btn.disabled) return; btn.hidden = !old; btn.textContent = '⟳ อัปเดตเป็น ' + latestVersionText; });
   $$('#sheetRefresh').forEach(btn => {
     if (btn.disabled) return;
     btn.classList.toggle('ver-ok', !!known && !old);
@@ -20709,6 +20746,7 @@ function renderAppVersionChips() {
   });
 }
 
+document.addEventListener('click', e => { const b = e.target.closest('[data-gw-update]'); if (b) forceAppRefresh(b); });
 async function forceAppRefresh(btn) {
   if (btn) { btn.disabled = true; btn.textContent = 'กำลังตรวจ...'; }
   let updated = false;
