@@ -18503,11 +18503,41 @@ function fbErrorMessage(e) {
 }
 
 /** เข้าสู่ระบบด้วย Google แล้วตรวจว่ามีชื่อในคอลเลกชัน staff หรือไม่ */
+/* iOS (ไอโฟน ไอแพด รวมไอแพดที่แอบอ้างเป็น Mac) — Safari และ Chrome บน iOS แยกที่เก็บข้อมูลแต่ละเว็บ
+   หน้าต่างเข้าสู่ระบบของ firebaseapp.com ซึ่งคนละเว็บกับแอป จึงส่งผลกลับไม่ได้ ค้างเป็นจอขาว
+   ("missing initial state ... storage-partitioned browser environment") — ตรวจด้วย isIOSDevice() ที่มีอยู่แล้ว */
+/* เบราว์เซอร์ในตัวแอปแชต — Google ไม่ยอมให้ลงชื่อเข้าใช้ในนี้เลย (disallowed_useragent) ต้องบอกให้เปิดใน Safari/Chrome */
+const inAppBrowserName = () => { const ua = navigator.userAgent; return / Line\//i.test(ua) ? 'LINE' : /FBAN|FBAV/.test(ua) ? 'Facebook' : /Instagram/.test(ua) ? 'Instagram' : ''; };
+
+/** iOS: ขอโทเคนจากบริการลงชื่อเข้าใช้ของ Google โดยตรง (หน้าต่างของ accounts.google.com ส่งผลกลับด้วย postMessage
+    ซึ่ง iOS ไม่บล็อก) แล้วนำโทเคนไปยืนยันกับ Firebase — ต้องเรียกตรงจากการกดปุ่ม ห้ามมี await ก่อนหน้า ไม่งั้นหน้าต่างโดนบล็อก */
+function googleTokenSignIn() {
+  const clientId = ((window.GRADEBOOK_CONFIG || {}).firebase || {}).webClientId;
+  if (!clientId) return Promise.reject(new Error('ยังไม่ได้ตั้ง webClientId ในไฟล์ config.js'));
+  if (!window.google || !google.accounts || !google.accounts.oauth2) return Promise.reject(new Error('ยังโหลดบริการ Google ไม่เสร็จ กรุณารอสักครู่แล้วลองใหม่'));
+  return new Promise((resolve, reject) => {
+    google.accounts.oauth2.initTokenClient({
+      client_id: clientId, scope: 'openid email profile', prompt: 'select_account',
+      callback(resp) {
+        if (!resp || !resp.access_token) return reject(new Error((resp && (resp.error_description || resp.error)) || 'Google ไม่อนุญาตการเข้าถึง'));
+        fbAuth.signInWithCredential(firebase.auth.GoogleAuthProvider.credential(null, resp.access_token)).then(resolve, reject);
+      },
+      error_callback(err) { reject(new Error(err && err.type === 'popup_closed' ? 'ปิดหน้าต่างลงชื่อเข้าใช้ก่อนเลือกบัญชี' : 'เปิดหน้าลงชื่อเข้าใช้ Google ไม่สำเร็จ กรุณาอนุญาตป๊อปอัปแล้วลองใหม่')); }
+    }).requestAccessToken();
+  });
+}
+
 async function firebaseSignIn() {
   if (!initFirebase()) throw new Error('ยังไม่ได้ตั้งค่า Firebase ในไฟล์ config.js');
-  const provider = new firebase.auth.GoogleAuthProvider();
-  provider.setCustomParameters({ prompt: 'select_account' });
-  const cred = await fbAuth.signInWithPopup(provider);
+  const inApp = inAppBrowserName();
+  if (inApp) throw new Error('เปิดผ่าน ' + inApp + ' เข้าสู่ระบบ Google ไม่ได้ กด ⋯ แล้วเลือก "เปิดใน Safari" หรือเปิดในเบราว์เซอร์ก่อน');
+  let cred;
+  if (isIOSDevice() && ((window.GRADEBOOK_CONFIG || {}).firebase || {}).webClientId) cred = await googleTokenSignIn();
+  else {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    cred = await fbAuth.signInWithPopup(provider);
+  }
   const email = String((cred.user || {}).email || '').toLowerCase();
   if (!email) { await fbAuth.signOut(); throw new Error('บัญชีนี้ไม่มีอีเมล'); }
   let staff = null;
