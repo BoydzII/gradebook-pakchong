@@ -17680,6 +17680,14 @@ function mergeCentralStaff(list) {
     const cls = DB.classes.find(c => c.name === (item.homeroom || t.homeroomName));
     if (cls) t.homeroomClassId = cls.id;
   });
+  /* ล้างครูผีที่ได้มาจากเอกสาร t_อีเมล — อีเมลของมันคือรหัสครูของอีกคนในเครื่อง ไม่ใช่อีเมลจริง */
+  const echoes = new Set(DB.teachers.filter(t => String(t.email || '').trim()).map(t => canonicalTeacherId(t)));
+  const ghosts = DB.teachers.filter(t => echoes.has(String(t.email || '').trim().toLowerCase()));
+  if (ghosts.length) {
+    const gone = new Set(ghosts.map(t => t.id));
+    DB.teachers = DB.teachers.filter(t => !gone.has(t.id));
+    if (gone.has(DB.ui.teacherId)) DB.ui.teacherId = (DB.teachers.find(t => String(t.email || '').toLowerCase() === String(DB.cloud.accountEmail || '').toLowerCase()) || DB.teachers[0] || {}).id || null;
+  }
   // รับรหัสเก่าจากส่วนกลางมาเก็บไว้ก่อน แล้วค่อยจัดรหัสในเครื่องให้เป็นแบบเดียวกัน
   rememberTeacherIdMap(teacherIdMapFromCentral(list));
   normalizeTeacherIds();
@@ -18322,6 +18330,8 @@ const fbStaffKey = t => String((t || {}).email || '').trim() ? fbStaffId(t.email
 const fbIsNoEmailKey = id => String(id || '').indexOf('noemail_') === 0;
 const fbHasStaffIdentity = t => !!(String((t || {}).email || '').trim() || String((t || {}).name || '').trim());
 const fbStaffItem = (d, data) => Object.assign({ email: fbIsNoEmailKey(d.id) ? '' : d.id }, data === undefined ? d.data() : data);
+/** เอกสารผีจากบั๊กบันทึกเวลาเข้าใช้ (ดู fbFindStaff) — รหัสขึ้นต้น t_ และมีแค่ uid/lastLogin ไม่มีชื่อ อีเมล หรือบทบาท */
+const fbIsStrayStaffDoc = d => { const x = d.data() || {}; return /^t_/.test(d.id) && !x.name && !x.email && !(Array.isArray(x.roles) && x.roles.length); };
 
 /** เอกสารกลางที่เก็บข้อมูลชุดเล็กซึ่งใช้ร่วมกันทั้งโรงเรียน */
 const FB_SHARED_DOCS = [
@@ -18348,7 +18358,10 @@ function initFirebase() {
 /** ค้นหาบุคลากรจากอีเมล — ใช้อีเมลเป็นรหัสเอกสารเพื่อค้นเร็วและกันชื่อซ้ำ */
 async function fbFindStaff(email) {
   const snap = await fbDb.collection('staff').doc(fbStaffId(email)).get();
-  return snap.exists ? Object.assign({ id: snap.id, email: email }, snap.data()) : null;
+  /* ในเอกสารมีช่อง id ซึ่งเป็นรหัสครู (t_อีเมล) ไม่ใช่รหัสเอกสาร จึงเก็บรหัสเอกสารแยกไว้ที่ docId
+     เดิมช่อง id ทับรหัสเอกสาร การบันทึกเวลาเข้าใช้จึงไปสร้างเอกสาร "t_อีเมล" ใหม่ทุกครั้งที่แอดมินเข้าระบบ
+     (ครูทั่วไปสร้างเอกสารใหม่ไม่ได้ตามกฎ จึงเกิดเฉพาะแอดมิน) แล้วโผล่เป็นครูชื่อ t_อีเมล ลบเท่าไรก็กลับมา */
+  return snap.exists ? Object.assign({ id: snap.id }, snap.data(), { docId: snap.id, email: email }) : null;
 }
 
 /** แปลงรหัสข้อผิดพลาดของ Firebase เป็นคำอธิบายที่บอกวิธีแก้ได้ทันที */
@@ -18385,7 +18398,7 @@ async function firebaseSignIn() {
   if (!staff) { await fbAuth.signOut(); throw new Error('อีเมล ' + email + ' ยังไม่มีในระบบ กรุณาให้ผู้ดูแลระบบเพิ่มชื่อก่อน'); }
   if (staff.active === false) { await fbAuth.signOut(); throw new Error('บัญชีนี้ถูกปิดการใช้งาน'); }
   fbUser = cred.user;
-  try { await fbDb.collection('staff').doc(staff.id).set({ uid: cred.user.uid, lastLogin: new Date().toISOString() }, { merge: true }); }
+  try { await fbDb.collection('staff').doc(staff.docId || fbStaffId(email)).set({ uid: cred.user.uid, lastLogin: new Date().toISOString() }, { merge: true }); }
   catch (e) { /* บันทึกเวลาเข้าใช้ไม่สำเร็จ ไม่ขวางการเข้าระบบ */ }
   mergeCentralStaff([staff]);
   const me = DB.teachers.find(t => String(t.email || '').toLowerCase() === email);
@@ -18496,7 +18509,10 @@ function startFirebaseSync() {
   const quiet = () => {};
 
   fbUnsub.push(fbDb.collection('staff').onSnapshot(snap => apply(() => {
-    const list = snap.docs.map(d => fbStaffItem(d)).filter(s => s.active !== false);
+    const stray = snap.docs.filter(fbIsStrayStaffDoc);
+    // แอดมินลบเอกสารผีทิ้งจากส่วนกลาง (กฎให้แอดมินลบได้) ครูทั่วไปแค่ข้ามไป
+    if (stray.length && teacherHasRole(curTeacher(), 'admin')) stray.forEach(d => d.ref.delete().catch(() => {}));
+    const list = snap.docs.filter(d => !fbIsStrayStaffDoc(d)).map(d => fbStaffItem(d)).filter(s => s.active !== false);
     mergeCentralStaff(list); save(true); renderTop();
   }), quiet));
 
@@ -19248,7 +19264,7 @@ async function pullSchoolData() {
   try {
     await step('บุคลากร', async () => {
       const snap = await fromServer(fbDb.collection('staff'));
-      const list = snap.docs.map(d => fbStaffItem(d, fbDecodeNested(d.data()))).filter(x => x.active !== false);
+      const list = snap.docs.filter(d => !fbIsStrayStaffDoc(d)).map(d => fbStaffItem(d, fbDecodeNested(d.data()))).filter(x => x.active !== false);
       mergeCentralStaff(list);
       return list.length + ' คน';
     });
