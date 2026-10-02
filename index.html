@@ -107,15 +107,22 @@ button:hover{border-color:var(--brand);transform:translateY(-1px)}
 /* ระหว่างสลับโหมดสี ให้ทุกอย่างเปลี่ยนทันที กันสีพื้นค้างค่าเดิมจนอ่านตัวหนังสือไม่ออก */
 html.theme-switching *,html.theme-switching *::before,html.theme-switching *::after{transition:none!important;animation:none!important}
 button.primary{background:var(--brand);color:var(--brand-ink);border-color:var(--brand);font-weight:600}
-/* ปุ่มทดลองใช้ส่งคะแนน SGS ใช้สีเหลืองให้แยกจากปุ่มเข้าสู่ระบบ (น้ำเงิน) ชัด ๆ ว่าเป็นทางเลือกรอง ตัวหนังสือเข้มคงที่เพราะพื้นเหลืองไม่เปลี่ยนตามโหมดมืด */
-button.sq-try{background:#f5c518;border-color:#dcae00;color:#3a2a00;font-weight:700}
-button.sq-try:hover{background:#ffd43b;border-color:#dcae00}
-/* หน้าทางเข้า: ปุ่มทดลองใช้ลอยอยู่มุมขวาล่าง เหนือแถบท้ายพอดี — ไม่ใส่ไว้ในแถว flex ของแถบท้าย เพราะข้อความท้ายหน้ายาว
+/* ปุ่มแจ้งเข้าสู่ระบบไม่ได้ = สีเหลือง (เรื่องที่ต้องให้แอดมินรู้) ส่วนทดลองใช้ SGS = สีเทา (ทางเลือกรอง)
+   ตัวหนังสือบนพื้นเหลืองใช้สีเข้มคงที่ เพราะพื้นเหลืองไม่เปลี่ยนตามโหมดมืด ปุ่มเทาอยู่บนพื้นหน้าทางเข้าซึ่งมืดเสมอ */
+button.lr-open{background:#f5c518;border-color:#dcae00;color:#3a2a00;font-weight:700}
+button.lr-open:hover{background:#ffd43b;border-color:#dcae00}
+button.sq-try{background:#4a4654;border-color:#6a6676;color:#f1eef6;font-weight:600}
+button.sq-try:hover{background:#5a5666;border-color:#8a8696}
+/* หน้าทางเข้า: ปุ่มทั้งสองลอยอยู่มุมขวาล่าง เหนือแถบท้ายพอดี — ไม่ใส่ไว้ในแถว flex ของแถบท้าย เพราะข้อความท้ายหน้ายาว
    จอ 1280px ก็ตัดเป็นสองบรรทัดแล้ว ปุ่มจะถูกดันตกขอบจอ ส่วนจอแคบ (มือถือ) ให้กลับมาอยู่ในแถวเต็มความกว้างแทน ไม่ไปบังช่องนักเรียน */
 .gw-foot{position:relative}
-.gw-foot button.sq-try{position:absolute;right:max(clamp(16px,4vw,56px),env(safe-area-inset-right));bottom:calc(100% + 6px);z-index:3;padding:9px 18px;border-radius:999px;font-size:14px;box-shadow:0 6px 18px rgba(245,197,24,.28)}
-@media (max-width:720px){.gw-foot button.sq-try{position:static;width:100%;order:-1;margin-bottom:4px}}
-.gw-foot button.sq-try:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.gw-actions{position:absolute;right:max(clamp(16px,4vw,56px),env(safe-area-inset-right));bottom:calc(100% + 6px);z-index:3;display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.gw-actions button{padding:9px 18px;border-radius:999px;font-size:14px}
+.gw-actions button.lr-open{box-shadow:0 6px 18px rgba(245,197,24,.28)}
+.gw-actions button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+@media (max-width:720px){.gw-actions{position:static;width:100%;order:-1;margin-bottom:4px}.gw-actions button{flex:1 1 0;padding:9px 10px;font-size:13.5px}}
+.lr-row{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line)}
+.lr-row .lr-who{flex:1 1 260px;line-height:1.6}
 .login-google-only{font-size:15px;color:var(--ink);line-height:1.7}
 button.primary:hover{filter:brightness(1.08)}
 button.danger{color:var(--bad);border-color:var(--line)}
@@ -1712,7 +1719,7 @@ tr.conduct-void td{opacity:.55}tr.conduct-void td b{text-decoration:line-through
   <button data-tab="leaves">การลาและการอนุมัติ <span id="leaveBadge"></span></button>
   <button data-tab="affairs">กิจการนักเรียน</button>
   <button data-tab="academic">ฝ่ายวิชาการ / ปฏิทินวิชาการ</button>
-  <button data-tab="admin">ผู้ดูแลระบบ</button>
+  <button data-tab="admin">ผู้ดูแลระบบ <span id="loginReqBadge"></span></button>
 </nav>
 <button class="sm tabs-bell" id="tabsBell" hidden title="การแจ้งเตือน"><span class="bell-ico">🔔</span><span class="bell-n" id="tabsBellCount"></span></button>
 <button class="sm tabs-more-btn" id="tabsMore" aria-haspopup="dialog" title="หน้าอื่นทั้งหมด" aria-label="หน้าอื่นทั้งหมด">☰</button>
@@ -3090,6 +3097,8 @@ function renderTop() {
     const waiting = (DB.timetable.leaveRequests || []).filter(l => (l.approval || {}).status === 'submitted').length;
     leaveBadge.innerHTML = waiting ? '<span class="badge warn">' + waiting + '</span>' : '';
   }
+  const lrBadge = $('#loginReqBadge');
+  if (lrBadge) lrBadge.innerHTML = loginReqLive.length ? '<span class="badge warn" title="ครูแจ้งเข้าสู่ระบบไม่ได้">' + loginReqLive.length + '</span>' : '';
   const headBadge = $('#headBadge');
   if (headBadge) {
     const area = teacherArea(activeTeacher);
@@ -11502,6 +11511,97 @@ document.addEventListener('click', e => {
   openSgsQuick();
 });
 
+/* ---- แจ้งเข้าสู่ระบบไม่ได้ -----------------------------------------------------
+   ครูที่ยังไม่มีชื่อในคอลเลกชัน staff กด Google แล้วเข้าไม่ได้ และเพราะยังไม่ได้เข้าสู่ระบบ จึงส่งอะไรหาแอดมินไม่ได้เลย
+   ฟอร์มนี้เขียนลงคอลเลกชัน loginRequests ซึ่งกฎเปิดให้ "สร้าง" ได้โดยไม่ต้องล็อกอิน แต่ตรวจรูปแบบทุกช่องเข้ม
+   รหัสเอกสาร = อีเมล (แบบเดียวกับ staff) คนเดิมส่งซ้ำก็แค่แก้ฉบับเดิม ไม่ท่วมแอดมิน
+   อ่าน/ลบได้เฉพาะแอดมิน ซึ่งเห็นเป็นตัวเลขบนแท็บผู้ดูแลระบบ และเป็นรายการในหน้าบุคลากรและสิทธิ์ */
+var loginReqLive = [], loginReqSeen = -1;   // var ไม่ใช่ let: renderTop อ่านค่านี้ และอาจถูกเรียกก่อนบรรทัดนี้ทำงานตอนเปิดแอป
+const LR_EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+document.addEventListener('click', e => {
+  if (e.target.closest('[data-lr-open]')) openLoginRequest();
+});
+
+function openLoginRequest() {
+  /* ถ้าเพิ่งกด Google แล้วถูกปฏิเสธ บัญชีที่เลือกอาจยังค้างอยู่ใน fbAuth เติมอีเมลให้เลย จะได้ตรงกับที่ใช้จริง */
+  const u = fbAuth && fbAuth.currentUser, preEmail = u && !u.isAnonymous ? String(u.email || '') : '';
+  const input = (id, label, type, ph, val) => '<div class="pick" style="display:grid;gap:4px;margin-top:8px"><label>' + label + '</label><input id="' + id + '" type="' + type + '" placeholder="' + ph + '" value="' + esc(val || '') + '" style="width:100%"></div>';
+  openModal({ title: 'แจ้งเข้าสู่ระบบไม่ได้',
+    bodyHTML: '<div class="hint" style="margin:0 0 12px">ถ้ากด “เข้าสู่ระบบด้วย Google” แล้วระบบแจ้งว่าไม่มีชื่อหรือไม่มีสิทธิ์ ' +
+      'กรอกข้อมูลด้านล่าง ระบบจะแจ้งผู้ดูแลระบบให้เพิ่มชื่อให้ เมื่อเพิ่มแล้วกดเข้าสู่ระบบด้วย Google ได้ทันที</div>' +
+      '<div class="grid2">' + input('lrName', 'ชื่อ-สกุลครู', 'text', 'เช่น นางสาวสมใจ ใจดี', '') +
+      input('lrPhone', 'เบอร์โทร', 'tel', 'เช่น 0812345678', '') + '</div>' +
+      input('lrEmail', 'อีเมลที่ใช้เข้าสู่ระบบ (บัญชี Google)', 'email', 'เช่น somjai@pcschool.ac.th', preEmail) +
+      '<div class="pick" style="display:grid;gap:4px;margin-top:8px"><label>หมายเหตุ (ไม่บังคับ)</label><input id="lrNote" type="text" maxlength="300" placeholder="เช่น กลุ่มสาระ หรืออาการที่เจอ" style="width:100%"></div>',
+    buttons: [{ label: 'ยกเลิก' }, { label: 'ส่งถึงผู้ดูแลระบบ', cls: 'primary', async act(close, root) {
+      const name = $('#lrName', root).value.trim().replace(/\s+/g, ' ');
+      const phone = $('#lrPhone', root).value.replace(/[^0-9+]/g, '');
+      const email = $('#lrEmail', root).value.trim().toLowerCase();
+      const note = $('#lrNote', root).value.trim().slice(0, 300);
+      if (name.length < 2) return toast('กรุณากรอกชื่อ-สกุลครู', 'bad');
+      if (phone.length < 9 || phone.length > 15) return toast('กรุณากรอกเบอร์โทรให้ถูกต้อง', 'bad');
+      if (!LR_EMAIL_RE.test(email)) return toast('กรุณากรอกอีเมลให้ถูกต้อง', 'bad');
+      if (!initFirebase()) return toast('เครื่องนี้ยังต่อฐานข้อมูลกลางไม่ได้ กรุณาแจ้งผู้ดูแลระบบโดยตรง', 'bad');
+      const doc = { name: name.slice(0, 120), phone: phone, email: email, note: note, status: 'new', createdAt: new Date().toISOString() };
+      try {
+        /* แคชออฟไลน์ของ Firestore ทำให้การเขียนตอนเน็ตหลุดค้างรอไปเรื่อย ๆ ตั้งเวลาไว้ ครูจะได้รู้ว่ายังส่งไม่ถึง */
+        await Promise.race([fbDb.collection('loginRequests').doc(fbStaffId(email)).set(doc),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000))]);
+        close();
+        toast('ส่งถึงผู้ดูแลระบบแล้ว เมื่อเพิ่มชื่อแล้วกดเข้าสู่ระบบด้วย Google ได้เลย', 'ok');
+      } catch (e) {
+        toast(e.message === 'timeout' ? 'ส่งไม่สำเร็จ กรุณาเช็กอินเทอร์เน็ตแล้วลองใหม่' : 'ส่งไม่สำเร็จ: ' + fbErrorMessage(e), 'bad');
+      }
+    } }],
+    onMount(root) { $('#lrName', root).focus(); } });
+}
+
+/** ฟังคำขอสด — แอดมินเท่านั้นที่อ่านได้ตามกฎ ครูทั่วไปจะโดนปฏิเสธเงียบ ๆ จึงผูกได้ทุกคนโดยไม่ต้องเดาบทบาทก่อนล็อกอินเสร็จ */
+function listenLoginRequests() {
+  const off = fbDb.collection('loginRequests').onSnapshot(snap => {
+    loginReqLive = snap.docs.map(d => Object.assign({}, d.data(), { docId: d.id }))
+      .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+    const n = loginReqLive.length;
+    if (n && n > loginReqSeen) toast('มีครูแจ้งเข้าสู่ระบบไม่ได้ ' + n + ' คน • ดูที่ ผู้ดูแลระบบ › บุคลากรและสิทธิ์', 'warn');
+    loginReqSeen = n;
+    renderTop(); drawLoginRequests();
+  }, () => { loginReqLive = []; });
+  return () => { off(); loginReqLive = []; loginReqSeen = -1; };
+}
+
+/** การ์ดรายการคำขอ บนสุดของหน้า บุคลากรและสิทธิ์ — ไม่มีคำขอก็ไม่แสดงอะไร */
+function drawLoginRequests() {
+  const host = $('#loginReqHost'); if (!host) return;
+  if (!loginReqLive.length) { host.innerHTML = ''; return; }
+  const known = email => DB.teachers.find(t => String(t.email || '').trim().toLowerCase() === email);
+  host.innerHTML = '<div class="card" style="border-color:#f5c518"><h3 style="margin:0 0 4px">ครูแจ้งเข้าสู่ระบบไม่ได้ <span class="badge warn">' + loginReqLive.length + '</span></h3>' +
+    '<div class="hint">กด “เพิ่มเป็นครู” ระบบจะเติมชื่อ อีเมล เบอร์ให้ แล้วส่งขึ้นส่วนกลางทันที ครูกดเข้าสู่ระบบด้วย Google ได้เลย</div>' +
+    loginReqLive.map((r, i) => { const k = known(r.email);
+      return '<div class="lr-row"><div class="lr-who"><b>' + esc(r.name) + '</b> • ' + esc(r.phone) + ' • ' + esc(r.email) +
+        (r.note ? '<div class="hint">' + esc(r.note) + '</div>' : '') +
+        '<div class="hint">ส่งเมื่อ ' + esc(r.createdAt ? new Date(r.createdAt).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }) : '—') +
+        (k ? ' • <b>อีเมลนี้มีในรายชื่อแล้ว (' + esc(k.name || '') + ')</b> ตรวจบทบาทหรือกดส่งรายชื่อขึ้นส่วนกลาง' : '') + '</div></div>' +
+        (k ? '' : '<button class="sm primary" data-lr-add="' + i + '">เพิ่มเป็นครู</button>') +
+        '<button class="sm" data-lr-del="' + i + '">' + (k ? 'เสร็จแล้ว ลบคำขอ' : 'ลบคำขอ') + '</button></div>'; }).join('') + '</div>';
+  $$('[data-lr-add]', host).forEach(b => b.addEventListener('click', () => {
+    const r = loginReqLive[+b.dataset.lrAdd]; if (!r) return;
+    openAddTeacherProfile(renderAdmin, false, { name: r.name, email: r.email, phone: r.phone, async onAdded(t) {
+      try {
+        await fbDb.collection('staff').doc(fbStaffKey(t)).set(fbPlain(fbTeacherDoc(t)), { merge: true });
+        await fbDb.collection('loginRequests').doc(r.docId).delete();
+        toast('เพิ่ม ' + t.name + ' ขึ้นส่วนกลางแล้ว ครูเข้าสู่ระบบด้วย Google ได้ทันที', 'ok');
+      } catch (e) { toast('เพิ่มในเครื่องแล้ว แต่ส่งขึ้นส่วนกลางไม่สำเร็จ กดส่งรายชื่อขึ้นส่วนกลางเอง: ' + fbErrorMessage(e), 'bad'); }
+    } });
+  }));
+  $$('[data-lr-del]', host).forEach(b => b.addEventListener('click', async () => {
+    const r = loginReqLive[+b.dataset.lrDel]; if (!r) return;
+    if (!await confirmBox('ลบคำขอ', 'ลบคำขอของ <b>' + esc(r.name) + '</b> (' + esc(r.email) + ')?', 'ลบคำขอ')) return;
+    try { await fbDb.collection('loginRequests').doc(r.docId).delete(); toast('ลบคำขอแล้ว', 'ok'); }
+    catch (e) { toast('ลบไม่สำเร็จ: ' + fbErrorMessage(e), 'bad'); }
+  }));
+}
+
 /* ---- ข้อมูลที่คัดลอกไปให้ปุ่ม SGS --------------------------------------------
    ส่งคะแนนรายส่วนแบบยังไม่ปัดเศษ ให้ปุ่มฝั่ง SGS เป็นคนปัดตามที่ครูเลือกตอนตรวจ
    คิดแบบไม่ใช่โหมด "เฉพาะส่วนที่กรอกแล้ว" เสมอ เพราะที่ส่งเข้า SGS ต้องเป็นคะแนนจริง
@@ -14587,11 +14687,13 @@ async function importMultiTeacherTimetableExcel() {
   } catch (e) { toast('นำเข้าตารางสอนไม่สำเร็จ: ' + (e.message || e), 'bad'); }
 }
 
-function openAddTeacherProfile(afterSave, selectNew) {
+/* prefill = { name, email, phone, onAdded(t) } ใช้ตอนเพิ่มจากคำขอ “แจ้งเข้าสู่ระบบไม่ได้” */
+function openAddTeacherProfile(afterSave, selectNew, prefill) {
+  prefill = prefill || {};
   const bootstrap = !DB.teachers.length;
-  openModal({ title: 'เพิ่มโปรไฟล์ครู', bodyHTML: '<div class="grid2"><div class="pick"><label>ชื่อครู</label><input id="newTeacherName" style="width:100%"></div><div class="pick"><label>อีเมล</label><input id="newTeacherEmail" type="email" style="width:100%"></div><div class="pick"><label>เบอร์โทร</label><input id="newTeacherPhone" style="width:100%"></div><div class="pick"><label>กลุ่มสาระ/กลุ่มงาน</label><select id="newTeacherArea">' + learningAreaOptions('') + '</select></div><div class="pick"><label>บทบาท</label><select id="newTeacherRole"><option value="teacher"' + (bootstrap ? '' : ' selected') + '>ครู</option><option value="teacher,head">ครู + หัวหน้ากลุ่มสาระฯ</option><option value="teacher,executive">ครู + ผู้บริหาร</option><option value="teacher,admin">ครู + ผู้ดูแลระบบ</option><option value="teacher,affairs">ครู + ฝ่ายกิจการนักเรียน</option><option value="teacher,head,executive,admin"' + (bootstrap ? ' selected' : '') + '>ทุกบทบาท</option></select></div></div>', buttons: [{ label: 'ยกเลิก' }, { label: 'เพิ่มโปรไฟล์', cls: 'primary', act(close, root) { const name = $('#newTeacherName', root).value.trim(); if (!name) return toast('กรุณากรอกชื่อครู', 'bad');
+  openModal({ title: 'เพิ่มโปรไฟล์ครู', bodyHTML: '<div class="grid2"><div class="pick"><label>ชื่อครู</label><input id="newTeacherName" value="' + esc(prefill.name || '') + '" style="width:100%"></div><div class="pick"><label>อีเมล</label><input id="newTeacherEmail" type="email" value="' + esc(prefill.email || '') + '" style="width:100%"></div><div class="pick"><label>เบอร์โทร</label><input id="newTeacherPhone" value="' + esc(prefill.phone || '') + '" style="width:100%"></div><div class="pick"><label>กลุ่มสาระ/กลุ่มงาน</label><select id="newTeacherArea">' + learningAreaOptions('') + '</select></div><div class="pick"><label>บทบาท</label><select id="newTeacherRole"><option value="teacher"' + (bootstrap ? '' : ' selected') + '>ครู</option><option value="teacher,head">ครู + หัวหน้ากลุ่มสาระฯ</option><option value="teacher,executive">ครู + ผู้บริหาร</option><option value="teacher,admin">ครู + ผู้ดูแลระบบ</option><option value="teacher,affairs">ครู + ฝ่ายกิจการนักเรียน</option><option value="teacher,head,executive,admin"' + (bootstrap ? ' selected' : '') + '>ทุกบทบาท</option></select></div></div>', buttons: [{ label: 'ยกเลิก' }, { label: 'เพิ่มโปรไฟล์', cls: 'primary', act(close, root) { const name = $('#newTeacherName', root).value.trim(); if (!name) return toast('กรุณากรอกชื่อครู', 'bad');
       const clash = DB.teachers.find(x => normalizeName(x.name) === normalizeName(name)); if (clash) return toast('มีชื่อนี้ในระบบอยู่แล้ว: ' + (clash.name || clash.email), 'bad');
-      const t = { id: uid('teacher'), name: name, email: $('#newTeacherEmail', root).value.trim(), phone: $('#newTeacherPhone', root).value.trim(), learningArea: $('#newTeacherArea', root).value, homeroomClassId: '', roles: $('#newTeacherRole', root).value.split(',') }; DB.teachers.push(t); if (selectNew !== false || bootstrap) DB.ui.teacherId = t.id; save(true); close(); if (afterSave) afterSave(); else render(); toast('เพิ่มโปรไฟล์ครูแล้ว', 'ok'); } }], onMount(root) { $('#newTeacherName', root).focus(); } });
+      const t = { id: uid('teacher'), name: name, email: $('#newTeacherEmail', root).value.trim(), phone: $('#newTeacherPhone', root).value.trim(), learningArea: $('#newTeacherArea', root).value, homeroomClassId: '', roles: $('#newTeacherRole', root).value.split(',') }; DB.teachers.push(t); if (selectNew !== false || bootstrap) DB.ui.teacherId = t.id; save(true); close(); if (afterSave) afterSave(); else render(); toast('เพิ่มโปรไฟล์ครูแล้ว', 'ok'); if (prefill.onAdded) prefill.onAdded(t); } }], onMount(root) { $('#newTeacherName', root).focus(); } });
 }
 
 /* ---- ปฏิทินวันหยุด (ผู้ดูแลระบบกำหนด) ------------------------------------
@@ -15236,6 +15338,8 @@ function adminSectionPeople(box) {
     adminTeacherDraft = {}; save(true); renderAdmin(); renderTop(); toast('บันทึกข้อมูลครู ' + changed + ' คนแล้ว', 'ok');
   });
   renderAdminTeacherRows();
+  box.insertAdjacentHTML('afterbegin', '<div id="loginReqHost"></div>');
+  drawLoginRequests();
   const search = $('#adminSearch', box);
   search.addEventListener('input', () => { DB.ui.adminSearch = search.value; renderAdminTeacherRows(); });
   $('#adminSearchClear', box).addEventListener('click', () => { DB.ui.adminSearch = ''; search.value = ''; renderAdminTeacherRows(); search.focus(); });
@@ -18522,6 +18626,7 @@ function startFirebaseSync() {
   const apply = fn => { fbApplying = true; try { fn(); } finally { fbApplying = false; } };
   const quiet = () => {};
 
+  fbUnsub.push(listenLoginRequests());
   fbUnsub.push(fbDb.collection('staff').onSnapshot(snap => apply(() => {
     const stray = snap.docs.filter(fbIsStrayStaffDoc);
     // แอดมินลบเอกสารผีทิ้งจากส่วนกลาง (กฎให้แอดมินลบได้) ครูทั่วไปแค่ข้ามไป
@@ -19606,8 +19711,10 @@ function showRoleGateway() {
       '<span class="touch">แตะช่องเพื่อเลือก • แตะอีกครั้งเพื่อเข้าสู่ระบบ</span>' +
       '<span>ข้อมูลนักเรียนเป็นข้อมูลส่วนบุคคล ควรเข้าใช้ด้วยบัญชีของตนเองและออกจากระบบทุกครั้ง</span>' +
       '<span class="gw-store">KruSpace • ' + esc(storageText) + '</span>' +
-      /* ทางเข้าโหมดทดลองส่งคะแนน SGS อยู่หน้าแรกเลย ครูที่ยังไม่อยากเข้าระบบไม่ต้องกดเข้าช่องครูก่อน — คลิกจับด้วยตัวฟัง [data-sq-open] ที่ผูกไว้กับเอกสาร */
-      '<button type="button" class="sq-try" data-sq-open title="ไม่ต้องเข้าสู่ระบบ ไม่ยุ่งกับฐานข้อมูลกลาง">ทดลองใช้งาน — ส่งคะแนนเข้า SGS</button></footer>';
+      /* ปุ่มที่ใช้ได้โดยไม่ต้องเข้าสู่ระบบอยู่หน้าแรกเลย — คลิกจับด้วยตัวฟัง [data-lr-open] / [data-sq-open] ที่ผูกไว้กับเอกสาร
+         แจ้งเข้าสู่ระบบไม่ได้ = ครูที่ยังไม่มีชื่อในฐานข้อมูลบุคลากร ส่งชื่อ เบอร์ อีเมลให้แอดมินเพิ่ม (ดู openLoginRequest) */
+      '<div class="gw-actions"><button type="button" class="lr-open" data-lr-open>แจ้งเข้าสู่ระบบไม่ได้</button>' +
+      '<button type="button" class="sq-try" data-sq-open title="ไม่ต้องเข้าสู่ระบบ ไม่ยุ่งกับฐานข้อมูลกลาง">ทดลองใช้งาน — ส่งคะแนนเข้า SGS</button></div></footer>';
   bindGatewayStage(gateway);
 }
 
@@ -19666,7 +19773,7 @@ function bindGatewayStage(gateway) {
   $('.gw-stage', gateway).addEventListener('mouseleave', () => { if (canHover()) pick(-1); });
   gateway.gwKeys = e => {
     if (gateway.hidden || modalStack.length) return;
-    if (e.target.closest && e.target.closest('.gw-help, [data-sq-open]')) return;   // Enter บนปุ่มคู่มือ/ปุ่มทดลองใช้ ให้ทำงานของปุ่มนั้น ไม่ใช่เข้าช่องที่เลือก
+    if (e.target.closest && e.target.closest('.gw-help, .gw-actions')) return;   // Enter บนปุ่มคู่มือ/ปุ่มมุมขวาล่าง ให้ทำงานของปุ่มนั้น ไม่ใช่เข้าช่องที่เลือก
     if (e.key === 'ArrowRight') { e.preventDefault(); pick((cur + 1) % slots.length); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); pick((cur + slots.length - 1) % slots.length); }
     else if ((e.key === 'Enter' || e.key === ' ') && cur >= 0) { e.preventDefault(); enter(cur); }

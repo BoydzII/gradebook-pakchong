@@ -379,6 +379,28 @@ service cloud.firestore {
     }
 
     /* ปิดทุกอย่างที่ไม่ได้ระบุไว้ข้างบน */
+    /* ---------- แจ้งเข้าสู่ระบบไม่ได้ ----------
+       ครูที่ยังไม่มีชื่อใน staff เข้าสู่ระบบไม่ได้ จึงต้องส่งคำขอได้โดยไม่ต้องล็อกอิน (ข้อยกเว้นเดียวของหลักการด้านบน)
+       กันสแปมด้วยการตรวจทุกช่องเข้ม และรหัสเอกสาร = อีเมล (แบบเดียวกับ staff) หนึ่งอีเมลมีได้คำขอเดียว
+       ส่งซ้ำ = แก้ฉบับเดิมขณะยังรอ • อ่านและลบได้เฉพาะผู้ดูแลระบบ */
+    match /loginRequests/{reqId} {
+      function validLoginReq() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['name', 'phone', 'email', 'note', 'status', 'createdAt'])
+          && d.name is string && d.name.size() >= 2 && d.name.size() <= 120
+          && d.phone is string && d.phone.matches('^[0-9+]{9,15}$')
+          && d.email is string && d.email.size() <= 120
+          && d.email.matches('^[^@\\s]+@[^@\\s]+[.][^@\\s]+$')
+          && d.email.lower().replace('[^a-z0-9@._-]', '_') == reqId
+          && d.note is string && d.note.size() <= 300
+          && d.status == 'new'
+          && d.createdAt is string && d.createdAt.size() <= 40;
+      }
+      allow create: if validLoginReq();
+      allow update: if resource.data.status == 'new' && validLoginReq();
+      allow read, delete: if isAdmin();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
