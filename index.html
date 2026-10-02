@@ -123,6 +123,33 @@ button.sq-try:hover{background:#5a5666;border-color:#8a8696}
 @media (max-width:720px){.gw-actions{position:static;width:100%;order:-1;margin-bottom:4px}.gw-actions button{flex:1 1 0;padding:9px 10px;font-size:13.5px}}
 .lr-row{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line)}
 .lr-row .lr-who{flex:1 1 260px;line-height:1.6}
+/* โครงสร้างรายวิชา */
+.cs-types{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:10px}
+.cs-type{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;padding:14px 16px;border-radius:12px;border:1.5px solid var(--line);background:var(--panel);line-height:1.5}
+.cs-type b{font-size:16px}
+.cs-type span{font-size:13px;color:var(--muted);font-weight:400}
+.cs-type.on{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 9%,var(--panel))}
+.cs-type.on b{color:var(--brand)}
+.cs-link{display:flex;gap:10px;align-items:flex-start;margin-top:14px;line-height:1.6;cursor:pointer}
+.cs-link input{margin-top:5px;flex:none}
+.cs-unit{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:10px;display:grid;gap:10px}
+.cs-unit-head{display:flex;gap:8px;align-items:center}
+.cs-no{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--brand);color:var(--brand-ink);font-weight:700}
+.cs-unit-head .cs-name{flex:1;min-width:0;font-weight:600}
+.cs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.cs-unit .pick{display:grid;gap:4px;align-content:start}
+.cs-unit .pick input,.cs-unit .pick select{width:100%}
+.cs-unit textarea{width:100%;resize:vertical;font:inherit}
+.cs-chips{display:flex;flex-wrap:wrap;gap:6px}
+.cs-chip{font-size:12.5px;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--brand) 10%,transparent);border:1px solid color-mix(in srgb,var(--brand) 30%,transparent)}
+.cs-sum td.num,.cs-sum th.num{text-align:right}
+.course-sheet .doc-table td{vertical-align:top}
+/* เอกสารโครงสร้างรายวิชาอ่านโดยครูและฝ่ายวิชาการ ใช้ขนาดแบบเอกสารราชการ (~14pt เนื้อความ 13pt ตาราง)
+   กฎพิมพ์ทั่วไปของ .doc-sheet ย่อเหลือ 12px (9pt) ซึ่งเล็กเกินสำหรับตารางยาว ต้องใช้ตัวเลือกที่เจาะจงกว่าจึงชนะ */
+body.print-doc .doc-sheet.course-sheet,.doc-sheet.course-sheet{font-size:18.5px;line-height:1.55}
+.doc-sheet.course-sheet h2{font-size:24px}
+.doc-sheet.course-sheet .doc-table th,.doc-sheet.course-sheet .doc-table td{font-size:17px;line-height:1.3;padding:4px 6px}
+.doc-sheet.course-sheet .doc-table th{color:#000}
 .gw-inapp{flex:1 1 100%;order:-2;padding:10px 14px;border-radius:12px;background:#f5c518;color:#3a2a00;font-size:14px;line-height:1.6}
 .gw-inapp button{margin-left:6px;background:#3a2a00;color:#fff;border-color:#3a2a00}
 .gw-ver button[data-gw-update]{background:#d6202e;color:#fff;border-color:#d6202e;font-weight:700}
@@ -1716,6 +1743,7 @@ tr.conduct-void td{opacity:.55}tr.conduct-void td b{text-decoration:line-through
   <button data-tab="schedule">ตั้งค่าตารางสอน</button>
   <button data-tab="items">หัวข้อคะแนน</button>
   <button data-tab="indicators">ตัวชี้วัด / ผลการเรียนรู้</button>
+  <button data-tab="course">โครงสร้างรายวิชา</button>
   <button data-tab="activities">กิจกรรมนักเรียน</button>
   <button data-tab="head">กลุ่มสาระของฉัน <span id="headBadge"></span></button>
   <button data-tab="executive">ภาพรวมผู้บริหาร</button>
@@ -1738,6 +1766,7 @@ tr.conduct-void td{opacity:.55}tr.conduct-void td b{text-decoration:line-through
   <section class="tabpane" id="pane-exchange"></section>
   <section class="tabpane" id="pane-items"></section>
   <section class="tabpane" id="pane-indicators"></section>
+  <section class="tabpane" id="pane-course"></section>
   <section class="tabpane" id="pane-scores"></section>
   <section class="tabpane" id="pane-groups"></section>
   <section class="tabpane" id="pane-assess"></section>
@@ -3130,7 +3159,7 @@ const roleOfTab = tab => TAB_ROLE[tab] || 'teacher';
    เพื่อให้หัวเรื่องของหน้าขึ้นมาอยู่บนสุดโดยไม่ต้องเลื่อนผ่านแถบเลือกยาว ๆ */
 const TAB_PICKERS = {
   dashboard: ['period', 'class', 'subject'], scores: ['period', 'class', 'subject'],
-  items: ['period', 'class', 'subject'], indicators: ['period', 'class', 'subject'],
+  items: ['period', 'class', 'subject'], indicators: ['period', 'class', 'subject'], course: ['period', 'class', 'subject'],
   groups: ['period', 'class', 'subject'], assess: ['period', 'class', 'subject'],
   summary: ['period', 'class', 'subject'], students: ['period', 'class'],
   attendance: ['period'], exchange: ['period'], schedule: ['period'], activities: ['period'],
@@ -3144,16 +3173,16 @@ const homeTabOfRole = role => role === 'executive' ? 'executive' : role === 'adm
    บนมือถือใช้แถบล่าง 5 ปุ่ม ส่วนหน้าที่เหลือเปิดจากปุ่ม "เพิ่มเติม" */
 const TAB_SHORT = { dashboard: 'ภาพรวม', attendance: 'เช็กชื่อ', exchange: 'แลกคาบ', scores: 'คะแนน',
   groups: 'คะแนนกลุ่ม', assess: 'คุณลักษณะ', summary: 'สรุป ปพ.5', settings: 'โปรไฟล์ครู', personal: 'ประวัติส่วนตัว', students: 'นักเรียน',
-  schedule: 'ตารางสอน', items: 'หัวข้อคะแนน', indicators: 'ตัวชี้วัด', activities: 'กิจกรรม', head: 'กลุ่มสาระ',
+  schedule: 'ตารางสอน', items: 'หัวข้อคะแนน', indicators: 'ตัวชี้วัด', course: 'โครงสร้างรายวิชา', activities: 'กิจกรรม', head: 'กลุ่มสาระ',
   executive: 'ผู้บริหาร', leaves: 'อนุมัติลา', affairs: 'กิจการนักเรียน', academic: 'วิชาการ', admin: 'ผู้ดูแลระบบ' };
 const TAB_ICON = { dashboard: '◈', attendance: '◷', exchange: '⇄', scores: '✎', groups: '◉', assess: '☑',
-  summary: '▤', settings: '⚙', personal: '🪪', students: '☺', schedule: '▦', items: '☰', indicators: '◇', activities: '★', head: '◆',
+  summary: '▤', settings: '⚙', personal: '🪪', students: '☺', schedule: '▦', items: '☰', indicators: '◇', course: '▥', activities: '★', head: '◆',
   executive: '◎', leaves: '✈', affairs: '⚑', academic: '▣', admin: '⚙' };
 /* หมวดของเมนู "ไปที่หน้า" — เรียงตามลำดับที่ครูใช้งานจริงในหนึ่งวัน
    เดิมเป็นปุ่ม 17 อันเรียงติดกันไม่มีหัวข้อ ต้องกวาดตาอ่านทีละอันกว่าจะเจอ */
 const TAB_SECTIONS = [
   { label: 'งานประจำวัน', tabs: ['dashboard', 'attendance', 'exchange', 'activities'] },
-  { label: 'คะแนนและ ปพ.5', tabs: ['scores', 'items', 'indicators', 'groups', 'assess', 'summary'] },
+  { label: 'คะแนนและ ปพ.5', tabs: ['scores', 'items', 'indicators', 'course', 'groups', 'assess', 'summary'] },
   { label: 'ข้อมูลโรงเรียน', tabs: ['students', 'schedule', 'personal', 'settings'] },
   /* แยกตามฝ่ายงานของโรงเรียน ครูหาเมนูของฝ่ายตัวเองได้ทันที — หมวดที่บทบาทนั้นไม่มีหน้าให้เข้าจะถูกซ่อนเอง */
   { label: 'งานบริหาร', tabs: ['head', 'executive', 'leaves', 'admin'] },
@@ -3385,6 +3414,7 @@ function render() {
   else if (t === 'exchange') renderExchangeCenter();
   else if (t === 'items') renderItems();
   else if (t === 'indicators') renderIndicators();
+  else if (t === 'course') renderCourse();
   else if (t === 'scores') renderScores();
   else if (t === 'groups') renderGroups();
   else if (t === 'assess') renderAssessments();
@@ -3702,6 +3732,7 @@ const SEARCH_INDEX = [
   { t: 'น้ำหนักคะแนนก่อน–หลังกลางภาค', w: 'สัดส่วน น้ำหนัก เกณฑ์ผ่าน', tab: 'items', card: 'น้ำหนักคะแนน' },
   { t: 'เกณฑ์ตัดเกรด', w: 'เกรด ช่วงคะแนน', tab: 'items', card: 'เกณฑ์ตัดเกรด' },
   { t: 'ตัวชี้วัด / ผลการเรียนรู้', w: 'ตัวชี้วัด มาตรฐาน', tab: 'indicators', card: 'ชุดตัวชี้วัด' },
+  { t: 'โครงสร้างรายวิชา', w: 'โครงสร้าง หน่วยการเรียนรู้ สาระสำคัญ พื้นฐาน เพิ่มเติม', tab: 'course', card: 'หน่วยการเรียนรู้' },
   { t: 'ขออนุญาตนำนักเรียนทำกิจกรรม', w: 'กิจกรรม ขอเวลาเรียน', tab: 'activities', card: '1. รายละเอียดกิจกรรม' },
   { t: 'กิจกรรมที่บันทึกไว้', w: 'กิจกรรม', tab: 'activities', card: 'กิจกรรมที่บันทึกไว้' },
   { t: 'โปรไฟล์ครูและห้อง HomeRoom', w: 'ครูที่ปรึกษา ชื่อ โปรไฟล์', tab: 'settings', card: 'โปรไฟล์ครู' },
@@ -8237,6 +8268,211 @@ async function importItemScoresFromFile(b) {
     onMount(root) { $('#isItem', root).addEventListener('change', e => { $('#isSummary', root).innerHTML = summary(b.items.find(x => x.id === e.target.value)); }); } });
 }
 
+/* ============================================================================
+   7.5) โครงสร้างรายวิชา — หน่วยการเรียนรู้ • ตัวชี้วัด/ผลการเรียนรู้ • สาระสำคัญ • เวลา • น้ำหนักคะแนน
+   เก็บในสมุดแต่ละเล่ม (b.course) แบบเดียวกับตัวชี้วัด จึงซิงก์ขึ้นส่วนกลางไปกับสมุดคะแนนเองโดยไม่ต้องกดส่ง
+   หน่วยอ้างตัวชี้วัดด้วย id ของแถวใน b.indicators — ไม่เก็บข้อความซ้ำ แก้ตัวชี้วัดที่เดียวโครงสร้างตามไปเอง
+   หัวข้อคะแนนผูกกับหน่วยได้ทีละหน่วย (item.unitId) หรือไม่ผูกก็ได้ ปิดการเชื่อมโยงแล้วค่าที่ผูกไว้ยังเก็บอยู่
+   เปิดใหม่เมื่อไรก็กลับมาครบ ไม่ต้องผูกใหม่ทีละหัวข้อ
+   ========================================================================== */
+/** เดาประเภทจากรหัสวิชา — เลขตัวที่ 3 ของรหัส 1 = พื้นฐาน 2 = เพิ่มเติม เช่น ว21101 / ว21201 */
+function guessCourseType(code) {
+  const m = String(code || '').replace(/\s/g, '').match(/^\D*\d\d(\d)/);
+  return !m ? '' : m[1] === '1' ? 'basic' : m[1] === '2' ? 'additional' : '';
+}
+function courseOf(b) {
+  const c = b.course = b.course && typeof b.course === 'object' ? b.course : {};
+  if (c.type !== 'basic' && c.type !== 'additional') c.type = guessCourseType((curSubject() || {}).code) || 'basic';
+  if (typeof c.linkItems !== 'boolean') c.linkItems = true;
+  c.units = Array.isArray(c.units) ? c.units : [];
+  c.units.forEach(u => { u.indicatorIds = Array.isArray(u.indicatorIds) ? u.indicatorIds : []; if (u.section !== 'after') u.section = 'before'; });
+  return c;
+}
+/** โครงสร้างที่เปิดเชื่อมโยงและมีหน่วยแล้ว — หน้าหัวข้อคะแนนใช้ตัดสินว่าจะโชว์ช่องเลือกหน่วยไหม (ไม่สร้าง b.course ให้สมุดที่ไม่ได้ใช้) */
+const linkedCourse = b => b && b.course && b.course.linkItems !== false && (b.course.units || []).length ? b.course : null;
+const courseOutcomeLabel = c => c.type === 'additional' ? 'ผลการเรียนรู้' : 'มาตรฐาน / ตัวชี้วัด';
+const courseUnitLabel = (c, u) => 'หน่วยที่ ' + (c.units.indexOf(u) + 1) + (u.name ? ' ' + u.name : '');
+/** น้ำหนักที่หัวข้อคะแนนซึ่งผูกกับหน่วยนี้ให้จริง ในคะแนนเต็ม 100 — สูตรเดียวกับตอนคำนวณผลการเรียน (sectionBreakdownHtml)
+    เช่น หัวข้อเต็ม 10 อยู่ก่อนกลางภาค หัวข้อก่อนกลางภาครวมเต็ม 50 น้ำหนักก่อนกลางภาค 30 → ให้ 10/50×30 = 6 */
+function unitLinkedWeight(b, unitId) {
+  return b.items.filter(it => it.unitId === unitId).reduce((sum, it) => {
+    const sec = itemScoreSection(it), tot = sectionItemMax(b, sec);
+    return sum + (tot > 0 ? num(it.max) / tot * num(b.weights[sec]) : 0);
+  }, 0);
+}
+const courseNear = (a, b) => Math.abs(num(a) - num(b)) < 0.05;
+
+function renderCourse() {
+  const pane = $('#pane-course');
+  const gate = gateMsg(true);
+  if (gate) { pane.innerHTML = '<div class="card">' + gate + '</div>'; return; }
+  const b = curBook(true), c = courseOf(b), sub = curSubject(), cls = curClass(), W = b.weights;
+  const inds = indicatorRows(), indById = {}; inds.forEach(r => { indById[r.id] = r; });
+  const outLabel = courseOutcomeLabel(c), guess = guessCourseType(sub.code);
+  const planned = sec => c.units.filter(u => u.section === sec).reduce((a, u) => a + num(u.score), 0);
+  const pb = planned('before'), pa = planned('after'), hours = c.units.reduce((a, u) => a + num(u.hours), 0);
+  const total = pb + pa + num(W.mid) + num(W.final);
+  const unlinked = c.linkItems ? b.items.filter(it => !c.units.some(u => u.id === it.unitId)) : [];
+  const vs = (got, want) => '<span class="badge ' + (courseNear(got, want) ? 'ok' : 'warn') + '">' + fmt(got) + ' / ' + fmt(want) + '</span>';
+  const types = [['basic', 'รายวิชาพื้นฐาน', 'หน่วยการเรียนรู้อ้างอิงมาตรฐานและตัวชี้วัดตามหลักสูตรแกนกลาง'],
+                 ['additional', 'รายวิชาเพิ่มเติม', 'หน่วยการเรียนรู้อ้างอิงผลการเรียนรู้ที่สถานศึกษากำหนด']];
+  pane.innerHTML =
+    '<div class="card dash-hero"><div class="row"><div><div class="hero-sub">COURSE STRUCTURE</div><h1>โครงสร้างรายวิชา</h1>' +
+      '<div class="hero-sub">' + esc((sub.code ? sub.code + ' ' : '') + sub.name + ' • ' + cls.name) + '</div></div>' +
+      '<div class="spacer"></div><span class="role-chip">' + (c.type === 'additional' ? 'เพิ่มเติม' : 'พื้นฐาน') + ' • ' + c.units.length + ' หน่วย</span></div></div>' +
+    '<div class="card"><div class="exec-head row"><div><div class="exec-eyebrow">COURSE TYPE</div><h3>ประเภทรายวิชา</h3></div></div>' +
+      '<div class="cs-types">' + types.map(t => '<button type="button" class="cs-type' + (c.type === t[0] ? ' on' : '') + '" data-cs-type="' + t[0] + '"><b>' + t[1] + '</b><span>' + t[2] + '</span></button>').join('') + '</div>' +
+      (guess && guess !== c.type ? '<div class="hint tip" style="margin-top:8px">รหัสวิชา ' + esc(sub.code) + ' ดูเหมือนเป็น' + (guess === 'basic' ? 'รายวิชาพื้นฐาน' : 'รายวิชาเพิ่มเติม') + ' ตรวจอีกครั้งว่าเลือกถูก</div>' : '') +
+      '<label class="cs-link"><input type="checkbox" id="csLink"' + (c.linkItems ? ' checked' : '') + '><span><b>เชื่อมโยงกับหัวข้อคะแนน</b> — หน้าหัวข้อคะแนนจะมีช่องเลือกหน่วยการเรียนรู้ ' +
+        'และหน้านี้จะเทียบน้ำหนักที่วางแผนไว้กับคะแนนจากหัวข้อที่ผูกจริง ไม่เลือก = ใช้เป็นเอกสารโครงสร้างอย่างเดียว</span></label></div>' +
+    '<div class="card"><div class="exec-head row"><div><div class="exec-eyebrow">LEARNING UNITS</div><h3>หน่วยการเรียนรู้</h3></div><div class="spacer"></div>' +
+      '<button class="primary" id="csAdd">+ เพิ่มหน่วย</button>' +
+      (c.units.length ? '<button id="csCopy">คัดลอกไปห้องอื่น</button><button id="csPrint">พิมพ์โครงสร้างรายวิชา</button>' : '') + '</div>' +
+      (!inds.length ? '<div class="notice" style="margin-top:8px">วิชานี้ยังไม่มีชุด' + esc(outLabel) + ' — เพิ่มที่หน้า <button class="sm" data-go-tab="indicators">ตัวชี้วัด / ผลการเรียนรู้</button> ก่อน แล้วค่อยกลับมาเลือกใส่หน่วย</div>' : '') +
+      (c.units.length ? c.units.map((u, i) => {
+        const chips = u.indicatorIds.map(id => indById[id]).filter(Boolean);
+        const linked = c.linkItems ? b.items.filter(it => it.unitId === u.id) : [];
+        return '<div class="cs-unit" data-unit="' + u.id + '">' +
+          '<div class="cs-unit-head"><span class="cs-no">' + (i + 1) + '</span>' +
+            '<input type="text" class="cs-name" value="' + esc(u.name) + '" placeholder="ชื่อหน่วยการเรียนรู้" aria-label="ชื่อหน่วยที่ ' + (i + 1) + '">' +
+            '<button class="sm ghost" data-cs-up title="เลื่อนขึ้น">↑</button><button class="sm ghost" data-cs-down title="เลื่อนลง">↓</button><button class="sm danger" data-cs-del>ลบ</button></div>' +
+          '<div class="cs-grid">' +
+            '<div class="pick"><label>เวลา (ชั่วโมง)</label><input type="text" inputmode="decimal" class="cs-hours" value="' + esc(u.hours) + '"></div>' +
+            '<div class="pick"><label>น้ำหนักคะแนน</label><input type="text" inputmode="decimal" class="cs-score" value="' + esc(u.score) + '"></div>' +
+            '<div class="pick"><label>ช่วงคะแนน</label><select class="cs-section"><option value="before"' + (u.section === 'before' ? ' selected' : '') + '>ก่อนกลางภาค</option>' +
+              '<option value="after"' + (u.section === 'after' ? ' selected' : '') + '>หลังกลางภาค</option></select></div>' +
+            (c.linkItems ? '<div class="pick"><label>คะแนนจากหัวข้อที่ผูก / ที่วางแผน</label><div>' + vs(unitLinkedWeight(b, u.id), u.score) +
+              '<div class="hint">' + (linked.length ? linked.map(it => esc(it.name)).join(' • ') : 'ยังไม่มีหัวข้อคะแนนผูกกับหน่วยนี้') + '</div></div></div>' : '') +
+          '</div>' +
+          '<div class="pick"><label>' + esc(outLabel) + ' <button class="sm" data-cs-pick>เลือก' + (chips.length ? ' (' + chips.length + ')' : '') + '</button></label>' +
+            '<div class="cs-chips">' + (chips.length ? chips.map(r => '<span class="cs-chip" title="' + esc(r.text) + '">' + esc(r.code || r.text.slice(0, 40)) + '</span>').join('') : '<span class="hint">ยังไม่ได้เลือก</span>') + '</div></div>' +
+          '<div class="pick"><label>สาระสำคัญ</label><textarea class="cs-concept" rows="2" placeholder="ความคิดรวบยอดของหน่วยนี้">' + esc(u.concept || '') + '</textarea></div>' +
+        '</div>'; }).join('')
+      : '<div class="empty" style="margin-top:10px">ยังไม่มีหน่วยการเรียนรู้<br><span class="hint">กด “+ เพิ่มหน่วย” แล้วใส่ชื่อหน่วย เวลา น้ำหนักคะแนน และเลือก' + esc(outLabel) + '</span></div>') +
+    '</div>' +
+    '<div class="card"><div class="exec-head row"><div><div class="exec-eyebrow">SUMMARY</div><h3>สรุปน้ำหนักคะแนนและเวลาเรียน</h3></div></div>' +
+      '<div class="tablewrap" style="max-width:560px"><table class="cs-sum"><thead><tr><th>ส่วน</th><th class="num">ตามโครงสร้าง / ตั้งไว้ในหัวข้อคะแนน</th></tr></thead><tbody>' +
+        '<tr><td>คะแนนระหว่างภาค ก่อนกลางภาค</td><td class="num">' + vs(pb, W.before) + '</td></tr>' +
+        '<tr><td>สอบกลางภาค</td><td class="num">' + fmt(W.mid) + '</td></tr>' +
+        '<tr><td>คะแนนระหว่างภาค หลังกลางภาค</td><td class="num">' + vs(pa, W.after) + '</td></tr>' +
+        '<tr><td>สอบปลายภาค</td><td class="num">' + fmt(W.final) + '</td></tr>' +
+        '<tr><td><b>รวม</b></td><td class="num">' + vs(total, 100) + '</td></tr>' +
+        '<tr><td>เวลาเรียนรวม (ชั่วโมง)</td><td class="num">' + (num(b.meta.totalHours) ? vs(hours, b.meta.totalHours) : fmt(hours)) + '</td></tr>' +
+      '</tbody></table></div>' +
+      '<div class="hint tip" style="margin-top:8px">น้ำหนักสอบกลางภาค ปลายภาค และน้ำหนักก่อน/หลังกลางภาค แก้ที่หน้า <button class="sm" data-go-tab="items">หัวข้อคะแนน</button> ' +
+        '• ตัวเลขสีเหลืองคือยังไม่ตรงกัน ไม่ได้ห้ามบันทึก</div>' +
+      (unlinked.length && c.units.length ? '<div class="notice" style="margin-top:10px">หัวข้อคะแนนที่ยังไม่ผูกกับหน่วย ' + unlinked.length + ' หัวข้อ: ' +
+        unlinked.map(it => esc(it.name)).join(' • ') + ' — เลือกหน่วยได้ที่หน้าหัวข้อคะแนน ไม่ผูกก็ได้ถ้าเป็นคะแนนที่ไม่ได้อยู่ในหน่วยใด</div>' : '') +
+    '</div>';
+
+  const redraw = () => { save(true); renderCourse(); };
+  const unitOf = el => c.units.find(u => u.id === el.closest('[data-unit]').dataset.unit);
+  $$('[data-go-tab]', pane).forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.goTab)));
+  $$('[data-cs-type]', pane).forEach(btn => btn.addEventListener('click', () => { c.type = btn.dataset.csType; redraw(); }));
+  $('#csLink', pane).addEventListener('change', e => { c.linkItems = e.target.checked; redraw(); });
+  $('#csAdd', pane).addEventListener('click', () => {
+    c.units.push({ id: uid('cu'), name: '', indicatorIds: [], concept: '', hours: '', score: '', section: c.units.length && c.units[c.units.length - 1].section === 'after' ? 'after' : 'before' });
+    redraw(); const names = $$('.cs-name', pane); if (names.length) names[names.length - 1].focus();
+  });
+  if ($('#csCopy', pane)) $('#csCopy', pane).addEventListener('click', openCourseCopyRooms);
+  if ($('#csPrint', pane)) $('#csPrint', pane).addEventListener('click', () => openDocumentPreview('โครงสร้างรายวิชา', courseDocHtml(b)));
+  /* ชื่อและสาระสำคัญบันทึกเงียบ ๆ ไม่วาดหน้าใหม่ ตัวหนังสือที่กำลังพิมพ์ช่องถัดไปจะได้ไม่หาย ส่วนตัวเลขวาดใหม่เพราะยอดสรุปต้องขยับตาม */
+  $$('.cs-name, .cs-concept', pane).forEach(el => el.addEventListener('change', () => {
+    const u = unitOf(el); if (!u) return;
+    if (el.classList.contains('cs-name')) u.name = el.value.trim(); else u.concept = el.value.trim();
+    save(true);
+  }));
+  $$('.cs-hours, .cs-score, .cs-section', pane).forEach(el => el.addEventListener('change', () => {
+    const u = unitOf(el); if (!u) return;
+    if (el.classList.contains('cs-section')) u.section = el.value === 'after' ? 'after' : 'before';
+    else { const v = String(el.value).trim(); u[el.classList.contains('cs-hours') ? 'hours' : 'score'] = v === '' ? '' : Math.max(0, num(v)); }
+    redraw();
+  }));
+  $$('[data-cs-up], [data-cs-down]', pane).forEach(btn => btn.addEventListener('click', () => {
+    const u = unitOf(btn), i = c.units.indexOf(u), j = i + (btn.hasAttribute('data-cs-up') ? -1 : 1);
+    if (j < 0 || j >= c.units.length) return;
+    c.units[i] = c.units[j]; c.units[j] = u; redraw();
+  }));
+  $$('[data-cs-del]', pane).forEach(btn => btn.addEventListener('click', async () => {
+    const u = unitOf(btn); if (!u) return;
+    const used = b.items.filter(it => it.unitId === u.id);
+    if (!await confirmBox('ลบหน่วย', 'ลบ <b>' + esc(courseUnitLabel(c, u)) + '</b>?' + (used.length ? '<br>หัวข้อคะแนน ' + used.length + ' หัวข้อที่ผูกไว้จะกลายเป็น “ไม่เชื่อมโยง” คะแนนนักเรียนไม่หาย' : ''), 'ลบ')) return;
+    c.units = c.units.filter(x => x !== u); used.forEach(it => { delete it.unitId; }); redraw();
+  }));
+  $$('[data-cs-pick]', pane).forEach(btn => btn.addEventListener('click', () => {
+    const u = unitOf(btn); if (!u) return;
+    if (!inds.length) return setTab('indicators');
+    const usedBy = {}; c.units.forEach(x => { if (x !== u) x.indicatorIds.forEach(id => { usedBy[id] = courseUnitLabel(c, x); }); });
+    openModal({ title: 'เลือก' + outLabel + ' — ' + courseUnitLabel(c, u), wide: true,
+      bodyHTML: '<div class="cover-list">' + inds.map(r => '<label class="cover-pick"><input type="checkbox" class="cs-ind" value="' + r.id + '"' + (u.indicatorIds.indexOf(r.id) >= 0 ? ' checked' : '') + '>' +
+        '<div><b>' + esc(r.code || '—') + '</b> ' + esc(r.text) + (usedBy[r.id] ? '<div class="hint">ใช้ใน' + esc(usedBy[r.id]) + 'แล้ว</div>' : '') + '</div></label>').join('') + '</div>',
+      buttons: [{ label: 'ยกเลิก' }, { label: 'บันทึก', cls: 'primary', act(close, root) {
+        /* เรียงตามลำดับในชุดตัวชี้วัด ไม่ใช่ลำดับที่ติ๊ก เอกสารพิมพ์จะได้เรียงรหัสถูก */
+        u.indicatorIds = $$('.cs-ind', root).filter(x => x.checked).map(x => x.value);
+        close(); redraw();
+      } }] });
+  }));
+}
+
+/** คัดลอกโครงสร้างไปห้องอื่นที่สอนวิชาเดียวกัน — ใช้ id หน่วยเดิม หัวข้อคะแนนที่คัดลอกไปจากห้องนี้จึงยังผูกหน่วยถูก
+    ตัวชี้วัดในห้องปลายทางมี id ของตัวเอง จึงจับคู่ด้วย รหัส+ข้อความ และเติมแถวที่ห้องนั้นยังไม่มีให้ */
+function openCourseCopyRooms() {
+  const b = curBook(true), c = courseOf(b), list = classesTeachingSameSubject(), inds = indicatorRows();
+  if (!list.length) return toast('ไม่พบห้องอื่นที่คุณสอนวิชานี้ในภาคเรียนนี้', 'bad');
+  openModal({ title: 'คัดลอกโครงสร้างรายวิชาไปห้องอื่น', bodyHTML:
+    '<div class="exec-note">คัดลอก ' + c.units.length + ' หน่วยไปแทนที่โครงสร้างเดิมของห้องที่เลือก ตัวชี้วัดที่ห้องนั้นยังไม่มีจะถูกเติมให้</div>' +
+    '<div class="cover-list">' + list.map(cl => { const other = (DB.books[cl.id + '::' + DB.ui.subjectId + '::' + DB.ui.periodId] || {}).course;
+      return '<label class="cover-pick"><input type="checkbox" class="cc-room" value="' + cl.id + '" checked><div><b>' + esc(cl.name) + '</b><div class="hint">มีอยู่แล้ว ' +
+        ((other && other.units || []).length) + ' หน่วย</div></div></label>'; }).join('') + '</div>',
+    buttons: [{ label: 'ยกเลิก' }, { label: 'คัดลอก', cls: 'primary', act(close, root) {
+      const ids = $$('.cc-room', root).filter(x => x.checked).map(x => x.value);
+      if (!ids.length) return toast('ยังไม่ได้เลือกห้อง', 'bad');
+      const keyOf = r => (r.code || '') + '|' + (r.text || ''), srcKey = {}; inds.forEach(r => { srcKey[r.id] = keyOf(r); });
+      ids.forEach(cid => {
+        const key = cid + '::' + DB.ui.subjectId + '::' + DB.ui.periodId;
+        const book = DB.books[key] = normalizeBook(DB.books[key] || defaultBook());
+        book.indicators = Array.isArray(book.indicators) ? book.indicators : [];
+        const byKey = {}; book.indicators.forEach(r => { byKey[keyOf(r)] = r.id; });
+        inds.forEach(r => { if (!byKey[keyOf(r)]) { const n = newIndicatorRow(r); book.indicators.push(n); byKey[keyOf(r)] = n.id; } });
+        const copy = JSON.parse(JSON.stringify(c));
+        copy.units.forEach(u => { u.indicatorIds = u.indicatorIds.map(id => byKey[srcKey[id]]).filter(Boolean); });
+        book.course = copy;
+      });
+      save(true); close(); toast('คัดลอกไป ' + ids.length + ' ห้องแล้ว', 'ok');
+    } }] });
+}
+
+/** เอกสารโครงสร้างรายวิชา A4 แนวตั้ง — ใช้ .doc-sheet ชุดเดียวกับเอกสารอื่น ฟอนต์ TH SarabunPSK พิมพ์ผ่าน printDocument */
+function courseDocHtml(b) {
+  const c = courseOf(b), s = DB.settings, sub = curSubject(), cls = curClass(), p = curPeriod() || {}, W = b.weights;
+  const indById = {}; indicatorRows().forEach(r => { indById[r.id] = r; });
+  const hours = c.units.reduce((a, u) => a + num(u.hours), 0), level = classLevel(cls.name);
+  const teacher = b.meta.teacherName || (curTeacher() || {}).name || '';
+  const area = b.meta.learningArea || teacherArea(curTeacher()) || '';
+  const cell = (v, center) => '<td' + (center ? ' style="text-align:center"' : '') + '>' + v + '</td>';
+  const unitRow = u => '<tr>' + cell(c.units.indexOf(u) + 1, true) + cell(esc(u.name)) +
+    cell(u.indicatorIds.map(id => indById[id]).filter(Boolean).map(r => esc(r.code || r.text)).join('<br>')) +
+    cell(esc(u.concept || '').replace(/\n/g, '<br>')) + cell(esc(u.hours), true) + cell(esc(u.score), true) + '</tr>';
+  const examRow = (label, w) => '<tr>' + cell('', true) + '<td colspan="3"><b>' + label + '</b></td>' + cell('', true) + cell(fmt(w), true) + '</tr>';
+  const pre = num(W.before) + num(W.after) + num(W.mid);
+  return '<div class="doc-sheet course-sheet">' + (s.logoData ? '<img class="doc-logo" src="' + s.logoData + '" alt="ตราโรงเรียน">' : '') +
+    '<h2>โครงสร้างรายวิชา' + (c.type === 'additional' ? 'เพิ่มเติม' : 'พื้นฐาน') + '</h2>' +
+    '<div class="doc-head">' + esc(s.schoolName || '') + '<br>รายวิชา ' + esc(sub.name) + ' รหัสวิชา ' + esc(sub.code || '—') +
+      (area ? ' กลุ่มสาระการเรียนรู้' + esc(area.replace(/^กลุ่มสาระการเรียนรู้/, '')) : '') + '<br>' +
+      'ชั้น ' + esc(level || cls.name) + ' ภาคเรียนที่ ' + esc(p.semester || '') + ' ปีการศึกษา ' + esc(p.academicYear || '') +
+      ' เวลาเรียน ' + fmt(num(b.meta.totalHours) || hours) + ' ชั่วโมง' + (b.meta.credits ? ' จำนวน ' + esc(b.meta.credits) + ' หน่วยกิต' : '') + '</div>' +
+    '<table class="doc-table"><thead><tr><th style="width:7%">หน่วยที่</th><th style="width:20%">ชื่อหน่วยการเรียนรู้</th><th style="width:20%">' +
+      (c.type === 'additional' ? 'ผลการเรียนรู้' : 'มาตรฐานการเรียนรู้/ตัวชี้วัด') + '</th><th>สาระสำคัญ</th><th style="width:9%">เวลา<br>(ชั่วโมง)</th><th style="width:9%">น้ำหนัก<br>คะแนน</th></tr></thead><tbody>' +
+      c.units.filter(u => u.section === 'before').map(unitRow).join('') + examRow('สอบกลางภาค', W.mid) +
+      c.units.filter(u => u.section === 'after').map(unitRow).join('') + examRow('สอบปลายภาค', W.final) +
+      '<tr><td colspan="4" style="text-align:center"><b>รวมตลอดภาคเรียน</b></td>' + cell('<b>' + fmt(hours) + '</b>', true) +
+        cell('<b>' + fmt(num(W.before) + num(W.after) + num(W.mid) + num(W.final)) + '</b>', true) + '</tr>' +
+    '</tbody></table>' +
+    '<div class="doc-line">อัตราส่วนคะแนน ระหว่างภาค : ปลายภาค = ' + fmt(pre) + ' : ' + fmt(W.final) + '</div>' +
+    '<div class="doc-sign"><div></div><div>ลงชื่อ ........................................ ครูผู้สอน<br>(' + esc(teacher || '........................................') + ')</div></div>' +
+  '</div>';
+}
+
 function renderItems() {
   const pane = $('#pane-items');
   const gate = gateMsg(true);
@@ -8247,6 +8483,9 @@ function renderItems() {
   const tot = totalItemMax(b);
   const beforeTot = sectionItemMax(b, 'before'), afterTot = sectionItemMax(b, 'after');
   const W = b.weights, wsum = num(W.before) + num(W.mid) + num(W.after) + num(W.final);
+  /* เปิดเชื่อมโยงในหน้าโครงสร้างรายวิชาและมีหน่วยแล้ว จึงโชว์คอลัมน์หน่วย — ปิดอยู่ก็ซ่อน แต่ค่าที่ผูกไว้ยังอยู่ */
+  const course = linkedCourse(b);
+  const unitOpts = sel => '<option value="">— ไม่เชื่อมโยง —</option>' + (course ? course.units.map(u => '<option value="' + u.id + '"' + (u.id === sel ? ' selected' : '') + '>' + esc(courseUnitLabel(course, u)) + '</option>').join('') : '');
 
   pane.innerHTML =
     '<div class="card">' +
@@ -8274,13 +8513,14 @@ function renderItems() {
       '</datalist>' +
       (b.items.length ?
         '<div class="tablewrap"><table id="itTable"><thead><tr>' +
-          '<th style="width:52px"></th><th>ชื่อหัวข้อ</th><th style="width:150px">ภาระงาน<br><span class="hint">นักเรียนเห็น</span></th><th class="num" style="width:110px">คะแนนดิบเต็ม</th><th class="num" style="width:110px">คะแนนดิบเต็ม<br>ช่องซ่อม</th><th class="num" style="width:100px">คะแนนที่ให้รวม</th>' +
+          '<th style="width:52px"></th><th>ชื่อหัวข้อ</th>' + (course ? '<th style="width:180px">หน่วยการเรียนรู้</th>' : '') + '<th style="width:150px">ภาระงาน<br><span class="hint">นักเรียนเห็น</span></th><th class="num" style="width:110px">คะแนนดิบเต็ม</th><th class="num" style="width:110px">คะแนนดิบเต็ม<br>ช่องซ่อม</th><th class="num" style="width:100px">คะแนนที่ให้รวม</th>' +
           '<th style="width:170px">คะแนนย่อย K/S/A</th><th style="width:145px">รวมคะแนนในส่วน</th><th style="width:130px">ประเภท</th><th style="width:190px">ชุดกลุ่มที่ใช้</th><th style="width:120px"></th>' +
         '</tr></thead><tbody>' +
         b.items.map((it, i) =>
           '<tr data-id="' + it.id + '">' +
           '<td class="num hint">' + (i + 1) + '</td>' +
           '<td><input type="text" class="i-name" value="' + esc(it.name) + '" style="width:100%"></td>' +
+          (course ? '<td><select class="i-unit" style="width:100%">' + unitOpts(it.unitId) + '</select></td>' : '') +
           '<td><input type="text" class="i-work" list="workKinds" value="' + esc(it.work || '') + '" placeholder="เช่น ใบงาน" style="width:100%" title="นักเรียนจะเห็นข้อความนี้ตอนแตะดูกล่องคะแนน"></td>' +
           '<td class="num"><input type="text" class="i-rawmax" value="' + esc(it.rawMax == null ? '' : it.rawMax) + '" placeholder="' + esc(it.max) + '" style="width:80px;text-align:center"' +
             (itemComponents(it).length ? ' disabled title="K/S/A ตั้งคะแนนดิบของแต่ละส่วนย่อยเอง"' : ' title="คะแนนเต็มของตัวเลขที่ครูกรอก เว้นว่างไว้ = กรอกตามคะแนนที่ให้"') + '></td>' +
@@ -8390,6 +8630,7 @@ function renderItems() {
     else if (el.classList.contains('i-rawmax')) { const v = num(el.value); if (v > 0) it.rawMax = v; else delete it.rawMax; }
     else if (el.classList.contains('i-retakemax')) { const v = num(el.value); if (v > 0) it.retakeMax = v; else delete it.retakeMax; }
     else if (el.classList.contains('i-section')) it.scoreSection = el.value === 'after' ? 'after' : 'before';
+    else if (el.classList.contains('i-unit')) { if (el.value) it.unitId = el.value; else delete it.unitId; }
     else if (el.classList.contains('i-kind')) {
       it.kind = el.value;
       if (it.kind === 'group' && itemComponents(it).length) it.components = [];
