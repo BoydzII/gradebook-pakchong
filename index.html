@@ -1764,6 +1764,7 @@ tr.conduct-void td{opacity:.55}tr.conduct-void td b{text-decoration:line-through
   <button data-tab="exchange">แลกคาบ / การลา <span id="exchangeBadge"></span></button>
   <button data-tab="scores">กรอกคะแนน</button>
   <button data-tab="groups">คะแนนกลุ่ม</button>
+  <button class="tab-shortcut" id="tabFaceScan" hidden title="เปิดกล้องมือถือสแกนหน้านักเรียน">📷 สแกนหน้า</button>
   <button data-tab="assess">คุณลักษณะ / อ่านคิดวิเคราะห์</button>
   <button data-tab="summary">สรุป / ส่งออก</button>
   <button data-tab="settings">โปรไฟล์ครู</button>
@@ -3235,8 +3236,8 @@ const isPinnedTab = (tab, mode) => PINNED_TABS.indexOf(tab) >= 0 || (mode !== 't
 /* ทุกหน้าที่บทบาทนี้เข้าได้ (รวมที่อยู่ในเมนู) */
 const canOpenTimetableStudio = () => ['admin', 'academic'].includes(DB.ui.staffMode || 'teacher');
 const openTimetableStudio = () => window.open('./timetable/', '_blank', 'noopener');
-const allowedTabs = () => $$('#tabs button').map(b => b.dataset.tab).filter(t => canSeeTab(t, DB.ui.staffMode || 'teacher'));
-const visibleTabButtons = () => $$('#tabs button').filter(b => allowedTabs().indexOf(b.dataset.tab) >= 0);
+const allowedTabs = () => $$('#tabs button[data-tab]').map(b => b.dataset.tab).filter(t => canSeeTab(t, DB.ui.staffMode || 'teacher'));
+const visibleTabButtons = () => $$('#tabs button[data-tab]').filter(b => allowedTabs().indexOf(b.dataset.tab) >= 0);
 
 /** ปุ่ม ☰ ข้างแถบแท็บ — โชว์เฉพาะเมื่อมีหน้าอื่นให้ไป */
 function renderTabsMenu() {
@@ -3254,7 +3255,7 @@ function renderBottomNav() {
   const primary = (PRIMARY_TABS[mode] || PRIMARY_TABS.teacher).filter(t => visible.indexOf(t) >= 0).slice(0, 4);
   visible.forEach(t => { if (primary.length < 4 && primary.indexOf(t) < 0) primary.push(t); });
   const badgeOf = tab => {
-    const btn = $$('#tabs button').find(b => b.dataset.tab === tab), span = btn && btn.querySelector('span');
+    const btn = $$('#tabs button[data-tab]').find(b => b.dataset.tab === tab), span = btn && btn.querySelector('span');
     return span && span.textContent.trim() ? '<span class="bn-dot"></span>' : '';
   };
   nav.hidden = false;
@@ -3355,12 +3356,14 @@ function applyRoleVisibility() {
   const mode = DB.ui.staffMode || 'teacher';
   const canSee = tab => canSeeTab(tab, mode);
   if (!canSee(DB.ui.tab || 'dashboard')) DB.ui.tab = homeTabOfRole(mode);
-  $$('#tabs button').forEach(btn => {
+  $$('#tabs button[data-tab]').forEach(btn => {
     const tab = btn.dataset.tab;
     // แถบแท็บโชว์เฉพาะงานหลัก ที่เหลืออยู่ในเมนูข้าง ๆ
     btn.hidden = !canSee(tab) || !isPinnedTab(tab, mode);
     btn.classList.toggle('active', tab === DB.ui.tab);
   });
+  // ปุ่มลัดสแกนหน้า: ฝ่ายกิจการฯ ใช้ทุกเช้าที่ประตู จึงยกขึ้นแถบบน ครูทั่วไปยังกดได้จากหน้าเช็กชื่อเหมือนเดิม
+  { const fs = $('#tabFaceScan'); if (fs) fs.hidden = mode !== 'affairs'; }
   renderTabsMenu();
   $$('section.tabpane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + DB.ui.tab));
   // ข้อมูลหลักของโรงเรียน (ปี/ภาค ชั้นเรียน รายวิชา) แก้ได้เฉพาะผู้ดูแลระบบ
@@ -3379,7 +3382,7 @@ function setStaffMode(mode) {
 function setTab(t) {
   if (t !== 'scores' && ScoreVoice.on) ScoreVoice.stop();   // ไมค์ค้างอยู่ตอนอยู่แท็บอื่นคือเติมคะแนนลงช่องที่มองไม่เห็น
   DB.ui.tab = t; save();
-  $$('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+  $$('#tabs button[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
   $$('section.tabpane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + t));
   closeTabSheet();
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -21115,7 +21118,8 @@ $('#btnTheme').addEventListener('click', toggleTheme);
 $('#btnProMode').addEventListener('click', toggleProMode);
 $('#btnFullscreen').addEventListener('click', toggleFullscreen);
 document.addEventListener('fullscreenchange', updateFullscreenButton);
-$$('#tabs button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+$$('#tabs button[data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+$('#tabFaceScan').addEventListener('click', openFaceScanner);
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openGlobalSearch(); }
 });
