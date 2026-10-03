@@ -29,6 +29,8 @@ service cloud.firestore {
     function isHead()      { return hasRole('head'); }
     function isAffairs()   { return hasRole('affairs'); }
     function isAcademic()  { return hasRole('academic'); }
+    function isPersonnel() { return hasRole('personnel'); }
+    function isGeneral()   { return hasRole('general'); }
 
     /* ---------- บุคลากร ----------
        ทุกคนที่อยู่ในระบบอ่านรายชื่อได้ (ต้องใช้หาครูสอนแทนและแสดงภาพรวม)
@@ -398,6 +400,42 @@ service cloud.firestore {
              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'review'])
              && request.resource.data.status in ['approved', 'revise']));
       allow delete: if isAdmin() || (isStaff() && resource.data.ownerId == myId());
+    }
+
+    /* ---------- ฝ่ายบุคคล: เวลามาทำงานของครู ----------
+       staffTime/{YYYY-MM-DD} { date, times: { teacherId: 'HH:MM' } } นำเข้าจากเครื่องสแกนนิ้ว
+       เวลามาทำงานเป็นข้อมูลบุคคล อ่านได้เฉพาะฝ่ายบุคคล ผู้บริหาร และผู้ดูแลระบบ */
+    match /staffTime/{dayId} {
+      allow read: if isPersonnel() || isExecutive() || isAdmin();
+      allow write: if (isPersonnel() || isAdmin())
+        && request.resource.data.date == dayId
+        && request.resource.data.times is map;
+    }
+    match /personnelConfig/{docId} {
+      allow read: if isPersonnel() || isExecutive() || isAdmin();
+      allow write: if isPersonnel() || isAdmin();
+    }
+
+    /* ---------- ฝ่ายบริหารทั่วไป: แจ้งซ่อม ----------
+       ครูทุกคนแจ้งได้ในนามตัวเอง (สถานะเริ่มต้นต้องเป็น new) แก้หรือยกเลิกได้เฉพาะตอนยังไม่มีคนรับเรื่อง
+       ฝ่ายบริหารทั่วไปกับผู้ดูแลระบบเปลี่ยนสถานะ/บันทึกได้ แต่เปลี่ยนเจ้าของรายการไม่ได้
+       รูปฝังในเอกสาร จำกัดขนาดไว้ไม่ให้เอกสารชนเพดาน 1MB */
+    match /repairRequests/{reqId} {
+      function photoOk() {
+        return !('photo' in request.resource.data) || (request.resource.data.photo is string && request.resource.data.photo.size() < 400000);
+      }
+      allow read: if isStaff();
+      allow create: if isStaff()
+        && request.resource.data.ownerId == myId()
+        && request.resource.data.status == 'new'
+        && photoOk();
+      allow update: if isStaff() && photoOk()
+        && request.resource.data.ownerId == resource.data.ownerId && (
+             isGeneral() || isAdmin()
+          || (resource.data.ownerId == myId() && resource.data.status == 'new'
+              && request.resource.data.status in ['new', 'cancelled']
+              && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['handledBy', 'handlerNote', 'assignee'])));
+      allow delete: if isGeneral() || isAdmin();
     }
 
     /* ---------- แจ้งเข้าสู่ระบบไม่ได้ ----------

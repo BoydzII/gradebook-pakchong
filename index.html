@@ -421,6 +421,11 @@ td.num,th.num{text-align:center}
   padding:6px 2px;margin-bottom:6px;background:var(--panel);border-bottom:1px solid var(--line)}
 .miss-group-head b{font-size:14px}
 .alert-item{display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel)}
+/* แจ้งซ่อม: รูปย่อกดขยายได้ รายละเอียดยาวตัดบรรทัดเอง • ตารางชนในหน้าวัดผล */
+.repair-thumb{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line);cursor:zoom-in;flex:0 0 auto}
+.repair-detail{margin-top:3px;white-space:pre-wrap;overflow-wrap:anywhere}
+.tt-cell.filled.tt-clash{background:var(--bad-bg);border-color:var(--bad)}
+.timetable td>.tt-cell+.tt-cell{margin-top:4px}
 .master-tools{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
 .level-tag{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;background:var(--brandSoft);color:var(--brand);font-size:11px;font-weight:800;white-space:nowrap}
 .student-portal{position:fixed;inset:0;z-index:90;background:var(--bg);color:var(--ink);overflow:auto}
@@ -1738,7 +1743,7 @@ tr.conduct-void td{opacity:.55}tr.conduct-void td b{text-decoration:line-through
     </div>
     <div class="pick" data-pick="role">
       <label for="selStaffMode">บทบาท</label>
-      <select id="selStaffMode"><option value="teacher">ครู</option><option value="head">หัวหน้ากลุ่มสาระฯ</option><option value="executive">ผู้บริหาร</option><option value="affairs">ฝ่ายกิจการนักเรียน</option><option value="academic">ฝ่ายวิชาการ</option><option value="admin">ผู้ดูแลระบบ</option></select>
+      <select id="selStaffMode"><option value="teacher">ครู</option><option value="head">หัวหน้ากลุ่มสาระฯ</option><option value="executive">ผู้บริหาร</option><option value="affairs">ฝ่ายกิจการนักเรียน</option><option value="academic">ฝ่ายวิชาการ</option><option value="measure">ฝ่ายวัดผลและประเมินผล</option><option value="personnel">ฝ่ายบุคคล</option><option value="general">ฝ่ายบริหารทั่วไป</option><option value="admin">ผู้ดูแลระบบ</option></select>
     </div>
   </div>
   <div class="spacer"></div>
@@ -1780,6 +1785,9 @@ tr.conduct-void td{opacity:.55}tr.conduct-void td b{text-decoration:line-through
   <button data-tab="leaves">การลาและการอนุมัติ <span id="leaveBadge"></span></button>
   <button data-tab="affairs">กิจการนักเรียน</button>
   <button data-tab="academic">ฝ่ายวิชาการ / ปฏิทินวิชาการ</button>
+  <button data-tab="measure">ฝ่ายวัดผลและประเมินผล</button>
+  <button data-tab="personnel">ฝ่ายบุคคล</button>
+  <button data-tab="general">ฝ่ายบริหารทั่วไป / แจ้งซ่อม <span id="generalBadge"></span></button>
   <button data-tab="admin">ผู้ดูแลระบบ <span id="loginReqBadge"></span></button>
 </nav>
 <button class="sm tabs-bell" id="tabsBell" hidden title="การแจ้งเตือน"><span class="bell-ico">🔔</span><span class="bell-n" id="tabsBellCount"></span></button>
@@ -1809,6 +1817,9 @@ tr.conduct-void td{opacity:.55}tr.conduct-void td b{text-decoration:line-through
   <section class="tabpane" id="pane-leaves"></section>
   <section class="tabpane" id="pane-affairs"></section>
   <section class="tabpane" id="pane-academic"></section>
+  <section class="tabpane" id="pane-measure"></section>
+  <section class="tabpane" id="pane-personnel"></section>
+  <section class="tabpane" id="pane-general"></section>
   <section class="tabpane" id="pane-admin"></section>
 </main>
 <nav class="bottomnav" id="bottomNav" hidden></nav>
@@ -2500,8 +2511,8 @@ const curSubject = () => DB.subjects.find(s => s.id === DB.ui.subjectId) || null
 const curPeriod  = () => DB.periods.find(p => p.id === DB.ui.periodId) || null;
 const curTeacher = () => DB.teachers.find(t => t.id === DB.ui.teacherId) || null;
 const teacherHasRole = (teacher, role) => !!(teacher && Array.isArray(teacher.roles) && teacher.roles.includes(role));
-const STAFF_ROLES = ['teacher', 'head', 'executive', 'affairs', 'academic', 'admin'];
-const roleLabel = role => ({ teacher: 'ครู', head: 'หัวหน้ากลุ่มสาระฯ', executive: 'ผู้บริหาร', affairs: 'ฝ่ายกิจการนักเรียน', academic: 'ฝ่ายวิชาการ', admin: 'ผู้ดูแลระบบ' }[role] || role);
+const STAFF_ROLES = ['teacher', 'head', 'executive', 'affairs', 'academic', 'measure', 'personnel', 'general', 'admin'];
+const roleLabel = role => ({ teacher: 'ครู', head: 'หัวหน้ากลุ่มสาระฯ', executive: 'ผู้บริหาร', affairs: 'ฝ่ายกิจการนักเรียน', academic: 'ฝ่ายวิชาการ', measure: 'ฝ่ายวัดผลและประเมินผล', personnel: 'ฝ่ายบุคคล', general: 'ฝ่ายบริหารทั่วไป', admin: 'ผู้ดูแลระบบ' }[role] || role);
 /* กลุ่มสาระการเรียนรู้ 8 กลุ่ม + กลุ่มงานที่ไม่ใช่กลุ่มสาระ */
 const LEARNING_AREAS = ['ภาษาไทย', 'คณิตศาสตร์', 'วิทยาศาสตร์และเทคโนโลยี', 'สังคมศึกษา ศาสนาและวัฒนธรรม',
   'สุขศึกษาและพลศึกษา', 'ศิลปะ', 'การงานอาชีพ', 'ภาษาต่างประเทศ', 'กลุ่มงานแนะแนว', 'EP', 'สำนักงาน (สนง.)', 'ผู้บริหาร'];
@@ -3185,7 +3196,7 @@ function renderTop() {
 }
 
 /* แท็บใดเป็นของบทบาทใด — ตั้งค่าและฐานนักเรียนย้ายไปเป็นงานของผู้ดูแลระบบ */
-const TAB_ROLE = { settings: 'admin', students: 'admin', admin: 'admin', executive: 'executive', leaves: 'executive', head: 'head', affairs: 'affairs' };
+const TAB_ROLE = { settings: 'admin', students: 'admin', admin: 'admin', executive: 'executive', leaves: 'executive', head: 'head', affairs: 'affairs', personnel: 'personnel', measure: 'measure' };
 const roleOfTab = tab => TAB_ROLE[tab] || 'teacher';
 /* หน้าไหนต้องใช้ตัวเลือกอะไรบ้าง — บนมือถือจะซ่อนตัวที่หน้านั้นไม่ได้ใช้
    เพื่อให้หัวเรื่องของหน้าขึ้นมาอยู่บนสุดโดยไม่ต้องเลื่อนผ่านแถบเลือกยาว ๆ */
@@ -3195,10 +3206,10 @@ const TAB_PICKERS = {
   groups: ['period', 'class', 'subject'], assess: ['period', 'class', 'subject'],
   summary: ['period', 'class', 'subject'], students: ['period', 'class'],
   attendance: ['period'], exchange: ['period'], schedule: ['period'], activities: ['period'],
-  head: ['period'], executive: ['period'], leaves: ['period'], admin: ['period'], settings: ['period'], affairs: ['period'], academic: ['period'], personal: []
+  head: ['period'], executive: ['period'], leaves: ['period'], admin: ['period'], settings: ['period'], affairs: ['period'], academic: ['period'], measure: ['period'], personnel: ['period'], general: [], personal: []
 };
 const pickersForTab = tab => TAB_PICKERS[tab] || ['period', 'class', 'subject'];
-const homeTabOfRole = role => role === 'executive' ? 'executive' : role === 'admin' ? 'admin' : role === 'head' ? 'head' : role === 'affairs' ? 'affairs' : role === 'academic' ? 'academic' : 'dashboard';
+const homeTabOfRole = role => role === 'executive' ? 'executive' : role === 'admin' ? 'admin' : role === 'head' ? 'head' : role === 'affairs' ? 'affairs' : role === 'academic' ? 'academic' : ['measure', 'personnel', 'general'].includes(role) ? role : 'dashboard';
 
 /* ---------- เมนูและการนำทาง ----------------------------------------------
    แถบบนเหลือเฉพาะสิ่งที่ใช้บ่อย ปุ่มอื่นย้ายเข้าเมนู ⋯
@@ -3206,10 +3217,10 @@ const homeTabOfRole = role => role === 'executive' ? 'executive' : role === 'adm
 const TAB_SHORT = { dashboard: 'ภาพรวม', attendance: 'เช็กชื่อ', exchange: 'แลกคาบ', scores: 'คะแนน',
   groups: 'คะแนนกลุ่ม', assess: 'คุณลักษณะ', summary: 'สรุป ปพ.5', settings: 'โปรไฟล์ครู', personal: 'ประวัติส่วนตัว', students: 'นักเรียน',
   schedule: 'ตารางสอน', items: 'หัวข้อคะแนน', indicators: 'ตัวชี้วัด', course: 'โครงสร้างรายวิชา', activities: 'กิจกรรม', head: 'กลุ่มสาระ',
-  executive: 'ผู้บริหาร', leaves: 'อนุมัติลา', affairs: 'กิจการนักเรียน', academic: 'วิชาการ', admin: 'ผู้ดูแลระบบ' };
+  executive: 'ผู้บริหาร', leaves: 'อนุมัติลา', affairs: 'กิจการนักเรียน', academic: 'วิชาการ', measure: 'วัดผล', personnel: 'บุคคล', general: 'แจ้งซ่อม', admin: 'ผู้ดูแลระบบ' };
 const TAB_ICON = { dashboard: '◈', attendance: '◷', exchange: '⇄', scores: '✎', groups: '◉', assess: '☑',
   summary: '▤', settings: '⚙', personal: '🪪', students: '☺', schedule: '▦', items: '☰', indicators: '◇', course: '▥', activities: '★', head: '◆',
-  executive: '◎', leaves: '✈', affairs: '⚑', academic: '▣', admin: '⚙' };
+  executive: '◎', leaves: '✈', affairs: '⚑', academic: '▣', measure: '▦', personnel: '♟', general: '⚒', admin: '⚙' };
 /* หมวดของเมนู "ไปที่หน้า" — เรียงตามลำดับที่ครูใช้งานจริงในหนึ่งวัน
    เดิมเป็นปุ่ม 17 อันเรียงติดกันไม่มีหัวข้อ ต้องกวาดตาอ่านทีละอันกว่าจะเจอ */
 const TAB_SECTIONS = [
@@ -3218,8 +3229,10 @@ const TAB_SECTIONS = [
   { label: 'ข้อมูลโรงเรียน', tabs: ['students', 'schedule', 'personal', 'settings'] },
   /* แยกตามฝ่ายงานของโรงเรียน ครูหาเมนูของฝ่ายตัวเองได้ทันที — หมวดที่บทบาทนั้นไม่มีหน้าให้เข้าจะถูกซ่อนเอง */
   { label: 'งานบริหาร', tabs: ['head', 'executive', 'leaves', 'admin'] },
-  { label: 'งานวิชาการ', tabs: ['academic'] },
-  { label: 'งานกิจการนักเรียน', tabs: ['affairs'] }
+  { label: 'งานวิชาการ', tabs: ['academic', 'measure'] },
+  { label: 'งานกิจการนักเรียน', tabs: ['affairs'] },
+  { label: 'งานบุคคล', tabs: ['personnel'] },
+  { label: 'งานบริหารทั่วไป', tabs: ['general'] }
 ];
 
 /* งานหลักของแต่ละบทบาท ใช้จัดปุ่มบนแถบล่างของมือถือ */
@@ -3228,13 +3241,16 @@ const PRIMARY_TABS = { teacher: ['dashboard', 'attendance', 'scores', 'exchange'
   executive: ['executive', 'leaves', 'dashboard', 'summary'],
   affairs: ['affairs', 'dashboard', 'attendance', 'scores'],
   academic: ['academic', 'dashboard', 'attendance', 'scores'],
+  measure: ['measure', 'dashboard', 'attendance', 'scores'],
+  personnel: ['personnel', 'dashboard', 'attendance', 'scores'],
+  general: ['general', 'dashboard', 'attendance', 'scores'],
   admin: ['admin', 'students', 'schedule', 'settings'] };
 
 /* แท็บที่ปักหมุดไว้บนแถบเสมอ ที่เหลือเก็บในเมนู เพื่อให้แถบบนโล่งและหาของง่าย */
 const PINNED_TABS = ['dashboard', 'attendance', 'scores', 'groups'];
 const isPinnedTab = (tab, mode) => PINNED_TABS.indexOf(tab) >= 0 || (mode !== 'teacher' && tab === homeTabOfRole(mode));
 /* ทุกหน้าที่บทบาทนี้เข้าได้ (รวมที่อยู่ในเมนู) */
-const canOpenTimetableStudio = () => ['admin', 'academic'].includes(DB.ui.staffMode || 'teacher');
+const canOpenTimetableStudio = () => ['admin', 'academic', 'measure'].includes(DB.ui.staffMode || 'teacher');
 const openTimetableStudio = () => window.open('./timetable/', '_blank', 'noopener');
 const allowedTabs = () => $$('#tabs button[data-tab]').map(b => b.dataset.tab).filter(t => canSeeTab(t, DB.ui.staffMode || 'teacher'));
 const visibleTabButtons = () => $$('#tabs button[data-tab]').filter(b => allowedTabs().indexOf(b.dataset.tab) >= 0);
@@ -3461,6 +3477,9 @@ function render() {
   else if (t === 'leaves') renderLeaveApprovals();
   else if (t === 'affairs') renderAffairs();
   else if (t === 'academic') renderAcademic();
+  else if (t === 'measure') renderMeasureDept();
+  else if (t === 'personnel') renderPersonnelDept();
+  else if (t === 'general') renderGeneralDept();
   else if (t === 'admin') renderAdmin();
   initCollapsibles();
   bindSearchableSelects();
@@ -3786,7 +3805,13 @@ const SEARCH_INDEX = [
   { t: 'เกณฑ์คะแนนพฤติกรรม', w: 'ตั้งค่า รายการพฤติกรรม', tab: 'affairs', pre: { affairsView: 'config' }, card: 'เกณฑ์คะแนน' },
   { t: 'ปฏิทินวิชาการ', w: 'ปฏิทิน วันหยุด วันสำคัญ กิจกรรม สอบ', tab: 'academic', pre: { academicView: 'calendar' } },
   { t: 'ติดตามการส่งคะแนน', w: 'ฝ่ายวิชาการ ส่ง ปพ.5 ความคืบหน้า', tab: 'academic', pre: { academicView: 'scores' } },
-  { t: 'จัดตารางสอน', w: 'จัดตาราง ตารางเรียน ตรวจชน ลากวาง ฝ่ายวิชาการ', roles: ['admin', 'academic'], act: () => openTimetableStudio() },
+  { t: 'จัดตารางสอน', w: 'จัดตาราง ตารางเรียน ตรวจชน ลากวาง ฝ่ายวิชาการ วัดผล', roles: ['admin', 'academic', 'measure'], act: () => openTimetableStudio() },
+  { t: 'ตารางสอนรายครู', w: 'ฝ่ายวัดผล ตารางสอน', tab: 'measure', pre: { measureView: 'teacher' } },
+  { t: 'ตารางเรียนรายห้อง', w: 'ฝ่ายวัดผล ตารางเรียน ห้องเรียน', tab: 'measure', pre: { measureView: 'class' } },
+  { t: 'ภาระงานสอนและตารางชน', w: 'ฝ่ายวัดผล คาบสอน ชน', tab: 'measure', pre: { measureView: 'load' } },
+  { t: 'การลาของครู', w: 'ฝ่ายบุคคล ลา', tab: 'personnel', pre: { personnelView: 'leave' } },
+  { t: 'ครูมาสาย ขาด', w: 'ฝ่ายบุคคล สแกนนิ้ว เวลามาทำงาน', tab: 'personnel', pre: { personnelView: 'time' } },
+  { t: 'แจ้งซ่อม', w: 'ชำรุด ซ่อม ฝ่ายบริหารทั่วไป อาคาร สถานที่', tab: 'general' },
   { t: 'งานวิชาการตามรอบปี', w: 'ฝ่ายวิชาการ งานประจำปี O-NET ปพ.1', tab: 'academic', pre: { academicView: 'tasks' } },
   { t: 'ข้อมูลครูและสิทธิ์ใช้งาน', w: 'ครู บทบาท สิทธิ์ เพิ่มครู', tab: 'admin', pre: { adminSection: 'people' }, card: 'ข้อมูลครูและสิทธิ์' },
   { t: 'ครูที่ปรึกษาแยกรายห้อง', w: 'ครูประจำชั้น homeroom', tab: 'admin', pre: { adminSection: 'people' }, card: 'ครูที่ปรึกษาแยกรายห้อง' },
@@ -14897,6 +14922,7 @@ function teacherRolesFromText(value) {
   if (/ครู|teacher/.test(v) || !v) roles.push('teacher');
   if (/หัวหน้ากลุ่มสาระ|หัวหน้ากลุ่ม|head/.test(v)) roles.push('head');
   if (/ผู้บริหาร|executive|director/.test(v)) roles.push('executive'); if (/ผู้ดูแล|admin/.test(v)) roles.push('admin');
+  if (/วัดผล|measure/.test(v)) roles.push('measure'); if (/บุคคล|personnel/.test(v)) roles.push('personnel'); if (/บริหารทั่วไป|general/.test(v)) roles.push('general');
   return Array.from(new Set(roles.length ? roles : ['teacher']));
 }
 /** จับคู่ข้อความกลุ่มสาระจากไฟล์นำเข้ากับรายการมาตรฐาน */
@@ -15645,7 +15671,7 @@ function renderAdminTeacherRows() {
     '<td><input class="admin-email" type="email" value="' + esc(adminDraftValue(t, 'email') || '') + '"></td>' +
     '<td><input class="admin-phone" value="' + esc(adminDraftValue(t, 'phone') || '') + '" style="width:130px"></td>' +
     '<td><select class="admin-area">' + learningAreaOptions(adminDraftValue(t, 'learningArea')) + '</select></td>' +
-    '<td>' + roleBox(t, 'teacher', 'ครู') + ' ' + roleBox(t, 'head', 'หัวหน้ากลุ่มสาระฯ') + ' ' + roleBox(t, 'executive', 'ผู้บริหาร') + ' ' + roleBox(t, 'affairs', 'กิจการนักเรียน') + ' ' + roleBox(t, 'academic', 'ฝ่ายวิชาการ') + ' ' + roleBox(t, 'admin', 'แอดมิน') + '</td>' +
+    '<td>' + roleBox(t, 'teacher', 'ครู') + ' ' + roleBox(t, 'head', 'หัวหน้ากลุ่มสาระฯ') + ' ' + roleBox(t, 'executive', 'ผู้บริหาร') + ' ' + roleBox(t, 'affairs', 'กิจการนักเรียน') + ' ' + roleBox(t, 'academic', 'ฝ่ายวิชาการ') + ' ' + roleBox(t, 'measure', 'ฝ่ายวัดผล') + ' ' + roleBox(t, 'personnel', 'ฝ่ายบุคคล') + ' ' + roleBox(t, 'general', 'ฝ่ายบริหารทั่วไป') + ' ' + roleBox(t, 'admin', 'แอดมิน') + '</td>' +
     '<td><select class="admin-homeroom"><option value="">— ไม่กำหนด —</option>' + sortedClassList(DB.classes).map(c => '<option value="' + c.id + '"' + (adminDraftValue(t, 'homeroomClassId') === c.id ? ' selected' : '') + '>' + esc(c.name) + ' (' + DB.teachers.filter(x => adminDraftValue(x, 'homeroomClassId') === c.id).length + '/2)</option>').join('') + '</select></td>' +
     '<td><button class="sm danger" data-del-teacher="' + t.id + '" title="ลบครูคนนี้">ลบ</button></td></tr>').join('')
     : '<tr><td colspan="7"><div class="empty">' + (DB.ui.adminSearch ? 'ไม่พบครูที่ตรงกับคำค้น “' + esc(DB.ui.adminSearch) + '”' : 'ยังไม่มีข้อมูลครู') + '</div></td></tr>';
@@ -18128,6 +18154,674 @@ function openAcadTaskEditor(year, task) {
 }
 
 /* ============================================================================
+   19) ฝ่ายบุคคล • ฝ่ายบริหารทั่วไป • ฝ่ายวัดผลและประเมินผล
+   สามฝ่ายนี้เพิ่มพร้อมกัน ข้อมูลแต่ละฝ่ายวิ่งทางของตัวเอง ไม่ปนกับสามทางเดิม
+
+   ฝ่ายบุคคล (บทบาท personnel)
+   - การลาอ่านจาก DB.timetable.leaveRequests ที่ทุกเครื่องรับจาก leaves อยู่แล้ว ฝ่ายบุคคลดูอย่างเดียว
+     การอนุมัติยังเป็นของผู้บริหารเหมือนเดิม
+   - เวลามาทำงานของครูยังไม่มีแหล่งจริง โรงเรียนจะใช้เครื่องสแกนนิ้ว จึงเตรียมรับไว้สองทาง
+     นำเข้าไฟล์ที่ส่งออกจากเครื่อง หรือดึงจากลิงก์ที่ตั้งไว้ (เผื่อเครื่องมีลิงก์ให้ดึงภายหลัง)
+     staffTime/{YYYY-MM-DD}  { date, times: { teacherId: 'HH:MM' } }  เก็บเฉพาะเวลาสแกนแรกของวัน
+     personnelConfig/main    { value: { lateTime, feedUrl, scanIds: { teacherId: รหัสในเครื่อง } } }
+     เวลาของครูเป็นข้อมูลบุคคล จึงไม่เก็บลงเครื่อง (DB) อ่านจากส่วนกลางทุกครั้งที่เปิดดู
+   ฝ่ายบริหารทั่วไป (บทบาท general)
+   - repairRequests/{id} ครูทุกคนแจ้งซ่อมได้ ฝ่ายบริหารทั่วไปรับเรื่องและเปลี่ยนสถานะ
+     ไม่ผ่านตะกร้าส่งออก เพราะผู้แจ้งกับผู้รับเรื่องต้องเห็นสถานะเดียวกันทันที แจ้งตอนออฟไลน์จึงไม่ได้
+     รูปประกอบย่อเป็น JPEG ฝังในเอกสาร (ไม่เกิน ~350KB) เพราะโปรเจกต์นี้ไม่ได้เปิด Firebase Storage
+   ฝ่ายวัดผลและประเมินผล (บทบาท measure)
+   - อ่านตารางสอนของทั้งโรงเรียนจาก DB.timetable.entries ที่ทุกเครื่องมีอยู่แล้ว ไม่มีข้อมูลใหม่
+     แก้ตารางทำในแอปจัดตารางสอน (เผยแพร่ลงส่วนกลางยังเป็นสิทธิ์ผู้ดูแลระบบตามกฎ timetable)
+   ========================================================================== */
+const roleNow = () => DB.ui.staffMode || 'teacher';
+const isPersonnelStaff = () => ['personnel', 'admin'].includes(roleNow());
+const isGeneralStaff = () => ['general', 'admin'].includes(roleNow());
+/* ผู้บริหารเห็นรายการแจ้งซ่อมทั้งหมดแบบอ่านอย่างเดียว ครูทั่วไปเห็นเฉพาะที่ตัวเองแจ้ง */
+const generalWatcher = () => ['general', 'admin', 'executive'].includes(roleNow());
+/* ตรงกับ myId() ในกฎ Firestore (อีเมลตัวพิมพ์เล็ก) ไม่ใช้ fbStaffId เพราะนั่นแทนอักขระพิเศษด้วย _ */
+const myEmailLower = () => String((fbUser && fbUser.email) || '').trim().toLowerCase();
+const deptOnline = () => firebaseReady() && fbSignedIn();
+const deptPermMsg = (e, who) => e && e.code === 'permission-denied'
+  ? 'บัญชีนี้ยังไม่มีสิทธิ์' + who + ' หรือยังไม่ได้วางกฎ Firestore ชุดใหม่' : String((e && e.message) || e || 'ไม่ทราบสาเหตุ');
+const deptApply = fn => { fbApplying = true; try { fn(); } finally { fbApplying = false; } };
+function deptViewsBar(views, current, attr) {
+  return '<div class="row affairs-views" style="gap:6px;margin-bottom:12px">' + views.map(v =>
+    '<button class="sm' + (v[0] === current ? ' primary' : '') + '" ' + attr + '="' + v[0] + '">' + esc(v[1]) + '</button>').join('') + '</div>';
+}
+const teachersByName = () => DB.teachers.slice().sort((a, b) => String(a.name || a.email || '').localeCompare(String(b.name || b.email || ''), 'th'));
+
+/** เรียกหลังเริ่มซิงก์ และทุกครั้งที่เปิดหน้าของฝ่าย — ฟังก์ชันย่อยกันการสมัครซ้ำเอง */
+function ensureDeptListeners() {
+  ensurePersonnelListeners();
+  ensureRepairListener();
+}
+
+/* ---- ฝ่ายบุคคล -------------------------------------------------------------- */
+const PERSONNEL_VIEWS = [['leave', 'การลาของครู'], ['time', 'มา • สาย • ขาด'], ['setup', 'ตั้งค่าเครื่องสแกนนิ้ว']];
+function ensurePersonnel() {
+  const p = DB.personnel = DB.personnel && typeof DB.personnel === 'object' ? DB.personnel : {};
+  p.config = Object.assign({ lateTime: '08:00', feedUrl: '', scanIds: {} }, p.config || {});
+  if (!p.config.scanIds || typeof p.config.scanIds !== 'object') p.config.scanIds = {};
+  return p;
+}
+let personnelTime = { month: '', days: {}, loading: '', error: '' };
+let personnelCfgListen = false;
+function ensurePersonnelListeners() {
+  if (!deptOnline() || !fbUnsub.length || personnelCfgListen || !['personnel', 'admin', 'executive'].includes(roleNow())) return;
+  personnelCfgListen = true;
+  const unsub = fbDb.collection('personnelConfig').doc('main').onSnapshot(doc => deptApply(() => {
+    const v = doc.exists ? fbDecodeNested((doc.data() || {}).value) : null;
+    if (!v) return;
+    const p = ensurePersonnel(); p.config = Object.assign(p.config, v);
+    save(true); if (DB.ui.tab === 'personnel') renderPersonnelDept();
+  }), () => {});
+  fbUnsub.push(() => { unsub(); personnelCfgListen = false; personnelTime = { month: '', days: {}, loading: '', error: '' }; });
+}
+/** โหลดเวลาสแกนทั้งเดือน — ใช้ทั้งตารางรายวันและสรุปรายเดือน จึงโหลดทีเดียวทั้งเดือน */
+async function loadStaffTimeMonth(month, force) {
+  if (!deptOnline()) return;
+  if (!force && (personnelTime.month === month || personnelTime.loading === month)) return;
+  personnelTime.loading = month; personnelTime.error = '';
+  let days = {}, error = '';
+  try {
+    const snap = await fbDb.collection('staffTime').where('date', '>=', month + '-01').where('date', '<=', month + '-31').get();
+    snap.docs.forEach(d => { const x = d.data() || {}; days[x.date || d.id] = x.times && typeof x.times === 'object' ? x.times : {}; });
+  } catch (e) { days = {}; error = 'โหลดเวลามาทำงานไม่สำเร็จ: ' + deptPermMsg(e, 'ดูเวลามาทำงาน (ฝ่ายบุคคล ผู้บริหาร ผู้ดูแลระบบ)'); }
+  if (personnelTime.loading !== month) return;   // ระหว่างรอ ผู้ใช้เปลี่ยนไปดูเดือนอื่นแล้ว
+  personnelTime = { month: month, days: days, loading: '', error: error };
+  if (DB.ui.tab === 'personnel') renderPersonnelDept();
+}
+/* ใบลาที่ไม่อนุมัติหรือถูกลบไม่นับว่าวันนั้นลา */
+const leaveCoversDate = (l, date) => !!(l && l.fromDate && l.fromDate <= date && (l.toDate || l.fromDate) >= date &&
+  (l.approval || {}).status !== 'rejected' && l.status !== 'deleted');
+const leavesOnDate = date => (DB.timetable.leaveRequests || []).filter(l => !isOrphanLeave(l) && leaveCoversDate(l, date));
+const leaveRangeText = l => thaiDate(l.fromDate) + (l.toDate && l.toDate !== l.fromDate ? ' ถึง ' + thaiDate(l.toDate) : '');
+const leaveTypeShort = l => isOfficialTrip(l) ? 'ไปราชการ' : (exchangeReasonLabel(l).split(' — ')[0] || 'ลา');
+/** สถานะของครูหนึ่งคนในหนึ่งวัน — times = undefined แปลว่าวันนั้นยังไม่มีข้อมูลจากเครื่องสแกน
+    จึงตัดสินว่า "ขาด" ไม่ได้ (ไม่มีข้อมูล ≠ ไม่มา) */
+function staffDayStatus(teacher, date, times, lateTime) {
+  const lv = (DB.timetable.leaveRequests || []).find(l => l.teacherId === teacher.id && leaveCoversDate(l, date));
+  if (lv) return { code: isOfficialTrip(lv) ? 'trip' : 'leave', label: leaveTypeShort(lv), leave: lv };
+  const t = times && times[teacher.id];
+  if (t) return t > lateTime ? { code: 'late', label: 'สาย', time: t } : { code: 'ok', label: 'มา', time: t };
+  if (!times) return { code: 'nodata', label: '—' };
+  return { code: 'absent', label: 'ไม่พบการสแกน' };
+}
+const STAFF_STATUS_CLS = { ok: 'ok', late: 'warn', leave: '', trip: '', absent: 'bad', nodata: '' };
+
+function renderPersonnelDept() {
+  const pane = $('#pane-personnel'); if (!pane) return;
+  ensurePersonnel(); ensureDeptListeners();
+  const views = PERSONNEL_VIEWS.filter(v => v[0] !== 'setup' || isPersonnelStaff());
+  const view = views.some(v => v[0] === DB.ui.personnelView) ? DB.ui.personnelView : 'leave';
+  pane.innerHTML = '<div class="card dash-hero"><div class="row" style="position:relative;z-index:1"><div><div class="hero-sub">PERSONNEL</div>' +
+      '<h1>ฝ่ายบุคคล</h1><div class="hero-sub">การลา • มาสาย • ขาดงานของครูและบุคลากร' + (curPeriod() ? ' • ปี ' + esc(curPeriod().academicYear) + ' ภาค ' + esc(curPeriod().semester) : '') + '</div></div></div></div>' +
+    (!deptOnline() ? '<div class="notice" style="margin-bottom:12px">ยังไม่ได้เข้าสู่ระบบด้วยบัญชีโรงเรียน การลาแสดงจากข้อมูลในเครื่องนี้ ส่วนเวลามาทำงานต้องเข้าสู่ระบบก่อนจึงจะเห็น</div>' : '') +
+    deptViewsBar(views, view, 'data-pn-view') + '<div id="pnBody"></div>';
+  $$('[data-pn-view]', pane).forEach(b => b.addEventListener('click', () => { DB.ui.personnelView = b.dataset.pnView; save(); renderPersonnelDept(); }));
+  const body = $('#pnBody', pane);
+  if (view === 'time') renderPersonnelTime(body);
+  else if (view === 'setup') renderPersonnelSetup(body);
+  else renderPersonnelLeave(body);
+}
+
+function renderPersonnelLeave(body) {
+  const pid = DB.ui.periodId, today = todayISO(), stats = leaveStatsByTeacher(pid);
+  const leaves = (DB.timetable.leaveRequests || []).filter(l => l.periodId === pid && !isOrphanLeave(l) && l.status !== 'deleted')
+    .sort((a, b) => String(b.fromDate || '').localeCompare(String(a.fromDate || '')));
+  const todayList = leavesOnDate(today), waiting = leaves.filter(l => (l.approval || {}).status === 'submitted').length;
+  const row = l => {
+    const t = DB.teachers.find(x => x.id === l.teacherId) || {};
+    return '<div class="alert-item"><div><b>' + esc(t.name || t.email || '—') + ' • ' + esc(leaveTypeShort(l)) + '</b><div class="hint">' +
+      esc(teacherArea(t) || 'ยังไม่ระบุกลุ่มสาระ') + ' • ' + leaveRangeText(l) + (isOfficialTrip(l) ? '' : ' • ' + leaveDays(l) + ' วัน') + '</div></div>' +
+      '<div class="spacer"></div>' + leaveApprovalBadge((l.approval || {}).status || 'draft') + '<button class="sm" data-pn-doc="' + esc(l.id) + '">ดูใบลา</button></div>';
+  };
+  body.innerHTML = '<div class="dash-metrics">' +
+      '<div class="metric-card" style="--metric:var(--warn)"><div class="metric-value">' + todayList.length + '</div><div class="metric-label">ลา / ไปราชการวันนี้</div></div>' +
+      '<div class="metric-card" style="--metric:var(--brand)"><div class="metric-value">' + leaves.length + '</div><div class="metric-label">ใบลาในภาคเรียนนี้</div></div>' +
+      '<div class="metric-card" style="--metric:var(--bad)"><div class="metric-value">' + stats.reduce((a, r) => a + r.days, 0) + '</div><div class="metric-label">วันลารวม</div></div>' +
+      '<div class="metric-card" style="--metric:var(--group)"><div class="metric-value">' + waiting + '</div><div class="metric-label">รอผู้บริหารอนุมัติ</div></div></div>' +
+    '<div class="card"><h3>วันนี้ใครลา / ไปราชการ <span class="sub">' + thaiDate(today) + '</span></h3>' +
+      (todayList.length ? '<div class="alert-list">' + todayList.map(row).join('') + '</div>' : '<div class="empty">วันนี้ไม่มีครูลาหรือไปราชการ</div>') + '</div>' +
+    '<div class="card"><h3>สรุปการลารายครู</h3><div class="hint" style="margin-bottom:8px">นับเฉพาะวันจันทร์–ศุกร์ในช่วงวันที่ลา • การอนุมัติทำที่หน้าผู้บริหาร</div>' + leaveStatsTable(stats, true) + '</div>' +
+    '<div class="card"><h3>ใบลาทั้งหมดในภาคเรียนนี้</h3>' + (leaves.length ? '<div class="alert-list">' + leaves.slice(0, 80).map(row).join('') + '</div>' : '<div class="empty">ยังไม่มีข้อมูลการลา</div>') + '</div>';
+  $$('[data-pn-doc]', body).forEach(b => b.addEventListener('click', () => openLeaveDocument(b.dataset.pnDoc)));
+}
+
+function renderPersonnelTime(body) {
+  const cfg = ensurePersonnel().config, lateTime = cfg.lateTime || '08:00';
+  const date = DB.ui.personnelDate = /^\d{4}-\d{2}-\d{2}$/.test(DB.ui.personnelDate || '') ? DB.ui.personnelDate : todayISO();
+  const month = date.slice(0, 7), loaded = personnelTime.month === month, staff = isPersonnelStaff();
+  if (deptOnline() && !loaded) loadStaffTimeMonth(month);
+  const days = loaded ? personnelTime.days : {}, times = days[date];
+  const order = { absent: 0, late: 1, leave: 2, trip: 3, ok: 4, nodata: 5 };
+  const rows = teachersByName().map(t => ({ t: t, s: staffDayStatus(t, date, times, lateTime) }))
+    .sort((a, b) => order[a.s.code] - order[b.s.code]);
+  const count = code => rows.filter(r => r.s.code === code).length;
+  /* สรุปรายเดือน: ขาดนับเฉพาะวันจันทร์–ศุกร์ที่มีข้อมูลสแกน ลานับวันจันทร์–ศุกร์ทุกวันในเดือน */
+  const dataDates = Object.keys(days).sort();
+  const monthDays = []; for (let d = parseISODate(month + '-01'); d && isoDate(d).slice(0, 7) === month; d.setDate(d.getDate() + 1)) { const w = d.getDay(); if (w >= 1 && w <= 5) monthDays.push(isoDate(d)); }
+  const monthRows = teachersByName().map(t => {
+    const lv = (DB.timetable.leaveRequests || []).filter(l => l.teacherId === t.id && !isOfficialTrip(l));
+    const leaveN = monthDays.filter(d => lv.some(l => leaveCoversDate(l, d))).length;
+    let late = 0, absent = 0;
+    dataDates.forEach(d => { const w = (parseISODate(d) || new Date()).getDay(); if (w < 1 || w > 5) return;
+      const s = staffDayStatus(t, d, days[d], lateTime); if (s.code === 'late') late++; else if (s.code === 'absent') absent++; });
+    return { t: t, late: late, absent: absent, leave: leaveN };
+  }).filter(r => r.late || r.absent || r.leave).sort((a, b) => (b.absent + b.late) - (a.absent + a.late) || b.leave - a.leave);
+  body.innerHTML = '<div class="card"><div class="row" style="gap:8px;flex-wrap:wrap;align-items:flex-end">' +
+      '<div class="pick"><label>วันที่</label><input type="date" id="pnDate" value="' + date + '"></div>' +
+      '<button class="sm" id="pnToday">วันนี้</button>' +
+      '<div class="hint" style="align-self:center">เกณฑ์มาสาย: หลัง ' + esc(lateTime) + ' น.</div><div class="spacer"></div>' +
+      (staff ? '<button id="pnImport">⤒ นำเข้าไฟล์จากเครื่องสแกนนิ้ว</button>' + (cfg.feedUrl ? '<button id="pnFetch">⇣ ดึงจากลิงก์เครื่องสแกน</button>' : '') : '') +
+      (deptOnline() ? '<button class="sm" id="pnReload" title="โหลดใหม่จากส่วนกลาง">↻</button>' : '') + '</div>' +
+      (personnelTime.error ? '<div class="notice bad" style="margin-top:10px">' + esc(personnelTime.error) + '</div>' : '') +
+      (!deptOnline() ? '<div class="notice" style="margin-top:10px">เข้าสู่ระบบด้วยบัญชีโรงเรียนเพื่อดูเวลามาทำงาน ตอนนี้แสดงเฉพาะการลา</div>' :
+        personnelTime.loading === month ? '<div class="hint" style="margin-top:10px">กำลังโหลดเวลามาทำงาน…</div>' :
+        !times ? '<div class="notice" style="margin-top:10px">ยังไม่มีข้อมูลจากเครื่องสแกนนิ้วของ' + thaiDate(date) + ' จึงแสดงเฉพาะการลา ' +
+          (staff ? '— กด “นำเข้าไฟล์จากเครื่องสแกนนิ้ว” หรือตั้งลิงก์ในแท็บ “ตั้งค่าเครื่องสแกนนิ้ว”' : '') + '</div>' : '') + '</div>' +
+    '<div class="dash-metrics">' +
+      '<div class="metric-card" style="--metric:var(--ok)"><div class="metric-value">' + (times ? count('ok') : '—') + '</div><div class="metric-label">มาทันเวลา</div></div>' +
+      '<div class="metric-card" style="--metric:var(--warn)"><div class="metric-value">' + (times ? count('late') : '—') + '</div><div class="metric-label">มาสาย</div></div>' +
+      '<div class="metric-card" style="--metric:var(--brand)"><div class="metric-value">' + (count('leave') + count('trip')) + '</div><div class="metric-label">ลา / ไปราชการ</div></div>' +
+      '<div class="metric-card" style="--metric:var(--bad)"><div class="metric-value">' + (times ? count('absent') : '—') + '</div><div class="metric-label">ไม่พบการสแกน (ขาด?)</div></div></div>' +
+    '<div class="card"><h3>รายวัน <span class="sub">' + thaiDate(date) + '</span></h3><div class="tablewrap"><table><thead><tr><th>ครู</th><th>กลุ่มสาระ</th><th>เวลาเข้า</th><th>สถานะ</th></tr></thead><tbody>' +
+      rows.map(r => '<tr><td><b>' + esc(r.t.name || r.t.email || '—') + '</b></td><td>' + esc(teacherArea(r.t) || '—') + '</td><td>' + esc(r.s.time || '') + '</td><td>' +
+        (r.s.code === 'nodata' ? '<span class="hint">ยังไม่มีข้อมูล</span>' : '<span class="badge ' + STAFF_STATUS_CLS[r.s.code] + '">' + esc(r.s.label) + '</span>') +
+        (r.s.leave ? ' <button class="sm" data-pn-doc="' + esc(r.s.leave.id) + '">ใบลา</button>' : '') + '</td></tr>').join('') +
+      '</tbody></table></div><div class="hint" style="margin-top:6px">“ไม่พบการสแกน” คือไม่มีเวลาในเครื่องและไม่มีใบลา — ตรวจสอบกับครูก่อนบันทึกเป็นขาดราชการ</div></div>' +
+    '<div class="card"><h3>สรุปเดือน' + esc(acalMonthLabel(month)) + '</h3><div class="hint" style="margin-bottom:8px">มีข้อมูลสแกน ' + dataDates.length + ' วัน • นับวันจันทร์–ศุกร์ • แสดงเฉพาะครูที่มีสาย ขาด หรือลา</div>' +
+      (monthRows.length ? '<div class="tablewrap"><table><thead><tr><th>ครู</th><th>กลุ่มสาระ</th><th>สาย (ครั้ง)</th><th>ไม่พบการสแกน (วัน)</th><th>ลา (วัน)</th></tr></thead><tbody>' +
+        monthRows.map(r => '<tr><td><b>' + esc(r.t.name || r.t.email || '—') + '</b></td><td>' + esc(teacherArea(r.t) || '—') + '</td><td class="' + (r.late ? 'badtext' : '') + '">' + r.late + '</td><td class="' + (r.absent ? 'badtext' : '') + '">' + r.absent + '</td><td>' + r.leave + '</td></tr>').join('') +
+        '</tbody></table></div>' : '<div class="empty">เดือนนี้ยังไม่มีครูสาย ขาด หรือลา</div>') + '</div>';
+  $('#pnDate', body).addEventListener('change', e => { DB.ui.personnelDate = e.target.value || todayISO(); save(); renderPersonnelDept(); });
+  $('#pnToday', body).addEventListener('click', () => { DB.ui.personnelDate = todayISO(); save(); renderPersonnelDept(); });
+  const bind = (sel, fn) => { const b = $(sel, body); if (b) b.addEventListener('click', fn); };
+  bind('#pnImport', importStaffScanFile);
+  bind('#pnFetch', fetchStaffScanFeed);
+  bind('#pnReload', () => loadStaffTimeMonth(month, true));
+  $$('[data-pn-doc]', body).forEach(b => b.addEventListener('click', () => openLeaveDocument(b.dataset.pnDoc)));
+}
+
+function renderPersonnelSetup(body) {
+  const cfg = ensurePersonnel().config, q = String(DB.ui.pnScanSearch || '').trim();
+  const list = teachersByName().filter(t => !q || String(t.name || '').includes(q) || String(cfg.scanIds[t.id] || '') === q);
+  body.innerHTML = '<div class="card"><h3>เกณฑ์และแหล่งข้อมูล</h3><div class="grid2">' +
+      '<div class="pick"><label>มาสายเมื่อสแกนหลังเวลา</label><input type="time" id="pnLate" value="' + esc(cfg.lateTime || '08:00') + '"></div>' +
+      '<div class="pick"><label>ลิงก์ข้อมูลจากเครื่องสแกนนิ้ว (ถ้ามี)</label><input id="pnFeed" type="url" placeholder="https://… (เว้นว่างได้)" value="' + esc(cfg.feedUrl || '') + '"></div></div>' +
+      '<div class="hint" style="margin-top:6px">ลิงก์ต้องส่งข้อมูลเป็น CSV/ข้อความ หรือ JSON และเปิดให้เว็บอื่นอ่านได้ (CORS) ถ้ายังไม่มีลิงก์ ใช้วิธีส่งออกไฟล์จากโปรแกรมเครื่องสแกนแล้วนำเข้าแทน<br>' +
+      'รองรับไฟล์ .csv .txt .dat (เช่น attlog.dat) และ .xlsx — ต้องมีรหัสพนักงานหรือชื่อ และวันเวลาที่สแกน ระบบเก็บเฉพาะเวลาสแกนแรกของแต่ละวัน</div>' +
+      '<div class="row" style="margin-top:10px"><div class="spacer"></div><button class="primary" id="pnSaveCfg">บันทึกเกณฑ์และลิงก์</button></div></div>' +
+    '<div class="card"><div class="row" style="gap:8px;flex-wrap:wrap;align-items:flex-end"><div><h3 style="margin:0">รหัสครูในเครื่องสแกนนิ้ว</h3>' +
+      '<div class="hint">ใส่ให้ตรงกับรหัส (User ID / AC-No.) ในเครื่อง ครูที่ไม่ใส่รหัส ระบบจะจับคู่ด้วยชื่อ-สกุลที่ตรงกันทุกตัวอักษรเท่านั้น</div></div><div class="spacer"></div>' +
+      '<div class="pick"><label>ค้นหา</label><input id="pnScanSearch" value="' + esc(q) + '" placeholder="ชื่อครู หรือรหัส"></div></div>' +
+      '<div class="tablewrap" style="margin-top:10px;max-height:60vh"><table><thead><tr><th>ครู</th><th>กลุ่มสาระ</th><th>รหัสในเครื่องสแกน</th></tr></thead><tbody>' +
+      list.map(t => '<tr><td><b>' + esc(t.name || t.email || '—') + '</b></td><td>' + esc(teacherArea(t) || '—') + '</td><td><input class="pn-scanid" data-tid="' + esc(t.id) + '" value="' + esc(cfg.scanIds[t.id] || '') + '" style="width:120px" inputmode="numeric"></td></tr>').join('') +
+      '</tbody></table></div><div class="row" style="margin-top:10px"><span class="hint">ใส่รหัสแล้ว ' + Object.values(cfg.scanIds).filter(Boolean).length + ' จาก ' + DB.teachers.length + ' คน</span><div class="spacer"></div><button class="primary" id="pnSaveIds">บันทึกรหัส</button></div></div>';
+  $('#pnSaveCfg', body).addEventListener('click', () => {
+    const feed = $('#pnFeed', body).value.trim();
+    if (feed && !/^https:\/\//i.test(feed)) return toast('ลิงก์ต้องขึ้นต้นด้วย https://', 'bad');
+    savePersonnelConfig({ lateTime: $('#pnLate', body).value || '08:00', feedUrl: feed });
+  });
+  $('#pnScanSearch', body).addEventListener('change', e => { DB.ui.pnScanSearch = e.target.value; save(); renderPersonnelDept(); });
+  $('#pnSaveIds', body).addEventListener('click', () => {
+    const ids = Object.assign({}, cfg.scanIds), seen = {};
+    $$('.pn-scanid', body).forEach(inp => { const v = inp.value.trim(); if (v) ids[inp.dataset.tid] = v; else delete ids[inp.dataset.tid]; });
+    /* รหัสซ้ำทำให้เวลาของครูสองคนปนกัน ต้องแก้ก่อนบันทึก */
+    const dup = Object.keys(ids).find(tid => { const k = scanKey(ids[tid]); if (seen[k]) return true; seen[k] = tid; return false; });
+    if (dup) { const other = DB.teachers.find(t => t.id === seen[scanKey(ids[dup])]) || {}, me = DB.teachers.find(t => t.id === dup) || {};
+      return toast('รหัส ' + ids[dup] + ' ซ้ำกันระหว่าง ' + (other.name || '?') + ' กับ ' + (me.name || '?'), 'bad'); }
+    savePersonnelConfig({ scanIds: ids });
+  });
+}
+async function savePersonnelConfig(patch) {
+  const p = ensurePersonnel(); p.config = Object.assign({}, p.config, patch); save(true);
+  if (!deptOnline()) { toast('บันทึกในเครื่องนี้แล้ว — เข้าสู่ระบบเพื่อส่งขึ้นส่วนกลาง', 'bad'); renderPersonnelDept(); return; }
+  try {
+    await fbSetDoc(fbDb.collection('personnelConfig').doc('main'), fbPlain({ value: p.config, updatedAt: new Date().toISOString(), updatedBy: acalWho() }), 'ตั้งค่าฝ่ายบุคคล');
+    toast('บันทึกแล้ว', 'ok');
+  } catch (e) { toast('บันทึกในเครื่องแล้ว แต่ส่งขึ้นส่วนกลางไม่สำเร็จ: ' + deptPermMsg(e, 'ฝ่ายบุคคล'), 'bad'); }
+  renderPersonnelDept();
+}
+
+/* ---- อ่านไฟล์ / ลิงก์จากเครื่องสแกนนิ้ว ----------------------------------------
+   เครื่องแต่ละยี่ห้อส่งออกคนละแบบ จึงหาคอลัมน์จากหัวตารางก่อน ถ้าไม่มีหัว (เช่น attlog.dat
+   ที่เป็น "รหัส<TAB>วันเวลา<TAB>…") ค่อยหาเซลล์ที่หน้าตาเป็นวันเวลาในแต่ละแถว */
+const scanKey = v => { const s = String(v == null ? '' : v).trim(); return /^\d+$/.test(s) ? String(parseInt(s, 10)) : s.toLowerCase(); };
+const scanNameKey = s => String(s || '').replace(/ํา/g, 'ำ')
+  .replace(/^\s*(นางสาว|นาย|นาง|น\.ส\.|ว่าที่\s*ร\.?\s*ต\.?\s*(หญิง)?|ครู|mr\.?|mrs\.?|ms\.?|miss)\s*/i, '').replace(/\s+/g, '').toLowerCase();
+function scanTextRows(text) {
+  text = String(text || '').replace(/^﻿/, '');
+  return /\t/.test(text) ? text.split(/\r?\n/).map(l => l.split('\t')) : parseCsv(text);
+}
+function scanJsonRows(j) {
+  if (!Array.isArray(j)) j = (j && (j.data || j.records || j.logs || j.items)) || [];
+  if (!j.length) return [];
+  if (Array.isArray(j[0])) return j;
+  const keys = Object.keys(j[0] || {});
+  return [keys].concat(j.map(o => keys.map(k => o == null ? '' : o[k])));
+}
+/** วันเวลาหลายรูปแบบ → { date: 'YYYY-MM-DD', time: 'HH:MM' } หรือ null */
+function parseScanStamp(dateCell, timeCell) {
+  const s = String(dateCell == null ? '' : dateCell).trim(), t = String(timeCell == null ? '' : timeCell).trim();
+  const year = y => { let n = parseInt(y, 10); if (n < 100) n += 2000; if (n > 2400) n -= 543; return n; };
+  const serial = v => { const n = Number(v); return v !== '' && isFinite(n) && n > 20000 && n < 80000 ? new Date(Math.round((n - 25569) * 86400000)) : null; };
+  let date = '', time = '';
+  const ser = serial(s);
+  if (ser) {
+    date = ser.getUTCFullYear() + '-' + pad2(ser.getUTCMonth() + 1) + '-' + pad2(ser.getUTCDate());
+    if (Number(s) % 1) time = pad2(ser.getUTCHours()) + ':' + pad2(ser.getUTCMinutes());
+  } else {
+    let m = s.match(/(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
+    if (m) date = year(m[1]) + '-' + pad2(m[2]) + '-' + pad2(m[3]);
+    else if ((m = s.match(/(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})/))) {
+      /* ไทยใช้ วัน/เดือน/ปี แต่เครื่องตั้งค่าโรงงานมักเป็น เดือน/วัน/ปี — ถ้าตัวที่สองเกิน 12 แปลว่าเป็นแบบหลัง */
+      let d = parseInt(m[1], 10), mo = parseInt(m[2], 10);
+      if (mo > 12 && d <= 12) { const x = d; d = mo; mo = x; }
+      date = year(m[3]) + '-' + pad2(mo) + '-' + pad2(d);
+    }
+    const tm = s.replace(/^[^\s T]*[\sT]/, ' ').match(/(\d{1,2}):(\d{2})/);
+    if (tm && /[\sT]\d{1,2}:\d{2}/.test(s)) time = pad2(tm[1]) + ':' + tm[2];
+  }
+  if (t) {
+    const tn = Number(t);
+    if (t !== '' && isFinite(tn) && tn >= 0 && tn < 1) { const mins = Math.round(tn * 1440); time = pad2(Math.floor(mins / 60)) + ':' + pad2(mins % 60); }
+    else { const tm = t.match(/(\d{1,2})[:.](\d{2})/); if (tm) time = pad2(tm[1]) + ':' + tm[2]; }
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return null;
+  const mo = num(date.slice(5, 7)), dd = num(date.slice(8)), hh = num(time.slice(0, 2));
+  if (mo < 1 || mo > 12 || dd < 1 || dd > 31 || hh > 23) return null;
+  return { date: date, time: time };
+}
+/** แถวจากไฟล์ → [{ id, name, date, time }] */
+function parseScanRows(rows) {
+  rows = (rows || []).filter(r => Array.isArray(r) && r.some(c => String(c == null ? '' : c).trim()));
+  const cell = (r, i) => i >= 0 ? String(r[i] == null ? '' : r[i]).trim() : '';
+  let head = -1, col = null;
+  for (let i = 0; i < Math.min(rows.length, 15) && head < 0; i++) {
+    const h = rows[i].map(c => String(c == null ? '' : c).trim().toLowerCase());
+    const find = re => h.findIndex(x => re.test(x));
+    const d = find(/^(date|วันที่)$/), t = find(/^(time|เวลา|เวลาเข้า|clock ?in)$/);
+    const dt = d >= 0 ? -1 : find(/date ?time|วันเวลา|วันที่และเวลา|วันที่-เวลา|check ?time|เวลาสแกน|^time$|^เวลา$/);
+    const id = find(/^(ac-?no\.?|no\.?|id|user ?id|userid|emp.*|enroll.*|pin|badge.*|รหัส.*|เลขที่.*)$/);
+    const name = find(/^(name|ชื่อ|ชื่อ-สกุล|ชื่อ-นามสกุล|ชื่อ - สกุล|ชื่อพนักงาน|full ?name)$/);
+    if ((id >= 0 || name >= 0) && (dt >= 0 || d >= 0)) { head = i; col = { id: id, name: name, d: d >= 0 ? d : dt, t: d >= 0 ? t : -1 }; }
+  }
+  const out = [];
+  rows.slice(head + 1).forEach(r => {
+    if (col) {
+      const st = parseScanStamp(cell(r, col.d), cell(r, col.t));
+      if (st && (cell(r, col.id) || cell(r, col.name))) out.push({ id: cell(r, col.id), name: cell(r, col.name), date: st.date, time: st.time });
+      return;
+    }
+    const at = r.findIndex(c => parseScanStamp(c, ''));
+    if (at < 0) return;
+    const id = r.slice(0, at).map(c => String(c == null ? '' : c).trim()).find(Boolean) || '';
+    if (id) out.push({ id: id, name: '', date: parseScanStamp(r[at], '').date, time: parseScanStamp(r[at], '').time });
+  });
+  return out;
+}
+/** จับคู่รหัส/ชื่อในไฟล์กับครู — ไม่เดาชื่อ จับคู่เฉพาะที่ตรงทุกตัวอักษรหลังตัดคำนำหน้าและช่องว่าง */
+function matchScanRecords(recs) {
+  const cfg = ensurePersonnel().config, byScan = {}, byName = {}, dupName = {};
+  Object.keys(cfg.scanIds || {}).forEach(tid => { const k = scanKey(cfg.scanIds[tid]); if (k) byScan[k] = tid; });
+  DB.teachers.forEach(t => { const k = scanNameKey(t.name); if (!k) return; if (byName[k]) dupName[k] = true; byName[k] = t.id; });
+  const byTeacher = {}, unmatched = new Map(), dates = new Set();
+  recs.forEach(r => {
+    const nk = scanNameKey(r.name);
+    const tid = byScan[scanKey(r.id)] || (nk && !dupName[nk] ? byName[nk] : '');
+    if (!tid) { const k = (r.id || '') + '|' + (r.name || ''); const u = unmatched.get(k) || { id: r.id, name: r.name, count: 0 }; u.count++; unmatched.set(k, u); return; }
+    dates.add(r.date);
+    const m = byTeacher[tid] = byTeacher[tid] || {};
+    if (!m[r.date] || r.time < m[r.date]) m[r.date] = r.time;   // เวลาสแกนแรกของวัน = เวลาเข้างาน
+  });
+  return { byTeacher: byTeacher, unmatched: Array.from(unmatched.values()).sort((a, b) => b.count - a.count), dates: Array.from(dates).sort() };
+}
+async function importStaffScanFile() {
+  const f = await pickFile('.csv,.txt,.dat,.xlsx'); if (!f) return;
+  let rows;
+  try {
+    if (/\.xlsx$/i.test(f.name)) rows = ((await readXlsx(await f.arrayBuffer()))[0] || {}).rows || [];
+    else if (/\.xls$/i.test(f.name)) return toast('ไฟล์ .xls รุ่นเก่าไม่รองรับ — เปิดใน Excel แล้วบันทึกเป็น .xlsx หรือ .csv ก่อน', 'bad');
+    else rows = scanTextRows(await readTextSmart(f));
+  } catch (e) { return toast('อ่านไฟล์ไม่สำเร็จ: ' + ((e && e.message) || e), 'bad'); }
+  previewStaffScan(parseScanRows(rows), f.name);
+}
+async function fetchStaffScanFeed() {
+  const url = ensurePersonnel().config.feedUrl;
+  if (!url) return toast('ยังไม่ได้ตั้งลิงก์เครื่องสแกนนิ้ว', 'bad');
+  let text;
+  try { const r = await fetch(url, { cache: 'no-store' }); if (!r.ok) throw new Error('HTTP ' + r.status); text = await r.text(); }
+  catch (e) { return toast('ดึงจากลิงก์ไม่สำเร็จ (' + ((e && e.message) || e) + ') — ลิงก์ต้องเปิดให้เว็บอื่นอ่านได้ หรือใช้วิธีนำเข้าไฟล์แทน', 'bad'); }
+  let rows;
+  const s = String(text || '').trim();
+  if (/^[\[{]/.test(s)) { try { rows = scanJsonRows(JSON.parse(s)); } catch (e) { return toast('ข้อมูลจากลิงก์ไม่ใช่ JSON ที่ถูกต้อง', 'bad'); } }
+  else rows = scanTextRows(s);
+  previewStaffScan(parseScanRows(rows), 'ลิงก์เครื่องสแกนนิ้ว');
+}
+function previewStaffScan(recs, source) {
+  if (!recs.length) return toast('ไม่พบรายการสแกนใน ' + source + ' — ต้องมีรหัสหรือชื่อ และวันเวลาที่สแกน', 'bad');
+  const m = matchScanRecords(recs), n = Object.keys(m.byTeacher).length, dates = m.dates;
+  openModal({ title: 'นำเข้าเวลามาทำงาน', bodyHTML:
+      '<div class="notice">' + esc(source) + ' • ' + recs.length + ' รายการสแกน' +
+      (dates.length ? ' • ' + dates.length + ' วัน (' + thaiDate(dates[0]) + (dates.length > 1 ? ' – ' + thaiDate(dates[dates.length - 1]) : '') + ')' : '') +
+      ' • จับคู่ครูได้ <b>' + n + '</b> คน</div>' +
+      (m.unmatched.length ? '<div class="notice warn" style="margin-top:8px">จับคู่ไม่ได้ ' + m.unmatched.length + ' รหัส — ใส่ “รหัสในเครื่องสแกน” ให้ครูในแท็บตั้งค่า แล้วนำเข้าไฟล์เดิมอีกครั้ง' +
+        '<div class="hint" style="margin-top:4px">' + m.unmatched.slice(0, 40).map(u => esc(u.id || '—') + (u.name ? ' ' + esc(u.name) : '') + ' (' + u.count + ')').join(' • ') + (m.unmatched.length > 40 ? ' …' : '') + '</div></div>' : '') +
+      '<div class="hint" style="margin-top:8px">เก็บเฉพาะเวลาสแกนแรกของแต่ละวัน • นำเข้าซ้ำได้ เวลาของครูคนเดิมในวันเดิมจะถูกแทนที่ • ถ้าช่วงวันที่ข้างบนดูผิด (วันกับเดือนสลับกัน) ให้ยกเลิกแล้วตรวจรูปแบบวันที่ในไฟล์</div>',
+    buttons: [{ label: 'ยกเลิก' }, { label: n ? 'บันทึก ' + dates.length + ' วัน' : 'ไม่มีครูที่จับคู่ได้', cls: 'primary', async act(close) {
+      if (!n) return;
+      if (!deptOnline()) return toast('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อน', 'bad');
+      try { await writeStaffTimes(m.byTeacher, dates); }
+      catch (e) { return toast('บันทึกไม่สำเร็จ: ' + deptPermMsg(e, 'ฝ่ายบุคคล'), 'bad'); }
+      close(); toast('บันทึกเวลามาทำงาน ' + n + ' คน ' + dates.length + ' วันแล้ว', 'ok');
+      if (dates.length) DB.ui.personnelDate = dates[dates.length - 1];
+      DB.ui.personnelView = 'time'; save();
+      loadStaffTimeMonth(String(DB.ui.personnelDate).slice(0, 7), true);
+    } }] });
+}
+/* set แบบ merge รวมแผนที่ times ทีละช่อง นำเข้าทีละกลุ่มครู (หรือทีละเครื่อง) ได้โดยไม่ลบของกันและกัน */
+async function writeStaffTimes(byTeacher, dates) {
+  const stamp = new Date().toISOString(), who = acalWho();
+  for (let i = 0; i < dates.length; i += 400) {
+    const batch = fbDb.batch();
+    dates.slice(i, i + 400).forEach(date => {
+      const times = {};
+      Object.keys(byTeacher).forEach(tid => { if (byTeacher[tid][date]) times[tid] = byTeacher[tid][date]; });
+      batch.set(fbDb.collection('staffTime').doc(date), { date: date, times: times, updatedAt: stamp, updatedBy: who }, { merge: true });
+    });
+    await batch.commit();
+  }
+}
+
+/* ---- ฝ่ายบริหารทั่วไป: แจ้งซ่อม ------------------------------------------------ */
+const REPAIR_STATUSES = [
+  { value: 'new', label: 'แจ้งใหม่', cls: 'warn' },
+  { value: 'accepted', label: 'รับเรื่องแล้ว', cls: '' },
+  { value: 'doing', label: 'กำลังซ่อม', cls: '' },
+  { value: 'waiting', label: 'รออะไหล่/งบประมาณ', cls: 'warn' },
+  { value: 'done', label: 'เสร็จแล้ว', cls: 'ok' },
+  { value: 'cannot', label: 'ซ่อมไม่ได้/ส่งต่อ', cls: 'bad' },
+  { value: 'cancelled', label: 'ผู้แจ้งยกเลิก', cls: '' }];
+const REPAIR_OPEN = ['new', 'accepted', 'doing', 'waiting'];
+const repairStatus = v => REPAIR_STATUSES.find(s => s.value === v) || REPAIR_STATUSES[0];
+const REPAIR_CATEGORIES = ['อาคาร / ห้องเรียน / ประตู หน้าต่าง', 'ไฟฟ้า / หลอดไฟ / ปลั๊ก', 'ประปา / ห้องน้ำ', 'โต๊ะ เก้าอี้ / ครุภัณฑ์',
+  'คอมพิวเตอร์ / โปรเจกเตอร์ / เครื่องเสียง', 'เครื่องปรับอากาศ / พัดลม', 'บริเวณโรงเรียน / สนาม / ต้นไม้', 'อื่น ๆ'];
+const REPAIR_VIEWS = [['open', 'ค้างดำเนินการ'], ['new', 'แจ้งใหม่'], ['done', 'เสร็จแล้ว'], ['all', 'ทั้งหมด']];
+let repairLive = { key: '', list: [], error: '', ready: false, unsub: null };
+function ensureRepairListener() {
+  if (!deptOnline() || !fbUnsub.length) return;
+  const me = myEmailLower(), key = generalWatcher() ? 'all' : 'me:' + me;
+  if (!me || repairLive.key === key) return;
+  if (repairLive.unsub) repairLive.unsub();
+  repairLive = { key: key, list: [], error: '', ready: false, unsub: null };
+  /* ฝ่ายบริหารทั่วไปเห็นย้อนหลังหนึ่งปี ครูเห็นทุกรายการของตัวเอง — where เดียว ไม่ต้องสร้างดัชนีผสม */
+  const q = key === 'all' ? fbDb.collection('repairRequests').where('createdAt', '>=', isoDate(new Date(Date.now() - 365 * 86400000)))
+    : fbDb.collection('repairRequests').where('ownerId', '==', me);
+  const unsub = q.onSnapshot(snap => {
+    repairLive.list = snap.docs.map(d => Object.assign({}, d.data(), { id: d.id })).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    repairLive.error = ''; repairLive.ready = true;
+    updateRepairBadge(); if (DB.ui.tab === 'general') renderGeneralDept();
+  }, e => {
+    repairLive.error = 'โหลดรายการแจ้งซ่อมไม่สำเร็จ: ' + deptPermMsg(e, 'อ่านรายการแจ้งซ่อม'); repairLive.ready = true;
+    if (DB.ui.tab === 'general') renderGeneralDept();
+  });
+  repairLive.unsub = unsub;
+  fbUnsub.push(() => { unsub(); if (repairLive.unsub === unsub) repairLive = { key: '', list: [], error: '', ready: false, unsub: null }; });
+}
+function updateRepairBadge() {
+  const el = $('#generalBadge'); if (!el) return;
+  const n = isGeneralStaff() ? repairLive.list.filter(r => r.status === 'new').length : 0;
+  el.innerHTML = n ? '<span class="badge warn">' + n + '</span>' : '';
+}
+const safePhoto = p => /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(String(p || '')) ? p : '';
+/** ย่อรูปจากกล้องมือถือ (หลาย MB) ให้เหลือไม่เกินราว 350KB ก่อนฝังในเอกสาร Firestore (เพดาน 1MB) */
+function compressRepairPhoto(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const k = Math.min(1, 1024 / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
+      const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      let q = 0.72, out = c.toDataURL('image/jpeg', q);
+      while (out.length > 350000 && q > 0.3) { q -= 0.1; out = c.toDataURL('image/jpeg', q); }
+      if (out.length > 380000) return rej(new Error('รูปใหญ่เกินไป ลองถ่ายใหม่ให้ใกล้ขึ้น'));
+      res(out);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('เปิดรูปนี้ไม่ได้')); };
+    img.src = url;
+  });
+}
+
+function renderGeneralDept() {
+  const pane = $('#pane-general'); if (!pane) return;
+  ensureDeptListeners();
+  const watcher = generalWatcher(), staff = isGeneralStaff(), me = myEmailLower(), online = deptOnline();
+  const all = repairLive.list, mine = all.filter(r => r.ownerId === me);
+  pane.innerHTML = '<div class="card dash-hero"><div class="row" style="position:relative;z-index:1"><div><div class="hero-sub">GENERAL ADMINISTRATION</div>' +
+      '<h1>' + (watcher ? 'ฝ่ายบริหารทั่วไป' : 'แจ้งซ่อม') + '</h1><div class="hero-sub">แจ้งซ่อมอาคาร สถานที่ และของใช้ในโรงเรียน • ติดตามสถานะได้ทันที</div></div>' +
+      '<div class="spacer"></div><button class="primary" id="rpNew"' + (online ? '' : ' disabled') + '>＋ แจ้งซ่อม</button></div></div>' +
+    (!online ? '<div class="notice" style="margin-bottom:12px">ต้องเข้าสู่ระบบด้วยบัญชี Google ของโรงเรียนก่อน จึงจะแจ้งซ่อมและดูสถานะได้</div>' : '') +
+    (repairLive.error ? '<div class="notice bad" style="margin-bottom:12px">' + esc(repairLive.error) + '</div>' : '') +
+    '<div id="rpBody"></div>';
+  $('#rpNew', pane).addEventListener('click', () => openRepairForm(null));
+  const body = $('#rpBody', pane);
+  if (online && !repairLive.ready) { body.innerHTML = '<div class="card"><div class="hint">กำลังโหลดรายการแจ้งซ่อม…</div></div>'; return; }
+  if (!watcher) {
+    body.innerHTML = '<div class="card"><h3>รายการที่ฉันแจ้ง</h3>' + (mine.length ? '<div class="alert-list">' + mine.map(r => repairRowHtml(r, false, me)).join('') + '</div>'
+      : '<div class="empty">ยังไม่เคยแจ้งซ่อม — กด “＋ แจ้งซ่อม” เมื่อพบของชำรุด</div>') + '</div>';
+    wireRepairRows(body); return;
+  }
+  const month = todayISO().slice(0, 7), open = all.filter(r => REPAIR_OPEN.includes(r.status));
+  const view = REPAIR_VIEWS.some(v => v[0] === DB.ui.repairView) ? DB.ui.repairView : 'open', q = String(DB.ui.repairSearch || '').trim();
+  const shown = all.filter(r => view === 'all' || (view === 'open' ? REPAIR_OPEN.includes(r.status) : view === 'done' ? ['done', 'cannot'].includes(r.status) : r.status === view))
+    .filter(r => !q || [r.place, r.item, r.category, r.detail, r.ownerName].join(' ').includes(q))
+    .sort((a, b) => (view === 'open' ? (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0) : 0) || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  body.innerHTML = '<div class="dash-metrics">' +
+      '<div class="metric-card" style="--metric:var(--warn)"><div class="metric-value">' + all.filter(r => r.status === 'new').length + '</div><div class="metric-label">แจ้งใหม่ ยังไม่รับเรื่อง</div></div>' +
+      '<div class="metric-card" style="--metric:var(--brand)"><div class="metric-value">' + open.length + '</div><div class="metric-label">ค้างดำเนินการทั้งหมด</div></div>' +
+      '<div class="metric-card" style="--metric:var(--bad)"><div class="metric-value">' + open.filter(r => r.urgent).length + '</div><div class="metric-label">เร่งด่วนที่ยังค้าง</div></div>' +
+      '<div class="metric-card" style="--metric:var(--ok)"><div class="metric-value">' + all.filter(r => r.status === 'done' && String(r.updatedAt || '').slice(0, 7) === month).length + '</div><div class="metric-label">ซ่อมเสร็จเดือนนี้</div></div></div>' +
+    '<div class="card"><div class="row" style="gap:8px;flex-wrap:wrap;align-items:flex-end">' + deptViewsBar(REPAIR_VIEWS, view, 'data-rp-view').replace('margin-bottom:12px', 'margin:0') +
+      '<div class="spacer"></div><div class="pick"><label>ค้นหา</label><input id="rpSearch" value="' + esc(q) + '" placeholder="สถานที่ ของที่ชำรุด ผู้แจ้ง"></div>' +
+      '<button id="rpPrint">🖨 พิมพ์รายการ</button></div>' +
+      (!staff ? '<div class="hint" style="margin-top:8px">มุมมองผู้บริหาร — ดูได้อย่างเดียว ฝ่ายบริหารทั่วไปเป็นผู้รับเรื่อง</div>' : '') +
+      (shown.length ? '<div class="alert-list" style="margin-top:10px">' + shown.map(r => repairRowHtml(r, staff, me)).join('') + '</div>' : '<div class="empty" style="margin-top:10px">ไม่มีรายการ</div>') + '</div>';
+  $$('[data-rp-view]', body).forEach(b => b.addEventListener('click', () => { DB.ui.repairView = b.dataset.rpView; save(); renderGeneralDept(); }));
+  $('#rpSearch', body).addEventListener('change', e => { DB.ui.repairSearch = e.target.value; save(); renderGeneralDept(); });
+  $('#rpPrint', body).addEventListener('click', () => printRepairList(shown, REPAIR_VIEWS.find(v => v[0] === view)[1]));
+  wireRepairRows(body);
+}
+function repairRowHtml(r, staff, me) {
+  const st = repairStatus(r.status), photo = safePhoto(r.photo), id = esc(r.id);
+  return '<div class="alert-item repair-item"><div style="flex:1;min-width:0"><b>' + (r.urgent ? '<span class="badge bad">ด่วน</span> ' : '') +
+      esc(r.item || 'แจ้งซ่อม') + (r.place ? ' • ' + esc(r.place) : '') + '</b>' +
+      '<div class="hint">' + esc(r.category || '') + ' • แจ้งโดย ' + esc(r.ownerName || r.ownerId || '') + ' • ' + esc(thaiDateTime(r.createdAt)) + '</div>' +
+      (r.detail ? '<div class="repair-detail">' + esc(r.detail) + '</div>' : '') +
+      (r.handlerNote || r.assignee ? '<div class="hint">ฝ่ายบริหารทั่วไป: ' + esc(r.handlerNote || '') + (r.assignee ? ' • ผู้รับผิดชอบ ' + esc(r.assignee) : '') +
+        (r.handledBy ? ' • ' + esc(r.handledBy) + ' ' + esc(thaiDateTime(r.updatedAt)) : '') + '</div>' : '') + '</div>' +
+    (photo ? '<img class="repair-thumb" data-rp-photo="' + id + '" src="' + esc(photo) + '" alt="รูปประกอบ">' : '') +
+    '<span class="badge ' + st.cls + '">' + esc(st.label) + '</span>' +
+    (staff && r.status === 'new' ? '<button class="sm" data-rp-quick="' + id + '">รับเรื่อง</button>' : '') +
+    (staff && r.status !== 'cancelled' ? '<button class="sm primary" data-rp-update="' + id + '">อัปเดต</button>' : '') +
+    (r.ownerId === me && r.status === 'new' ? '<button class="sm" data-rp-edit="' + id + '">แก้ไข</button><button class="sm danger" data-rp-cancel="' + id + '">ยกเลิก</button>' : '') + '</div>';
+}
+function wireRepairRows(root) {
+  const find = id => repairLive.list.find(r => r.id === id);
+  $$('[data-rp-photo]', root).forEach(img => img.addEventListener('click', () => {
+    const r = find(img.dataset.rpPhoto); if (!r) return;
+    openModal({ title: (r.item || 'รูปประกอบ') + (r.place ? ' • ' + r.place : ''), bodyHTML: '<img src="' + esc(safePhoto(r.photo)) + '" alt="" style="max-width:100%;border-radius:10px">' });
+  }));
+  $$('[data-rp-quick]', root).forEach(b => b.addEventListener('click', () => { const r = find(b.dataset.rpQuick); if (r) updateRepair(r, { status: 'accepted' }); }));
+  $$('[data-rp-update]', root).forEach(b => b.addEventListener('click', () => { const r = find(b.dataset.rpUpdate); if (r) openRepairUpdate(r); }));
+  $$('[data-rp-edit]', root).forEach(b => b.addEventListener('click', () => { const r = find(b.dataset.rpEdit); if (r) openRepairForm(r); }));
+  $$('[data-rp-cancel]', root).forEach(b => b.addEventListener('click', async () => {
+    const r = find(b.dataset.rpCancel); if (!r) return;
+    if (await confirmBox('ยกเลิกการแจ้งซ่อม', 'ยกเลิกรายการ “' + esc(r.item || '') + '” ใช่ไหม', 'ยกเลิกรายการ')) updateRepair(r, { status: 'cancelled' });
+  }));
+}
+function openRepairForm(existing) {
+  if (!deptOnline()) return toast('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อน จึงจะแจ้งซ่อมได้', 'bad');
+  const r = existing || {}, places = sortedClassList(DB.classes).map(c => c.name).concat(['ห้องพักครู', 'ห้องน้ำ', 'โรงอาหาร', 'หอประชุม', 'สนาม', 'ห้องสมุด', 'ห้องปฏิบัติการ']);
+  let photo = safePhoto(r.photo);
+  openModal({ title: existing ? 'แก้ไขรายการแจ้งซ่อม' : 'แจ้งซ่อม', bodyHTML:
+      '<div class="grid2"><div class="pick"><label>สถานที่ / ห้อง *</label><input id="rpPlace" list="rpPlaceList" value="' + esc(r.place || '') + '" placeholder="เช่น ม.4/2 อาคาร 3 ชั้น 2"><datalist id="rpPlaceList">' +
+        places.map(p => '<option value="' + esc(p) + '">').join('') + '</datalist></div>' +
+      '<div class="pick"><label>ประเภท</label><select id="rpCat">' + REPAIR_CATEGORIES.map(c => '<option' + (c === r.category ? ' selected' : '') + '>' + esc(c) + '</option>').join('') + '</select></div></div>' +
+      '<div class="pick" style="margin-top:8px"><label>ของที่ชำรุด *</label><input id="rpItem" value="' + esc(r.item || '') + '" placeholder="เช่น พัดลมเพดานตัวที่ 2, ก๊อกน้ำ, โปรเจกเตอร์"></div>' +
+      '<div class="pick" style="margin-top:8px"><label>อาการ / รายละเอียด</label><textarea id="rpDetail" rows="3" placeholder="เช่น เปิดแล้วไม่หมุน มีกลิ่นไหม้">' + esc(r.detail || '') + '</textarea></div>' +
+      '<label style="display:flex;gap:6px;align-items:center;margin-top:8px"><input type="checkbox" id="rpUrgent"' + (r.urgent ? ' checked' : '') + '> เร่งด่วน — กระทบการเรียนการสอนหรือไม่ปลอดภัย</label>' +
+      '<div class="pick" style="margin-top:8px"><label>รูปประกอบ (ไม่บังคับ)</label><input type="file" id="rpPhoto" accept="image/*" capture="environment"><div id="rpPhotoPrev" style="margin-top:6px">' +
+        (photo ? '<img src="' + esc(photo) + '" alt="" class="repair-thumb"> <button class="sm" id="rpPhotoDel">ลบรูป</button>' : '') + '</div></div>',
+    onMount(root) {
+      const prev = () => {
+        $('#rpPhotoPrev', root).innerHTML = photo ? '<img src="' + esc(photo) + '" alt="" class="repair-thumb"> <button class="sm" id="rpPhotoDel">ลบรูป</button>' : '';
+        const del = $('#rpPhotoDel', root); if (del) del.addEventListener('click', () => { photo = ''; $('#rpPhoto', root).value = ''; prev(); });
+      };
+      prev();
+      $('#rpPhoto', root).addEventListener('change', async e => {
+        const f = e.target.files[0]; if (!f) return;
+        $('#rpPhotoPrev', root).textContent = 'กำลังย่อรูป…';
+        try { photo = await compressRepairPhoto(f); } catch (err) { photo = ''; toast(err.message, 'bad'); }
+        prev();
+      });
+    },
+    buttons: [{ label: 'ยกเลิก' }, { label: existing ? 'บันทึก' : 'ส่งแจ้งซ่อม', cls: 'primary', async act(close, root) {
+      const place = $('#rpPlace', root).value.trim(), item = $('#rpItem', root).value.trim();
+      if (!place || !item) return toast('กรุณากรอกสถานที่และของที่ชำรุด', 'bad');
+      const now = new Date().toISOString(), who = acalWho(), me = myEmailLower();
+      const data = { place: place.slice(0, 120), category: $('#rpCat', root).value, item: item.slice(0, 160), detail: $('#rpDetail', root).value.trim().slice(0, 1000),
+        urgent: $('#rpUrgent', root).checked, photo: photo || '', updatedAt: now };
+      try {
+        if (existing) await fbDb.collection('repairRequests').doc(existing.id).update(data);
+        else {
+          const id = uid('repair');
+          await fbDb.collection('repairRequests').doc(id).set(Object.assign(data, { ownerId: me, ownerName: who, teacherId: (curTeacher() || {}).id || '',
+            status: 'new', createdAt: now, date: todayISO(), log: [{ at: now, by: who, status: 'new' }] }));
+        }
+      } catch (e) { return toast('ส่งไม่สำเร็จ: ' + deptPermMsg(e, 'แจ้งซ่อม'), 'bad'); }
+      close(); toast(existing ? 'แก้ไขแล้ว' : 'ส่งแจ้งซ่อมแล้ว ฝ่ายบริหารทั่วไปจะเห็นทันที', 'ok');
+    } }] });
+}
+function openRepairUpdate(r) {
+  openModal({ title: 'อัปเดตงานซ่อม • ' + (r.item || ''), bodyHTML:
+      '<div class="hint" style="margin-bottom:8px">' + esc(r.place || '') + ' • แจ้งโดย ' + esc(r.ownerName || r.ownerId || '') + ' • ' + esc(thaiDateTime(r.createdAt)) + '</div>' +
+      '<div class="grid2"><div class="pick"><label>สถานะ</label><select id="rpStatus">' + REPAIR_STATUSES.filter(s => s.value !== 'cancelled').map(s =>
+        '<option value="' + s.value + '"' + (s.value === r.status ? ' selected' : '') + '>' + esc(s.label) + '</option>').join('') + '</select></div>' +
+      '<div class="pick"><label>ผู้รับผิดชอบ / ช่าง</label><input id="rpAssignee" value="' + esc(r.assignee || '') + '"></div></div>' +
+      '<div class="pick" style="margin-top:8px"><label>บันทึกถึงผู้แจ้ง</label><textarea id="rpNote" rows="3" placeholder="เช่น นัดช่างเข้าซ่อมวันพฤหัส / รออะไหล่">' + esc(r.handlerNote || '') + '</textarea></div>',
+    buttons: [{ label: 'ยกเลิก' }, { label: 'บันทึก', cls: 'primary', async act(close, root) {
+      const ok = await updateRepair(r, { status: $('#rpStatus', root).value, assignee: $('#rpAssignee', root).value.trim().slice(0, 120), handlerNote: $('#rpNote', root).value.trim().slice(0, 1000) });
+      if (ok) close();
+    } }] });
+}
+async function updateRepair(r, patch) {
+  const now = new Date().toISOString(), who = acalWho();
+  const data = Object.assign({}, patch, { updatedAt: now });
+  if (patch.status && patch.status !== r.status) data.log = (Array.isArray(r.log) ? r.log : []).concat([{ at: now, by: who, status: patch.status }]).slice(-30);
+  if (isGeneralStaff() && patch.status !== 'cancelled') data.handledBy = who;
+  try { await fbDb.collection('repairRequests').doc(r.id).update(data); }
+  catch (e) { toast('บันทึกไม่สำเร็จ: ' + deptPermMsg(e, 'ฝ่ายบริหารทั่วไป'), 'bad'); return false; }
+  toast(patch.status ? 'สถานะ: ' + repairStatus(patch.status).label : 'บันทึกแล้ว', 'ok');
+  return true;
+}
+function printRepairList(list, label) {
+  const html = docHeader('ทะเบียนแจ้งซ่อม • ' + label) +
+    '<table class="doc-table"><thead><tr><th>ที่</th><th>วันที่แจ้ง</th><th>สถานที่</th><th>รายการ / อาการ</th><th>ผู้แจ้ง</th><th>สถานะ</th><th>หมายเหตุ</th></tr></thead><tbody>' +
+    list.map((r, i) => '<tr><td>' + (i + 1) + '</td><td>' + thaiDate(String(r.createdAt || '').slice(0, 10)) + '</td><td>' + esc(r.place || '') + '</td><td>' + (r.urgent ? '<b>[ด่วน]</b> ' : '') + esc(r.item || '') +
+      (r.detail ? '<br>' + esc(r.detail) : '') + '</td><td>' + esc(r.ownerName || '') + '</td><td>' + esc(repairStatus(r.status).label) + '</td><td>' + esc([r.assignee, r.handlerNote].filter(Boolean).join(' • ')) + '</td></tr>').join('') +
+    '</tbody></table>';
+  printDocument(html);
+}
+
+/* ---- ฝ่ายวัดผลและประเมินผล: ตารางสอน / ตารางเรียน ------------------------------- */
+const MEASURE_VIEWS = [['teacher', 'ตารางสอนรายครู'], ['class', 'ตารางเรียนรายห้อง'], ['load', 'ภาระงานสอนและตารางชน']];
+const periodTtEntries = () => (DB.timetable.entries || []).filter(e => e.periodId === DB.ui.periodId && !isHomeroomEntry(e));
+const ttClassName = e => (DB.classes.find(c => c.id === e.classId) || {}).name || 'ไม่พบห้อง';
+const ttTeacherName = e => (DB.teachers.find(t => t.id === e.teacherId) || {}).name || 'ยังไม่ระบุครู';
+/** ตารางสัปดาห์แบบอ่านอย่างเดียว — sub(e) คือบรรทัดล่าง (ห้อง หรือ ครู) */
+function ttReadGrid(entries, sub, printable) {
+  const slots = (DB.timetable.slots || []).filter(s => s.id !== 'assembly');   // คาบเข้าแถวเป็นคาบโฮมรูม ถูกตัดออกจากรายการอยู่แล้ว จะได้ไม่มีคอลัมน์ว่าง
+  const cell = (e, clash) => { const s = entrySubject(e) || { code: '', name: 'ไม่พบวิชา' };
+    return printable ? '<div><b>' + esc(s.code || '') + '</b><br>' + esc(s.name || '') + '<br><small>' + esc(sub(e)) + (e.room ? ' • ' + esc(e.room) : '') + '</small></div>'
+      : '<div class="tt-cell filled' + (clash ? ' tt-clash' : '') + '"><div class="tt-code">' + esc(s.code || '—') + '</div><div class="tt-name">' + esc(s.name || '') + '</div><div class="tt-room">' + esc(sub(e)) + (e.room ? ' • ' + esc(e.room) : '') + '</div></div>'; };
+  const head = '<tr><th>วัน / คาบ</th>' + slots.map(s => '<th>' + esc(s.label) + '<br><span class="hint">' + esc(s.start || '') + '–' + esc(s.end || '') + '</span></th>').join('') + '</tr>';
+  const rows = SCHOOL_DAYS.map(day => '<tr><td class="slot-info"><b>' + esc(day.label) + '</b></td>' + slots.map(slot => {
+    const here = entries.filter(e => num(e.day) === day.value && String(e.slotId) === String(slot.id));
+    return '<td>' + here.map(e => cell(e, here.length > 1)).join('') + '</td>';
+  }).join('') + '</tr>').join('');
+  return printable ? '<table class="doc-table" style="font-size:11px;text-align:center"><thead>' + head + '</thead><tbody>' + rows + '</tbody></table>'
+    : '<div class="tablewrap"><table class="timetable"><thead>' + head + '</thead><tbody>' + rows + '</tbody></table></div>';
+}
+/** ตารางชน: ครูคนเดียวสอนต่างวิชาในคาบเดียวกัน (วิชาเดียวกันหลายห้องคือการรวมห้อง ไม่นับ)
+    และห้องเดียวมีหลายวิชาในคาบเดียวกัน (อาจเป็นการแยกกลุ่มเรียน จึงให้ตรวจ ไม่ได้ฟันธงว่าผิด) */
+function ttClashes(entries) {
+  const group = keyFn => { const m = new Map(); entries.forEach(e => { const k = keyFn(e); if (!k) return; if (!m.has(k)) m.set(k, []); m.get(k).push(e); }); return m; };
+  const slotKey = e => num(e.day) + '|' + e.slotId;
+  const teacher = [], klass = [];
+  group(e => e.teacherId ? e.teacherId + '|' + slotKey(e) : '').forEach(list => { if (new Set(list.map(e => e.subjectId)).size > 1) teacher.push(list); });
+  group(e => e.classId ? e.classId + '|' + slotKey(e) : '').forEach(list => { if (list.length > 1) klass.push(list); });
+  return { teacher: teacher, klass: klass };
+}
+const ttSlotText = e => 'วัน' + ((SCHOOL_DAYS.find(d => d.value === num(e.day)) || {}).label || '?') + ' ' + ((DB.timetable.slots || []).find(s => String(s.id) === String(e.slotId)) || {}).label;
+
+function renderMeasureDept() {
+  const pane = $('#pane-measure'); if (!pane) return;
+  const view = MEASURE_VIEWS.some(v => v[0] === DB.ui.measureView) ? DB.ui.measureView : 'teacher';
+  pane.innerHTML = '<div class="card dash-hero"><div class="row" style="position:relative;z-index:1"><div><div class="hero-sub">MEASUREMENT &amp; EVALUATION</div>' +
+      '<h1>ฝ่ายวัดผลและประเมินผล</h1><div class="hero-sub">ตารางสอน • ตารางเรียน • ภาระงานสอน' + (curPeriod() ? ' • ปี ' + esc(curPeriod().academicYear) + ' ภาค ' + esc(curPeriod().semester) : '') + '</div></div>' +
+      '<div class="spacer"></div>' + (canOpenTimetableStudio() ? '<button class="primary" id="msStudio">▦ เปิดแอปจัดตารางสอน</button>' : '') + '</div></div>' +
+    '<div class="notice" style="margin-bottom:12px">หน้านี้แสดงตารางที่ใช้อยู่จริงของภาคเรียนที่เลือก • จัดหรือแก้ตารางในแอปจัดตารางสอน แล้วให้ผู้ดูแลระบบเผยแพร่ลงส่วนกลาง</div>' +
+    deptViewsBar(MEASURE_VIEWS, view, 'data-ms-view') + '<div id="msBody"></div>';
+  const st = $('#msStudio', pane); if (st) st.addEventListener('click', openTimetableStudio);
+  $$('[data-ms-view]', pane).forEach(b => b.addEventListener('click', () => { DB.ui.measureView = b.dataset.msView; save(); renderMeasureDept(); }));
+  const body = $('#msBody', pane);
+  if (!curPeriod()) { body.innerHTML = '<div class="card"><div class="empty">กรุณาเลือกปี/ภาคเรียนก่อน</div></div>'; return; }
+  const entries = periodTtEntries();
+  if (!entries.length) { body.innerHTML = '<div class="card"><div class="empty">ภาคเรียนนี้ยังไม่มีตารางสอนในระบบ</div></div>'; return; }
+  if (view === 'load') return renderMeasureLoad(body, entries);
+  const byTeacher = view === 'teacher';
+  const options = byTeacher
+    ? teachersByName().map(t => ({ id: t.id, label: (t.name || t.email || '—') + ' (' + entries.filter(e => e.teacherId === t.id).length + ' คาบ)' }))
+    : sortedClassList(DB.classes).map(c => ({ id: c.id, label: c.name + ' (' + entries.filter(e => e.classId === c.id).length + ' คาบ)' }));
+  const key = byTeacher ? 'measureTeacher' : 'measureClass';
+  const fallback = byTeacher ? ((curTeacher() && entries.some(e => e.teacherId === curTeacher().id)) ? curTeacher().id : (entries[0] || {}).teacherId) : (entries[0] || {}).classId;
+  const pick = options.some(o => o.id === DB.ui[key]) ? DB.ui[key] : fallback;
+  const mine = entries.filter(e => (byTeacher ? e.teacherId : e.classId) === pick);
+  const title = byTeacher ? 'ตารางสอน ' + ((DB.teachers.find(t => t.id === pick) || {}).name || '') : 'ตารางเรียน ' + ((DB.classes.find(c => c.id === pick) || {}).name || '');
+  body.innerHTML = '<div class="card"><div class="row" style="gap:8px;flex-wrap:wrap;align-items:flex-end"><div class="pick" style="min-width:280px"><label>' + (byTeacher ? 'ครู' : 'ห้องเรียน') + '</label>' +
+      '<select id="msPick" data-search-title="' + (byTeacher ? 'เลือกครู' : 'เลือกห้องเรียน') + '" style="width:100%">' + options.map(o => '<option value="' + esc(o.id) + '"' + (o.id === pick ? ' selected' : '') + '>' + esc(o.label) + '</option>').join('') + '</select></div>' +
+      '<div class="spacer"></div><span class="hint">' + mine.length + ' คาบ/สัปดาห์</span><button id="msPrint">🖨 พิมพ์</button></div></div>' +
+    '<div class="card"><h3>' + esc(title) + '</h3>' + (mine.length ? ttReadGrid(mine, byTeacher ? ttClassName : ttTeacherName) : '<div class="empty">ยังไม่มีคาบในตาราง</div>') + '</div>';
+  $('#msPick', body).addEventListener('change', e => { DB.ui[key] = e.target.value; save(); renderMeasureDept(); });
+  $('#msPrint', body).addEventListener('click', () => printDocument(docHeader(title + ' • ปีการศึกษา ' + curPeriod().academicYear + ' ภาคเรียนที่ ' + curPeriod().semester) +
+    ttReadGrid(mine, byTeacher ? ttClassName : ttTeacherName, true)));
+}
+function renderMeasureLoad(body, entries) {
+  const clashes = ttClashes(entries);
+  const rows = teachersByName().map(t => {
+    const own = entries.filter(e => e.teacherId === t.id);
+    return { t: t, n: own.length, classes: new Set(own.map(e => e.classId)).size, subjects: new Set(own.map(e => e.subjectId)).size };
+  }).filter(r => r.n).sort((a, b) => b.n - a.n);
+  const total = rows.reduce((a, r) => a + r.n, 0);
+  const clashItem = list => '<div class="alert-item"><div><b>' + esc(ttSlotText(list[0])) + '</b><div class="hint">' +
+    list.map(e => esc(((entrySubject(e) || {}).code || '') + ' ' + ((entrySubject(e) || {}).name || '')) + ' — ' + esc(ttClassName(e)) + ' • ' + esc(ttTeacherName(e))).join('<br>') + '</div></div></div>';
+  body.innerHTML = '<div class="dash-metrics">' +
+      '<div class="metric-card" style="--metric:var(--brand)"><div class="metric-value">' + rows.length + '</div><div class="metric-label">ครูที่มีคาบสอน</div></div>' +
+      '<div class="metric-card" style="--metric:var(--group)"><div class="metric-value">' + total + '</div><div class="metric-label">คาบสอนรวมต่อสัปดาห์</div></div>' +
+      '<div class="metric-card" style="--metric:var(--bad)"><div class="metric-value">' + clashes.teacher.length + '</div><div class="metric-label">ครูสอนชนคาบ</div></div>' +
+      '<div class="metric-card" style="--metric:var(--warn)"><div class="metric-value">' + clashes.klass.length + '</div><div class="metric-label">ห้องมีหลายวิชาในคาบเดียว</div></div></div>' +
+    '<div class="card"><h3>ครูสอนชนคาบ</h3><div class="hint" style="margin-bottom:8px">ครูคนเดียวมีต่างวิชาในคาบเดียวกัน (สอนวิชาเดียวกันหลายห้องพร้อมกันถือเป็นการรวมห้อง ไม่นับ)</div>' +
+      (clashes.teacher.length ? '<div class="alert-list">' + clashes.teacher.map(clashItem).join('') + '</div>' : '<div class="empty">ไม่พบครูสอนชนคาบ</div>') + '</div>' +
+    '<div class="card"><h3>ห้องที่มีหลายวิชาในคาบเดียวกัน</h3><div class="hint" style="margin-bottom:8px">อาจเป็นการแยกกลุ่มเรียน/วิชาเลือก ตรวจว่าตั้งใจหรือไม่</div>' +
+      (clashes.klass.length ? '<div class="alert-list">' + clashes.klass.map(clashItem).join('') + '</div>' : '<div class="empty">ไม่พบ</div>') + '</div>' +
+    '<div class="card"><h3>ภาระงานสอนรายครู</h3><div class="tablewrap"><table><thead><tr><th>ครู</th><th>กลุ่มสาระ</th><th>คาบ/สัปดาห์</th><th>จำนวนห้อง</th><th>จำนวนวิชา</th></tr></thead><tbody>' +
+      rows.map(r => '<tr><td><b>' + esc(r.t.name || r.t.email || '—') + '</b></td><td>' + esc(teacherArea(r.t) || '—') + '</td><td><b>' + r.n + '</b></td><td>' + r.classes + '</td><td>' + r.subjects + '</td></tr>').join('') +
+      '</tbody></table></div><div class="hint" style="margin-top:6px">แสดงเฉพาะครูที่มีคาบในตาราง (ครูช่วยสอนเข้าคู่อาจไม่มีคาบของตัวเอง)</div></div>';
+}
+
+/* ============================================================================
    13) Google Login
    ========================================================================== */
 let googleAccessToken = '';
@@ -18219,7 +18913,10 @@ function normalizeRoles(value) {
     'หัวหน้ากลุ่ม': 'head', executive: 'executive', 'ผู้บริหาร': 'executive', director: 'executive',
     admin: 'admin', 'ผู้ดูแลระบบ': 'admin', 'แอดมิน': 'admin',
     affairs: 'affairs', 'กิจการนักเรียน': 'affairs', 'ฝ่ายกิจการนักเรียน': 'affairs', 'ฝ่ายปกครอง': 'affairs',
-    academic: 'academic', 'วิชาการ': 'academic', 'ฝ่ายวิชาการ': 'academic', 'งานวิชาการ': 'academic', 'วัดผล': 'academic' };
+    academic: 'academic', 'วิชาการ': 'academic', 'ฝ่ายวิชาการ': 'academic', 'งานวิชาการ': 'academic', 'วัดผล': 'academic',
+    measure: 'measure', 'ฝ่ายวัดผล': 'measure', 'งานวัดผล': 'measure', 'ฝ่ายวัดผลและประเมินผล': 'measure', 'งานวัดผลและประเมินผล': 'measure',
+    personnel: 'personnel', 'บุคคล': 'personnel', 'ฝ่ายบุคคล': 'personnel', 'งานบุคคล': 'personnel',
+    general: 'general', 'บริหารทั่วไป': 'general', 'ฝ่ายบริหารทั่วไป': 'general', 'งานบริหารทั่วไป': 'general' };
   // แยกคำในทุกกรณี รวมถึง array ที่มีสมาชิกเดียวแต่ใส่หลายบทบาทรวมกัน เช่น ["teacher head admin"]
   const raw = Array.isArray(value) ? value : [value];
   const list = raw.reduce((acc, x) => acc.concat(String(x == null ? '' : x).split(/[,\s]+/)), []);
@@ -19274,6 +19971,7 @@ function startFirebaseSync() {
     save(true); if (DB.ui.tab === 'affairs') render();
   }), quiet));
   ensureAffairsListeners();
+  ensureDeptListeners();   // ฝ่ายบุคคล/บริหารทั่วไป — สมัครตามบทบาทปัจจุบัน
   /* ปฏิทินวิชาการ — ครูทุกคนอ่าน เพราะวันงดการเรียนการสอนมีผลกับการเช็กชื่อของทุกคน */
   fbUnsub.push(fbDb.collection('academicCalendar').onSnapshot(snap => apply(() => academicApplySnapshot('cal', snap)), quiet));
   fbUnsub.push(fbDb.collection('academicTasks').onSnapshot(snap => apply(() => academicApplySnapshot('task', snap)), quiet));
