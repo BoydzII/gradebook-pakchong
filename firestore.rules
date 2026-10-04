@@ -31,6 +31,20 @@ service cloud.firestore {
     function isAcademic()  { return hasRole('academic'); }
     function isPersonnel() { return hasRole('personnel'); }
     function isGeneral()   { return hasRole('general'); }
+    /* สายอนุมัติฝ่ายบริหารทั่วไป — อีเมลผู้อนุมัติแต่ละขั้นเก็บที่ generalConfig/main (value.headEmail ฯลฯ)
+       ขั้นที่ยังไม่มีคนจะถูกข้าม ขั้นแรกของรายการใหม่จึงต้องตรงกับขั้นแรกที่มีคนจริง กันผู้ขอข้ามสายเอง */
+    function genCfgPath() { return /databases/$(database)/documents/generalConfig/main; }
+    function chainEmail(k) {
+      return exists(genCfgPath()) ? get(genCfgPath()).data.get('value', {}).get(k + 'Email', '') : '';
+    }
+    function firstStage() {
+      return chainEmail('head') != '' ? 'head' : chainEmail('assistant') != '' ? 'assistant' : chainEmail('deputy') != '' ? 'deputy' : 'approved';
+    }
+    function canApproveStage(st) { return st in ['head', 'assistant', 'deputy'] && chainEmail(st) == myId(); }
+    function isGenManager() { return isGeneral() || isAdmin() || chainEmail('head') == myId(); }
+    function onlyApprovalKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['approvals', 'stage', 'status', 'updatedAt', 'log']);
+    }
 
     /* ---------- บุคลากร ----------
        ทุกคนที่อยู่ในระบบอ่านรายชื่อได้ (ต้องใช้หาครูสอนแทนและแสดงภาพรวม)
@@ -416,10 +430,16 @@ service cloud.firestore {
       allow write: if isPersonnel() || isAdmin();
     }
 
-    /* ---------- ฝ่ายบริหารทั่วไป: แจ้งซ่อม ----------
-       ครูทุกคนแจ้งได้ในนามตัวเอง (สถานะเริ่มต้นต้องเป็น new) แก้หรือยกเลิกได้เฉพาะตอนยังไม่มีคนรับเรื่อง
-       ฝ่ายบริหารทั่วไปกับผู้ดูแลระบบเปลี่ยนสถานะ/บันทึกได้ แต่เปลี่ยนเจ้าของรายการไม่ได้
+    /* ---------- ฝ่ายบริหารทั่วไป: แจ้งซ่อม • ขอใช้สถานที่ • ตั้งค่า ----------
+       ครูทุกคนส่งได้ในนามตัวเอง แล้วผ่านสายอนุมัติ (หัวหน้างานอาคารฯ → ผู้ช่วยรองฯ → รอง ผอ.)
+       ผู้อนุมัติแก้ได้เฉพาะช่องอนุมัติ และเฉพาะรายการที่อยู่ในขั้นของตน
+       ฝ่ายบริหารทั่วไป ผู้ดูแลระบบ และหัวหน้างานอาคารฯ มอบงาน/เปลี่ยนสถานะได้ แต่เปลี่ยนเจ้าของรายการไม่ได้
+       ผู้ขอแก้หรือยกเลิกได้เฉพาะตอนยังรออนุมัติ และแตะช่องอนุมัติ/มอบงานไม่ได้
        รูปฝังในเอกสาร จำกัดขนาดไว้ไม่ให้เอกสารชนเพดาน 1MB */
+    match /generalConfig/{docId} {
+      allow read: if isStaff();
+      allow write: if isGeneral() || isAdmin();
+    }
     match /repairRequests/{reqId} {
       function photoOk() {
         return !('photo' in request.resource.data) || (request.resource.data.photo is string && request.resource.data.photo.size() < 400000);
@@ -428,13 +448,34 @@ service cloud.firestore {
       allow create: if isStaff()
         && request.resource.data.ownerId == myId()
         && request.resource.data.status == 'new'
+        && request.resource.data.get('stage', 'approved') == firstStage()
         && photoOk();
       allow update: if isStaff() && photoOk()
         && request.resource.data.ownerId == resource.data.ownerId && (
-             isGeneral() || isAdmin()
+             isGenManager()
+          || (canApproveStage(resource.data.get('stage', '')) && onlyApprovalKeys())
           || (resource.data.ownerId == myId() && resource.data.status == 'new'
               && request.resource.data.status in ['new', 'cancelled']
-              && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['handledBy', 'handlerNote', 'assignee'])));
+              && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['handledBy', 'handlerNote', 'assignee', 'workerId', 'approvals', 'stage'])));
+      allow delete: if isGeneral() || isAdmin();
+    }
+    match /venueRequests/{reqId} {
+      allow read: if isStaff();
+      allow create: if isStaff()
+        && request.resource.data.ownerId == myId()
+        && request.resource.data.date is string
+        && request.resource.data.stage == firstStage()
+        && request.resource.data.status == (request.resource.data.stage == 'approved' ? 'approved' : 'pending');
+      allow update: if isStaff()
+        && request.resource.data.ownerId == resource.data.ownerId && (
+             isGenManager()
+          || (canApproveStage(resource.data.get('stage', '')) && onlyApprovalKeys())
+          || (resource.data.ownerId == myId() && resource.data.status == 'pending'
+              && request.resource.data.status in ['pending', 'cancelled']
+              && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['approvals', 'stage', 'workerIds', 'setupReady', 'handledBy', 'handlerNote']))
+          || (resource.data.ownerId == myId() && resource.data.status == 'approved'
+              && request.resource.data.status == 'cancelled'
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'log'])));
       allow delete: if isGeneral() || isAdmin();
     }
 

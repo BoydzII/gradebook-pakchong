@@ -424,6 +424,7 @@ td.num,th.num{text-align:center}
 /* แจ้งซ่อม: รูปย่อกดขยายได้ รายละเอียดยาวตัดบรรทัดเอง • ตารางชนในหน้าวัดผล */
 .repair-thumb{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line);cursor:zoom-in;flex:0 0 auto}
 .repair-detail{margin-top:3px;white-space:pre-wrap;overflow-wrap:anywhere}
+.gen-trail{margin-top:2px}
 .tt-cell.filled.tt-clash{background:var(--bad-bg);border-color:var(--bad)}
 .timetable td>.tt-cell+.tt-cell{margin-top:4px}
 .master-tools{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
@@ -3811,7 +3812,9 @@ const SEARCH_INDEX = [
   { t: 'ภาระงานสอนและตารางชน', w: 'ฝ่ายวัดผล คาบสอน ชน', tab: 'measure', pre: { measureView: 'load' } },
   { t: 'การลาของครู', w: 'ฝ่ายบุคคล ลา', tab: 'personnel', pre: { personnelView: 'leave' } },
   { t: 'ครูมาสาย ขาด', w: 'ฝ่ายบุคคล สแกนนิ้ว เวลามาทำงาน', tab: 'personnel', pre: { personnelView: 'time' } },
-  { t: 'แจ้งซ่อม', w: 'ชำรุด ซ่อม ฝ่ายบริหารทั่วไป อาคาร สถานที่', tab: 'general' },
+  { t: 'แจ้งซ่อม', w: 'ชำรุด ซ่อม ฝ่ายบริหารทั่วไป อาคาร สถานที่', tab: 'general', pre: { generalView: 'repair' } },
+  { t: 'ขอใช้สถานที่ / จัดสถานที่', w: 'จองห้อง หอประชุม ห้องประชุม ฝ่ายบริหารทั่วไป', tab: 'general', pre: { generalView: 'venue' } },
+  { t: 'ตารางการใช้สถานที่', w: 'สถานที่ว่าง จองห้อง', tab: 'general', pre: { generalView: 'schedule' } },
   { t: 'งานวิชาการตามรอบปี', w: 'ฝ่ายวิชาการ งานประจำปี O-NET ปพ.1', tab: 'academic', pre: { academicView: 'tasks' } },
   { t: 'ข้อมูลครูและสิทธิ์ใช้งาน', w: 'ครู บทบาท สิทธิ์ เพิ่มครู', tab: 'admin', pre: { adminSection: 'people' }, card: 'ข้อมูลครูและสิทธิ์' },
   { t: 'ครูที่ปรึกษาแยกรายห้อง', w: 'ครูประจำชั้น homeroom', tab: 'admin', pre: { adminSection: 'people' }, card: 'ครูที่ปรึกษาแยกรายห้อง' },
@@ -18166,7 +18169,8 @@ function openAcadTaskEditor(year, task) {
      personnelConfig/main    { value: { lateTime, feedUrl, scanIds: { teacherId: รหัสในเครื่อง } } }
      เวลาของครูเป็นข้อมูลบุคคล จึงไม่เก็บลงเครื่อง (DB) อ่านจากส่วนกลางทุกครั้งที่เปิดดู
    ฝ่ายบริหารทั่วไป (บทบาท general)
-   - repairRequests/{id} ครูทุกคนแจ้งซ่อมได้ ฝ่ายบริหารทั่วไปรับเรื่องและเปลี่ยนสถานะ
+   - repairRequests/{id} แจ้งซ่อม • venueRequests/{id} ขอใช้/จัดสถานที่ • generalConfig/main สถานที่ ผู้ปฏิบัติงาน ผู้อนุมัติ
+     ครูทุกคนส่งได้ ผ่านสายอนุมัติสามขั้น แล้วฝ่ายบริหารทั่วไปมอบงาน (รายละเอียดที่หัวข้อย่อยของฝ่าย)
      ไม่ผ่านตะกร้าส่งออก เพราะผู้แจ้งกับผู้รับเรื่องต้องเห็นสถานะเดียวกันทันที แจ้งตอนออฟไลน์จึงไม่ได้
      รูปประกอบย่อเป็น JPEG ฝังในเอกสาร (ไม่เกิน ~350KB) เพราะโปรเจกต์นี้ไม่ได้เปิด Firebase Storage
    ฝ่ายวัดผลและประเมินผล (บทบาท measure)
@@ -18193,6 +18197,7 @@ const teachersByName = () => DB.teachers.slice().sort((a, b) => String(a.name ||
 /** เรียกหลังเริ่มซิงก์ และทุกครั้งที่เปิดหน้าของฝ่าย — ฟังก์ชันย่อยกันการสมัครซ้ำเอง */
 function ensureDeptListeners() {
   ensurePersonnelListeners();
+  ensureGeneralListeners();
   ensureRepairListener();
 }
 
@@ -18534,7 +18539,71 @@ async function writeStaffTimes(byTeacher, dates) {
   }
 }
 
-/* ---- ฝ่ายบริหารทั่วไป: แจ้งซ่อม ------------------------------------------------ */
+/* ---- ฝ่ายบริหารทั่วไป: แจ้งซ่อม • ขอใช้/จัดสถานที่ • สายอนุมัติ ------------------------
+   ทั้งแจ้งซ่อมและขอใช้สถานที่ผ่านสายอนุมัติเดียวกันสามขั้นตามโครงสร้างงานของโรงเรียน
+   หัวหน้างานดูแลอาคารสถานที่และสิ่งแวดล้อม → ผู้ช่วยรองผู้อำนวยการกลุ่มงาน → รองผู้อำนวยการบริหารงานทั่วไป
+   - ผู้อนุมัติตั้งที่ generalConfig/main เก็บอีเมลไว้คู่กับรหัสครู เพราะกฎ Firestore ตรวจสิทธิ์ด้วยอีเมล
+   - ขั้นที่ยังไม่ได้เลือกคนจะถูกข้าม (โรงเรียนจะเพิ่มชื่อผู้บริหารภายหลัง) รายการจะได้ไม่ค้างรอคนที่ไม่มีอยู่
+   - ผ่านครบแล้ว ฝ่ายบริหารทั่วไปหรือหัวหน้างานอาคารฯ มอบงานให้ผู้ปฏิบัติงาน (ช่าง/นักการ) ที่ฝ่ายเพิ่มชื่อและหน้าที่ไว้
+   - รายการแจ้งซ่อมรุ่นแรกไม่มี stage ถือว่าไม่ต้องผ่านสายอนุมัติ ทำงานต่อแบบเดิมได้
+   - venueRequests ทุกคนอ่านได้ทั้งหมด เพราะต้องเห็นว่าสถานที่ว่างหรือมีคนจองแล้วก่อนขอ */
+const GEN_STAGES = [
+  { key: 'head', label: 'หัวหน้างานดูแลอาคารสถานที่และสิ่งแวดล้อม', short: 'หัวหน้างานอาคารฯ' },
+  { key: 'assistant', label: 'ผู้ช่วยรองผู้อำนวยการกลุ่มงาน', short: 'ผู้ช่วยรองฯ' },
+  { key: 'deputy', label: 'รองผู้อำนวยการบริหารงานทั่วไป', short: 'รอง ผอ.' }];
+const GEN_DEFAULT_PLACES = ['หอประชุม', 'ห้องประชุม', 'ห้องโสตทัศนศึกษา', 'โรงอาหาร', 'สนามกีฬา', 'ลานกิจกรรม'];
+function genCfg() {
+  const g = DB.generalCfg = DB.generalCfg && typeof DB.generalCfg === 'object' ? DB.generalCfg : {};
+  g.places = Array.isArray(g.places) ? g.places : [];
+  g.workers = Array.isArray(g.workers) ? g.workers : [];
+  return g;
+}
+/* ยังไม่ได้เพิ่มสถานที่ ใช้ชุดตั้งต้นไปก่อนให้ครูขอได้ทันที — รหัสผูกกับชื่อจึงคงที่ */
+const genPlaces = () => genCfg().places.length ? genCfg().places : GEN_DEFAULT_PLACES.map(n => ({ id: 'd:' + n, name: n, note: '' }));
+const genStageEmail = key => String(genCfg()[key + 'Email'] || '').trim().toLowerCase();
+const myGenStages = () => { const me = myEmailLower(); return me ? GEN_STAGES.filter(s => genStageEmail(s.key) === me).map(s => s.key) : []; };
+const isBuildingHead = () => !!myEmailLower() && genStageEmail('head') === myEmailLower();
+/* มอบงาน/เปลี่ยนสถานะงานซ่อมได้: ฝ่ายบริหารทั่วไป ผู้ดูแลระบบ และหัวหน้างานอาคารฯ */
+const genManager = () => isGeneralStaff() || isBuildingHead();
+/* เห็นรายการของทุกคน: ผู้จัดการงาน ผู้บริหาร และผู้อนุมัติทุกขั้น */
+const genWatcher = () => generalWatcher() || genManager() || myGenStages().length > 0;
+/** ขั้นถัดไปที่มีคนรับผิดชอบ — ไม่มีแล้วคือผ่านครบ */
+function nextGenStage(after) {
+  const i = after ? GEN_STAGES.findIndex(s => s.key === after) : -1;
+  const n = GEN_STAGES.slice(i + 1).find(s => genStageEmail(s.key));
+  return n ? n.key : 'approved';
+}
+const genPending = r => GEN_STAGES.some(s => s.key === r.stage) && !['cancelled', 'rejected'].includes(r.status);
+const genWorker = id => genCfg().workers.find(w => w.id === id);
+const genWorkerText = w => w ? w.name + (w.duty ? ' (' + w.duty + ')' : '') : '';
+
+let genCfgListen = false;
+let venueLive = { on: false, list: [], ready: false, error: '' };
+function ensureGeneralListeners() {
+  if (!deptOnline() || !fbUnsub.length) return;
+  if (!genCfgListen) {
+    genCfgListen = true;
+    const u = fbDb.collection('generalConfig').doc('main').onSnapshot(doc => deptApply(() => {
+      const v = doc.exists ? fbDecodeNested((doc.data() || {}).value) : null;
+      if (!v) return;
+      DB.generalCfg = Object.assign(genCfg(), v); save(true);
+      ensureRepairListener();   // เพิ่งรู้ว่าตัวเองเป็นผู้อนุมัติ ต้องเปลี่ยนไปฟังรายการของทุกคน
+      updateRepairBadge(); if (DB.ui.tab === 'general') renderGeneralDept();
+    }), () => {});
+    fbUnsub.push(() => { u(); genCfgListen = false; });
+  }
+  if (!venueLive.on) {
+    venueLive.on = true;
+    const u = fbDb.collection('venueRequests').where('date', '>=', isoDate(new Date(Date.now() - 120 * 86400000))).onSnapshot(snap => {
+      venueLive.list = snap.docs.map(d => Object.assign({}, d.data(), { id: d.id }))
+        .sort((a, b) => String(a.date + a.startTime).localeCompare(String(b.date + b.startTime)));
+      venueLive.ready = true; venueLive.error = '';
+      updateRepairBadge(); if (DB.ui.tab === 'general') renderGeneralDept();
+    }, e => { venueLive.ready = true; venueLive.error = 'โหลดรายการขอใช้สถานที่ไม่สำเร็จ: ' + deptPermMsg(e, 'อ่านรายการขอใช้สถานที่'); if (DB.ui.tab === 'general') renderGeneralDept(); });
+    fbUnsub.push(() => { u(); venueLive = { on: false, list: [], ready: false, error: '' }; });
+  }
+}
+
 const REPAIR_STATUSES = [
   { value: 'new', label: 'แจ้งใหม่', cls: 'warn' },
   { value: 'accepted', label: 'รับเรื่องแล้ว', cls: '' },
@@ -18542,20 +18611,25 @@ const REPAIR_STATUSES = [
   { value: 'waiting', label: 'รออะไหล่/งบประมาณ', cls: 'warn' },
   { value: 'done', label: 'เสร็จแล้ว', cls: 'ok' },
   { value: 'cannot', label: 'ซ่อมไม่ได้/ส่งต่อ', cls: 'bad' },
+  { value: 'rejected', label: 'ไม่อนุมัติ', cls: 'bad' },
   { value: 'cancelled', label: 'ผู้แจ้งยกเลิก', cls: '' }];
 const REPAIR_OPEN = ['new', 'accepted', 'doing', 'waiting'];
 const repairStatus = v => REPAIR_STATUSES.find(s => s.value === v) || REPAIR_STATUSES[0];
 const REPAIR_CATEGORIES = ['อาคาร / ห้องเรียน / ประตู หน้าต่าง', 'ไฟฟ้า / หลอดไฟ / ปลั๊ก', 'ประปา / ห้องน้ำ', 'โต๊ะ เก้าอี้ / ครุภัณฑ์',
   'คอมพิวเตอร์ / โปรเจกเตอร์ / เครื่องเสียง', 'เครื่องปรับอากาศ / พัดลม', 'บริเวณโรงเรียน / สนาม / ต้นไม้', 'อื่น ๆ'];
-const REPAIR_VIEWS = [['open', 'ค้างดำเนินการ'], ['new', 'แจ้งใหม่'], ['done', 'เสร็จแล้ว'], ['all', 'ทั้งหมด']];
+const REPAIR_VIEWS = [['open', 'ค้างดำเนินการ'], ['pending', 'อยู่ในสายอนุมัติ'], ['done', 'ปิดงานแล้ว'], ['all', 'ทั้งหมด']];
+const VENUE_STATUSES = { pending: { label: 'รออนุมัติ', cls: 'warn' }, approved: { label: 'อนุมัติแล้ว', cls: 'ok' }, rejected: { label: 'ไม่อนุมัติ', cls: 'bad' }, cancelled: { label: 'ผู้ขอยกเลิก', cls: '' } };
+const VENUE_SETUP_ITEMS = ['โต๊ะ', 'เก้าอี้', 'เครื่องเสียง / ไมโครโฟน', 'โปรเจกเตอร์ / จอ', 'ป้าย / ฉากเวที', 'ผ้าปูโต๊ะ', 'น้ำดื่ม', 'ปลั๊กไฟ / สายพ่วง', 'ทำความสะอาดก่อน-หลังใช้'];
+const VENUE_VIEWS = [['pending', 'รออนุมัติ'], ['approved', 'อนุมัติแล้ว'], ['all', 'ทั้งหมด']];
+
 let repairLive = { key: '', list: [], error: '', ready: false, unsub: null };
 function ensureRepairListener() {
   if (!deptOnline() || !fbUnsub.length) return;
-  const me = myEmailLower(), key = generalWatcher() ? 'all' : 'me:' + me;
+  const me = myEmailLower(), key = genWatcher() ? 'all' : 'me:' + me;
   if (!me || repairLive.key === key) return;
   if (repairLive.unsub) repairLive.unsub();
   repairLive = { key: key, list: [], error: '', ready: false, unsub: null };
-  /* ฝ่ายบริหารทั่วไปเห็นย้อนหลังหนึ่งปี ครูเห็นทุกรายการของตัวเอง — where เดียว ไม่ต้องสร้างดัชนีผสม */
+  /* ผู้ดูแลงานเห็นย้อนหลังหนึ่งปี ครูเห็นทุกรายการของตัวเอง — where เดียว ไม่ต้องสร้างดัชนีผสม */
   const q = key === 'all' ? fbDb.collection('repairRequests').where('createdAt', '>=', isoDate(new Date(Date.now() - 365 * 86400000)))
     : fbDb.collection('repairRequests').where('ownerId', '==', me);
   const unsub = q.onSnapshot(snap => {
@@ -18569,9 +18643,17 @@ function ensureRepairListener() {
   repairLive.unsub = unsub;
   fbUnsub.push(() => { unsub(); if (repairLive.unsub === unsub) repairLive = { key: '', list: [], error: '', ready: false, unsub: null }; });
 }
+/** งานที่รอเราอยู่: รายการที่ถึงขั้นอนุมัติของเรา + (ผู้จัดการงาน) งานที่อนุมัติแล้วแต่ยังไม่มอบผู้ปฏิบัติงาน */
+function genMyQueue() {
+  const mine = myGenStages(), all = repairLive.list.map(r => ({ kind: 'repair', r: r })).concat(venueLive.list.map(r => ({ kind: 'venue', r: r })));
+  const approve = all.filter(x => mine.includes(x.r.stage) && genPending(x.r));
+  const assign = genManager() ? all.filter(x => x.kind === 'repair' ? (x.r.stage === 'approved' || !x.r.stage) && x.r.status === 'new' || (x.r.stage === 'approved' && x.r.status === 'accepted' && !x.r.workerId)
+    : x.r.stage === 'approved' && x.r.status === 'approved' && x.r.setupNeeded && !x.r.setupReady && String(x.r.date) >= todayISO()) : [];
+  return { approve: approve, assign: assign };
+}
 function updateRepairBadge() {
   const el = $('#generalBadge'); if (!el) return;
-  const n = isGeneralStaff() ? repairLive.list.filter(r => r.status === 'new').length : 0;
+  const q = genMyQueue(), n = q.approve.length + q.assign.length;
   el.innerHTML = n ? '<span class="badge warn">' + n + '</span>' : '';
 }
 const safePhoto = p => /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(String(p || '')) ? p : '';
@@ -18594,86 +18676,177 @@ function compressRepairPhoto(file) {
   });
 }
 
+/* ---- สายอนุมัติ ------------------------------------------------------------- */
+function genStageBadge(r) {
+  if (r.status === 'cancelled') return '';
+  if (r.stage === 'rejected' || r.status === 'rejected') return '<span class="badge bad">ไม่อนุมัติ</span>';
+  const s = GEN_STAGES.find(x => x.key === r.stage);
+  return s ? '<span class="badge warn">รอ' + esc(s.short) + '</span>' : '';
+}
+/** ร่องรอยการอนุมัติ ใครเห็นชอบ/ไม่อนุมัติเมื่อไร พร้อมเหตุผล */
+function genTrail(r) {
+  const a = r.approvals || {};
+  const parts = GEN_STAGES.filter(s => a[s.key]).map(s => { const x = a[s.key];
+    return (x.status === 'approved' ? '✓ ' : '✗ ') + s.short + ' ' + esc(x.by || '') + (x.note ? ' — ' + esc(x.note) : ''); });
+  return parts.length ? '<div class="hint gen-trail">' + parts.join(' • ') + '</div>' : '';
+}
+function genApproveButtons(kind, r) {
+  if (!myGenStages().includes(r.stage) || !genPending(r)) return '';
+  const last = nextGenStage(r.stage) === 'approved';
+  return '<button class="sm danger" data-gen-reject="' + kind + '|' + esc(r.id) + '">ไม่อนุมัติ</button>' +
+    '<button class="sm primary" data-gen-approve="' + kind + '|' + esc(r.id) + '">' + (last ? 'อนุมัติ' : 'เห็นชอบ ส่งต่อ') + '</button>';
+}
+async function decideGeneral(kind, r, ok) {
+  const st = GEN_STAGES.find(s => s.key === r.stage); if (!st) return;
+  let note = '';
+  if (!ok) {
+    note = await new Promise(res => openModal({ title: 'ไม่อนุมัติ', bodyHTML: '<div class="pick"><label>เหตุผล (ผู้ขอจะเห็น)</label><textarea id="genWhy" rows="3"></textarea></div>',
+      buttons: [{ label: 'ยกเลิก', act: c => { c(); res(null); } }, { label: 'ไม่อนุมัติ', cls: 'danger', act: (c, root) => { const v = $('#genWhy', root).value.trim(); if (!v) return toast('กรุณาใส่เหตุผล', 'bad'); c(); res(v); } }] }));
+    if (note === null) return;
+  }
+  const now = new Date().toISOString(), who = acalWho(), next = ok ? nextGenStage(r.stage) : 'rejected';
+  const data = { approvals: Object.assign({}, r.approvals || {}, { [st.key]: { status: ok ? 'approved' : 'rejected', by: who, byEmail: myEmailLower(), at: now, note: note } }),
+    stage: next, updatedAt: now, log: (Array.isArray(r.log) ? r.log : []).concat([{ at: now, by: who, status: (ok ? 'approve:' : 'reject:') + st.key }]).slice(-30) };
+  if (!ok) data.status = 'rejected';
+  else if (next === 'approved' && kind === 'venue') data.status = 'approved';
+  try { await fbDb.collection(kind === 'repair' ? 'repairRequests' : 'venueRequests').doc(r.id).update(data); }
+  catch (e) { return toast('บันทึกไม่สำเร็จ: ' + deptPermMsg(e, 'อนุมัติขั้น' + st.short), 'bad'); }
+  toast(!ok ? 'บันทึกไม่อนุมัติแล้ว' : next === 'approved' ? 'อนุมัติแล้ว' : 'เห็นชอบแล้ว ส่งต่อ' + GEN_STAGES.find(s => s.key === next).short, 'ok');
+}
+/** ช่องลงนามของสายอนุมัติในเอกสารที่พิมพ์ */
+function genSignHtml(r) {
+  const a = r.approvals || {};
+  return '<table class="doc-table" style="margin-top:14px"><thead><tr><th>ขั้นตอน</th><th>ผล</th><th>ผู้พิจารณา</th><th>วันที่</th></tr></thead><tbody>' +
+    GEN_STAGES.map(s => { const x = a[s.key];
+      return '<tr><td>' + esc(s.label) + '</td><td>' + (x ? (x.status === 'approved' ? 'เห็นชอบ/อนุมัติ' : 'ไม่อนุมัติ' + (x.note ? ' — ' + esc(x.note) : '')) : (genStageEmail(s.key) ? '' : '(ไม่มีขั้นนี้)')) +
+        '</td><td>' + esc(x ? x.by : '') + '</td><td>' + (x && x.at ? thaiDate(String(x.at).slice(0, 10)) : '') + '</td></tr>'; }).join('') + '</tbody></table>';
+}
+
+/* ---- หน้าฝ่ายบริหารทั่วไป ----------------------------------------------------- */
+function genViews() {
+  const v = [];
+  if (myGenStages().length || genManager()) v.push(['queue', 'งานรอฉัน']);
+  v.push(['repair', 'แจ้งซ่อม'], ['venue', 'ขอใช้สถานที่'], ['schedule', 'ตารางการใช้สถานที่']);
+  if (isGeneralStaff()) v.push(['setup', 'ตั้งค่าฝ่าย']);
+  return v;
+}
 function renderGeneralDept() {
   const pane = $('#pane-general'); if (!pane) return;
   ensureDeptListeners();
-  const watcher = generalWatcher(), staff = isGeneralStaff(), me = myEmailLower(), online = deptOnline();
-  const all = repairLive.list, mine = all.filter(r => r.ownerId === me);
+  const online = deptOnline(), views = genViews(), q = genMyQueue();
+  const view = views.some(v => v[0] === DB.ui.generalView) ? DB.ui.generalView : (views[0][0] === 'queue' && q.approve.length + q.assign.length ? 'queue' : 'repair');
   pane.innerHTML = '<div class="card dash-hero"><div class="row" style="position:relative;z-index:1"><div><div class="hero-sub">GENERAL ADMINISTRATION</div>' +
-      '<h1>' + (watcher ? 'ฝ่ายบริหารทั่วไป' : 'แจ้งซ่อม') + '</h1><div class="hero-sub">แจ้งซ่อมอาคาร สถานที่ และของใช้ในโรงเรียน • ติดตามสถานะได้ทันที</div></div>' +
-      '<div class="spacer"></div><button class="primary" id="rpNew"' + (online ? '' : ' disabled') + '>＋ แจ้งซ่อม</button></div></div>' +
-    (!online ? '<div class="notice" style="margin-bottom:12px">ต้องเข้าสู่ระบบด้วยบัญชี Google ของโรงเรียนก่อน จึงจะแจ้งซ่อมและดูสถานะได้</div>' : '') +
-    (repairLive.error ? '<div class="notice bad" style="margin-bottom:12px">' + esc(repairLive.error) + '</div>' : '') +
-    '<div id="rpBody"></div>';
+      '<h1>' + (genWatcher() ? 'ฝ่ายบริหารทั่วไป' : 'แจ้งซ่อม / ขอใช้สถานที่') + '</h1><div class="hero-sub">แจ้งซ่อม • ขอใช้และจัดสถานที่ • ผ่านหัวหน้างานอาคารฯ ผู้ช่วยรองฯ และรอง ผอ.</div></div>' +
+      '<div class="spacer"></div><button id="rpNew"' + (online ? '' : ' disabled') + '>＋ แจ้งซ่อม</button><button class="primary" id="vnNew"' + (online ? '' : ' disabled') + '>＋ ขอใช้สถานที่</button></div></div>' +
+    (!online ? '<div class="notice" style="margin-bottom:12px">ต้องเข้าสู่ระบบด้วยบัญชี Google ของโรงเรียนก่อน จึงจะแจ้งซ่อม ขอใช้สถานที่ และดูสถานะได้</div>' : '') +
+    [repairLive.error, venueLive.error].filter(Boolean).map(e => '<div class="notice bad" style="margin-bottom:12px">' + esc(e) + '</div>').join('') +
+    deptViewsBar(views.map(v => v[0] === 'queue' && q.approve.length + q.assign.length ? [v[0], v[1] + ' (' + (q.approve.length + q.assign.length) + ')'] : v), view, 'data-gen-view') + '<div id="rpBody"></div>';
   $('#rpNew', pane).addEventListener('click', () => openRepairForm(null));
+  $('#vnNew', pane).addEventListener('click', () => openVenueForm(null));
+  $$('[data-gen-view]', pane).forEach(b => b.addEventListener('click', () => { DB.ui.generalView = b.dataset.genView; save(); renderGeneralDept(); }));
   const body = $('#rpBody', pane);
-  if (online && !repairLive.ready) { body.innerHTML = '<div class="card"><div class="hint">กำลังโหลดรายการแจ้งซ่อม…</div></div>'; return; }
-  if (!watcher) {
-    body.innerHTML = '<div class="card"><h3>รายการที่ฉันแจ้ง</h3>' + (mine.length ? '<div class="alert-list">' + mine.map(r => repairRowHtml(r, false, me)).join('') + '</div>'
+  if (online && (!repairLive.ready || !venueLive.ready) && view !== 'setup') { body.innerHTML = '<div class="card"><div class="hint">กำลังโหลดรายการ…</div></div>'; return; }
+  if (view === 'queue') renderGenQueue(body, q);
+  else if (view === 'venue') renderVenueList(body);
+  else if (view === 'schedule') renderVenueSchedule(body);
+  else if (view === 'setup') renderGenSetup(body);
+  else renderRepairList(body);
+  wireGenRows(body);
+}
+function renderGenQueue(body, q) {
+  const row = x => x.kind === 'repair' ? repairRowHtml(x.r) : venueRowHtml(x.r);
+  const stages = myGenStages().map(k => GEN_STAGES.find(s => s.key === k).label);
+  body.innerHTML = (stages.length ? '<div class="card"><h3>รอการพิจารณาของฉัน</h3><div class="hint" style="margin-bottom:8px">ในฐานะ ' + esc(stages.join(' / ')) + '</div>' +
+      (q.approve.length ? '<div class="alert-list">' + q.approve.map(row).join('') + '</div>' : '<div class="empty">ไม่มีรายการรอพิจารณา</div>') + '</div>' : '') +
+    (genManager() ? '<div class="card"><h3>อนุมัติแล้ว รอมอบงานผู้ปฏิบัติงาน</h3>' +
+      (q.assign.length ? '<div class="alert-list">' + q.assign.map(row).join('') + '</div>' : '<div class="empty">ไม่มีงานรอมอบหมาย</div>') + '</div>' : '');
+}
+function renderRepairList(body) {
+  const me = myEmailLower(), all = repairLive.list;
+  if (!genWatcher()) {
+    const mine = all.filter(r => r.ownerId === me);
+    body.innerHTML = '<div class="card"><h3>รายการแจ้งซ่อมของฉัน</h3>' + (mine.length ? '<div class="alert-list">' + mine.map(r => repairRowHtml(r)).join('') + '</div>'
       : '<div class="empty">ยังไม่เคยแจ้งซ่อม — กด “＋ แจ้งซ่อม” เมื่อพบของชำรุด</div>') + '</div>';
-    wireRepairRows(body); return;
+    return;
   }
   const month = todayISO().slice(0, 7), open = all.filter(r => REPAIR_OPEN.includes(r.status));
   const view = REPAIR_VIEWS.some(v => v[0] === DB.ui.repairView) ? DB.ui.repairView : 'open', q = String(DB.ui.repairSearch || '').trim();
-  const shown = all.filter(r => view === 'all' || (view === 'open' ? REPAIR_OPEN.includes(r.status) : view === 'done' ? ['done', 'cannot'].includes(r.status) : r.status === view))
-    .filter(r => !q || [r.place, r.item, r.category, r.detail, r.ownerName].join(' ').includes(q))
+  const shown = all.filter(r => view === 'all' || (view === 'open' ? REPAIR_OPEN.includes(r.status) : view === 'pending' ? genPending(r) : ['done', 'cannot', 'rejected', 'cancelled'].includes(r.status)))
+    .filter(r => !q || [r.place, r.item, r.category, r.detail, r.ownerName, r.assignee].join(' ').includes(q))
     .sort((a, b) => (view === 'open' ? (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0) : 0) || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
   body.innerHTML = '<div class="dash-metrics">' +
-      '<div class="metric-card" style="--metric:var(--warn)"><div class="metric-value">' + all.filter(r => r.status === 'new').length + '</div><div class="metric-label">แจ้งใหม่ ยังไม่รับเรื่อง</div></div>' +
+      '<div class="metric-card" style="--metric:var(--warn)"><div class="metric-value">' + all.filter(genPending).length + '</div><div class="metric-label">อยู่ในสายอนุมัติ</div></div>' +
       '<div class="metric-card" style="--metric:var(--brand)"><div class="metric-value">' + open.length + '</div><div class="metric-label">ค้างดำเนินการทั้งหมด</div></div>' +
       '<div class="metric-card" style="--metric:var(--bad)"><div class="metric-value">' + open.filter(r => r.urgent).length + '</div><div class="metric-label">เร่งด่วนที่ยังค้าง</div></div>' +
       '<div class="metric-card" style="--metric:var(--ok)"><div class="metric-value">' + all.filter(r => r.status === 'done' && String(r.updatedAt || '').slice(0, 7) === month).length + '</div><div class="metric-label">ซ่อมเสร็จเดือนนี้</div></div></div>' +
     '<div class="card"><div class="row" style="gap:8px;flex-wrap:wrap;align-items:flex-end">' + deptViewsBar(REPAIR_VIEWS, view, 'data-rp-view').replace('margin-bottom:12px', 'margin:0') +
-      '<div class="spacer"></div><div class="pick"><label>ค้นหา</label><input id="rpSearch" value="' + esc(q) + '" placeholder="สถานที่ ของที่ชำรุด ผู้แจ้ง"></div>' +
-      '<button id="rpPrint">🖨 พิมพ์รายการ</button></div>' +
-      (!staff ? '<div class="hint" style="margin-top:8px">มุมมองผู้บริหาร — ดูได้อย่างเดียว ฝ่ายบริหารทั่วไปเป็นผู้รับเรื่อง</div>' : '') +
-      (shown.length ? '<div class="alert-list" style="margin-top:10px">' + shown.map(r => repairRowHtml(r, staff, me)).join('') + '</div>' : '<div class="empty" style="margin-top:10px">ไม่มีรายการ</div>') + '</div>';
+      '<div class="spacer"></div><div class="pick"><label>ค้นหา</label><input id="rpSearch" value="' + esc(q) + '" placeholder="สถานที่ ของที่ชำรุด ผู้แจ้ง ช่าง"></div>' +
+      '<button id="rpPrint">🖨 พิมพ์ทะเบียน</button></div>' +
+      (!genManager() && !myGenStages().length ? '<div class="hint" style="margin-top:8px">มุมมองผู้บริหาร — ดูได้อย่างเดียว</div>' : '') +
+      (shown.length ? '<div class="alert-list" style="margin-top:10px">' + shown.map(r => repairRowHtml(r)).join('') + '</div>' : '<div class="empty" style="margin-top:10px">ไม่มีรายการ</div>') + '</div>';
   $$('[data-rp-view]', body).forEach(b => b.addEventListener('click', () => { DB.ui.repairView = b.dataset.rpView; save(); renderGeneralDept(); }));
   $('#rpSearch', body).addEventListener('change', e => { DB.ui.repairSearch = e.target.value; save(); renderGeneralDept(); });
   $('#rpPrint', body).addEventListener('click', () => printRepairList(shown, REPAIR_VIEWS.find(v => v[0] === view)[1]));
-  wireRepairRows(body);
 }
-function repairRowHtml(r, staff, me) {
-  const st = repairStatus(r.status), photo = safePhoto(r.photo), id = esc(r.id);
-  return '<div class="alert-item repair-item"><div style="flex:1;min-width:0"><b>' + (r.urgent ? '<span class="badge bad">ด่วน</span> ' : '') +
+function repairRowHtml(r) {
+  const me = myEmailLower(), st = repairStatus(r.status), photo = safePhoto(r.photo), id = esc(r.id), w = genWorker(r.workerId);
+  const workOk = (r.stage === 'approved' || !r.stage) && !['cancelled', 'rejected'].includes(r.status);
+  return '<div class="alert-item repair-item"><div style="flex:1;min-width:0"><b><span class="badge">ซ่อม</span> ' + (r.urgent ? '<span class="badge bad">ด่วน</span> ' : '') +
       esc(r.item || 'แจ้งซ่อม') + (r.place ? ' • ' + esc(r.place) : '') + '</b>' +
       '<div class="hint">' + esc(r.category || '') + ' • แจ้งโดย ' + esc(r.ownerName || r.ownerId || '') + ' • ' + esc(thaiDateTime(r.createdAt)) + '</div>' +
-      (r.detail ? '<div class="repair-detail">' + esc(r.detail) + '</div>' : '') +
-      (r.handlerNote || r.assignee ? '<div class="hint">ฝ่ายบริหารทั่วไป: ' + esc(r.handlerNote || '') + (r.assignee ? ' • ผู้รับผิดชอบ ' + esc(r.assignee) : '') +
+      (r.detail ? '<div class="repair-detail">' + esc(r.detail) + '</div>' : '') + genTrail(r) +
+      (r.handlerNote || r.assignee || w ? '<div class="hint">ผู้ปฏิบัติงาน: ' + esc(w ? genWorkerText(w) : (r.assignee || '—')) + (r.handlerNote ? ' • ' + esc(r.handlerNote) : '') +
         (r.handledBy ? ' • ' + esc(r.handledBy) + ' ' + esc(thaiDateTime(r.updatedAt)) : '') + '</div>' : '') + '</div>' +
     (photo ? '<img class="repair-thumb" data-rp-photo="' + id + '" src="' + esc(photo) + '" alt="รูปประกอบ">' : '') +
-    '<span class="badge ' + st.cls + '">' + esc(st.label) + '</span>' +
-    (staff && r.status === 'new' ? '<button class="sm" data-rp-quick="' + id + '">รับเรื่อง</button>' : '') +
-    (staff && r.status !== 'cancelled' ? '<button class="sm primary" data-rp-update="' + id + '">อัปเดต</button>' : '') +
-    (r.ownerId === me && r.status === 'new' ? '<button class="sm" data-rp-edit="' + id + '">แก้ไข</button><button class="sm danger" data-rp-cancel="' + id + '">ยกเลิก</button>' : '') + '</div>';
+    (genPending(r) || r.status === 'rejected' ? genStageBadge(r) : '<span class="badge ' + st.cls + '">' + esc(st.label) + '</span>') +
+    genApproveButtons('repair', r) +
+    (genManager() && workOk && r.status === 'new' ? '<button class="sm" data-rp-quick="' + id + '">รับเรื่อง</button>' : '') +
+    (genManager() && workOk ? '<button class="sm primary" data-rp-update="' + id + '">มอบงาน / อัปเดต</button>' : '') +
+    '<button class="sm" data-rp-doc="' + id + '" title="พิมพ์ใบแจ้งซ่อม">🖨</button>' +
+    (r.ownerId === me && r.status === 'new' && !Object.keys(r.approvals || {}).length ? '<button class="sm" data-rp-edit="' + id + '">แก้ไข</button>' : '') +
+    (r.ownerId === me && r.status === 'new' ? '<button class="sm danger" data-rp-cancel="' + id + '">ยกเลิก</button>' : '') + '</div>';
 }
-function wireRepairRows(root) {
-  const find = id => repairLive.list.find(r => r.id === id);
+function wireGenRows(root) {
+  const findR = id => repairLive.list.find(r => r.id === id), findV = id => venueLive.list.find(r => r.id === id);
+  const pair = v => { const p = String(v).split('|'); return { kind: p[0], r: p[0] === 'repair' ? findR(p[1]) : findV(p[1]) }; };
+  $$('[data-gen-approve]', root).forEach(b => b.addEventListener('click', () => { const x = pair(b.dataset.genApprove); if (x.r) decideGeneral(x.kind, x.r, true); }));
+  $$('[data-gen-reject]', root).forEach(b => b.addEventListener('click', () => { const x = pair(b.dataset.genReject); if (x.r) decideGeneral(x.kind, x.r, false); }));
   $$('[data-rp-photo]', root).forEach(img => img.addEventListener('click', () => {
-    const r = find(img.dataset.rpPhoto); if (!r) return;
+    const r = findR(img.dataset.rpPhoto); if (!r) return;
     openModal({ title: (r.item || 'รูปประกอบ') + (r.place ? ' • ' + r.place : ''), bodyHTML: '<img src="' + esc(safePhoto(r.photo)) + '" alt="" style="max-width:100%;border-radius:10px">' });
   }));
-  $$('[data-rp-quick]', root).forEach(b => b.addEventListener('click', () => { const r = find(b.dataset.rpQuick); if (r) updateRepair(r, { status: 'accepted' }); }));
-  $$('[data-rp-update]', root).forEach(b => b.addEventListener('click', () => { const r = find(b.dataset.rpUpdate); if (r) openRepairUpdate(r); }));
-  $$('[data-rp-edit]', root).forEach(b => b.addEventListener('click', () => { const r = find(b.dataset.rpEdit); if (r) openRepairForm(r); }));
+  $$('[data-rp-quick]', root).forEach(b => b.addEventListener('click', () => { const r = findR(b.dataset.rpQuick); if (r) updateRepair(r, { status: 'accepted' }); }));
+  $$('[data-rp-update]', root).forEach(b => b.addEventListener('click', () => { const r = findR(b.dataset.rpUpdate); if (r) openRepairUpdate(r); }));
+  $$('[data-rp-edit]', root).forEach(b => b.addEventListener('click', () => { const r = findR(b.dataset.rpEdit); if (r) openRepairForm(r); }));
+  $$('[data-rp-doc]', root).forEach(b => b.addEventListener('click', () => { const r = findR(b.dataset.rpDoc); if (r) printRepairDoc(r); }));
   $$('[data-rp-cancel]', root).forEach(b => b.addEventListener('click', async () => {
-    const r = find(b.dataset.rpCancel); if (!r) return;
+    const r = findR(b.dataset.rpCancel); if (!r) return;
     if (await confirmBox('ยกเลิกการแจ้งซ่อม', 'ยกเลิกรายการ “' + esc(r.item || '') + '” ใช่ไหม', 'ยกเลิกรายการ')) updateRepair(r, { status: 'cancelled' });
+  }));
+  $$('[data-vn-edit]', root).forEach(b => b.addEventListener('click', () => { const r = findV(b.dataset.vnEdit); if (r) openVenueForm(r); }));
+  $$('[data-vn-assign]', root).forEach(b => b.addEventListener('click', () => { const r = findV(b.dataset.vnAssign); if (r) openVenueAssign(r); }));
+  $$('[data-vn-doc]', root).forEach(b => b.addEventListener('click', () => { const r = findV(b.dataset.vnDoc); if (r) printVenueDoc(r); }));
+  $$('[data-vn-cancel]', root).forEach(b => b.addEventListener('click', async () => {
+    const r = findV(b.dataset.vnCancel); if (!r) return;
+    if (!await confirmBox('ยกเลิกการขอใช้สถานที่', 'ยกเลิกการขอใช้ “' + esc(r.placeName || '') + '” ' + esc(thaiDate(r.date)) + ' ใช่ไหม', 'ยกเลิกการขอใช้')) return;
+    const now = new Date().toISOString();
+    try { await fbDb.collection('venueRequests').doc(r.id).update({ status: 'cancelled', updatedAt: now, log: (Array.isArray(r.log) ? r.log : []).concat([{ at: now, by: acalWho(), status: 'cancelled' }]).slice(-30) }); toast('ยกเลิกแล้ว', 'ok'); }
+    catch (e) { toast('ยกเลิกไม่สำเร็จ: ' + deptPermMsg(e, 'ยกเลิกรายการนี้'), 'bad'); }
   }));
 }
 function openRepairForm(existing) {
   if (!deptOnline()) return toast('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อน จึงจะแจ้งซ่อมได้', 'bad');
-  const r = existing || {}, places = sortedClassList(DB.classes).map(c => c.name).concat(['ห้องพักครู', 'ห้องน้ำ', 'โรงอาหาร', 'หอประชุม', 'สนาม', 'ห้องสมุด', 'ห้องปฏิบัติการ']);
+  const r = existing || {}, places = genPlaces().map(p => p.name).concat(sortedClassList(DB.classes).map(c => c.name), ['ห้องพักครู', 'ห้องน้ำ', 'ห้องสมุด', 'ห้องปฏิบัติการ']);
   let photo = safePhoto(r.photo);
   openModal({ title: existing ? 'แก้ไขรายการแจ้งซ่อม' : 'แจ้งซ่อม', bodyHTML:
       '<div class="grid2"><div class="pick"><label>สถานที่ / ห้อง *</label><input id="rpPlace" list="rpPlaceList" value="' + esc(r.place || '') + '" placeholder="เช่น ม.4/2 อาคาร 3 ชั้น 2"><datalist id="rpPlaceList">' +
-        places.map(p => '<option value="' + esc(p) + '">').join('') + '</datalist></div>' +
+        Array.from(new Set(places)).map(p => '<option value="' + esc(p) + '">').join('') + '</datalist></div>' +
       '<div class="pick"><label>ประเภท</label><select id="rpCat">' + REPAIR_CATEGORIES.map(c => '<option' + (c === r.category ? ' selected' : '') + '>' + esc(c) + '</option>').join('') + '</select></div></div>' +
       '<div class="pick" style="margin-top:8px"><label>ของที่ชำรุด *</label><input id="rpItem" value="' + esc(r.item || '') + '" placeholder="เช่น พัดลมเพดานตัวที่ 2, ก๊อกน้ำ, โปรเจกเตอร์"></div>' +
       '<div class="pick" style="margin-top:8px"><label>อาการ / รายละเอียด</label><textarea id="rpDetail" rows="3" placeholder="เช่น เปิดแล้วไม่หมุน มีกลิ่นไหม้">' + esc(r.detail || '') + '</textarea></div>' +
       '<label style="display:flex;gap:6px;align-items:center;margin-top:8px"><input type="checkbox" id="rpUrgent"' + (r.urgent ? ' checked' : '') + '> เร่งด่วน — กระทบการเรียนการสอนหรือไม่ปลอดภัย</label>' +
-      '<div class="pick" style="margin-top:8px"><label>รูปประกอบ (ไม่บังคับ)</label><input type="file" id="rpPhoto" accept="image/*" capture="environment"><div id="rpPhotoPrev" style="margin-top:6px">' +
-        (photo ? '<img src="' + esc(photo) + '" alt="" class="repair-thumb"> <button class="sm" id="rpPhotoDel">ลบรูป</button>' : '') + '</div></div>',
+      '<div class="pick" style="margin-top:8px"><label>รูปประกอบ (ไม่บังคับ)</label><input type="file" id="rpPhoto" accept="image/*" capture="environment"><div id="rpPhotoPrev" style="margin-top:6px"></div></div>' +
+      (existing ? '' : '<div class="hint" style="margin-top:8px">เส้นทาง: ' + esc(genRouteText()) + '</div>'),
     onMount(root) {
       const prev = () => {
         $('#rpPhotoPrev', root).innerHTML = photo ? '<img src="' + esc(photo) + '" alt="" class="repair-thumb"> <button class="sm" id="rpPhotoDel">ลบรูป</button>' : '';
@@ -18698,21 +18871,28 @@ function openRepairForm(existing) {
         else {
           const id = uid('repair');
           await fbDb.collection('repairRequests').doc(id).set(Object.assign(data, { ownerId: me, ownerName: who, teacherId: (curTeacher() || {}).id || '',
-            status: 'new', createdAt: now, date: todayISO(), log: [{ at: now, by: who, status: 'new' }] }));
+            status: 'new', stage: nextGenStage(null), approvals: {}, createdAt: now, date: todayISO(), log: [{ at: now, by: who, status: 'new' }] }));
         }
       } catch (e) { return toast('ส่งไม่สำเร็จ: ' + deptPermMsg(e, 'แจ้งซ่อม'), 'bad'); }
-      close(); toast(existing ? 'แก้ไขแล้ว' : 'ส่งแจ้งซ่อมแล้ว ฝ่ายบริหารทั่วไปจะเห็นทันที', 'ok');
+      close(); toast(existing ? 'แก้ไขแล้ว' : 'ส่งแจ้งซ่อมแล้ว', 'ok');
     } }] });
 }
+const genRouteText = () => { const on = GEN_STAGES.filter(s => genStageEmail(s.key)).map(s => s.short); return (on.length ? on.join(' → ') + ' → ' : '') + 'ฝ่ายบริหารทั่วไปมอบงาน'; };
 function openRepairUpdate(r) {
-  openModal({ title: 'อัปเดตงานซ่อม • ' + (r.item || ''), bodyHTML:
+  const workers = genCfg().workers;
+  openModal({ title: 'มอบงาน / อัปเดตงานซ่อม • ' + (r.item || ''), bodyHTML:
       '<div class="hint" style="margin-bottom:8px">' + esc(r.place || '') + ' • แจ้งโดย ' + esc(r.ownerName || r.ownerId || '') + ' • ' + esc(thaiDateTime(r.createdAt)) + '</div>' +
-      '<div class="grid2"><div class="pick"><label>สถานะ</label><select id="rpStatus">' + REPAIR_STATUSES.filter(s => s.value !== 'cancelled').map(s =>
+      '<div class="grid2"><div class="pick"><label>สถานะ</label><select id="rpStatus">' + REPAIR_STATUSES.filter(s => !['cancelled', 'rejected'].includes(s.value)).map(s =>
         '<option value="' + s.value + '"' + (s.value === r.status ? ' selected' : '') + '>' + esc(s.label) + '</option>').join('') + '</select></div>' +
-      '<div class="pick"><label>ผู้รับผิดชอบ / ช่าง</label><input id="rpAssignee" value="' + esc(r.assignee || '') + '"></div></div>' +
+      '<div class="pick"><label>ผู้ปฏิบัติงาน</label><select id="rpWorker"><option value="">— ยังไม่มอบหมาย —</option>' + workers.map(w =>
+        '<option value="' + esc(w.id) + '"' + (w.id === r.workerId ? ' selected' : '') + '>' + esc(genWorkerText(w)) + '</option>').join('') + '</select>' +
+        (workers.length ? '' : '<div class="hint">ยังไม่มีรายชื่อ — เพิ่มที่แท็บ “ตั้งค่าฝ่าย”</div>') + '</div></div>' +
       '<div class="pick" style="margin-top:8px"><label>บันทึกถึงผู้แจ้ง</label><textarea id="rpNote" rows="3" placeholder="เช่น นัดช่างเข้าซ่อมวันพฤหัส / รออะไหล่">' + esc(r.handlerNote || '') + '</textarea></div>',
     buttons: [{ label: 'ยกเลิก' }, { label: 'บันทึก', cls: 'primary', async act(close, root) {
-      const ok = await updateRepair(r, { status: $('#rpStatus', root).value, assignee: $('#rpAssignee', root).value.trim().slice(0, 120), handlerNote: $('#rpNote', root).value.trim().slice(0, 1000) });
+      const wid = $('#rpWorker', root).value, w = genWorker(wid);
+      let status = $('#rpStatus', root).value;
+      if (w && status === 'new') status = 'accepted';   // มอบงานแล้วก็คือรับเรื่องแล้ว
+      const ok = await updateRepair(r, { status: status, workerId: wid, assignee: w ? genWorkerText(w) : '', handlerNote: $('#rpNote', root).value.trim().slice(0, 1000) });
       if (ok) close();
     } }] });
 }
@@ -18720,19 +18900,210 @@ async function updateRepair(r, patch) {
   const now = new Date().toISOString(), who = acalWho();
   const data = Object.assign({}, patch, { updatedAt: now });
   if (patch.status && patch.status !== r.status) data.log = (Array.isArray(r.log) ? r.log : []).concat([{ at: now, by: who, status: patch.status }]).slice(-30);
-  if (isGeneralStaff() && patch.status !== 'cancelled') data.handledBy = who;
+  if (genManager() && patch.status !== 'cancelled') data.handledBy = who;
   try { await fbDb.collection('repairRequests').doc(r.id).update(data); }
   catch (e) { toast('บันทึกไม่สำเร็จ: ' + deptPermMsg(e, 'ฝ่ายบริหารทั่วไป'), 'bad'); return false; }
   toast(patch.status ? 'สถานะ: ' + repairStatus(patch.status).label : 'บันทึกแล้ว', 'ok');
   return true;
 }
 function printRepairList(list, label) {
-  const html = docHeader('ทะเบียนแจ้งซ่อม • ' + label) +
-    '<table class="doc-table"><thead><tr><th>ที่</th><th>วันที่แจ้ง</th><th>สถานที่</th><th>รายการ / อาการ</th><th>ผู้แจ้ง</th><th>สถานะ</th><th>หมายเหตุ</th></tr></thead><tbody>' +
+  printDocument(docHeader('ทะเบียนแจ้งซ่อม • ' + label) +
+    '<table class="doc-table"><thead><tr><th>ที่</th><th>วันที่แจ้ง</th><th>สถานที่</th><th>รายการ / อาการ</th><th>ผู้แจ้ง</th><th>สถานะ</th><th>ผู้ปฏิบัติงาน / หมายเหตุ</th></tr></thead><tbody>' +
     list.map((r, i) => '<tr><td>' + (i + 1) + '</td><td>' + thaiDate(String(r.createdAt || '').slice(0, 10)) + '</td><td>' + esc(r.place || '') + '</td><td>' + (r.urgent ? '<b>[ด่วน]</b> ' : '') + esc(r.item || '') +
-      (r.detail ? '<br>' + esc(r.detail) : '') + '</td><td>' + esc(r.ownerName || '') + '</td><td>' + esc(repairStatus(r.status).label) + '</td><td>' + esc([r.assignee, r.handlerNote].filter(Boolean).join(' • ')) + '</td></tr>').join('') +
-    '</tbody></table>';
-  printDocument(html);
+      (r.detail ? '<br>' + esc(r.detail) : '') + '</td><td>' + esc(r.ownerName || '') + '</td><td>' + (genPending(r) ? 'รอ' + esc((GEN_STAGES.find(s => s.key === r.stage) || {}).short || '') : esc(repairStatus(r.status).label)) +
+      '</td><td>' + esc([r.assignee, r.handlerNote].filter(Boolean).join(' • ')) + '</td></tr>').join('') + '</tbody></table>');
+}
+function printRepairDoc(r) {
+  printDocument(docHeader('ใบแจ้งซ่อม') +
+    '<table class="doc-table"><tbody>' + [['เลขที่', r.id], ['วันที่แจ้ง', thaiDateTime(r.createdAt)], ['ผู้แจ้ง', r.ownerName || r.ownerId], ['สถานที่', r.place], ['ประเภท', r.category],
+      ['รายการที่ชำรุด', (r.urgent ? '[ด่วน] ' : '') + (r.item || '')], ['อาการ / รายละเอียด', r.detail], ['ผู้ปฏิบัติงาน', r.assignee], ['ผลการดำเนินงาน', repairStatus(r.status).label + (r.handlerNote ? ' — ' + r.handlerNote : '')]]
+      .map(x => '<tr><th style="width:30%;text-align:left">' + esc(x[0]) + '</th><td>' + esc(x[1] || '') + '</td></tr>').join('') + '</tbody></table>' + genSignHtml(r));
+}
+
+/* ---- ขอใช้สถานที่ / จัดสถานที่ ------------------------------------------------- */
+function venueOverlaps(v) {
+  const end = v.endDate || v.date;
+  return venueLive.list.filter(x => x.id !== v.id && x.placeId === v.placeId && ['pending', 'approved'].includes(x.status) &&
+    x.date <= end && v.date <= (x.endDate || x.date) && x.startTime < v.endTime && v.startTime < x.endTime);
+}
+const venueWhen = v => thaiDate(v.date) + (v.endDate && v.endDate !== v.date ? ' – ' + thaiDate(v.endDate) : '') + ' • ' + esc(v.startTime || '') + '–' + esc(v.endTime || '') + ' น.';
+function venueRowHtml(v) {
+  const me = myEmailLower(), st = VENUE_STATUSES[v.status] || VENUE_STATUSES.pending, id = esc(v.id), clash = ['pending', 'approved'].includes(v.status) ? venueOverlaps(v) : [];
+  const workers = (v.workerIds || []).map(genWorker).filter(Boolean);
+  return '<div class="alert-item repair-item"><div style="flex:1;min-width:0"><b><span class="badge">สถานที่</span> ' + esc(v.title || 'ขอใช้สถานที่') + ' • ' + esc(v.placeName || '') + '</b>' +
+      '<div class="hint">' + venueWhen(v) + (v.attendees ? ' • ' + esc(v.attendees) + ' คน' : '') + ' • ขอโดย ' + esc(v.ownerName || v.ownerId || '') + '</div>' +
+      (v.setupNeeded ? '<div class="repair-detail">จัดสถานที่: ' + esc((v.setupItems || []).join(', ')) + (v.setupNote ? (v.setupItems && v.setupItems.length ? ' • ' : '') + esc(v.setupNote) : '') + '</div>' : '') +
+      (clash.length ? '<div class="badtext" style="font-size:13px">⚠ ช่วงเวลาซ้อนกับ: ' + clash.map(x => esc(x.title || '') + ' (' + esc(x.ownerName || '') + ' ' + esc(x.startTime) + '–' + esc(x.endTime) + ')').join(', ') + '</div>' : '') +
+      genTrail(v) +
+      (workers.length || v.handlerNote || v.setupReady ? '<div class="hint">' + (v.setupReady ? '✓ จัดสถานที่เรียบร้อย • ' : '') + (workers.length ? 'ผู้ปฏิบัติงาน: ' + esc(workers.map(genWorkerText).join(', ')) : '') + (v.handlerNote ? ' • ' + esc(v.handlerNote) : '') + '</div>' : '') + '</div>' +
+    (genPending(v) || v.status === 'rejected' ? genStageBadge(v) : '<span class="badge ' + st.cls + '">' + esc(st.label) + '</span>') +
+    genApproveButtons('venue', v) +
+    (genManager() && v.status === 'approved' ? '<button class="sm primary" data-vn-assign="' + id + '">' + (v.setupNeeded ? 'มอบงานจัดสถานที่' : 'บันทึก') + '</button>' : '') +
+    '<button class="sm" data-vn-doc="' + id + '" title="พิมพ์แบบขอใช้สถานที่">🖨</button>' +
+    (v.ownerId === me && v.status === 'pending' && !Object.keys(v.approvals || {}).length ? '<button class="sm" data-vn-edit="' + id + '">แก้ไข</button>' : '') +
+    (v.ownerId === me && ['pending', 'approved'].includes(v.status) && String(v.endDate || v.date) >= todayISO() ? '<button class="sm danger" data-vn-cancel="' + id + '">ยกเลิก</button>' : '') + '</div>';
+}
+function renderVenueList(body) {
+  const me = myEmailLower(), all = venueLive.list.slice().sort((a, b) => String(b.date + b.startTime).localeCompare(String(a.date + a.startTime)));
+  if (!genWatcher()) {
+    const mine = all.filter(v => v.ownerId === me);
+    body.innerHTML = '<div class="card"><h3>รายการขอใช้สถานที่ของฉัน</h3>' + (mine.length ? '<div class="alert-list">' + mine.map(venueRowHtml).join('') + '</div>'
+      : '<div class="empty">ยังไม่เคยขอใช้สถานที่ — กด “＋ ขอใช้สถานที่” และดูช่วงที่ว่างได้ที่ “ตารางการใช้สถานที่”</div>') + '</div>';
+    return;
+  }
+  const view = VENUE_VIEWS.some(v => v[0] === DB.ui.venueView) ? DB.ui.venueView : 'pending';
+  const shown = all.filter(v => view === 'all' || (view === 'pending' ? genPending(v) : v.status === 'approved'));
+  body.innerHTML = '<div class="card"><div class="row" style="gap:8px;flex-wrap:wrap;align-items:flex-end">' + deptViewsBar(VENUE_VIEWS, view, 'data-vn-view').replace('margin-bottom:12px', 'margin:0') + '</div>' +
+    (shown.length ? '<div class="alert-list" style="margin-top:10px">' + shown.map(venueRowHtml).join('') + '</div>' : '<div class="empty" style="margin-top:10px">ไม่มีรายการ</div>') + '</div>';
+  $$('[data-vn-view]', body).forEach(b => b.addEventListener('click', () => { DB.ui.venueView = b.dataset.vnView; save(); renderGeneralDept(); }));
+}
+/** ตารางการใช้สถานที่ — ครูทุกคนดูได้ จะได้เลือกวันเวลาที่ว่างก่อนส่งคำขอ */
+function renderVenueSchedule(body) {
+  const places = genPlaces(), pf = places.some(p => p.id === DB.ui.venuePlace) ? DB.ui.venuePlace : '', today = todayISO();
+  const list = venueLive.list.filter(v => ['pending', 'approved'].includes(v.status) && String(v.endDate || v.date) >= today && (!pf || v.placeId === pf));
+  const byDate = {}; list.forEach(v => { (byDate[v.date] = byDate[v.date] || []).push(v); });
+  const dates = Object.keys(byDate).sort();
+  body.innerHTML = '<div class="card"><div class="row" style="gap:8px;flex-wrap:wrap;align-items:flex-end"><div class="pick"><label>สถานที่</label><select id="vnPlace"><option value="">ทุกสถานที่</option>' +
+      places.map(p => '<option value="' + esc(p.id) + '"' + (p.id === pf ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('') + '</select></div>' +
+      '<div class="spacer"></div><span class="hint">ตั้งแต่วันนี้ • รวมรายการที่รออนุมัติ</span></div>' +
+      (dates.length ? dates.map(d => '<h3 style="margin:14px 0 6px">' + thaiDate(d) + '</h3><div class="tablewrap"><table><thead><tr><th style="width:120px">เวลา</th><th>สถานที่</th><th>กิจกรรม</th><th>ผู้ขอ</th><th>สถานะ</th></tr></thead><tbody>' +
+        byDate[d].sort((a, b) => String(a.startTime).localeCompare(String(b.startTime))).map(v => '<tr><td>' + esc(v.startTime) + '–' + esc(v.endTime) + (v.endDate && v.endDate !== v.date ? '<br><span class="hint">ถึง ' + thaiDate(v.endDate) + '</span>' : '') +
+          '</td><td><b>' + esc(v.placeName || '') + '</b></td><td>' + esc(v.title || '') + '</td><td>' + esc(v.ownerName || '') + '</td><td>' +
+          (v.status === 'approved' ? '<span class="badge ok">อนุมัติแล้ว</span>' : genStageBadge(v)) + '</td></tr>').join('') + '</tbody></table></div>').join('')
+        : '<div class="empty" style="margin-top:10px">ยังไม่มีการขอใช้สถานที่' + (pf ? 'นี้' : '') + 'ตั้งแต่วันนี้</div>') + '</div>';
+  $('#vnPlace', body).addEventListener('change', e => { DB.ui.venuePlace = e.target.value; save(); renderGeneralDept(); });
+}
+function openVenueForm(existing) {
+  if (!deptOnline()) return toast('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อน จึงจะขอใช้สถานที่ได้', 'bad');
+  const v = existing || {}, places = genPlaces(), items = v.setupItems || [];
+  openModal({ title: existing ? 'แก้ไขการขอใช้สถานที่' : 'ขอใช้สถานที่ / จัดสถานที่', bodyHTML:
+      '<div class="pick"><label>ชื่องาน / กิจกรรม *</label><input id="vnTitle" value="' + esc(v.title || '') + '" placeholder="เช่น ประชุมผู้ปกครอง ม.4"></div>' +
+      '<div class="grid2" style="margin-top:8px"><div class="pick"><label>สถานที่ *</label><select id="vnPlaceSel">' + places.map(p => '<option value="' + esc(p.id) + '"' + (p.id === v.placeId ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('') + '</select></div>' +
+      '<div class="pick"><label>จำนวนผู้เข้าร่วม (คน)</label><input id="vnPeople" type="number" min="0" value="' + esc(v.attendees || '') + '"></div></div>' +
+      '<div class="grid2" style="margin-top:8px"><div class="pick"><label>วันที่ *</label><input id="vnDate" type="date" value="' + esc(v.date || todayISO()) + '"></div>' +
+      '<div class="pick"><label>ถึงวันที่ (ถ้าหลายวัน)</label><input id="vnEnd" type="date" value="' + esc(v.endDate && v.endDate !== v.date ? v.endDate : '') + '"></div></div>' +
+      '<div class="grid2" style="margin-top:8px"><div class="pick"><label>เวลาเริ่ม *</label><input id="vnStart" type="time" value="' + esc(v.startTime || '08:30') + '"></div>' +
+      '<div class="pick"><label>เวลาสิ้นสุด *</label><input id="vnStop" type="time" value="' + esc(v.endTime || '12:00') + '"></div></div>' +
+      '<label style="display:flex;gap:6px;align-items:center;margin-top:10px"><input type="checkbox" id="vnSetup"' + (v.setupNeeded ? ' checked' : '') + '> <b>ต้องการให้จัดสถานที่</b></label>' +
+      '<div id="vnSetupBox" style="margin-top:6px"><div class="row" style="gap:4px 12px;flex-wrap:wrap">' + VENUE_SETUP_ITEMS.map(it =>
+        '<label style="display:flex;gap:4px;align-items:center"><input type="checkbox" class="vn-item" value="' + esc(it) + '"' + (items.includes(it) ? ' checked' : '') + '> ' + esc(it) + '</label>').join('') + '</div>' +
+      '<div class="pick" style="margin-top:6px"><label>รายละเอียดการจัด (จำนวนโต๊ะ เก้าอี้ รูปแบบการจัด ฯลฯ)</label><textarea id="vnSetupNote" rows="3">' + esc(v.setupNote || '') + '</textarea></div></div>' +
+      '<div id="vnClash" style="margin-top:8px"></div>' +
+      (existing ? '' : '<div class="hint" style="margin-top:8px">เส้นทาง: ' + esc(genRouteText().replace('ฝ่ายบริหารทั่วไปมอบงาน', 'อนุมัติ → ฝ่ายบริหารทั่วไปจัดสถานที่')) + '</div>'),
+    onMount(root) {
+      const sync = () => { $('#vnSetupBox', root).hidden = !$('#vnSetup', root).checked; };
+      const check = () => {
+        const d = $('#vnDate', root).value, e = $('#vnEnd', root).value;
+        const c = venueOverlaps({ id: v.id, placeId: $('#vnPlaceSel', root).value, date: d, endDate: e && e > d ? e : d, startTime: $('#vnStart', root).value, endTime: $('#vnStop', root).value });
+        $('#vnClash', root).innerHTML = c.length ? '<div class="notice warn">ช่วงเวลานี้มีผู้ขอใช้แล้ว: ' + c.map(x => esc(x.title || '') + ' • ' + esc(x.ownerName || '') + ' ' + esc(x.startTime) + '–' + esc(x.endTime) + ' (' + esc((VENUE_STATUSES[x.status] || {}).label || '') + ')').join('<br>') + '</div>' : '';
+      };
+      sync(); check();
+      $('#vnSetup', root).addEventListener('change', sync);
+      ['#vnPlaceSel', '#vnDate', '#vnEnd', '#vnStart', '#vnStop'].forEach(s => $(s, root).addEventListener('change', check));
+    },
+    buttons: [{ label: 'ยกเลิก' }, { label: existing ? 'บันทึก' : 'ส่งคำขอ', cls: 'primary', async act(close, root) {
+      const title = $('#vnTitle', root).value.trim(), placeId = $('#vnPlaceSel', root).value, place = places.find(p => p.id === placeId);
+      const date = $('#vnDate', root).value, endRaw = $('#vnEnd', root).value, start = $('#vnStart', root).value, stop = $('#vnStop', root).value;
+      if (!title || !place || !date || !start || !stop) return toast('กรุณากรอกชื่องาน สถานที่ วันที่ และเวลาให้ครบ', 'bad');
+      if (stop <= start) return toast('เวลาสิ้นสุดต้องหลังเวลาเริ่ม', 'bad');
+      if (endRaw && endRaw < date) return toast('“ถึงวันที่” ต้องไม่ก่อนวันที่เริ่ม', 'bad');
+      if (!existing && date < todayISO()) return toast('วันที่ขอใช้ผ่านมาแล้ว', 'bad');
+      const setupNeeded = $('#vnSetup', root).checked, now = new Date().toISOString(), who = acalWho();
+      const data = { title: title.slice(0, 160), placeId: placeId, placeName: place.name, date: date, endDate: endRaw && endRaw > date ? endRaw : date, startTime: start, endTime: stop,
+        attendees: Math.max(0, Math.round(num($('#vnPeople', root).value))) || '', setupNeeded: setupNeeded,
+        setupItems: setupNeeded ? $$('.vn-item:checked', root).map(x => x.value) : [], setupNote: setupNeeded ? $('#vnSetupNote', root).value.trim().slice(0, 1000) : '', updatedAt: now };
+      const clash = venueOverlaps(Object.assign({ id: v.id }, data));
+      if (clash.length && !await confirmBox('ช่วงเวลาซ้อนกัน', 'สถานที่นี้มีผู้ขอใช้ในช่วงเวลาเดียวกันแล้ว ' + clash.length + ' รายการ ยังต้องการส่งคำขอหรือไม่ (ผู้อนุมัติจะเห็นว่าซ้อนกัน)', 'ส่งคำขอ')) return;
+      try {
+        if (existing) await fbDb.collection('venueRequests').doc(existing.id).update(data);
+        else {
+          const stage = nextGenStage(null);
+          await fbDb.collection('venueRequests').doc(uid('venue')).set(Object.assign(data, { ownerId: myEmailLower(), ownerName: who, teacherId: (curTeacher() || {}).id || '',
+            status: stage === 'approved' ? 'approved' : 'pending', stage: stage, approvals: {}, workerIds: [], setupReady: false, createdAt: now, log: [{ at: now, by: who, status: 'pending' }] }));
+        }
+      } catch (e) { return toast('ส่งไม่สำเร็จ: ' + deptPermMsg(e, 'ขอใช้สถานที่'), 'bad'); }
+      close(); toast(existing ? 'แก้ไขแล้ว' : 'ส่งคำขอใช้สถานที่แล้ว', 'ok');
+    } }] });
+}
+function openVenueAssign(v) {
+  const workers = genCfg().workers, picked = new Set(v.workerIds || []);
+  openModal({ title: 'จัดสถานที่ • ' + (v.title || ''), bodyHTML:
+      '<div class="hint" style="margin-bottom:8px">' + esc(v.placeName || '') + ' • ' + venueWhen(v) + '</div>' +
+      (v.setupNeeded ? '<div class="notice" style="margin-bottom:8px">ต้องการ: ' + esc((v.setupItems || []).join(', ') || '—') + (v.setupNote ? '<br>' + esc(v.setupNote) : '') + '</div>' : '') +
+      '<div class="pick"><label>ผู้ปฏิบัติงาน</label>' + (workers.length ? '<div class="row" style="gap:4px 12px;flex-wrap:wrap">' + workers.map(w =>
+        '<label style="display:flex;gap:4px;align-items:center"><input type="checkbox" class="vn-worker" value="' + esc(w.id) + '"' + (picked.has(w.id) ? ' checked' : '') + '> ' + esc(genWorkerText(w)) + '</label>').join('') + '</div>'
+        : '<div class="hint">ยังไม่มีรายชื่อผู้ปฏิบัติงาน — เพิ่มที่แท็บ “ตั้งค่าฝ่าย”</div>') + '</div>' +
+      '<label style="display:flex;gap:6px;align-items:center;margin-top:8px"><input type="checkbox" id="vnReady"' + (v.setupReady ? ' checked' : '') + '> จัดสถานที่เรียบร้อยแล้ว</label>' +
+      '<div class="pick" style="margin-top:8px"><label>บันทึกถึงผู้ขอ</label><textarea id="vnNote" rows="2">' + esc(v.handlerNote || '') + '</textarea></div>',
+    buttons: [{ label: 'ยกเลิก' }, { label: 'บันทึก', cls: 'primary', async act(close, root) {
+      const now = new Date().toISOString();
+      try { await fbDb.collection('venueRequests').doc(v.id).update({ workerIds: $$('.vn-worker:checked', root).map(x => x.value), setupReady: $('#vnReady', root).checked,
+        handlerNote: $('#vnNote', root).value.trim().slice(0, 1000), handledBy: acalWho(), updatedAt: now }); }
+      catch (e) { return toast('บันทึกไม่สำเร็จ: ' + deptPermMsg(e, 'ฝ่ายบริหารทั่วไป'), 'bad'); }
+      close(); toast('บันทึกแล้ว', 'ok');
+    } }] });
+}
+function printVenueDoc(v) {
+  const workers = (v.workerIds || []).map(genWorker).filter(Boolean).map(genWorkerText).join(', ');
+  printDocument(docHeader('แบบขอใช้สถานที่') +
+    '<table class="doc-table"><tbody>' + [['ผู้ขอ', v.ownerName || v.ownerId], ['ชื่องาน / กิจกรรม', v.title], ['สถานที่', v.placeName],
+      ['วันที่', thaiDate(v.date) + (v.endDate && v.endDate !== v.date ? ' ถึง ' + thaiDate(v.endDate) : '')], ['เวลา', (v.startTime || '') + ' – ' + (v.endTime || '') + ' น.'],
+      ['จำนวนผู้เข้าร่วม', v.attendees ? v.attendees + ' คน' : ''], ['การจัดสถานที่', v.setupNeeded ? ((v.setupItems || []).join(', ') + (v.setupNote ? ' — ' + v.setupNote : '')) : 'ไม่ต้องจัด'],
+      ['ผู้ปฏิบัติงาน', workers], ['วันที่ยื่นคำขอ', thaiDateTime(v.createdAt)]]
+      .map(x => '<tr><th style="width:30%;text-align:left">' + esc(x[0]) + '</th><td>' + esc(x[1] || '') + '</td></tr>').join('') + '</tbody></table>' + genSignHtml(v));
+}
+
+/* ---- ตั้งค่าฝ่าย: สถานที่ ผู้ปฏิบัติงาน ผู้อนุมัติ --------------------------------- */
+function renderGenSetup(body) {
+  const cfg = genCfg(), places = cfg.places.length ? cfg.places.map(p => Object.assign({}, p)) : GEN_DEFAULT_PLACES.map(n => ({ id: uid('place'), name: n, note: '' }));
+  const workers = cfg.workers.map(w => Object.assign({}, w));
+  const execs = teachersByName().filter(t => teacherHasRole(t, 'executive'));
+  const pick = (id, list, value, empty) => '<select id="' + id + '" data-search-title="เลือกรายชื่อ" style="width:100%"><option value="">' + empty + '</option>' +
+    list.map(t => '<option value="' + esc(t.id) + '"' + (t.id === value ? ' selected' : '') + '>' + esc(t.name || t.email || '—') + (t.email ? '' : ' (ไม่มีอีเมล)') + '</option>').join('') + '</select>';
+  const placeRow = p => '<tr data-place="' + esc(p.id) + '"><td><input class="gp-name" value="' + esc(p.name || '') + '" style="width:100%"></td><td><input class="gp-note" value="' + esc(p.note || '') + '" placeholder="เช่น จุ 300 คน" style="width:100%"></td><td><button class="sm danger" data-gp-del>ลบ</button></td></tr>';
+  const workerRow = w => '<tr data-worker="' + esc(w.id) + '"><td><input class="gw-name" value="' + esc(w.name || '') + '" style="width:100%"></td><td><input class="gw-duty" value="' + esc(w.duty || '') + '" placeholder="เช่น ช่างไฟฟ้า, นักการภารโรง" style="width:100%"></td><td><input class="gw-phone" value="' + esc(w.phone || '') + '" style="width:120px"></td><td><button class="sm danger" data-gw-del>ลบ</button></td></tr>';
+  body.innerHTML = '<div class="card"><h3>สายอนุมัติ</h3><div class="hint" style="margin-bottom:8px">ใช้กับทั้งแจ้งซ่อมและขอใช้สถานที่ • ขั้นที่ยังไม่ได้เลือกคนจะถูกข้าม • ผู้ที่เลือกต้องมีอีเมลในระบบ</div>' +
+      '<div class="grid2"><div class="pick"><label>1. ' + GEN_STAGES[0].label + ' (เลือกจากรายชื่อครู)</label>' + pick('gsHead', teachersByName(), cfg.headId, '— ยังไม่เลือก —') + '</div>' +
+      '<div class="pick"><label>2. ' + GEN_STAGES[1].label + ' (รายชื่อผู้บริหาร)</label>' + pick('gsAssistant', execs, cfg.assistantId, execs.length ? '— ยังไม่เลือก —' : '— ยังไม่มีครูที่มีบทบาทผู้บริหาร —') + '</div>' +
+      '<div class="pick"><label>3. ' + GEN_STAGES[2].label + ' (รายชื่อผู้บริหาร)</label>' + pick('gsDeputy', execs, cfg.deputyId, execs.length ? '— ยังไม่เลือก —' : '— ยังไม่มีครูที่มีบทบาทผู้บริหาร —') + '</div></div>' +
+      '<div class="hint" style="margin-top:6px">รายชื่อผู้บริหารมาจากครูที่ติ๊กบทบาท “ผู้บริหาร” ในหน้าผู้ดูแลระบบ เพิ่มชื่อที่นั่นแล้วกลับมาเลือก</div>' +
+      '<div class="row" style="margin-top:10px"><div class="spacer"></div><button class="primary" id="gsSaveChain">บันทึกสายอนุมัติ</button></div></div>' +
+    '<div class="card"><h3>สถานที่ที่เปิดให้ขอใช้</h3>' + (cfg.places.length ? '' : '<div class="hint" style="margin-bottom:6px">ยังไม่เคยบันทึก แสดงชุดตั้งต้นไว้ให้ แก้แล้วกดบันทึก</div>') +
+      '<div class="tablewrap"><table><thead><tr><th>ชื่อสถานที่</th><th>หมายเหตุ</th><th></th></tr></thead><tbody id="gpRows">' + places.map(placeRow).join('') + '</tbody></table></div>' +
+      '<div class="row" style="margin-top:8px"><button id="gpAdd">＋ เพิ่มสถานที่</button><div class="spacer"></div><button class="primary" id="gpSave">บันทึกสถานที่</button></div></div>' +
+    '<div class="card"><h3>ผู้ปฏิบัติงานซ่อม / จัดสถานที่</h3><div class="tablewrap"><table><thead><tr><th>ชื่อ-สกุล</th><th>หน้าที่</th><th>โทร</th><th></th></tr></thead><tbody id="gwRows">' +
+      (workers.length ? workers.map(workerRow).join('') : '') + '</tbody></table></div>' +
+      '<div class="row" style="margin-top:8px"><button id="gwAdd">＋ เพิ่มผู้ปฏิบัติงาน</button><div class="spacer"></div><button class="primary" id="gwSave">บันทึกผู้ปฏิบัติงาน</button></div></div>';
+  const wireDel = () => { $$('[data-gp-del],[data-gw-del]', body).forEach(b => { b.onclick = () => b.closest('tr').remove(); }); };
+  wireDel();
+  $('#gpAdd', body).addEventListener('click', () => { $('#gpRows', body).insertAdjacentHTML('beforeend', placeRow({ id: uid('place'), name: '', note: '' })); wireDel(); });
+  $('#gwAdd', body).addEventListener('click', () => { $('#gwRows', body).insertAdjacentHTML('beforeend', workerRow({ id: uid('worker'), name: '', duty: '', phone: '' })); wireDel(); });
+  $('#gsSaveChain', body).addEventListener('click', () => {
+    const patch = {}, missing = [];
+    [['head', '#gsHead'], ['assistant', '#gsAssistant'], ['deputy', '#gsDeputy']].forEach(x => {
+      const t = DB.teachers.find(y => y.id === $(x[1], body).value);
+      patch[x[0] + 'Id'] = t ? t.id : ''; patch[x[0] + 'Name'] = t ? (t.name || '') : ''; patch[x[0] + 'Email'] = t && t.email ? String(t.email).trim().toLowerCase() : '';
+      if (t && !t.email) missing.push(t.name || '?');
+    });
+    if (missing.length) return toast('ยังไม่มีอีเมลของ ' + missing.join(', ') + ' — เพิ่มอีเมลในหน้าผู้ดูแลระบบก่อน ไม่งั้นอนุมัติไม่ได้', 'bad');
+    saveGenCfg(patch, 'สายอนุมัติ');
+  });
+  $('#gpSave', body).addEventListener('click', () => {
+    const list = $$('#gpRows tr', body).map(tr => ({ id: tr.dataset.place, name: $('.gp-name', tr).value.trim().slice(0, 120), note: $('.gp-note', tr).value.trim().slice(0, 200) })).filter(p => p.name);
+    if (new Set(list.map(p => p.name)).size !== list.length) return toast('มีชื่อสถานที่ซ้ำกัน', 'bad');
+    saveGenCfg({ places: list }, 'สถานที่');
+  });
+  $('#gwSave', body).addEventListener('click', () => {
+    const list = $$('#gwRows tr', body).map(tr => ({ id: tr.dataset.worker, name: $('.gw-name', tr).value.trim().slice(0, 120), duty: $('.gw-duty', tr).value.trim().slice(0, 120), phone: $('.gw-phone', tr).value.trim().slice(0, 20) })).filter(w => w.name);
+    saveGenCfg({ workers: list }, 'ผู้ปฏิบัติงาน');
+  });
+}
+async function saveGenCfg(patch, label) {
+  if (!deptOnline()) return toast('ต้องเข้าสู่ระบบด้วยบัญชีโรงเรียนก่อน', 'bad');
+  const next = Object.assign({}, genCfg(), patch);
+  try { await fbSetDoc(fbDb.collection('generalConfig').doc('main'), fbPlain({ value: next, updatedAt: new Date().toISOString(), updatedBy: acalWho() }), 'ตั้งค่าฝ่ายบริหารทั่วไป'); }
+  catch (e) { return toast('บันทึก' + label + 'ไม่สำเร็จ: ' + deptPermMsg(e, 'ฝ่ายบริหารทั่วไป'), 'bad'); }
+  DB.generalCfg = next; save(true); toast('บันทึก' + label + 'แล้ว', 'ok'); renderGeneralDept();
 }
 
 /* ---- ฝ่ายวัดผลและประเมินผล: ตารางสอน / ตารางเรียน ------------------------------- */
