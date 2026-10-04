@@ -1247,6 +1247,16 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 .need-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .need-chip{font-variant-numeric:tabular-nums;font-weight:800;padding:3px 10px;border-radius:999px}
 .need-chip .hint{font-weight:600;margin-left:3px}
+/* เช็กชื่อจากรูปถ่าย: แถบซ้ายของแถวบอกผลจำหน้า เขียว = เจอในรูป ส้ม = ลงทะเบียนหน้าแล้วแต่ไม่เจอ ให้ครูกวาดตาหาได้เร็ว */
+.att-grid tr.photo-hit td:first-child{box-shadow:inset 4px 0 0 var(--ok)}
+.att-grid tr.photo-miss td:first-child{box-shadow:inset 4px 0 0 var(--warn)}
+.att-photo-shots{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.att-photo-shot{position:relative;flex:1 1 260px;max-width:520px;line-height:0}
+.att-photo-shot img{width:100%;height:auto;border-radius:8px}
+.att-photo-shot .face{position:absolute;border:2px solid var(--ok);border-radius:4px;box-sizing:border-box}
+.att-photo-shot .face.unknown{border-color:var(--bad);border-style:dashed}
+/* ตัวเลขบนป้ายใช้สีพื้นการ์ด (--panel) แทนขาว: โหมดมืด --ok สว่าง ตัวขาวได้แค่ 1.79:1 ส่วน --panel ขาวในโหมดสว่าง/เข้มในโหมดมืด จึงตัดกับ --ok ทั้งสองโหมด */
+.att-photo-shot .face b{position:absolute;left:-2px;bottom:100%;background:var(--ok);color:var(--panel);font-size:11px;line-height:1.3;padding:0 4px;border-radius:4px 4px 0 0;white-space:nowrap}
 .att-col-btn{width:100%;padding:5px 2px;border:0;background:none;color:inherit;font:inherit;font-weight:800;
   border-radius:8px;cursor:pointer;min-height:0}
 .att-col-btn:hover{background:color-mix(in srgb,currentColor 14%,transparent)}
@@ -5215,13 +5225,15 @@ function openAttendance(entry, date, singleMode, slotOverride) {
     wide: true, full: true, buttonsTop: true,
     bodyHTML: '<div class="row att-topline"><span class="badge">' + thaiDate(date) + '</span>' + groupedEntries.map(e => { const sl = DB.timetable.slots.find(s => s.id === slotIdFor(e)); return '<span class="badge">' + esc(sl ? sl.label + ' ' + sl.start + '–' + sl.end : '') + '</span>'; }).join('') +
       '<div class="spacer"></div><span class="hint">กดที่หัวคอลัมน์เพื่อตั้งสถานะให้ทั้งห้อง</span>' +
+      '<button type="button" class="sm" data-att-photo title="ถ่ายรูปนักเรียนทั้งห้อง ให้เครื่องสแกนใบหน้าติ๊ก “มา” ให้">📷 เช็กจากรูปถ่าย</button>' +
+      '<input type="file" accept="image/*" multiple hidden data-att-photo-file>' +
       '<button type="button" class="sm" data-att-conduct title="บันทึกความดี/ผิดระเบียบของนักเรียนห้องนี้">⚑ บันทึกพฤติกรรม</button></div>' +
       (function () { const names = students.filter(st => activityFor(st.sid, date, slotIdFor(entry)));
         return names.length ? '<div class="notice" style="margin-bottom:10px"><b>มีนักเรียน ' + names.length +
           ' คนได้รับอนุญาตให้ทำกิจกรรมในคาบนี้</b> ระบบตั้งสถานะ “กิจกรรม” ให้แล้ว ตรวจสอบและกดบันทึกได้เลย</div>' : ''; })() +
       (inherited ? (inherited.sharedFrom ? homeroomSharedNotice(inherited.sharedFrom) : inheritNoticeHtml(inherited, students)) : '') +
       (groupedEntries.length > 1 ? '<div class="notice" style="margin-bottom:10px">คาบวิชา/ห้องเดียวกันที่ติดกันจะบันทึกพร้อมกัน หากสถานะบางคาบต่างกัน ให้เลือกแก้รายคาบ: ' + groupedEntries.map(e => { const sl = DB.timetable.slots.find(s => s.id === String(e.slotId)); return '<button class="sm" data-single-att="' + e.id + '">' + esc(sl ? sl.label : e.slotId) + '</button>'; }).join(' ') + '</div>' : '') +
-      '<div class="att-summary" id="attSummary"></div>' +
+      '<div id="attPhotoBox"></div><div class="att-summary" id="attSummary"></div>' +
       (students.length ? '<div class="tablewrap tall"><table class="att-grid"><thead><tr><th class="c-no">เลขที่</th><th>ชื่อ-นามสกุล</th>' +
         ATT_PICK_ORDER.map(v => { const s2 = ATTENDANCE_STATUSES.find(x => x.value === v);
           return '<th class="att-col ' + s2.cls + '-h"><button type="button" class="att-col-btn" data-bulk-att="' + v +
@@ -5317,6 +5329,75 @@ function openAttendance(entry, date, singleMode, slotOverride) {
       $$('[data-single-att]', root).forEach(btn => btn.addEventListener('click', () => {
         const only = groupedEntries.find(e => e.id === btn.dataset.singleAtt); if (only) { close(); openAttendance(only, date, true); }
       }));
+      /* เช็กชื่อจากรูปถ่าย — คนที่เจอในรูปตั้งเป็น “มา” (ยกเว้นที่ตั้ง “สาย” ไว้ เพราะสายก็อยู่ในห้องเหมือนกัน
+         และ “ลา”/“กิจกรรม” ที่ระบบตั้งจากกิจกรรมหรือยกมาจากคาบก่อน — รูปบอกไม่ได้ว่าใบลาถูกยกเลิกหรือยัง จึงแค่แจ้งให้ครูตัดสินเอง)
+         คนที่ไม่เจอไม่ตั้งเป็นขาดให้เอง เพราะรูปหมู่มักมีคนโดนบังหรือก้มหน้า ให้ครูดูแล้วกดปุ่มยืนยันเอง */
+      const photoBtn = $('[data-att-photo]', root), photoFile = $('[data-att-photo-file]', root), photoBox = $('#attPhotoBox', root);
+      const noOf = {}; students.forEach(st => { noOf[String(st.sid)] = st.no; });
+      const rowOf = sid => rows.find(tr => tr.dataset.attSid === sid);
+      const chipsOf = list => '<div class="need-list">' + list.map(st => '<button type="button" class="sm need-chip" data-photo-jump="' + esc(st.sid) + '">' + esc(st.no) +
+        ' <span class="hint">' + esc(st.name) + '</span></button>').join('') + '</div>';
+      function showPhotoResults(results) {
+        const found = new Set(), enrolled = new Set(), kept = new Set(); let faces = 0, unknown = 0;
+        results.forEach(r => { (r.present || []).forEach(x => found.add(String(x))); (r.enrolled || []).forEach(x => enrolled.add(String(x)));
+          faces += (r.faces || []).length; unknown += (r.faces || []).filter(f => !f.code).length; });
+        rows.forEach(tr => {
+          tr.classList.remove('photo-hit', 'photo-miss');
+          const sid = tr.dataset.attSid;
+          if (found.has(sid)) { const cur = valueOf(tr); if (!['late', 'leave', 'activity'].includes(cur)) { setValue(tr, 'present'); paint(tr); } else if (cur !== 'late') kept.add(sid); tr.classList.add('photo-hit'); }
+          else if (enrolled.has(sid)) tr.classList.add('photo-miss');
+        });
+        drawSummary();
+        const missing = students.filter(st => !found.has(String(st.sid)) && enrolled.has(String(st.sid)));
+        const noFace = students.filter(st => !enrolled.has(String(st.sid)));
+        const keptList = students.filter(st => kept.has(String(st.sid)));
+        const pct = v => (v * 100).toFixed(2) + '%';
+        const shots = results.map(r => '<div class="att-photo-shot"><img alt="รูปที่ตรวจ" src="' + r.image + '">' + (r.faces || []).map(f =>
+          '<span class="face' + (f.code ? '' : ' unknown') + '" style="left:' + pct(f.x) + ';top:' + pct(f.y) + ';width:' + pct(f.w) + ';height:' + pct(f.h) + '">' +
+          (f.code ? '<b>' + esc(noOf[String(f.code)] || f.code) + '</b>' : '') + '</span>').join('') + '</div>').join('');
+        photoBox.innerHTML = (enrolled.size
+          ? '<div class="notice ok"><b>จำหน้าได้ ' + found.size + ' จาก ' + students.length + ' คน — ติ๊ก “มา” ให้แล้ว</b>' +
+            ' <span class="hint">พบใบหน้าในรูป ' + faces + ' หน้า' + (unknown ? ' • ไม่รู้จัก ' + unknown + ' หน้า (กรอบแดง)' : '') + '</span></div>'
+          : '<div class="notice bad"><b>นักเรียนห้องนี้ยังไม่มีใครลงทะเบียนใบหน้าในเครื่องสแกน</b> แจ้งผู้ดูแลเครื่องสแกนให้นำเข้ารูปนักเรียนก่อน</div>') +
+          (missing.length ? '<div class="notice warn"><b>ไม่พบในรูป ' + missing.length + ' คน</b> <span class="hint">— อาจโดนบังหรือก้มหน้า ถ่ายเพิ่มได้อีก หรือตั้งเป็นขาด</span>' +
+            ' <button type="button" class="sm" data-photo-absent>ตั้ง ' + missing.length + ' คนนี้เป็น “ขาด”</button>' + chipsOf(missing) + '</div>' : '') +
+          (keptList.length ? '<div class="notice warn"><b>เจอในรูปแต่ตั้ง “ลา”/“กิจกรรม” ไว้ ' + keptList.length + ' คน</b> <span class="hint">— ไม่ได้เปลี่ยนให้ ถ้ามาเรียนจริงให้แตะชื่อเปลี่ยนเป็น “มา” เอง</span>' + chipsOf(keptList) + '</div>' : '') +
+          (enrolled.size && noFace.length ? '<div class="notice warn"><b>ยังไม่มีรูปหน้าในเครื่องสแกน ' + noFace.length + ' คน</b> <span class="hint">— เครื่องจำไม่ได้ ต้องตรวจด้วยตา</span>' + chipsOf(noFace) + '</div>' : '') +
+          '<details style="margin-bottom:10px"><summary class="hint">ดูรูปที่ตรวจ ' + results.length + ' รูป (กรอบเขียว = เลขที่ที่จำได้)</summary><div class="att-photo-shots">' + shots + '</div></details>';
+        $$('[data-photo-jump]', photoBox).forEach(btn => btn.addEventListener('click', () => {
+          const tr = rowOf(btn.dataset.photoJump); if (!tr) return;
+          tr.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          tr.classList.add('focus-row'); setTimeout(() => tr.classList.remove('focus-row'), 2200);
+        }));
+        const absentBtn = $('[data-photo-absent]', photoBox);
+        // ไม่ทับคนที่ลา/กิจกรรม/สายอยู่แล้ว — สถานะพวกนั้นมีเหตุผลอื่นที่รูปถ่ายบอกไม่ได้
+        if (absentBtn) absentBtn.addEventListener('click', () => {
+          missing.forEach(st => { const tr = rowOf(String(st.sid)); if (tr && valueOf(tr) === 'present') { setValue(tr, 'absent'); paint(tr); } });
+          drawSummary(); absentBtn.disabled = true; absentBtn.textContent = 'ตั้งเป็นขาดแล้ว';
+        });
+      }
+      let photoResults = [];
+      if (photoBtn && photoFile && photoBox) {
+        if (!students.length) photoBtn.hidden = true;
+        photoBtn.addEventListener('click', () => photoFile.click());
+        photoFile.addEventListener('change', async () => {
+          const files = Array.from(photoFile.files || []).slice(0, 5); photoFile.value = '';
+          if (!files.length) return;
+          photoBtn.disabled = true;
+          photoBox.innerHTML = '<div class="notice ok">กำลังส่งรูปให้เครื่องสแกนใบหน้า...</div>';
+          try {
+            const res = await scanClassPhotos(files, students.map(st => String(st.sid)), (i, n) => {
+              photoBox.innerHTML = '<div class="notice ok">กำลังจำหน้า รูปที่ ' + (i + 1) + '/' + n + '...</div>'; });
+            // ถ่ายเพิ่มทีหลังได้ ผลรวมกับรูปก่อน ๆ — ครูถ่ายซ้ำมุมที่คนโดนบังได้โดยไม่เสียผลเดิม
+            photoResults = photoResults.concat(res);
+            showPhotoResults(photoResults);
+          } catch (e) {
+            // วาดผลของรูปก่อน ๆ กลับมา (ปุ่มในนั้นต้องผูกใหม่) แล้วแปะข้อความผิดพลาดไว้บนสุด
+            if (photoResults.length) showPhotoResults(photoResults); else photoBox.innerHTML = '';
+            photoBox.insertAdjacentHTML('afterbegin', '<div class="notice bad">' + esc(e.message || 'จำหน้าไม่สำเร็จ') + '</div>');
+          } finally { photoBtn.disabled = false; }
+        });
+      }
     }
   });
 }
@@ -16866,20 +16947,69 @@ function ensureAffairsListeners(hrDate) {
    ครูจึงไม่ต้องจำลิงก์และไม่ต้องล็อกอินแอปสแกนอีกรอบ
    ต้องเปิดแท็บใหม่ทันทีในจังหวะที่ครูกด (ก่อน await) ไม่งั้นเบราว์เซอร์มือถือถือว่าเป็นป๊อปอัปแล้วบล็อก */
 const FACE_SCANNER_FRESH_MS = 25 * 60 * 1000;
+/** ลิงก์ของเครื่องสแกนใบหน้าที่ประกาศตัวล่าสุด (ไม่เกิน 25 นาที) — ใช้ทั้งปุ่มสแกนหน้าและเช็กชื่อจากรูปถ่าย */
+async function faceScannerUrl() {
+  const snap = await fbDb.collection('scanDevices').get();
+  const now = Date.now();
+  const devices = snap.docs.map(d => d.data() || {})
+    .map(d => Object.assign(d, { at: d.updatedAt && d.updatedAt.toMillis ? d.updatedAt.toMillis() : 0 }))
+    .filter(d => /^https:\/\//.test(String(d.url || '')) && now - d.at < FACE_SCANNER_FRESH_MS)
+    .sort((a, b) => b.at - a.at);
+  if (!devices.length) throw new Error('เครื่องสแกนใบหน้าของโรงเรียนยังไม่ได้เปิด (หรือปิดไปแล้ว) — แจ้งผู้ดูแลระบบให้เปิดโปรแกรมพร้อมลิงก์มือถือ');
+  return devices[0].url.replace(/\/+$/, '');
+}
+/* ---- เช็กชื่อรายคาบจากรูปถ่ายทั้งห้อง -------------------------------------------------
+   ครูถ่ายรูปนักเรียนทั้งห้อง แล้วส่งให้เครื่องสแกนใบหน้าของโรงเรียนจำหน้า (เครื่องเดียวกับปุ่มสแกนหน้า)
+   ส่งเลขประจำตัวของห้องนี้ไปด้วย เครื่องสแกนจะเทียบเฉพาะเด็กในห้อง — ตัวเลือกเหลือไม่กี่สิบคน จึงแม่นกว่าเทียบทั้งโรงเรียน
+   เครื่องสแกนไม่บันทึกอะไรเลย (ไม่ลง gateEvents ที่ฝ่ายกิจการฯ แปลงเป็นมาสาย) ผลแค่ติ๊กในหน้าต่างเช็กชื่อ
+   ครูยังต้องตรวจแล้วกดบันทึกเอง ย่อรูปในเครื่องก่อนส่ง เพราะรูปมือถือ 10+ MB ส่งผ่าน tunnel ช้าและไม่ได้แม่นขึ้น */
+const CLASS_PHOTO_MAX_SIDE = 2400;
+function classPhotoDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, CLASS_PHOTO_MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(img.naturalWidth * k); cv.height = Math.round(img.naturalHeight * k);
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      URL.revokeObjectURL(url);
+      resolve(cv.toDataURL('image/jpeg', 0.88));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('เปิดรูป ' + (file.name || '') + ' ไม่ได้ — ลองถ่ายใหม่เป็น JPG')); };
+    img.src = url;
+  });
+}
+/** ส่งรูปทีละรูป คืน [{ present:[sid], enrolled:[sid], faces:[{x,y,w,h,code}], image }] */
+async function scanClassPhotos(files, sids, onProgress) {
+  if (!firebaseReady() || !fbSignedIn()) throw new Error('ต้องเข้าสู่ระบบด้วยบัญชี Google ของโรงเรียนก่อน จึงจะให้เครื่องสแกนจำหน้าได้');
+  const base = await faceScannerUrl();
+  const token = await fbUser.getIdToken();
+  const out = [];
+  for (let i = 0; i < files.length; i++) {
+    if (onProgress) onProgress(i, files.length);
+    const image = await classPhotoDataUrl(files[i]);
+    let res, d = null;
+    try {
+      res = await fetch(base + '/api/class_photo', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_token: token, image: image, codes: sids }) });
+    } catch (e) {
+      // CORS ไม่ผ่านก็มาตกที่นี่ — เครื่องสแกนรุ่นเก่ายังไม่มี /api/class_photo
+      throw new Error('ติดต่อเครื่องสแกนใบหน้าไม่ได้ — ตรวจว่าเครื่องสแกนเปิดอยู่และอัปเดตโปรแกรมแล้ว');
+    }
+    try { d = await res.json(); } catch (e) { d = null; }
+    if (!res.ok || !d || !d.success) throw new Error((d && d.error) || ('เครื่องสแกนตอบกลับผิดพลาด (' + res.status + ')'));
+    out.push(Object.assign(d, { image: image }));
+  }
+  return out;
+}
 async function openFaceScanner() {
   if (!firebaseReady() || !fbSignedIn()) { toast('ต้องเข้าสู่ระบบด้วยบัญชี Google ของโรงเรียนก่อน จึงจะเปิดกล้องสแกนได้', 'bad'); return; }
   let win = null;
   try { win = window.open('', '_blank'); if (win) win.document.write('<meta charset="utf-8"><p style="font-family:sans-serif;padding:24px">กำลังเปิดกล้องสแกนหน้า...</p>'); } catch (e) { win = null; }
   try {
-    const snap = await fbDb.collection('scanDevices').get();
-    const now = Date.now();
-    const devices = snap.docs.map(d => d.data() || {})
-      .map(d => Object.assign(d, { at: d.updatedAt && d.updatedAt.toMillis ? d.updatedAt.toMillis() : 0 }))
-      .filter(d => /^https:\/\//.test(String(d.url || '')) && now - d.at < FACE_SCANNER_FRESH_MS)
-      .sort((a, b) => b.at - a.at);
-    if (!devices.length) throw new Error('เครื่องสแกนใบหน้าของโรงเรียนยังไม่ได้เปิด (หรือปิดไปแล้ว) — แจ้งผู้ดูแลระบบให้เปิดโปรแกรมพร้อมลิงก์มือถือ');
+    const base = await faceScannerUrl();
     const token = await fbUser.getIdToken();
-    const url = devices[0].url + '/sso#t=' + encodeURIComponent(token);
+    const url = base + '/sso#t=' + encodeURIComponent(token);
     if (win && !win.closed) { win.location.replace(url); return; }
     // เบราว์เซอร์บล็อกแท็บใหม่: ให้ครูกดลิงก์เอง (การกดลิงก์ตรง ๆ ไม่โดนบล็อก)
     openModal({ title: 'เปิดกล้องสแกนหน้า',
