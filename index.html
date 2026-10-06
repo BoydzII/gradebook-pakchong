@@ -3466,7 +3466,9 @@ function initCollapsibles(root) {
 }
 
 function render() {
-  if (swapSyncOn && (!swapListen || swapListen.view !== DB.ui.periodId)) listenSwapsFor(DB.ui.periodId);   // เปลี่ยนภาคที่เปิดดู → ฟังคำขอของภาคนั้นด้วย
+  // เปลี่ยนภาคที่เปิดดู / รู้ภาคปัจจุบัน / บทบาทเปลี่ยน → เปลี่ยนชุดข้อมูลรายภาคที่ฟัง
+  if (swapSyncOn && (!periodListen || periodListen.view !== DB.ui.periodId || periodListen.key !== periodListenKey(DB.ui.periodId))) listenByPeriod(DB.ui.periodId);
+  else if (swapSyncOn) syncCourseListen(DB.ui.periodId);   // เปลี่ยนครูที่เลือก/บทบาท → ฟังใหม่เฉพาะโครงสร้างรายวิชา
   renderTop();
   const t = DB.ui.tab || 'dashboard';
   if (t === 'dashboard') renderDashboard();
@@ -4579,6 +4581,7 @@ function managePeriods() {
     const found = DB.periods.find(p => p.academicYear === year && p.semester === sem);
     if (found) { DB.ui.periodId = found.id; save(true); mounted.close(); render(); return toast('มีปี/ภาคนี้อยู่แล้ว', 'bad'); }
     const p = { id: uid('prd'), academicYear: year, semester: sem };
+    if (typeof ttFresh !== 'undefined') ttFresh.add(p.id);   // ภาคใหม่สร้างในเครื่อง ส่งตารางขึ้นได้
     DB.periods.push(p); DB.ui.periodId = p.id; save(true); mounted.close(); render(); managePeriods();
   });
   $$('.p-year,.p-sem', root).forEach(inp => inp.addEventListener('change', () => {
@@ -8683,21 +8686,41 @@ const courseStatusChip = st => '<span class="badge ' + (COURSE_STATUS[st] || COU
 const courseSubId = (email, subjectId, periodId) => fbStaffId(email) + '__' + String(subjectId || '').replace(/[^A-Za-z0-9_-]/g, '_') + '__' + String(periodId || '').replace(/[^A-Za-z0-9_-]/g, '_');
 const thaiDateTime = iso => iso ? new Date(iso).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 
-function listenCourseSubmissions() {
-  const off = fbDb.collection('courseSubmissions').onSnapshot(snap => {
-    courseSubsLive = snap.docs.map(d => Object.assign({}, d.data(), { docId: d.id }));
-    /* แจ้งครูผู้ส่งเมื่อหัวหน้าตรวจแล้ว — จำผลที่เห็นแล้วไว้ใน DB.ui (เฉพาะเครื่อง) จะได้แจ้งครั้งเดียว ทั้งตอนเปิดแอปค้างอยู่และตอนเปิดแอปทีหลัง */
-    const me = myEmailForSync(), seen = DB.ui.courseReviewSeen = DB.ui.courseReviewSeen || {}; let changed = false;
-    courseSubsLive.filter(x => x.ownerId === me && x.review && x.review.at && x.status !== 'submitted' && seen[x.docId] !== x.review.at).forEach(x => {
-      toast('หัวหน้ากลุ่มสาระตรวจโครงสร้างรายวิชา ' + ((x.view || {}).subjectCode || '') + ' แล้ว: ' + (x.status === 'approved' ? 'ผ่าน' : 'ให้แก้ไข') + ' • ดูที่หน้าโครงสร้างรายวิชา', x.status === 'approved' ? 'ok' : 'warn');
-      seen[x.docId] = x.review.at; changed = true;
-    });
-    if (changed) save();
-    renderTop(); drawCourseReview();
-    if (DB.ui.tab === 'head' && $('#pane-head') && !modalStack.length) renderHeadArea();
-    if (DB.ui.tab === 'executive' && $('#pane-executive') && !modalStack.length) renderExecutive();
-  }, () => { courseSubsLive = []; });
-  return () => { off(); courseSubsLive = []; };
+/* โครงสร้างรายวิชา: เดิมครูทุกคนฟังเอกสารของทุกคนทุกภาค (โตภาคละหลายร้อยใบ และแต่ละใบมีโครงสร้างทั้งวิชา)
+   ครูต้องการแค่ของตัวเอง ส่วนผู้ตรวจ (หัวหน้า ผู้บริหาร วิชาการ แอดมิน) ดูเฉพาะภาคที่เปิดดู ทุกจุดที่ใช้กรองด้วย DB.ui.periodId อยู่แล้ว
+   จึงฟังสองคิวรี: ของฉัน (ทุกภาค ไม่กี่ใบ — ใช้แจ้งผลตรวจ) + ทั้งภาคที่เปิดดูเฉพาะผู้ตรวจ แล้วรวมกัน */
+const COURSE_REVIEW_ROLES = ['head', 'executive', 'academic', 'admin'];
+const courseReviewer = () => { const me = curTeacher(); return !!me && COURSE_REVIEW_ROLES.some(r => teacherHasRole(me, r)); };
+function onCourseSubsChanged() {
+  /* แจ้งครูผู้ส่งเมื่อหัวหน้าตรวจแล้ว — จำผลที่เห็นแล้วไว้ใน DB.ui (เฉพาะเครื่อง) จะได้แจ้งครั้งเดียว ทั้งตอนเปิดแอปค้างอยู่และตอนเปิดแอปทีหลัง */
+  const me = myEmailForSync(), seen = DB.ui.courseReviewSeen = DB.ui.courseReviewSeen || {}; let changed = false;
+  courseSubsLive.filter(x => x.ownerId === me && x.review && x.review.at && x.status !== 'submitted' && seen[x.docId] !== x.review.at).forEach(x => {
+    toast('หัวหน้ากลุ่มสาระตรวจโครงสร้างรายวิชา ' + ((x.view || {}).subjectCode || '') + ' แล้ว: ' + (x.status === 'approved' ? 'ผ่าน' : 'ให้แก้ไข') + ' • ดูที่หน้าโครงสร้างรายวิชา', x.status === 'approved' ? 'ok' : 'warn');
+    seen[x.docId] = x.review.at; changed = true;
+  });
+  if (changed) save();
+  renderTop(); drawCourseReview();
+  if (DB.ui.tab === 'head' && $('#pane-head') && !modalStack.length) renderHeadArea();
+  if (DB.ui.tab === 'executive' && $('#pane-executive') && !modalStack.length) renderExecutive();
+}
+function listenCourseSubsFor(viewPid) {
+  const me = myEmailForSync(), col = fbDb.collection('courseSubmissions'), qs = [];
+  if (me) qs.push(col.where('ownerId', '==', me));
+  if (viewPid && courseReviewer()) qs.push(col.where('periodId', '==', viewPid));
+  courseSubsLive = [];
+  if (!qs.length) return () => {};
+  const got = qs.map(() => null);
+  const merge = () => {
+    if (got.some(x => x === null)) return;
+    const m = new Map(); got.forEach(arr => arr.forEach(x => m.set(x.docId, x)));
+    courseSubsLive = Array.from(m.values());
+    onCourseSubsChanged();
+  };
+  const offs = qs.map((q, i) => q.onSnapshot(snap => {
+    got[i] = snap.docs.map(d => Object.assign({}, d.data(), { docId: d.id }));
+    merge();
+  }, () => { got[i] = got[i] || []; merge(); }));   // คิวรีหนึ่งล้ม (สิทธิ์/ออฟไลน์) อีกคิวรียังต้องแสดง
+  return () => { offs.forEach(f => { try { f(); } catch (e) { } }); courseSubsLive = []; };
 }
 
 /** การ์ดสถานะการส่งตรวจบนหน้าโครงสร้างรายวิชา — วาดแยกจากหน้า เพื่อให้ผลตรวจที่เข้ามาสด ๆ ไม่ล้างช่องที่ครูกำลังพิมพ์ */
@@ -16673,7 +16696,7 @@ function renderActivities() {
     if (!draft.name.trim()) return toast('กรุณากรอกชื่อกิจกรรม', 'bad');
     if (!draft.slotIds.length) return toast('กรุณาเลือกคาบที่ทำกิจกรรม', 'bad');
     if (!draft.students.length) return toast('กรุณาเลือกนักเรียนอย่างน้อย 1 คน', 'bad');
-    const act = { id: draft.id || uid('act'), periodId: DB.ui.periodId, name: draft.name.trim(), date: draft.date,
+    const act = { id: draft.id || uid('act'), periodId: periodIdOnDate(draft.date) || DB.ui.periodId,   /* ภาคของวันที่จัด — ครูที่ดูภาคปัจจุบันจะได้เห็น */ name: draft.name.trim(), date: draft.date,
       slotIds: draft.slotIds.slice(), students: draft.students.slice(), place: draft.place.trim(), note: draft.note.trim(),
       teacherId: (curTeacher() || {}).id || '', createdAt: draft.createdAt || new Date().toISOString() };
     saveActivity(act);
@@ -20409,7 +20432,6 @@ function startFirebaseSync() {
   const quiet = () => {};
 
   fbUnsub.push(listenLoginRequests());
-  fbUnsub.push(listenCourseSubmissions());
   fbUnsub.push(fbDb.collection('staff').onSnapshot(snap => apply(() => {
     const stray = snap.docs.filter(fbIsStrayStaffDoc);
     // แอดมินลบเอกสารผีทิ้งจากส่วนกลาง (กฎให้แอดมินลบได้) ครูทั่วไปแค่ข้ามไป
@@ -20424,36 +20446,11 @@ function startFirebaseSync() {
       if (data == null) return;
       if (def.key === 'settings') DB.settings = Object.assign(defaultSettings(), DB.settings, data);
       else if (Array.isArray(data)) DB[def.key] = data;
+      if (def.key === 'periods' && DB.periods.length && !DB.periods.some(p => p.id === DB.ui.periodId)) DB.ui.periodId = latestPeriodId();   // ภาคชั่วคราวของเครื่องใหม่
       if (def.key === 'classes') resolveHomerooms();
       save(true); render();
     }), quiet));
   });
-
-  fbUnsub.push(fbDb.collection('timetable').onSnapshot(snap => apply(() => {
-    /* ปฏิทินภาคเรียน (วันหยุด สลับวัน วันเปิด-ปิด สถานะเปิดให้กรอก) แก้ได้จากเครื่องผู้ดูแลเท่านั้น
-       สำหรับครูทั่วไป ต้องรับค่าจากส่วนกลางเสมอเพื่อไม่ให้ถูกล็อกเมื่อแอดมินเปิดให้กรอกนอกเวลา
-       เฉพาะผู้ดูแลระบบที่มีการแก้ไขในเครื่องและยังไม่ได้ส่งขึ้นส่วนกลางเท่านั้นที่จะคงค่าในเครื่องไว้ */
-    const isCurrentAdmin = (DB.ui.staffMode === 'admin') || (curTeacher() && teacherHasRole(curTeacher(), 'admin'));
-    const keepLocalTerms = isCurrentAdmin && timetableUnsent();
-    snap.docs.forEach(d => {
-      const t = fbDecodeNested(d.data() || {});
-      DB.timetable.entries = (DB.timetable.entries || []).filter(e => e.periodId !== d.id).concat(t.entries || []);
-      DB.timetable.exceptions = (DB.timetable.exceptions || []).filter(e => e.periodId !== d.id).concat(t.exceptions || []);
-      if (t.term && !keepLocalTerms) DB.timetable.terms[d.id] = t.term;
-    });
-    applyStoredTeacherIdMap();   // ตารางที่เครื่องอื่นส่งขึ้นอาจยังใช้รหัสครูเก่า
-    rebuildExchangeExceptions();  // ตารางที่เพิ่งลงมาล้างคาบสอนแทนทิ้ง ต้องคำนวณคืนทันที
-    save(true); render();
-  }), quiet));
-
-  fbUnsub.push(fbDb.collection('activities').onSnapshot(snap => apply(() => {
-    const waiting = outboxIdsOf('activity');
-    const central = snap.docs.map(d => Object.assign({}, fbDecodeNested(d.data()), { id: d.id }));
-    const onCentral = {}; central.forEach(x => { onCentral[x.id] = true; });
-    DB.timetable.activities = central.concat((DB.timetable.activities || []).filter(x => waiting[x.id] && !onCentral[x.id]));
-    applyStoredTeacherIdMap();
-    save(true); render();
-  }), quiet));
 
   /* เกณฑ์คะแนนพฤติกรรมเป็นเอกสารเดียว ทุกเครื่องฟังได้ไม่เปลือง ครูจะได้เห็นรายการและแต้มล่าสุด */
   /* ประกาศ/นัดประชุม — ฟังเฉพาะที่กำหนดไม่เก่ากว่า 30 วัน ของเก่าไม่แสดงอยู่แล้ว ไม่ต้องโหลดมาเปลืองเน็ต
@@ -20526,8 +20523,8 @@ function startFirebaseSync() {
   const leaveCol = fbDb.collection('leaves'), leaveCut = shiftISODate(todayISO(), -LEAVE_LIVE_DAYS);
   fbUnsub.push(listenLive('leaveRequests', 'leave', [leaveCol.where('toDate', '>=', leaveCut),
     leaveCol.where('approval.status', '==', 'submitted'), leaveCol.where('headApproval.status', '==', 'waiting')]));
-  swapSyncOn = true; listenSwapsFor(DB.ui.periodId);
-  fbUnsub.push(() => { swapSyncOn = false; if (swapListen) swapListen.off(); swapListen = null; leaveArchive.items.clear(); leaveArchive.scopes = {}; });
+  swapSyncOn = true; listenByPeriod(DB.ui.periodId);
+  fbUnsub.push(() => { swapSyncOn = false; if (swapListen) swapListen.off(); swapListen = null; if (periodListen) { periodListen.offs.forEach(f => { try { f(); } catch (e) { } }); if (periodListen.course) { try { periodListen.course.off(); } catch (e) { } } periodListen = null; } leaveArchive.items.clear(); leaveArchive.scopes = {}; });
 }
 
 /* ---------- ใบลาและคำขอแลกคาบ: สองชั้น -----------------------------------------------------
@@ -20581,6 +20578,87 @@ function leaveArchiveAfterLive(prev, live) {
       A.items.set(x.id, x); render();
     }).catch(() => {}));
 }
+/* ---------- ข้อมูลรายภาค: ตารางสอน กิจกรรม โครงสร้างรายวิชา คำขอแลกคาบ ฟังเฉพาะภาคปัจจุบัน + ภาคที่เปิดดู ----------
+   เดิมฟังทั้งคอลเลกชัน ตารางสอนหนึ่งภาคราว 0.5 MB จึงดาวน์โหลดเพิ่มอีก 0.5 MB ต่อการเปิดแอปทุกภาคที่ผ่านไป
+   (เปลืองเน็ตมือถือครู) ภาคอื่นที่อยู่ในเครื่องแล้วคงไว้ตามเดิม — คิวรีครอบคลุมภาคไหนก็แทนที่เฉพาะภาคนั้น ไม่มีการเดา
+   สลับไปดูภาคอื่น render() จะเปลี่ยนชุดที่ฟังให้เอง */
+var periodListen = null;   // var: render() อาจเรียกก่อนบรรทัดนี้ทำงาน (TDZ)
+/* ภาคปัจจุบันหาจากวันเปิด–ปิดภาค ซึ่งอยู่ในเอกสารตารางสอนของภาคนั้นเอง ภาคที่ยังไม่เคยโหลดจึงหาไม่เจอ
+   ฟังภาคล่าสุดของโรงเรียน (ตามปี/ภาคเรียน) ไว้เสมอด้วย วันเปิดภาคใหม่ครูจะได้ข้อมูลภาคใหม่ทันที แม้ยังเลือกดูภาคเก่าค้างไว้
+   ภาคที่ไม่อยู่ใน DB.periods (ภาคชั่วคราวของเครื่องใหม่) ไม่เอาไปคิวรี */
+function latestPeriodId() {
+  const ps = (DB.periods || []).slice().sort((a, b) => num(a.academicYear) - num(b.academicYear) || num(a.semester) - num(b.semester));
+  return ps.length ? ps[ps.length - 1].id : '';
+}
+const periodsToListen = viewPid => {
+  const known = new Set((DB.periods || []).map(p => p.id)), terms = (DB.timetable || {}).terms || {};
+  // ภาคที่ยังไม่รู้วันเปิด–ปิด (เครื่องใหม่) ฟังด้วยครั้งเดียว พอได้วันแล้วคีย์เปลี่ยนเหลือเฉพาะภาคที่ต้องใช้
+  const unknown = (DB.periods || []).filter(p => !terms[p.id])
+    .sort((a, b) => num(b.academicYear) - num(a.academicYear) || num(b.semester) - num(a.semester)).slice(0, 6).map(p => p.id);   // เงื่อนไข in รับได้จำกัด เอาภาคล่าสุดก่อน
+  return Array.from(new Set([periodIdOnDate(todayISO()), latestPeriodId(), viewPid].concat(unknown).filter(p => p && known.has(p)))).sort();
+};
+const periodListenKey = viewPid => periodsToListen(viewPid).join('|');
+const courseListenKey = viewPid => (viewPid || '') + '#' + (courseReviewer() ? 'r' : '') + myEmailForSync();
+function syncCourseListen(viewPid) {
+  if (!periodListen) return;
+  const key = courseListenKey(viewPid);
+  if (periodListen.course && periodListen.course.key === key) return;
+  if (periodListen.course) { try { periodListen.course.off(); } catch (e) { } }
+  periodListen.course = { key: key, off: listenCourseSubsFor(viewPid) };
+}
+function listenByPeriod(viewPid) {
+  if (periodListen) { periodListen.offs.forEach(f => { try { f(); } catch (e) { } }); if (periodListen.course) { try { periodListen.course.off(); } catch (e) { } } periodListen = null; }
+  listenSwapsFor(viewPid);
+  if (!firebaseReady() || !fbSignedIn()) return;
+  const pids = periodsToListen(viewPid), offs = [];
+  periodListen = { view: viewPid, key: periodListenKey(viewPid), offs: offs };
+  if (pids.length) {
+    const inP = (col, field) => pids.length > 1 ? col.where(field, 'in', pids) : col.where(field, '==', pids[0]);
+    // includeMetadataChanges: ถ้าแคชตรงกับเซิร์ฟเวอร์ จะไม่มี snapshot ใหม่ จึงต้องรับแจ้ง "เซิร์ฟเวอร์ยืนยันแล้ว" ด้วย (ไม่คิดค่าอ่าน)
+    offs.push(inP(fbDb.collection('timetable'), firebase.firestore.FieldPath.documentId()).onSnapshot({ includeMetadataChanges: true }, applyTimetableSnap, () => {}));
+    offs.push(inP(fbDb.collection('activities'), 'periodId').onSnapshot(snap => applyActivitiesSnap(snap, pids), () => {}));
+  }
+  syncCourseListen(viewPid);
+}
+/* ภาคที่เครื่องนี้ได้ตารางสอนจากส่วนกลางแล้ว (หรือสร้างเองในเครื่อง) — ปุ่มส่งตารางสอนขึ้นส่วนกลางส่งเฉพาะภาคเหล่านี้
+   ไม่งั้นภาคที่เครื่องไม่เคยโหลด (ตารางว่างในเครื่อง) จะไปทับตารางจริงบนส่วนกลาง */
+var ttFresh = new Set();
+function applyTimetableSnap(snap) {
+  fbApplying = true;
+  try {
+    // ผลจากแคชอาจเก่ากว่าส่วนกลาง (เช่นภาคที่เพิ่งเผยแพร่จากแอปจัดตารางสอน) ยังไม่ให้ส่งทับจนเซิร์ฟเวอร์ยืนยัน
+    if (!(snap.metadata && snap.metadata.fromCache)) snap.docs.forEach(d => ttFresh.add(d.id));
+    if (snap.docChanges && !snap.docChanges().length) return;   // แค่สถานะเปลี่ยน ข้อมูลเหมือนเดิม ไม่ต้องวาดใหม่
+    /* ปฏิทินภาคเรียน (วันหยุด สลับวัน วันเปิด-ปิด สถานะเปิดให้กรอก) แก้ได้จากเครื่องผู้ดูแลเท่านั้น
+       สำหรับครูทั่วไป ต้องรับค่าจากส่วนกลางเสมอเพื่อไม่ให้ถูกล็อกเมื่อแอดมินเปิดให้กรอกนอกเวลา
+       เฉพาะผู้ดูแลระบบที่มีการแก้ไขในเครื่องและยังไม่ได้ส่งขึ้นส่วนกลางเท่านั้นที่จะคงค่าในเครื่องไว้ */
+    const isCurrentAdmin = (DB.ui.staffMode === 'admin') || (curTeacher() && teacherHasRole(curTeacher(), 'admin'));
+    const keepLocalTerms = isCurrentAdmin && timetableUnsent();
+    snap.docs.forEach(d => {
+      const t = fbDecodeNested(d.data() || {});
+      DB.timetable.entries = (DB.timetable.entries || []).filter(e => e.periodId !== d.id).concat(t.entries || []);
+      DB.timetable.exceptions = (DB.timetable.exceptions || []).filter(e => e.periodId !== d.id).concat(t.exceptions || []);
+      if (t.term && !keepLocalTerms) DB.timetable.terms[d.id] = t.term;
+    });
+    applyStoredTeacherIdMap();   // ตารางที่เครื่องอื่นส่งขึ้นอาจยังใช้รหัสครูเก่า
+    rebuildExchangeExceptions();  // ตารางที่เพิ่งลงมาล้างคาบสอนแทนทิ้ง ต้องคำนวณคืนทันที
+    save(true); render();
+  } finally { fbApplying = false; }
+}
+/** กิจกรรม: แทนที่เฉพาะภาคที่ฟังอยู่ ของภาคอื่นในเครื่องคงไว้ ที่ยังค้างส่งห้ามหาย */
+function applyActivitiesSnap(snap, pids) {
+  fbApplying = true;
+  try {
+    const waiting = outboxIdsOf('activity');
+    const central = snap.docs.map(d => Object.assign({}, fbDecodeNested(d.data()), { id: d.id }));
+    const onCentral = {}; central.forEach(x => { onCentral[x.id] = true; });
+    const keep = (DB.timetable.activities || []).filter(x => !onCentral[x.id] && (waiting[x.id] || pids.indexOf(String(x.periodId)) < 0));
+    DB.timetable.activities = central.concat(keep);
+    applyStoredTeacherIdMap();
+    save(true); render();
+  } finally { fbApplying = false; }
+}
+
 /** ภาคที่วันนี้อยู่ระหว่างวันเปิด–ปิดภาค — ฟังคำขอแลกคาบของภาคนี้เสมอ แม้ครูเปิดดูภาคอื่นอยู่ */
 function periodIdOnDate(iso) {
   const terms = (DB.timetable || {}).terms || {};
@@ -21295,6 +21373,7 @@ async function pullSchoolData() {
       let periods = 0, slots = 0;
       snap.docs.forEach(d => {
         const t = fbDecodeNested(d.data() || {});
+        ttFresh.add(d.id);   // ดึงครบจากปุ่มดึงข้อมูล — ส่งภาคนี้ขึ้นได้
         DB.timetable.entries = (DB.timetable.entries || []).filter(e => e.periodId !== d.id).concat(t.entries || []);
         DB.timetable.exceptions = (DB.timetable.exceptions || []).filter(e => e.periodId !== d.id).concat(t.exceptions || []);
         if (t.term) DB.timetable.terms[d.id] = t.term;
@@ -21373,17 +21452,26 @@ async function pushToFirebase(what) {
     add('ตั้งค่าโรงเรียน', fbSetDoc(fbDb.collection('shared').doc('settings'), { value: fbPlain(DB.settings) }, 'ตั้งค่าโรงเรียน'));
   }
   if (!what || what === 'timetable') {
-    DB.periods.forEach(p => add('ตารางสอน ปี ' + p.academicYear + ' ภาค ' + p.semester,
-      fbSetDoc(fbDb.collection('timetable').doc(p.id), fbPlain({
+    /* ภาคที่เครื่องนี้ไม่เคยได้จากส่วนกลาง: ส่งเฉพาะเมื่อส่วนกลางยังไม่มี (ตั้งระบบครั้งแรก/กู้คืน) ถ้ามีแล้วข้าม
+       เพราะตารางในเครื่องอาจว่างหรือเก่า จะไปทับตารางจริง (เช่นภาคหน้าที่เผยแพร่จากแอปจัดตารางสอนไว้ล่วงหน้า) */
+    DB.periods.forEach(p => {
+      const label = 'ตารางสอน ปี ' + p.academicYear + ' ภาค ' + p.semester;
+      const write = () => fbSetDoc(fbDb.collection('timetable').doc(p.id), fbPlain({
         entries: (DB.timetable.entries || []).filter(e => e.periodId === p.id),
         exceptions: (DB.timetable.exceptions || []).filter(e => e.periodId === p.id),
         term: (DB.timetable.terms || {})[p.id] || null
-      }), 'ตารางสอนปี ' + p.academicYear + '/' + p.semester)));
+      }), 'ตารางสอนปี ' + p.academicYear + '/' + p.semester);
+      if (ttFresh.has(p.id)) add(label, write());
+      else add(label + ' (ส่งเฉพาะถ้าส่วนกลางยังไม่มี)', fbDb.collection('timetable').doc(p.id).get({ source: 'server' }).then(d => d.exists ? Promise.reject(new Error('ข้าม — เครื่องนี้ยังไม่ได้โหลดตารางภาคนี้ จึงไม่ส่งทับส่วนกลาง (เปิดดูภาคนั้นก่อนแล้วกดส่งใหม่)')) : write().then(() => { ttFresh.add(p.id); })));
+    });
   }
   if (!what || what === 'requests') {
     (DB.timetable.leaveRequests || []).forEach(l => add('ใบลา ' + l.id, fbDb.collection('leaves').doc(l.id).set(fbPlain(l))));
     (DB.timetable.exchangeRequests || []).forEach(r => add('คำขอแลกคาบ ' + r.id, fbDb.collection('swaps').doc(r.id).set(fbPlain(r))));
-    (DB.timetable.activities || []).forEach(a => add('กิจกรรม ' + a.id, fbDb.collection('activities').doc(a.id).set(fbPlain(a))));
+    /* กิจกรรมของภาคที่ไม่ได้ฟังอยู่ในเครื่องอาจเก่า ส่งเฉพาะภาคที่ฟังอยู่และที่ค้างส่ง ไม่ย้อนค่าของภาคอื่น */
+    const actPids = periodListen ? periodListen.key.split('|') : null, actWaiting = outboxIdsOf('activity');
+    (DB.timetable.activities || []).filter(a => !actPids || actWaiting[a.id] || actPids.indexOf(String(a.periodId)) >= 0)
+      .forEach(a => add('กิจกรรม ' + a.id, fbDb.collection('activities').doc(a.id).set(fbPlain(a))));
   }
   const settled = await Promise.allSettled(jobs.map(j => j.p));
   const failed = [];
