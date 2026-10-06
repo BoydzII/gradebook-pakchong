@@ -206,6 +206,23 @@ nav.tabs { gap: 13px; } nav.tabs button { font-size: 14px; }
 @media (max-width: 1050px) { .tools .per { display: none; } }
 @media (max-width: 1050px) and (min-width: 761px) { header.top { gap: 12px; padding-left: 16px; padding-right: 16px; } header.top h1 { font-size: 20px; } nav.tabs { gap: 11px; } .tools .btn { padding: 3px 8px; } }
 
+/* เงื่อนไขก่อนจัดอัตโนมัติ */
+.rules { display: grid; gap: 6px; margin: 8px 0; }
+.rule { border: 1px solid var(--line); border-radius: var(--r); padding: 6px 10px; background: var(--panel); }
+.rule.on { border-color: var(--accent); box-shadow: inset 4px 0 0 var(--accent); }
+.rule .rh { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rule .rsum { margin: 2px 0 0 24px; font-size: 13px; }
+.rule details { margin: 4px 0 0 24px; }
+.rule summary { cursor: pointer; font-size: 13px; color: var(--ink2); }
+.rform { margin-top: 6px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.rf { margin-top: 6px; font-size: 13px; }
+.rf > b { display: block; font-weight: var(--w-loud); color: var(--ink2); }
+.rf input[type=text], .rf input:not([type]) { width: 100%; padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); }
+.rchips { display: flex; flex-wrap: wrap; gap: 4px 6px; }
+.rchip { border: 1px solid var(--line); border-radius: var(--r); padding: 0 8px; cursor: pointer; font-size: 13px; }
+.rchip input { margin-right: 4px; }
+.rcheck { align-self: end; }
+
 </style>
 </head>
 <body>
@@ -251,6 +268,7 @@ nav.tabs { gap: 13px; } nav.tabs button { font-size: 14px; }
     if (!st.noBlockAfter) st.noBlockAfter = [];
     if (!model.roles) model.roles = [];
     if (!model.meetings) model.meetings = {};
+    if (!Array.isArray(st.solveRules)) st.solveRules = defaultSolveRules();
     Object.values(model.teachers).forEach(t => { if (!t.roles) t.roles = []; });
     Object.values(model.subjects).forEach(x => { if (!x.kind) x.kind = 'normal'; if (!x.locKinds) x.locKinds = []; });
     Object.keys(model.locations).forEach(k => { const l = model.locations[k]; if (!l.name) l.name = k; if (!l.kind) l.kind = inferLocKind(k); });
@@ -315,6 +333,49 @@ nav.tabs { gap: 13px; } nav.tabs button { font-size: 14px; }
     });
     return rel;
   }
+
+  /* ---------- เงื่อนไขก่อนจัดอัตโนมัติ (settings.solveRules) ----------
+     ผู้จัดตารางติ๊กเลือกก่อนกดจัด เช่น ห้อง Lab ให้วิชาวิทย์ก่อน หัวหน้ากลุ่มสาระเน้นคาบเช้า ล็อกคาบสำคัญ
+     แต่ละข้อมี "ควร" (คิดเป็นคะแนนโทษ ตัวจัดเลี่ยงเมื่อทำได้) กับ "ต้อง" (ตัดช่องที่ผิดทิ้ง ถ้าลงไม่ได้จะค้างในถาด)
+     ใช้เฉพาะตอนจัดอัตโนมัติ — ลากวางเองไม่ถูกบังคับ ครูผู้จัดยังตัดสินใจเองได้
+     sel = { areas, codes, levels, classes, roles } เงื่อนไขในช่องเดียวกันเป็น "หรือ" ต่างช่องเป็น "และ" ช่องว่าง = ทั้งหมด */
+  const RULE_WEIGHT = 6;
+  function defaultSolveRules() {
+    return [
+      { id: 'labSci', on: false, type: 'reserve', kind: 'ห้องปฏิบัติการ (Lab)', first: true, sel: { areas: ['วิทยาศาสตร์'] }, label: 'ห้องปฏิบัติการ (Lab) สงวนให้วิชาวิทยาศาสตร์ และจัดวิชาวิทย์ก่อน' },
+      { id: 'sciClassAm', on: false, type: 'time', mode: 'prefer', hard: false, days: [], from: 1, to: 4, sel: { areas: ['วิทยาศาสตร์', 'คณิตศาสตร์'], classes: [] }, label: 'ห้องเรียนแผนวิทย์-คณิต เรียนวิทย์/คณิตช่วงเช้า' },
+      { id: 'headAm', on: false, type: 'time', mode: 'prefer', hard: false, days: [], from: 1, to: 4, sel: { roles: ['หัวหน้ากลุ่มสาระ'] }, label: 'หัวหน้ากลุ่มสาระเน้นสอนคาบเช้า' },
+      { id: 'coreAm', on: false, type: 'time', mode: 'prefer', hard: false, days: [], from: 1, to: 4, sel: { areas: ['ภาษาไทย', 'คณิตศาสตร์', 'วิทยาศาสตร์', 'ภาษาต่างประเทศ'] }, label: 'วิชาหลักเรียนช่วงเช้า' },
+      { id: 'peNoon', on: false, type: 'time', mode: 'avoid', hard: false, days: [], from: 4, to: 6, sel: { areas: ['สุขศึกษาและพลศึกษา'] }, label: 'พลศึกษาเลี่ยงคาบเที่ยง (แดดจัด)' },
+      { id: 'lockKey', on: false, type: 'lock', sel: { areas: [], codes: [] }, label: 'ล็อกคาบที่ลงแล้วของวิชา/กลุ่มสาระที่เลือก ไม่ให้ระบบย้าย' },
+      { id: 'once', on: false, type: 'oncePerDay', hard: true, label: 'วิชาเดียวกันเรียนไม่เกินวันละ 1 ครั้งต่อห้อง (คาบคู่นับเป็นครั้งเดียว)' },
+      { id: 'maxDay', on: false, type: 'maxDay', hard: true, n: 6, label: 'ครูสอนไม่เกินวันละ N คาบ' },
+      { id: 'maxRun', on: false, type: 'maxRun', hard: true, n: 4, label: 'ครูสอนติดกันไม่เกิน N คาบ' },
+      { id: 'closed', on: false, type: 'time', mode: 'avoid', hard: true, days: [3], from: 7, to: 9, sel: {}, label: 'เว้นช่วงเวลาทั้งโรงเรียน (เช่น PLC)' }
+    ];
+  }
+  /** ตัวตรวจว่าบัตร/คาบตรงกับ sel ไหม — ใช้ทั้งตัวจัดและหน้าจอ (ล็อกก่อนจัด) */
+  function ruleMatcher(model) {
+    const cache = new Map();
+    const info = c => {
+      const key = (c.subjectId || '') + '|' + (c.teacherId || '') + '|' + (c.classId || (c.classIds || [])[0] || '');
+      let i = cache.get(key); if (i) return i;
+      const s = model.subjects[c.subjectId] || {}, t = model.teachers[c.teacherId] || {}, cl = model.classes[c.classId || (c.classIds || [])[0]] || {};
+      i = { area: s.area || t.area || '', code: s.code || '', level: cl.level || 0, cls: cl.name || '', roles: t.roles || [] };
+      cache.set(key, i); return i;
+    };
+    const any = a => !a || !a.length;
+    // กลุ่มสาระเทียบแบบมีคำอยู่ในชื่อ ไฟล์โรงเรียนเขียนทั้ง "วิทยาศาสตร์" และ "วิทยาศาสตร์และเทคโนโลยี"
+    return (sel, c) => {
+      if (!sel) return true; const i = info(c);
+      return (any(sel.areas) || sel.areas.some(a => a && i.area.includes(a)))
+        && (any(sel.codes) || sel.codes.includes(i.code))
+        && (any(sel.levels) || sel.levels.map(Number).includes(i.level))
+        && (any(sel.classes) || sel.classes.includes(i.cls))
+        && (any(sel.roles) || sel.roles.some(r => i.roles.includes(r)));
+    };
+  }
+  const ruleEmpty = sel => !sel || !['areas', 'codes', 'levels', 'classes', 'roles'].some(k => (sel[k] || []).length);
 
   /** อ่านตาราง (อาร์เรย์ของแถว) รูปแบบเดียวกับไฟล์ "พร้อมนำเข้า" ของ KruSpace */
   function parseRows(rows, prev) {
@@ -593,19 +654,72 @@ nav.tabs { gap: 13px; } nav.tabs button { font-size: 14px; }
     const load = {}; cards.forEach(c => { load[c.teacherId || ''] = (load[c.teacherId || ''] || 0) + c.span; });
     const teacherCount = {}; Object.values(model.entries).forEach(e => { teacherCount[e.teacherId] = (teacherCount[e.teacherId] || 0) + 1; });
     const difficulty = c => (c.span - 1) * 6 + ((teacherCount[c.teacherId] || 0) + (load[c.teacherId] || 0)) / 4 + (c.room && !/^ห้อง/.test(c.room) ? 6 : 0) + R() * 3;
-    const queue = cards.slice().sort((a, b) => difficulty(b) - difficulty(a));
+    const rules = (st.solveRules || []).filter(r => r && r.on), match = ruleMatcher(work);
+    const timeRules = rules.filter(r => r.type === 'time'), reserves = rules.filter(r => r.type === 'reserve');
+    const ruleOf = t => rules.find(r => r.type === t);
+    const firstOf = c => rules.some(r => (r.type === 'first' || (r.type === 'reserve' && r.first)) && match(r.sel, c)) ? 1 : 0;
+    // บัตรที่เงื่อนไขบอกให้จัดก่อน (เช่น วิชาวิทย์จอง Lab) ต้องได้คิวก่อน ไม่งั้นวิชาอื่นแย่งห้องไปหมด
+    const queue = cards.slice().sort((a, b) => firstOf(b) - firstOf(a) || difficulty(b) - difficulty(a));
     const placed = {};           // cardId -> {day,slot,entryIds}
     const ejectedIds = [];
     let seq = 0;
 
     const mkBlock = (c, day, slot, room) => { const b = [], offs = []; for (let k = 0; k < c.span; k++) (c.classIds || [c.classId]).forEach(cid => { b.push({ id: 'a' + (++seq), teacherId: c.teacherId || '', subjectId: c.subjectId, classId: cid, room: room != null ? room : c.room, day: day, slot: slot + k, cardId: c.id }); offs.push(k); }); b.offs = offs; return b; };
-    const put = (c, day, slot, room) => { const b = mkBlock(c, day, slot, room); b.forEach(e => { work.entries[e.id] = e; idx.add(e); auto.add(e.id); }); placed[c.id] = { day: day, slot: slot, room: room != null ? room : c.room, ids: b.map(e => e.id), card: c }; };
-    const unput = c => { const pl = placed[c.id]; if (!pl) return; pl.ids.forEach(id => { idx.remove(work.entries[id]); delete work.entries[id]; auto.delete(id); }); delete placed[c.id]; };
+    /* บันทึกทุกการวาง/ถอน ไว้ย้อนกลับ — เดิมตอนย้ายผู้ขวางไม่สำเร็จ คืนผู้ขวางกลับที่เดิมตรง ๆ
+       แต่ระหว่างนั้นบัตรอื่นในลูกโซ่อาจย้ายไปลงช่องเดิมแล้ว ผลจึงซ้อนกัน (เจอเมื่อเงื่อนไขแบบ "ต้อง" บีบมาก)
+       ย้อนตามบันทึกทีละขั้นได้สภาพก่อนลองทุกประการ ซึ่งไม่ชนแน่นอน */
+    const journal = [];
+    const put = (c, day, slot, room) => { putRaw(c, day, slot, room); journal.push(['put', c.id]); };
+    const unput = c => { const pl = placed[c.id]; if (!pl) return; unputRaw(c); journal.push(['unput', pl]); };
+    const rollback = mark => { while (journal.length > mark) { const [op, x] = journal.pop(); if (op === 'put') { if (placed[x]) unputRaw(placed[x].card); } else putRaw(x.card, x.day, x.slot, x.room); } };
+    const putRaw = (c, day, slot, room) => { const b = mkBlock(c, day, slot, room); b.forEach(e => { work.entries[e.id] = e; idx.add(e); auto.add(e.id); }); placed[c.id] = { day: day, slot: slot, room: room != null ? room : c.room, ids: b.map(e => e.id), card: c }; };
+    const unputRaw = c => { const pl = placed[c.id]; if (!pl) return; pl.ids.forEach(id => { idx.remove(work.entries[id]); delete work.entries[id]; auto.delete(id); }); delete placed[c.id]; };
 
     const dayEntries = (tid, day) => { const arr = []; for (let s = 1; s <= st.maxSlot; s++) if ((idx.T.get(K(day, s, tid)) || []).length) arr.push(s); return arr; };
     const classDay = (cid, day) => { const arr = []; for (let s = 1; s <= st.maxSlot; s++) if ((idx.C.get(K(day, s, cid)) || []).length) arr.push(s); return arr; };
     const gaps = arr => { if (arr.length < 2) return 0; arr = arr.slice().sort((a, b) => a - b); return arr[arr.length - 1] - arr[0] + 1 - arr.length; };
 
+    const inRange = (r, d, s) => (!r.days || !r.days.length || r.days.map(Number).includes(d)) && s >= r.from && s <= r.to;
+    function sameSubjectThatDay(c, d, s0) {
+      for (const cid of (c.classIds || [c.classId])) for (const s of classDay(cid, d)) {
+        if (s >= s0 - 1 && s <= s0 + c.span) continue;   // ติดกัน = ต่อเป็นคาบคู่ ไม่นับเป็นอีกครั้ง
+        const a = idx.C.get(K(d, s, cid)), e = a && work.entries[a[0]]; if (e && e.subjectId === c.subjectId) return true;
+      }
+      return false;
+    }
+    function runAround(tid, d, s0, span) {
+      const occ = new Set(dayEntries(tid, d)); for (let k = 0; k < span; k++) occ.add(s0 + k);
+      let a = s0, b = s0 + span - 1; while (occ.has(a - 1)) a--; while (occ.has(b + 1)) b++;
+      return b - a + 1;
+    }
+    /** เงื่อนไขแบบ "ต้อง" — false = ห้ามลงช่องนี้ */
+    function hardOK(c, d, s) {
+      for (const r of timeRules) {
+        if (!r.hard || !match(r.sel, c)) continue;
+        for (let k = 0; k < c.span; k++) { const hit = inRange(r, d, s + k); if (r.mode === 'prefer' ? !hit : hit) return false; }
+      }
+      if (!c.teacherId) return true;
+      const once = ruleOf('oncePerDay'); if (once && once.hard && sameSubjectThatDay(c, d, s)) return false;
+      const md = ruleOf('maxDay'); if (md && md.hard && dayEntries(c.teacherId, d).length + c.span > (+md.n || 99)) return false;
+      const mr = ruleOf('maxRun'); if (mr && mr.hard && runAround(c.teacherId, d, s, c.span) > (+mr.n || 99)) return false;
+      return true;
+    }
+    /** เงื่อนไขแบบ "ควร" — คะแนนโทษ ยิ่งมากยิ่งไม่อยากลง */
+    function softPenalty(c, d, s) {
+      let p = 0;
+      for (const r of timeRules) {
+        if (r.hard || !match(r.sel, c)) continue;
+        for (let k = 0; k < c.span; k++) { const hit = inRange(r, d, s + k); if (r.mode === 'prefer' ? !hit : hit) p += RULE_WEIGHT; }
+      }
+      if (c.teacherId) {
+        const once = ruleOf('oncePerDay'); if (once && !once.hard && sameSubjectThatDay(c, d, s)) p += RULE_WEIGHT * 2;
+        const md = ruleOf('maxDay'); if (md && !md.hard) { const over = dayEntries(c.teacherId, d).length + c.span - (+md.n || 99); if (over > 0) p += over * RULE_WEIGHT; }
+        const mr = ruleOf('maxRun'); if (mr && !mr.hard) { const over = runAround(c.teacherId, d, s, c.span) - (+mr.n || 99); if (over > 0) p += over * RULE_WEIGHT; }
+      }
+      return p;
+    }
+    /** ห้องที่ถูกสงวนไว้ให้วิชากลุ่มอื่น (เฉพาะบัตรที่ให้ระบบเลือกห้องเอง) */
+    const roomOK = (c, name) => { const l = work.locations[name]; return !l || !reserves.some(r => r.kind === l.kind && !match(r.sel, c)); };
     function score(c0, day, slot, room) {
       const c = room != null ? Object.assign({}, c0, { room: room }) : c0;
       let sc = R() * 0.6;
@@ -623,6 +737,7 @@ nav.tabs { gap: 13px; } nav.tabs button { font-size: 14px; }
       // กระจายวันของวิชานี้ในห้องนี้
       let sameDays = 0; for (let d = 1; d <= 5; d++) if (d !== day) for (let s = 1; s <= st.maxSlot; s++) { const a = idx.C.get(K(d, s, c.classId)); const e = a && work.entries[a[0]]; if (e && e.subjectId === c.subjectId) { sameDays++; break; } }
       sc -= sameDays * 1.2;
+      sc += softPenalty(c, day, slot);
       return sc;
     }
 
@@ -631,7 +746,8 @@ nav.tabs { gap: 13px; } nav.tabs button { font-size: 14px; }
       const kinds = flexKinds(c);
       for (let d = 1; d <= 5; d++) for (let s = 1; s + c.span - 1 <= st.maxSlot; s++) {
         const r = idx.canPlace(blk, d, s); if (!r.ok) continue;
-        if (kinds.length) { const fl = idx.freeLocations(kinds, d, s, c.span); if (!fl.length) continue; out.push([d, s, fl[Math.floor(R() * fl.length)]]); }
+        if (!hardOK(c, d, s)) continue;
+        if (kinds.length) { const fl = idx.freeLocations(kinds, d, s, c.span).filter(n => roomOK(c, n)); if (!fl.length) continue; out.push([d, s, fl[Math.floor(R() * fl.length)]]); }
         else out.push([d, s]);
       }
       return out;
@@ -652,6 +768,7 @@ nav.tabs { gap: 13px; } nav.tabs button { font-size: 14px; }
         const t = work.teachers[c.teacherId];
         if (t && (t.unavail || []).some(u => { const [ud, us] = u.split('-').map(Number); return ud === d && us >= s && us < s + c.span; })) continue;
         if (c.span > 1 && (st.noBlockAfter || []).some(x => x >= s && x < s + c.span - 1)) continue;
+        if (!hardOK(c, d, s)) continue;
         if (blockers.size && blockers.size <= 2) out.push([d, s, Array.from(blockers)]);
       }
       return out.sort((a, b) => a[2].length - b[2].length || R() - 0.5);
@@ -668,14 +785,13 @@ nav.tabs { gap: 13px; } nav.tabs button { font-size: 14px; }
       if (depth <= 0) return false;
       const ej = ejectable(c).slice(0, 12);
       for (const [d, s, blockers] of ej) {
-        const saved = blockers.map(id => placed[id]).filter(Boolean);
+        const saved = blockers.map(id => placed[id]).filter(Boolean), mark = journal.length;
         blockers.forEach(id => unput(placed[id].card));
         put(c, d, s);
         let ok = true; const re = [];
         for (const b of saved) { if (tryPlace(b.card, depth - 1)) re.push(b.card); else { ok = false; break; } }
         if (ok) return true;
-        re.forEach(unput); unput(c);
-        saved.forEach(b => put(b.card, b.day, b.slot, b.room));
+        rollback(mark);
       }
       return false;
     }
@@ -755,7 +871,7 @@ nav.tabs { gap: 13px; } nav.tabs button { font-size: 14px; }
   }
 
   return { meetingTeachers, exportMeetingRows, exportRoleRows, parseMeetings, LOC_KINDS, DEFAULT_LUNCH, inferLocKind, migrate, parseActivities, exportActivityRows, moveUnit, modelFromCloud, matchCloud, planPublish, DAYS, DEFAULT_TIMES, XLS_HEAD, normName, fbStaffId, dayFromText, slotFromText, classInfo, defaultBuilding, buildingOf, buildingName,
-    newModel, nextId, classRelations, parseRows, exportRows, Index, blockOf, report, runSolve, K };
+    newModel, nextId, classRelations, defaultSolveRules, ruleMatcher, ruleEmpty, parseRows, exportRows, Index, blockOf, report, runSolve, K };
 });
 
 </script>
@@ -1042,36 +1158,123 @@ nav.tabs { gap: 13px; } nav.tabs button { font-size: 14px; }
       } catch (e) { fallback(); }
     });
   }
-  const lightModel = (entries, pool) => { const m = M(); return { settings: m.settings, teachers: m.teachers, classes: m.classes, subjects: m.subjects, locations: m.locations, entries: entries, pool: pool }; };
+  const lightModel = (entries, pool) => { const m = M(); return { settings: m.settings, teachers: m.teachers, classes: m.classes, subjects: m.subjects, locations: m.locations, meetings: m.meetings || {}, roles: m.roles || [], entries: entries, pool: pool }; };
 
   async function runAuto(scope) {
     const m = M(); if (S.busy) return;
     let entries = Object.assign({}, m.entries), pool = Object.assign({}, m.pool), remove = [];
+    // เงื่อนไข "ล็อกคาบสำคัญ": ล็อกคาบที่ตรงก่อนถอน ไม่ให้ระบบย้าย และบันทึกการล็อกไว้เมื่อกดใช้ผล
+    const match = TT.ruleMatcher(m), lockRules = (m.settings.solveRules || []).filter(r => r.on && r.type === 'lock' && !TT.ruleEmpty(r.sel));
+    const lockIds = new Set(Object.values(m.entries).filter(e => !e.locked && lockRules.some(r => match(r.sel, e))).map(e => e.id));
+    const isLocked = x => x.locked || lockIds.has(x.id);
     if (scope) {   // จัดใหม่: ถอนของที่ไม่ล็อกในขอบเขตออกมาเป็นการ์ดก่อน
       const inScope = e => scope === 'all' || (S.mode === 'teacher' ? e.teacherId === S.sel.teacher : S.mode === 'class' ? (S.idx.rel[S.sel.class] || new Set()).has(e.classId) && e.classId === S.sel.class : e.room === S.sel.loc);
       const seen = new Set();
-      Object.values(m.entries).filter(e => e.teacherId && inScope(e) && !e.locked).forEach(e => {
-        if (seen.has(e.id)) return; const blk = TT.blockOf(m, S.idx, e.id).filter(x => !x.locked && inScope(x)); if (!blk.length) return;
+      Object.values(m.entries).filter(e => e.teacherId && inScope(e) && !isLocked(e)).forEach(e => {
+        if (seen.has(e.id)) return; const blk = TT.blockOf(m, S.idx, e.id).filter(x => !isLocked(x) && inScope(x)); if (!blk.length) return;
         blk.forEach(x => { seen.add(x.id); delete entries[x.id]; remove.push(x.id); });
         const id = TT.nextId(m, 'p'); pool[id] = { id: id, teacherId: e.teacherId, subjectId: e.subjectId, classId: e.classId, room: e.room, span: blk.length };
       });
     }
     const ids = Object.keys(pool); if (!ids.length) return toast('ไม่มีคาบให้จัด');
+    const onRules = (m.settings.solveRules || []).filter(r => r.on), hardN = onRules.filter(r => r.hard).length;
     S.busy = 'auto'; modal('กำลังจัดตาราง…', '<p>ระบบกำลังลองวางบัตรวิชา ' + ids.length + ' ใบ โดยไม่ให้ชนกัน ใช้เวลาไม่กี่วินาที</p>', []);
     const res = await solveInWorker({ model: lightModel(entries, pool), cardIds: ids, timeMs: ids.length > 600 ? 20000 : 8000, seed: (Date.now() % 100000) + 1 });
     S.busy = ''; $('#modalRoot').innerHTML = '';
     const okN = res.placed.length, badN = res.failed.length;
     modal('ผลการจัดอัตโนมัติ', '<div class="kpis"><div><b class="num">' + okN + '</b><span>ใบที่จัดลงได้</span></div><div><b class="num ' + (badN ? 'bad' : '') + '">' + badN + '</b><span>ใบที่ยังหาที่ลงไม่ได้</span></div></div>' +
+      (onRules.length ? '<p class="q">ใช้เงื่อนไข ' + onRules.length + ' ข้อ' + (lockIds.size ? ' · ล็อกคาบสำคัญ ' + lockIds.size + ' คาบ' : '') + '</p>' : '') +
+      (badN && hardN ? '<div class="note">ใบที่ค้างอาจติดเงื่อนไขแบบ <b>ต้อง</b> — ลองเปลี่ยนเป็น <b>ควร</b> แล้วจัดใหม่</div>' : '') +
       '<p class="q">ทุกใบที่ลงจะไม่ชนกับครู ห้องเรียน สถานที่ หรือเวลาที่ครูไม่ว่าง' + (remove.length ? ' · จะถอน ' + remove.length + ' คาบเดิมที่ไม่ล็อกออกก่อนแล้วจัดใหม่' : '') + ' · ยืนยันแล้วย้อนกลับได้ด้วย Ctrl+Z</p>', [
       { label: 'ยกเลิก' },
       { label: 'ใช้ผลนี้', cls: 'pri', act: () => {
         tx(scope ? 'จัดใหม่อัตโนมัติ' : 'จัดอัตโนมัติ', api => {
+          lockIds.forEach(id => { const e = m.entries[id]; if (e) api.setE(id, Object.assign({}, e, { locked: true })); });
           remove.forEach(id => api.setE(id, null));
           const placed = new Map(res.placed.map(p => [p.cardId, p]));
           Object.keys(pool).forEach(id => { const c = pool[id], p = placed.get(id); if (p) { makeEntries(api, c, p.day, p.slot, p.room); if (m.pool[id]) api.setP(id, null); } else if (!m.pool[id]) api.setP(id, c); });
         });
         toast('จัดลง ' + okN + ' ใบ' + (badN ? ' · ค้าง ' + badN : ''));
       } }]);
+  }
+
+  /* ---------- เงื่อนไขก่อนจัดอัตโนมัติ ----------
+     ให้ผู้จัดติ๊กเลือกก่อนกดจัด เก็บไว้ใน settings.solveRules (จำไว้ใช้รอบถัดไป) ตัวจัดใน core.js อ่านจากตรงนั้น
+     "ควร" = ตัวจัดพยายามทำตาม "ต้อง" = ห้ามผิด ถ้าลงไม่ได้จะค้างในถาด */
+  function openSolveRules(scope) {
+    const m = M(); TT.migrate(m);
+    let rules = clone(m.settings.solveRules);
+    const areas = Array.from(new Set(Object.values(m.subjects).map(x => x.area).concat(Object.values(m.teachers).map(t => t.area)).filter(Boolean))).sort(sortTh);
+    const DAYS = TT.DAYS, N = slotsN();
+    const chips = (f, all, cur, lab) => '<div class="rchips" data-sf="' + f + '">' + Array.from(new Set(all.concat(cur || []))).map(v =>
+      '<label class="rchip"><input type="checkbox" value="' + esc(v) + '"' + ((cur || []).map(String).includes(String(v)) ? ' checked' : '') + '>' + esc(lab ? lab(v) : v) + '</label>').join('') + '</div>';
+    const slotOpts = v => Array.from({ length: N }, (_, i) => '<option' + (i + 1 === +v ? ' selected' : '') + '>' + (i + 1) + '</option>').join('');
+    const hardSel = r => '<label>ความเข้ม<select data-f="hard"><option value=""' + (r.hard ? '' : ' selected') + '>ควร (ยืดหยุ่น)</option><option value="1"' + (r.hard ? ' selected' : '') + '>ต้อง (บังคับ)</option></select></label>';
+    const selEd = (sel, keys) => {
+      sel = sel || {}; let h = '';
+      if (keys.includes('areas')) h += '<div class="rf"><b>กลุ่มสาระ</b>' + chips('areas', areas, sel.areas) + '</div>';
+      if (keys.includes('levels')) h += '<div class="rf"><b>ระดับชั้น</b>' + chips('levels', [1, 2, 3, 4, 5, 6], sel.levels, v => 'ม.' + v) + '</div>';
+      if (keys.includes('roles')) h += '<div class="rf"><b>บทบาทครู</b>' + (m.roles.length || (sel.roles || []).length ? chips('roles', m.roles, sel.roles) : '<span class="q">ยังไม่มีบทบาท — เพิ่มที่แท็บภารกิจและประชุม</span>') +
+        ((sel.roles || []).some(r => !m.roles.includes(r)) ? '<span class="q">บทบาทที่ยังไม่มีครู: ' + esc(sel.roles.filter(r => !m.roles.includes(r)).join(', ')) + ' (กำหนดที่แท็บภารกิจและประชุม)</span>' : '') + '</div>';
+      if (keys.includes('classes')) h += '<div class="rf"><b>ห้องเรียน</b><input data-sf="classes" list="dlRuleC" placeholder="เช่น ม.4/1, ม.4/2 — ว่าง = ทุกห้อง" value="' + esc((sel.classes || []).join(', ')) + '"></div>';
+      if (keys.includes('codes')) h += '<div class="rf"><b>รหัสวิชา</b><input data-sf="codes" list="dlRuleS" placeholder="เช่น ค31101, ว31101 — ว่าง = ทุกวิชา" value="' + esc((sel.codes || []).join(', ')) + '"></div>';
+      return h;
+    };
+    const SELK = ['areas', 'levels', 'roles', 'classes', 'codes'];
+    function summary(r) {
+      const sl = r.sel || {}, who = [].concat(sl.areas || [], (sl.levels || []).map(v => 'ม.' + v), sl.roles || [], sl.classes || [], sl.codes || []).join(', ') || 'ทั้งหมด';
+      if (r.type === 'time') return (r.hard ? 'ต้อง' : 'ควร') + (r.mode === 'prefer' ? 'อยู่ใน' : 'เลี่ยง') + 'คาบ ' + r.from + '–' + r.to + ((r.days || []).length ? ' วัน' + r.days.map(d => DAYS[d - 1].short).join('') : '') + ' · ' + who;
+      if (r.type === 'reserve') return r.kind + ' ให้ ' + who + (r.first ? ' · จัดก่อน' : '');
+      if (r.type === 'lock') return TT.ruleEmpty(r.sel) ? 'ยังไม่ได้เลือกวิชา/กลุ่มสาระ' : 'ล็อก ' + who;
+      if (r.type === 'maxDay' || r.type === 'maxRun') return (r.hard ? 'ต้อง' : 'ควร') + ' N = ' + r.n;
+      return r.hard ? 'ต้อง' : 'ควร';
+    }
+    function editor(r) {
+      if (r.type === 'time') return '<div class="form rform"><label>แบบ<select data-f="mode"><option value="prefer"' + (r.mode === 'prefer' ? ' selected' : '') + '>เน้นให้อยู่ในช่วง</option><option value="avoid"' + (r.mode === 'avoid' ? ' selected' : '') + '>เลี่ยงช่วงนี้</option></select></label>' +
+        hardSel(r) + '<label>ตั้งแต่คาบ<select data-f="from">' + slotOpts(r.from) + '</select></label><label>ถึงคาบ<select data-f="to">' + slotOpts(r.to) + '</select></label></div>' +
+        '<div class="rf"><b>เฉพาะวัน</b>' + chips('days', [1, 2, 3, 4, 5], r.days, v => DAYS[v - 1].label) + '<span class="q">ไม่ติ๊ก = ทุกวัน</span></div>' + selEd(r.sel, SELK);
+      if (r.type === 'reserve') return '<div class="form rform"><label>ประเภทสถานที่<select data-f="kind">' + TT.LOC_KINDS.map(k => '<option' + (k === r.kind ? ' selected' : '') + '>' + esc(k) + '</option>').join('') + '</select></label>' +
+        '<label class="rcheck"><input type="checkbox" data-f="first"' + (r.first ? ' checked' : '') + '> จัดวิชาเหล่านี้ก่อน</label></div>' + selEd(r.sel, ['areas', 'codes']) +
+        '<p class="q">ใช้กับบัตรที่ให้ระบบเลือกห้องเอง (สถานที่ว่าง + วิชากำหนดประเภทสถานที่ไว้ในแท็บวิชาและสถานที่)</p>';
+      if (r.type === 'lock') return selEd(r.sel, ['areas', 'levels', 'classes', 'codes']) + '<p class="q">คาบที่ตรงจะถูกล็อก 🔒 ก่อนจัดใหม่ (ปลดล็อกทีหลังได้ทีละบัตร)</p>';
+      if (r.type === 'maxDay' || r.type === 'maxRun') return '<div class="form rform"><label>N<input type="number" min="1" max="12" data-f="n" value="' + (+r.n || 1) + '"></label>' + hardSel(r) + '</div>';
+      return '<div class="form rform">' + hardSel(r) + '</div>';
+    }
+    const html = () => '<p class="q">ติ๊กเงื่อนไขที่ต้องการก่อนกดจัด ระบบจะจำไว้ใช้รอบหน้า · ใช้เฉพาะการจัดอัตโนมัติ การลากวางเองไม่ถูกบังคับ · คาบที่ล็อก 🔒 ไว้ ระบบไม่ย้ายเสมอ</p><div class="rules">' +
+      rules.map((r, i) => '<div class="rule' + (r.on ? ' on' : '') + '" data-i="' + i + '"><div class="rh"><label><input type="checkbox" data-f="on"' + (r.on ? ' checked' : '') + '> <b>' + esc(r.label || 'เงื่อนไขช่วงเวลา') + '</b></label>' +
+        (r.custom ? '<button class="chipb" data-rdel="' + i + '" title="ลบเงื่อนไขนี้">✕</button>' : '') + '</div><div class="q rsum">' + esc(summary(r)) + '</div>' +
+        '<details><summary>ปรับเงื่อนไข</summary>' + (r.custom ? '<div class="form rform"><label>ชื่อเงื่อนไข<input data-f="label" value="' + esc(r.label || '') + '"></label></div>' : '') + editor(r) + '</details></div>').join('') + '</div>' +
+      '<p><button class="btn" data-radd>＋ เพิ่มเงื่อนไขช่วงเวลา</button> <button class="btn" data-rreset>คืนค่าตั้งต้น</button></p>' +
+      '<datalist id="dlRuleC">' + classList().map(c => '<option value="' + esc(c.name) + '">').join('') + '</datalist>' +
+      '<datalist id="dlRuleS">' + Object.values(m.subjects).map(x => '<option value="' + esc(x.code) + '">' + esc(x.name) + '</option>').join('') + '</datalist>';
+    /** อ่านค่าจากฟอร์มกลับเข้า rules ก่อนวาดใหม่หรือบันทึก */
+    function read(root) {
+      $$('.rule', root).forEach(el => {
+        const r = rules[+el.dataset.i]; if (!r) return;
+        $$('[data-f]', el).forEach(inp => { const f = inp.dataset.f;
+          if (f === 'on' || f === 'first') r[f] = inp.checked; else if (f === 'hard') r.hard = !!inp.value; else if (f === 'from' || f === 'to' || f === 'n') r[f] = +inp.value; else r[f] = inp.value; });
+        if (r.type === 'time' && r.from > r.to) { const t = r.from; r.from = r.to; r.to = t; }
+        $$('[data-sf]', el).forEach(box => { const f = box.dataset.sf;
+          const vals = box.tagName === 'INPUT' ? box.value.split(/[,\s]+/).map(TT.normName).filter(Boolean) : $$('input:checked', box).map(x => x.value);
+          const v = (f === 'levels' || f === 'days') ? vals.map(Number) : vals;
+          if (f === 'days') r.days = v; else { r.sel = r.sel || {}; r.sel[f] = v; } });
+      });
+    }
+    let body;
+    const draw = () => { body.innerHTML = html(); bind(); };
+    function bind() {
+      $$('[data-f="on"]', body).forEach(cb => cb.addEventListener('change', () => cb.closest('.rule').classList.toggle('on', cb.checked)));
+      $$('.rule', body).forEach(el => el.addEventListener('change', () => { read(body); $('.rsum', el).textContent = summary(rules[+el.dataset.i]); }));
+      $$('[data-rdel]', body).forEach(b => b.addEventListener('click', () => { read(body); rules.splice(+b.dataset.rdel, 1); draw(); }));
+      const add = $('[data-radd]', body); if (add) add.addEventListener('click', () => { read(body); rules.push({ id: 'c' + Date.now().toString(36), on: true, custom: true, type: 'time', mode: 'prefer', hard: false, days: [], from: 1, to: 4, sel: {}, label: 'เงื่อนไขช่วงเวลา' }); draw(); const last = $$('.rule details', body).pop(); if (last) last.open = true; });
+      const rs = $('[data-rreset]', body); if (rs) rs.addEventListener('click', () => { rules = TT.defaultSolveRules(); draw(); });
+    }
+    const go = () => { read(body); m.settings.solveRules = rules; changed(); setTimeout(() => runAuto(scope), 0); };
+    modal(scope ? 'เงื่อนไขก่อนจัดใหม่' : 'เงื่อนไขก่อนจัดอัตโนมัติ', '<div id="ruleBody"></div>', [
+      { label: 'ยกเลิก' },
+      { label: 'บันทึกเงื่อนไข', act: () => { read(body); m.settings.solveRules = rules; changed(); toast('บันทึกเงื่อนไขแล้ว'); } },
+      { label: scope === 'all' ? 'จัดใหม่ทั้งโรงเรียน' : scope ? 'จัดใหม่เฉพาะที่เลือก' : 'เริ่มจัดอัตโนมัติ', cls: 'pri', act: go }]);
+    body = $('#ruleBody'); draw();
   }
 
   function addLoadDialog() {
@@ -1581,7 +1784,7 @@ nav.tabs { gap: 13px; } nav.tabs button { font-size: 14px; }
     const m = M();
     switch (a) {
       case 'undo': return undo(); case 'redo': return redo();
-      case 'auto': return runAuto(null); case 'reshuffle': return modal('จัดใหม่?', '<p>ถอนคาบที่ไม่ล็อกในขอบเขตนี้ออก แล้วให้ระบบจัดลงใหม่ ดูผลก่อนยืนยันได้</p>', [{ label: 'ยกเลิก' }, { label: 'จัดใหม่ทั้งโรงเรียน', act: () => { runAuto('all'); } }, { label: 'จัดใหม่เฉพาะที่เลือก', cls: 'pri', act: () => { runAuto('sel'); } }]);
+      case 'auto': return openSolveRules(null); case 'reshuffle': return modal('จัดใหม่?', '<p>ถอนคาบที่ไม่ล็อกในขอบเขตนี้ออก แล้วให้ระบบจัดลงใหม่ ขั้นถัดไปเลือกเงื่อนไขได้ และดูผลก่อนยืนยัน</p>', [{ label: 'ยกเลิก' }, { label: 'จัดใหม่ทั้งโรงเรียน', act: () => { setTimeout(() => openSolveRules('all'), 0); } }, { label: 'จัดใหม่เฉพาะที่เลือก', cls: 'pri', act: () => { setTimeout(() => openSolveRules('sel'), 0); } }]);
       case 'addLoad': return addLoadDialog();
       case 'unavailOn': S.unavailMode = true; return render(); case 'unavailOff': S.unavailMode = false; return render();
       case 'lock': { const blk = TT.moveUnit(m, S.idx, S.selBlock), v = !blk.some(x => x.locked); return tx(v ? 'ล็อก' : 'ปลดล็อก', api => blk.forEach(x => api.setE(x.id, Object.assign({}, x, { locked: v || undefined })))); }
