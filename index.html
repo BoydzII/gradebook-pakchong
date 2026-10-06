@@ -3466,6 +3466,7 @@ function initCollapsibles(root) {
 }
 
 function render() {
+  if (swapSyncOn && (!swapListen || swapListen.view !== DB.ui.periodId)) listenSwapsFor(DB.ui.periodId);   // เปลี่ยนภาคที่เปิดดู → ฟังคำขอของภาคนั้นด้วย
   renderTop();
   const t = DB.ui.tab || 'dashboard';
   if (t === 'dashboard') renderDashboard();
@@ -4008,6 +4009,10 @@ function ackDpaResult(id) {
 function pendingApprovals() {
   const me = curTeacher(); if (!me || !curPeriod()) return [];
   const swaps = DB.timetable.exchangeRequests || [], leaves = DB.timetable.leaveRequests || [];
+  /* ใบลาของฉันเอง (ร่างที่ลืมส่ง ใบที่ผูกคำขอแลกคาบ) อาจเก่ากว่า 30 วันที่ชั้นสดฟังอยู่ จึงดึงประวัติของฉันมาด้วย
+     ครูหนึ่งคนมีไม่กี่ใบ อ่านครั้งเดียวต่อการเปิดแอป ส่วนงานรออนุมัติของหัวหน้า/ผู้บริหารอยู่ในชั้นสดครบอยู่แล้ว */
+  ensureLeaveArchive('t:' + me.id);
+  const myLeaves = leavesAll().filter(l => l.teacherId === me.id);
   const list = [];
 
   // --- งานของครูทุกคน ---
@@ -4034,7 +4039,7 @@ function pendingApprovals() {
       detail: (kinds.length ? kinds.join(' • ') + ' — ' : '') + 'ยังไม่มีครูรับดูแล กรุณาเลือกครูท่านอื่นก่อนถึงวันลา' });
   }
   const myHeadWait = swaps.filter(r => r.requesterTeacherId === me.id && r.status === 'unassigned' &&
-    r.leaveRequestId && leaveCoverMode(leaves.find(l => l.id === r.leaveRequestId)) === 'head');
+    r.leaveRequestId && myLeaves.some(l => l.id === r.leaveRequestId && leaveCoverMode(l) === 'head'));
   if (myHeadWait.length) list.push({ tone: 'warn', icon: '◆', role: 'teacher', tab: 'exchange',
     title: 'รอหัวหน้ากลุ่มสาระจัดครูให้ ' + totalSlotCount(myHeadWait) + ' คาบ',
     detail: 'คุณเลือกให้หัวหน้ากลุ่มสาระจัดครูแทน ยังไม่ต้องดำเนินการเอง' });
@@ -4055,7 +4060,7 @@ function pendingApprovals() {
     title: 'คำขอจองคิว DPA รอคุณกดรับ ' + dpaRequests.length + ' รายการ',
     detail: dpaRequests.slice(0, 3).map(s => (s.teacherName || 'ครู') + ' ' + thaiDate(s.date) + ' ' + (s.start || '') + ' น.' + (s.topic ? ' (' + s.topic + ')' : '')).join(' • ') });
 
-  const myDraft = leaves.filter(l => l.teacherId === me.id && ['draft', 'rejected'].indexOf((l.approval || {}).status || 'draft') >= 0);
+  const myDraft = myLeaves.filter(l => ['draft', 'rejected'].indexOf((l.approval || {}).status || 'draft') >= 0);
   if (myDraft.length) list.push({ tone: 'warn', icon: '✈', role: 'teacher', tab: 'exchange',
     title: 'ใบลาของคุณยังไม่ได้ส่งให้ผู้บริหาร ' + myDraft.length + ' ใบ',
     detail: myDraft.slice(0, 3).map(l => thaiDate(l.fromDate)).join(' • ') });
@@ -5596,7 +5601,8 @@ function openSpecialSession(date, slotId) {
     ที่ไหนเอาไปวางต้องเรียก bindLeaveHistory ด้วย ปุ่มถึงจะทำงาน */
 function leaveHistoryCard(limit, compact) {
   const me = curTeacher(); if (!me) return '';
-  const all = (DB.timetable.leaveRequests || []).filter(l => l.teacherId === me.id && l.periodId === DB.ui.periodId)
+  ensureLeaveArchive('t:' + me.id);   // ประวัติการลาของฉันทั้งภาค ไม่ใช่แค่ 30 วันที่ฟังอยู่
+  const all = leavesAll().filter(l => l.teacherId === me.id && l.periodId === DB.ui.periodId)
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   /* ใบลาที่ผู้บริหารตัดสินแล้วและเลยวันลามาเกินหนึ่งสัปดาห์ ถือว่าจบงาน ไม่ต้องค้างในรายการ */
   const settled = all.filter(l => leaveSettled(l) && olderThanKeep(l.toDate || l.fromDate));
@@ -5768,10 +5774,11 @@ function headCoverQueue(area) {
 /** คาบของฉันที่ยังไม่มีคนดูแล และเป็นความรับผิดชอบของฉันเอง */
 function myUncoveredSelfPeriods() {
   const me = curTeacher(); if (!me) return [];
-  const leaves = new Map((DB.timetable.leaveRequests || []).filter(l => l.teacherId === me.id).map(l => [l.id, l]));
+  const leaves = new Map(leavesAll().filter(l => l.teacherId === me.id).map(l => [l.id, l]));
+  /* ใบลายังไม่มาถึง (ประวัติยังโหลดไม่เสร็จ) อย่าเดาว่าเป็นแบบ "แลกเอง" ไม่งั้นกระดิ่งเตือนผิดคน */
   return (DB.timetable.exchangeRequests || []).filter(r => r.requesterTeacherId === me.id &&
     ['unassigned', 'rejected'].indexOf(r.status) >= 0 &&
-    (!r.leaveRequestId || leaveCoverMode(leaves.get(r.leaveRequestId)) === 'self'));
+    (!r.leaveRequestId || (leaves.has(r.leaveRequestId) && leaveCoverMode(leaves.get(r.leaveRequestId)) === 'self')));
 }
 
 function teacherLearningAreas(teacherId) {
@@ -6123,9 +6130,12 @@ function exceptionsForRequest(req) {
 function rebuildExchangeExceptions() {
   const all = DB.timetable.exceptions || [];
   const manual = [], reuse = {};
-  all.forEach(e => { if (!e.exchangeRequestId) manual.push(e); else reuse[exceptionKeyOf(e)] = e; });
+  /* ตั้งแต่ v189 ฟังคำขอแลกคาบเฉพาะภาคปัจจุบัน + ภาคที่เปิดดู คาบสอนแทนของภาคอื่นสร้างใหม่ไม่ได้ (ไม่มีคำขอในเครื่อง)
+     จึงเก็บไว้ตามเดิม ไม่งั้นถูกตัดทิ้งแล้วหายจากตารางกลางเมื่อแอดมินส่งตารางสอนขึ้นส่วนกลาง */
+  const pids = swapListen ? swapListen.key.split('|') : null, inPids = pid => !pids || pids.indexOf(String(pid)) >= 0;
+  all.forEach(e => { if (!e.exchangeRequestId || !inPids(e.periodId)) manual.push(e); else reuse[exceptionKeyOf(e)] = e; });
   const fresh = [];
-  (DB.timetable.exchangeRequests || []).forEach(req => {
+  (DB.timetable.exchangeRequests || []).filter(req => inPids(req.periodId)).forEach(req => {
     exceptionsForRequest(req).forEach(made => {
       const old = reuse[exceptionKeyOf(made)];
       fresh.push(old ? Object.assign(old, made, { id: old.id }) : made);
@@ -6146,11 +6156,11 @@ function respondExchangeRequest(id, accept) {
   // ลงคาบจริงด้วยตัวสร้างกลาง จะได้ผลเหมือนกันทุกครั้งที่คำนวณใหม่
   rebuildExchangeExceptions();
   if (req.leaveRequestId) {
-    const leave = (DB.timetable.leaveRequests || []).find(l => l.id === req.leaveRequestId), linked = leave ? (DB.timetable.exchangeRequests || []).filter(r => r.leaveRequestId === leave.id) : [];
+    const leave = leaveForEdit(req.leaveRequestId), linked = leave ? (DB.timetable.exchangeRequests || []).filter(r => r.leaveRequestId === leave.id) : [];
     if (leave) leave.coverageStatus = linked.length && linked.every(r => r.status === 'accepted') ? 'covered' : linked.some(r => r.status === 'rejected' || r.status === 'unassigned') ? 'attention' : 'pending';
   }
   save(true); pushRequestDoc('swap', req);
-  if (req.leaveRequestId) pushRequestDoc('leave', (DB.timetable.leaveRequests || []).find(l => l.id === req.leaveRequestId));
+  if (req.leaveRequestId) pushRequestDoc('leave', leaveForEdit(req.leaveRequestId));
   render(); toast(accept ? ((req.type || 'exchange') === 'exchange' ? 'ยอมรับคำขอและปรับตารางแล้ว' : 'รับสอนแทนและเพิ่มคาบแล้ว') : 'ปฏิเสธคำขอแล้ว', accept ? 'ok' : '');
 }
 
@@ -6212,8 +6222,8 @@ function deleteExchangeRequest(id) {
     perm.needReason, function (reason) {
       DB.timetable.exceptions = (DB.timetable.exceptions || []).filter(e => e.exchangeRequestId !== req.id);
       DB.timetable.exchangeRequests = (DB.timetable.exchangeRequests || []).filter(r => r.id !== req.id);
-      const leave = req.leaveRequestId ? (DB.timetable.leaveRequests || []).find(l => l.id === req.leaveRequestId) : null;
-      if (leave) leave.requestIds = (leave.requestIds || []).filter(x => x !== req.id);
+      const leave = req.leaveRequestId ? leaveForEdit(req.leaveRequestId) : null;
+      if (leave) { leave.requestIds = (leave.requestIds || []).filter(x => x !== req.id); pushRequestDoc('leave', leave); }
       logAudit('ลบคำขอ' + kind, 'คำขอของ ' + owner + ' วันที่ ' + thaiDate(req.sourceDate || req.date) + (reason ? ' • เหตุผล: ' + reason : ''),
         { requestId: req.id, type: req.type || 'exchange', date: req.sourceDate || req.date, status: req.status, requester: owner,
           target: (DB.teachers.find(t => t.id === req.targetTeacherId) || {}).name || '', reason: reason });
@@ -6224,7 +6234,7 @@ function deleteExchangeRequest(id) {
 
 function deleteLeaveRequest(id) {
   if (blockClosedTerm()) return;
-  const leave = (DB.timetable.leaveRequests || []).find(l => l.id === id); if (!leave) return;
+  const leave = leaveForEdit(id); if (!leave) return;
   const perm = canDeleteRequest(leave.teacherId);
   if (!perm.ok) return toast('ลบได้เฉพาะใบลาของตัวเอง หรือโดยผู้ดูแลระบบ', 'bad');
   const owner = (DB.teachers.find(t => t.id === leave.teacherId) || {}).name || 'ครู';
@@ -6240,6 +6250,7 @@ function deleteLeaveRequest(id) {
       });
       DB.timetable.exchangeRequests = (DB.timetable.exchangeRequests || []).filter(r => r.leaveRequestId !== leave.id);
       DB.timetable.leaveRequests = (DB.timetable.leaveRequests || []).filter(l => l.id !== leave.id);
+      leaveArchive.items.delete(leave.id);   // ไม่ให้สำเนาในชั้นประวัติกลับมาแสดง
       logAudit('ลบใบลา', 'ใบลาของ ' + owner + ' ' + thaiDate(leave.fromDate) + ' • พร้อมคำขอที่ผูกไว้ ' + linked.length + ' รายการ' + (reason ? ' • เหตุผล: ' + reason : ''),
         { leaveId: leave.id, teacher: owner, from: leave.fromDate, to: leave.toDate, linkedRequests: linked.length, reason: reason });
       markDeletedOnCloud('leave', leave, reason);
@@ -6248,11 +6259,21 @@ function deleteLeaveRequest(id) {
 }
 
 /** พิมพ์บันทึกข้อความรวมหลายคำขอเป็นเอกสารชุดเดียว */
-function openMergedExchangeDocument(ids) {
+/** เอกสารที่อ้างใบลาเก่ากว่า 30 วัน ต้องดึงประวัติของครูคนนั้นก่อน รอไม่เกิน 8 วินาทีแล้วเปิดต่อ กันกดซ้ำ */
+var leaveHistoryWait = new Set();
+function withLeaveHistory(teacherId, fn) {
+  const scope = 't:' + teacherId;
+  if (!teacherId || leaveArchive.scopes[scope] || !firebaseReady() || !fbSignedIn()) return fn();
+  if (leaveHistoryWait.has(scope)) return;
+  leaveHistoryWait.add(scope); toast('กำลังดึงประวัติการลา…');
+  return Promise.race([ensureLeaveArchive(scope), new Promise(r => setTimeout(r, 8000))]).then(() => fn()).finally(() => leaveHistoryWait.delete(scope));
+}
+function openMergedExchangeDocument(ids, retried) {
   const list = (DB.timetable.exchangeRequests || []).filter(r => ids.indexOf(r.id) >= 0);
   if (!list.length) return toast('กรุณาเลือกคำขออย่างน้อย 1 รายการ', 'bad');
   const leaveIds = Array.from(new Set(list.map(r => r.leaveRequestId).filter(Boolean)));
-  const leave = leaveIds.length === 1 ? (DB.timetable.leaveRequests || []).find(l => l.id === leaveIds[0]) : null;
+  const leave = leaveIds.length === 1 ? findLeave(leaveIds[0]) : null;
+  if (leaveIds.length === 1 && !leave && !retried) return withLeaveHistory(list[0].requesterTeacherId, () => openMergedExchangeDocument(ids, true));
   openDocumentPreview('บันทึกข้อความแลกคาบ • รวม ' + totalSlotCount(list) + ' คาบ', exchangeMemoHtml(list, leave), () => exchangeMemoHtml(list, leave));
 }
 
@@ -6367,7 +6388,7 @@ const leaveApprovalBadge = status => '<span class="badge ' + (status === 'approv
 /** สรุปการลารายครู: จำนวนครั้งแยกประเภท รวมครั้ง รวมวัน และคาบที่มีผู้สอนแทน */
 function leaveStatsByTeacher(periodId) {
   const rows = new Map();
-  (DB.timetable.leaveRequests || []).filter(l => !periodId || l.periodId === periodId).forEach(l => {
+  leavesAll().filter(l => !periodId || l.periodId === periodId).forEach(l => {
     const teacher = DB.teachers.find(t => t.id === l.teacherId);
     if (!teacher) return;   // ใบลาที่ไม่มีเจ้าของแล้ว ไม่นำมาคิดสถิติ ใช้ปุ่มล้างในหน้าผู้ดูแลระบบแทน
     if (!rows.has(l.teacherId)) rows.set(l.teacherId, { teacher: teacher, name: teacher.name || 'ไม่พบครู', area: teacherArea(teacher), times: 0, days: 0, byType: {}, periods: 0, covered: 0, pending: 0 });
@@ -6490,7 +6511,7 @@ function leaveDocumentHtml(leave) {
   const reasonText = exchangeReasonLabel(leave);
 
   // การลาครั้งก่อนหน้าของครูคนนี้ ใช้เติมช่อง "ข้าพเจ้าได้ลา...ครั้งสุดท้าย"
-  const mine = (DB.timetable.leaveRequests || []).filter(l => l.teacherId === leave.teacherId && l.id !== leave.id)
+  const mine = leavesAll().filter(l => l.teacherId === leave.teacherId && l.id !== leave.id)
     .sort((a, b) => String(b.fromDate).localeCompare(String(a.fromDate)));
   const last = mine[0] || null, lastFrom = last ? thaiDateParts(last.fromDate) : null, lastTo = last ? thaiDateParts(last.toDate || last.fromDate) : null;
 
@@ -6723,15 +6744,21 @@ function exchangeMemoHtml(requests, leave) {
     '</tr></tbody></table></div>';
 }
 
-function openExchangeDocument(id) {
+function openExchangeDocument(id, retried) {
   const req = (DB.timetable.exchangeRequests || []).find(r => r.id === id); if (!req) return;
-  const leave = req.leaveRequestId ? (DB.timetable.leaveRequests || []).find(l => l.id === req.leaveRequestId) : null;
+  const leave = findLeave(req.leaveRequestId);
+  if (req.leaveRequestId && !leave && !retried) return withLeaveHistory(req.requesterTeacherId, () => openExchangeDocument(id, true));
   openDocumentPreview('บันทึกข้อความแลกคาบ', exchangeMemoHtml([req], leave), () => exchangeMemoHtml([req], leave));
 }
 
 /** พิมพ์บันทึกข้อความรวมทุกคาบของใบลาหนึ่งใบ */
-function openLeaveExchangeMemo(leaveId) {
-  const leave = (DB.timetable.leaveRequests || []).find(l => l.id === leaveId); if (!leave) return;
+function openLeaveExchangeMemo(leaveId, retried) {
+  const leave = findLeave(leaveId);
+  if (!leave) {   // ใบลาเก่ากว่า 30 วัน: หาเจ้าของจากคำขอที่ผูกไว้ แล้วดึงประวัติก่อน
+    const req = (DB.timetable.exchangeRequests || []).find(r => r.leaveRequestId === leaveId);
+    if (req && !retried) return withLeaveHistory(req.requesterTeacherId, () => openLeaveExchangeMemo(leaveId, true));
+    return toast('ไม่พบใบลานี้ — ลองใหม่เมื่อออนไลน์', 'bad');
+  }
   const list = (DB.timetable.exchangeRequests || []).filter(r => r.leaveRequestId === leave.id);
   if (!list.length) return toast('ใบลานี้ยังไม่มีคาบที่ต้องแลกหรือให้สอนแทน', 'bad');
   openDocumentPreview('บันทึกข้อความแลกคาบ • ' + totalSlotCount(list) + ' คาบ', exchangeMemoHtml(list, leave), () => exchangeMemoHtml(list, leave));
@@ -6790,16 +6817,25 @@ function openDocumentPreview(title, html, rebuild) {
       });
     } });
 }
-function openLeaveDocument(id) {
-  const leave = (DB.timetable.leaveRequests || []).find(l => l.id === id); if (!leave) return;
-  openDocumentPreview(leaveDocTitle(leave) + ' • ' + (DB.teachers.find(t => t.id === leave.teacherId) || {}).name, leaveDocumentHtml(leave));
+var leaveDocOpening = new Set();   // กดซ้ำระหว่างรอดึงประวัติจะเปิดตัวอย่างซ้อนหลายชั้น
+async function openLeaveDocument(id) {
+  let leave = findLeave(id); if (!leave || leaveDocOpening.has(id)) return;
+  leaveDocOpening.add(id);
+  try {
+    // ช่อง "ลาครั้งสุดท้าย" และสถิติการลาในเอกสารราชการต้องนับใบลาเก่าทั้งหมด ไม่ใช่แค่ 30 วันที่ฟังอยู่
+    const scope = 't:' + leave.teacherId;
+    if (firebaseReady() && fbSignedIn() && !leaveArchive.scopes[scope]) toast('กำลังดึงประวัติการลา…');
+    await Promise.race([ensureLeaveArchive(scope), new Promise(r => setTimeout(r, 8000))]);   // เน็ตค้างก็เปิดด้วยที่มี
+    leave = findLeave(id) || leave;
+    openDocumentPreview(leaveDocTitle(leave) + ' • ' + (DB.teachers.find(t => t.id === leave.teacherId) || {}).name, leaveDocumentHtml(leave));
+  } finally { leaveDocOpening.delete(id); }
 }
 
 
 /** ส่งใบลาเข้าสายอนุมัติ: หัวหน้ากลุ่มสาระรับรองก่อน แล้วผู้บริหารอนุมัติ */
 function submitLeaveForApproval(id) {
   if (blockAdminApproval()) return;
-  const leave = (DB.timetable.leaveRequests || []).find(l => l.id === id); if (!leave) return;
+  const leave = leaveForEdit(id); if (!leave) return;
   const teacher = DB.teachers.find(t => t.id === leave.teacherId), area = teacherArea(teacher);
   const hasHead = area && DB.teachers.some(t => teacherHasRole(t, 'head') && teacherArea(t) === area && t.id !== leave.teacherId);
   leave.approval = { status: 'submitted', by: '', at: '', note: '' };
@@ -6809,7 +6845,7 @@ function submitLeaveForApproval(id) {
 }
 function decideLeave(id, decision, kind) {
   if (blockAdminApproval()) return;
-  const leave = (DB.timetable.leaveRequests || []).find(l => l.id === id); if (!leave) return;
+  const leave = leaveForEdit(id); if (!leave) return;
   const me = curTeacher(); if (!me) return toast('กรุณาเลือกโปรไฟล์ผู้ใช้งาน', 'bad');
   openModal({ title: (kind === 'head' ? 'ความเห็นหัวหน้ากลุ่มสาระ' : 'พิจารณาใบลา') + ' • ' + (DB.teachers.find(t => t.id === leave.teacherId) || {}).name,
     bodyHTML: '<div class="pick"><label>บันทึกความเห็น (ไม่บังคับ)</label><input id="leaveDecisionNote" style="width:100%" placeholder="เช่น อนุญาตตามที่เสนอ"></div>',
@@ -13977,6 +14013,7 @@ function leaveStatsTable(rows, showArea) {
 
 /** หน้าของหัวหน้ากลุ่มสาระ: ดูเฉพาะครูในกลุ่มสาระของตน */
 function renderHeadArea() {
+  ensureLeaveArchive('p:' + DB.ui.periodId);   // สถิติการลาทั้งภาค — ชั้นสดมีแค่ 30 วัน (ดู LEAVE_LIVE_DAYS)
   const pane = $('#pane-head'), me = curTeacher(), isAdminView = (DB.ui.staffMode || 'teacher') === 'admin';
   // แอดมินเปิดดูได้ทุกกลุ่มสาระ (อ่านอย่างเดียว) ส่วนหัวหน้ากลุ่มสาระเห็นเฉพาะกลุ่มของตน
   const areaPicker = isAdminView ? '<div class="pick"><label>เลือกกลุ่มสาระที่ต้องการดู</label><select id="headAreaPick">' + learningAreaOptions(DB.ui.headArea, '— เลือกกลุ่มสาระ —') + '</select></div>' : '';
@@ -13989,7 +14026,7 @@ function renderHeadArea() {
   }
   const members = DB.teachers.filter(t => teacherArea(t) === area).sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'th'));
   const memberIds = new Set(members.map(t => t.id));
-  const leaves = (DB.timetable.leaveRequests || []).filter(l => memberIds.has(l.teacherId) && l.periodId === DB.ui.periodId).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  const leaves = leavesAll().filter(l => memberIds.has(l.teacherId) && l.periodId === DB.ui.periodId).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   const waiting = leaves.filter(l => (l.headApproval || {}).status === 'waiting');
   const stats = leaveStatsByTeacher(DB.ui.periodId).filter(r => memberIds.has((r.teacher || {}).id));
   const entries = (DB.timetable.entries || []).filter(e => e.periodId === DB.ui.periodId && memberIds.has(e.teacherId));
@@ -14075,8 +14112,9 @@ function openHeadCoverPicker(reqId) {
 
 /** หน้าผู้บริหาร: อนุมัติใบลา + ภาพรวมการลาและการสอนแทน */
 function renderLeaveApprovals() {
+  ensureLeaveArchive('p:' + DB.ui.periodId);   // สถิติการลาทั้งภาค — ชั้นสดมีแค่ 30 วัน (ดู LEAVE_LIVE_DAYS)
   const pane = $('#pane-leaves'), stats = leaveStatsByTeacher(DB.ui.periodId), ranking = coverageRanking(DB.ui.periodId);
-  const leaves = (DB.timetable.leaveRequests || []).filter(l => l.periodId === DB.ui.periodId && !isOrphanLeave(l)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  const leaves = leavesAll().filter(l => l.periodId === DB.ui.periodId && !isOrphanLeave(l)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   const waiting = leaves.filter(l => (l.approval || {}).status === 'submitted');
   const totalDays = stats.reduce((a, r) => a + r.days, 0), totalTimes = stats.reduce((a, r) => a + r.times, 0);
   const top = ranking[0];
@@ -14890,6 +14928,7 @@ function organizeExecutivePage(pane, tiles) {
 }
 
 function renderExecutive() {
+  ensureLeaveArchive('p:' + DB.ui.periodId);   // สถิติการลาทั้งภาค — ชั้นสดมีแค่ 30 วัน (ดู LEAVE_LIVE_DAYS)
   ensureAffairsListeners();
   const pane = $('#pane-executive'), data = attendanceExecutiveData(), total = Object.values(data.statuses).reduce((a, b) => a + b, 0), colors = { present: '#22c55e', late: '#f59e0b', leave: '#38bdf8', activity: '#8b5cf6', absent: '#ef4444' };
   const parts = []; let at = 0; ATTENDANCE_STATUSES.forEach(s => { const n = data.statuses[s.value], deg = total ? n * 360 / total : 0; parts.push(colors[s.value] + ' ' + at + 'deg ' + (at + deg) + 'deg'); at += deg; });
@@ -15787,6 +15826,7 @@ async function deleteTeacherFromAdmin(id) {
   DB.timetable.entries = (DB.timetable.entries || []).filter(e => e.teacherId !== id);
   DB.timetable.exceptions = (DB.timetable.exceptions || []).filter(e => e.teacherId !== id);
   DB.timetable.leaveRequests = (DB.timetable.leaveRequests || []).filter(l => l.teacherId !== id);
+  Array.from(leaveArchive.items.values()).forEach(l => { if (l.teacherId === id) leaveArchive.items.delete(l.id); });
   DB.timetable.exchangeRequests = (DB.timetable.exchangeRequests || []).filter(r => r.requesterTeacherId !== id && r.targetTeacherId !== id);
   if (DB.ui.teacherId === id) DB.ui.teacherId = DB.teachers[0] ? DB.teachers[0].id : null;
   save(true); render(); toast('ลบครู ' + (t.name || t.email) + ' แล้ว', 'ok');
@@ -18369,13 +18409,13 @@ async function loadStaffTimeMonth(month, force) {
 /* ใบลาที่ไม่อนุมัติหรือถูกลบไม่นับว่าวันนั้นลา */
 const leaveCoversDate = (l, date) => !!(l && l.fromDate && l.fromDate <= date && (l.toDate || l.fromDate) >= date &&
   (l.approval || {}).status !== 'rejected' && l.status !== 'deleted');
-const leavesOnDate = date => (DB.timetable.leaveRequests || []).filter(l => !isOrphanLeave(l) && leaveCoversDate(l, date));
+const leavesOnDate = date => leavesAll().filter(l => !isOrphanLeave(l) && leaveCoversDate(l, date));
 const leaveRangeText = l => thaiDate(l.fromDate) + (l.toDate && l.toDate !== l.fromDate ? ' ถึง ' + thaiDate(l.toDate) : '');
 const leaveTypeShort = l => isOfficialTrip(l) ? 'ไปราชการ' : (exchangeReasonLabel(l).split(' — ')[0] || 'ลา');
 /** สถานะของครูหนึ่งคนในหนึ่งวัน — times = undefined แปลว่าวันนั้นยังไม่มีข้อมูลจากเครื่องสแกน
     จึงตัดสินว่า "ขาด" ไม่ได้ (ไม่มีข้อมูล ≠ ไม่มา) */
 function staffDayStatus(teacher, date, times, lateTime) {
-  const lv = (DB.timetable.leaveRequests || []).find(l => l.teacherId === teacher.id && leaveCoversDate(l, date));
+  const lv = leavesAll().find(l => l.teacherId === teacher.id && leaveCoversDate(l, date));
   if (lv) return { code: isOfficialTrip(lv) ? 'trip' : 'leave', label: leaveTypeShort(lv), leave: lv };
   const t = times && times[teacher.id];
   if (t) return t > lateTime ? { code: 'late', label: 'สาย', time: t } : { code: 'ok', label: 'มา', time: t };
@@ -18401,8 +18441,9 @@ function renderPersonnelDept() {
 }
 
 function renderPersonnelLeave(body) {
+  ensureLeaveArchive('p:' + DB.ui.periodId);   // สถิติการลาทั้งภาค — ชั้นสดมีแค่ 30 วัน (ดู LEAVE_LIVE_DAYS)
   const pid = DB.ui.periodId, today = todayISO(), stats = leaveStatsByTeacher(pid);
-  const leaves = (DB.timetable.leaveRequests || []).filter(l => l.periodId === pid && !isOrphanLeave(l) && l.status !== 'deleted')
+  const leaves = leavesAll().filter(l => l.periodId === pid && !isOrphanLeave(l) && l.status !== 'deleted')
     .sort((a, b) => String(b.fromDate || '').localeCompare(String(a.fromDate || '')));
   const todayList = leavesOnDate(today), waiting = leaves.filter(l => (l.approval || {}).status === 'submitted').length;
   const row = l => {
@@ -18424,6 +18465,7 @@ function renderPersonnelLeave(body) {
 }
 
 function renderPersonnelTime(body) {
+  ensureLeaveArchive('p:' + DB.ui.periodId);   // สถิติการลาทั้งภาค — ชั้นสดมีแค่ 30 วัน (ดู LEAVE_LIVE_DAYS)
   const cfg = ensurePersonnel().config, lateTime = cfg.lateTime || '08:00';
   const date = DB.ui.personnelDate = /^\d{4}-\d{2}-\d{2}$/.test(DB.ui.personnelDate || '') ? DB.ui.personnelDate : todayISO();
   const month = date.slice(0, 7), loaded = personnelTime.month === month, staff = isPersonnelStaff();
@@ -18437,7 +18479,7 @@ function renderPersonnelTime(body) {
   const dataDates = Object.keys(days).sort();
   const monthDays = []; for (let d = parseISODate(month + '-01'); d && isoDate(d).slice(0, 7) === month; d.setDate(d.getDate() + 1)) { const w = d.getDay(); if (w >= 1 && w <= 5) monthDays.push(isoDate(d)); }
   const monthRows = teachersByName().map(t => {
-    const lv = (DB.timetable.leaveRequests || []).filter(l => l.teacherId === t.id && !isOfficialTrip(l));
+    const lv = leavesAll().filter(l => l.teacherId === t.id && !isOfficialTrip(l));
     const leaveN = monthDays.filter(d => lv.some(l => leaveCoversDate(l, d))).length;
     let late = 0, absent = 0;
     dataDates.forEach(d => { const w = (parseISODate(d) || new Date()).getDay(); if (w < 1 || w > 5) return;
@@ -19777,6 +19819,7 @@ function renderMaintainCard() {
     const leaveIds = new Set(o.leaves.map(l => l.id)), reqIds = new Set(o.requests.map(r => r.id));
     o.leaves.forEach(l => (l.requestIds || []).forEach(id => reqIds.add(id)));
     DB.timetable.leaveRequests = (DB.timetable.leaveRequests || []).filter(l => !leaveIds.has(l.id));
+    leaveIds.forEach(id => leaveArchive.items.delete(id));
     DB.timetable.exchangeRequests = (DB.timetable.exchangeRequests || []).filter(r => !reqIds.has(r.id));
     save(true); renderAdmin();
     toast('ล้างข้อมูลที่ไม่มีเจ้าของแล้ว ' + (leaveIds.size + reqIds.size) + ' รายการ', 'ok');
@@ -20478,19 +20521,126 @@ function startFirebaseSync() {
   fbUnsub.push(fbDb.collection('academicTasks').onSnapshot(snap => apply(() => academicApplySnapshot('task', snap)), quiet));
   setTimeout(() => { academicFlushAll(true); }, 2500);   // ของที่กรอกไว้ตอนยังไม่ได้เข้าสู่ระบบ
 
-  [['leaves', 'leaveRequests'], ['swaps', 'exchangeRequests']].forEach(pair => {
-    fbUnsub.push(fbDb.collection(pair[0]).onSnapshot(snap => apply(() => {
+  /* ใบลา: ฟังเฉพาะที่สิ้นสุดภายใน 30 วัน + ที่ยังรออนุมัติ / คำขอแลกคาบ: ฟังเฉพาะภาคปัจจุบันกับภาคที่เปิดดู
+     ผลรวมแทนที่รายการในเครื่องทั้งก้อน แบบเดียวกับโค้ดเดิม (ดูเหตุผลที่ LEAVE_LIVE_DAYS) */
+  const leaveCol = fbDb.collection('leaves'), leaveCut = shiftISODate(todayISO(), -LEAVE_LIVE_DAYS);
+  fbUnsub.push(listenLive('leaveRequests', 'leave', [leaveCol.where('toDate', '>=', leaveCut),
+    leaveCol.where('approval.status', '==', 'submitted'), leaveCol.where('headApproval.status', '==', 'waiting')]));
+  swapSyncOn = true; listenSwapsFor(DB.ui.periodId);
+  fbUnsub.push(() => { swapSyncOn = false; if (swapListen) swapListen.off(); swapListen = null; leaveArchive.items.clear(); leaveArchive.scopes = {}; });
+}
+
+/* ---------- ใบลาและคำขอแลกคาบ: สองชั้น -----------------------------------------------------
+   เดิมทุกเครื่องฟังทั้งคอลเลกชัน การเปิดแอปแต่ละครั้งจึงดาวน์โหลดใบลาทั้งหมดตั้งแต่เริ่มใช้ระบบ
+   ค่าอ่าน Firestore และเน็ตมือถือโตขึ้นทุกเดือน (ครู 150 คน เปิดวันละหลายครั้ง หลุดเกิน 30 นาทีถูกคิดใหม่ทั้งชุด)
+   ชั้นสด: ฟังเฉพาะช่วงที่ยังเปลี่ยนได้ แล้วแทนที่รายการในเครื่องทั้งก้อนเหมือนเดิม — ไม่มีการเดาว่าใบไหนถูกลบ
+   ชั้นประวัติ (leaveArchive): ใบลาเก่าดึงเมื่อเปิดหน้าที่ต้องใช้ เก็บในหน่วยความจำ อ่านอย่างเดียว
+   ไม่ปนกับชั้นสด จึงไม่มีทางทำให้ใบลาหายหรือถูกส่งทับส่วนกลาง กรณีแย่สุดคือหน้าประวัติไม่ครบชั่วคราว
+   ใบลาเก่ายังอยู่ครบใน Firestore (แบบใบลาและสถิติการลาต้องใช้) และสำรองลงชีตทุกคืนด้วย appsscript-leave-backup.gs */
+const LEAVE_LIVE_DAYS = 30;
+var leaveArchive = { items: new Map(), scopes: {}, busy: {}, failAt: {} };   // var: render() อาจเรียกก่อนบรรทัดนี้ทำงาน (TDZ)
+var swapListen = null, swapSyncOn = false;
+
+/** ฟังหลายคิวรี รอครบทุกคิวรีแล้วแทนที่รายการในเครื่องด้วยผลรวม + รายการที่ยังค้างส่ง */
+function listenLive(key, kind, queries) {
+  const parts = queries.map(() => null);
+  const offs = queries.map((q, i) => q.onSnapshot(snap => {
+    parts[i] = snap.docs.map(d => Object.assign({}, fbDecodeNested(d.data()), { id: d.id }));
+    if (parts.some(p => p === null)) return;   // รอครบก่อน ไม่งั้นรายการในคิวรีที่ยังไม่มาจะหายวูบ
+    fbApplying = true;
+    try {
+      const live = new Map(); parts.forEach(p => p.forEach(x => live.set(x.id, x)));
+      const central = Array.from(live.values()).filter(x => x.status !== 'deleted');
       /* รายการที่ยังส่งขึ้นไม่สำเร็จต้องไม่ถูกลบทิ้ง ไม่งั้นสิ่งที่ครูกรอกตอนเน็ตหลุดจะหาย */
-      const kind = pair[0] === 'leaves' ? 'leave' : 'swap', waiting = outboxIdsOf(kind);
-      const central = snap.docs.map(d => Object.assign({}, fbDecodeNested(d.data()), { id: d.id })).filter(x => x.status !== 'deleted');
-      const onCentral = {}; central.forEach(x => { onCentral[x.id] = true; });
-      const held = (DB.timetable[pair[1]] || []).filter(x => waiting[x.id] && !onCentral[x.id]);
-      DB.timetable[pair[1]] = central.concat(held);
+      const waiting = outboxIdsOf(kind), prev = DB.timetable[key] || [], held = prev.filter(x => waiting[x.id] && !live.has(x.id));
+      DB.timetable[key] = central.concat(held);
+      if (kind === 'leave') leaveArchiveAfterLive(prev, live);
       applyStoredTeacherIdMap();
       rebuildExchangeExceptions();   // คำขอเปลี่ยน คาบที่เกิดจากคำขอต้องเปลี่ยนตาม
       save(true); render();
-    }), quiet));
-  });
+    } finally { fbApplying = false; }
+  }, () => {}));
+  return () => offs.forEach(f => { try { f(); } catch (e) { } });
+}
+
+/** ใบที่หลุดจากชั้นสด: สำเนาในชั้นประวัติอาจเก่ากว่า (เช่นยังเป็น "รออนุมัติ") จึงลบทิ้งก่อน
+    แล้วถ้ากำลังดูประวัติที่ครอบคลุมใบนั้นอยู่ ค่อยอ่านฉบับล่าสุดรายใบมาแทน — ตอนเปิดแอปประวัติยังว่าง จึงไม่อ่านอะไรเพิ่ม */
+function leaveArchiveAfterLive(prev, live) {
+  const A = leaveArchive;
+  live.forEach((x, id) => { if (x.status === 'deleted') A.items.delete(id); });
+  const gone = prev.filter(l => !live.has(l.id));
+  gone.forEach(l => A.items.delete(l.id));
+  if (!firebaseReady() || !fbSignedIn()) return;
+  const ids = new Set(); Object.keys(A.scopes).forEach(s => { if (s.indexOf('t:') === 0) leaveTeacherAliases(s.slice(2)).forEach(x => ids.add(x)); });
+  gone.filter(l => A.scopes['p:' + l.periodId] || ids.has(l.teacherId)).slice(0, 50).forEach(l =>
+    fbDb.collection('leaves').doc(l.id).get({ source: 'server' }).then(d => {
+      if (!d.exists) return;
+      const x = Object.assign({}, fbDecodeNested(d.data()), { id: d.id }), map = storedTeacherIdMap();
+      if (x.status === 'deleted' || (DB.timetable.leaveRequests || []).some(y => y.id === x.id)) return;
+      if (map.has(x.teacherId)) x.teacherId = map.get(x.teacherId);
+      A.items.set(x.id, x); render();
+    }).catch(() => {}));
+}
+/** ภาคที่วันนี้อยู่ระหว่างวันเปิด–ปิดภาค — ฟังคำขอแลกคาบของภาคนี้เสมอ แม้ครูเปิดดูภาคอื่นอยู่ */
+function periodIdOnDate(iso) {
+  const terms = (DB.timetable || {}).terms || {};
+  const p = (DB.periods || []).find(p => { const t = terms[p.id]; return t && t.openDate && t.closeDate && iso >= t.openDate && iso <= t.closeDate; });
+  return p ? p.id : '';
+}
+/** คำขอแลกคาบ: ภาคปัจจุบัน + ภาคที่เปิดดู คำขอเป็นที่มาของคาบสอนแทนทั้งภาค จึงตัดเหลือ 30 วันไม่ได้ */
+function listenSwapsFor(viewPid) {
+  const pids = Array.from(new Set([periodIdOnDate(todayISO()), viewPid].filter(Boolean))).sort();
+  if (swapListen) { swapListen.off(); swapListen = null; }
+  if (!pids.length || !firebaseReady() || !fbSignedIn()) return;
+  const col = fbDb.collection('swaps');
+  swapListen = { key: pids.join('|'), view: viewPid, off: listenLive('exchangeRequests', 'swap', [pids.length > 1 ? col.where('periodId', 'in', pids) : col.where('periodId', '==', pids[0])]) };
+}
+
+/** รหัสครูทั้งหมดของครูคนนี้ (ปัจจุบัน + รหัสเก่า) — ใบลาบนส่วนกลางที่ส่งก่อนเปลี่ยนรหัสยังเก็บรหัสเก่าอยู่ */
+function leaveTeacherAliases(id) {
+  const map = storedTeacherIdMap(), canon = map.get(id) || id, out = new Set([id, canon]);
+  const t = DB.teachers.find(x => x.id === canon); if (t) (t.legacyIds || []).forEach(k => out.add(k));
+  map.forEach((to, from) => { if (to === canon) out.add(from); });
+  out.delete(''); return Array.from(out);
+}
+/** ดึงใบลาเก่าเข้าชั้นประวัติ — scope 'p:<ปี/ภาค>' หรือ 't:<รหัสครู>' ครั้งเดียวต่อการเปิดแอป
+    อ่านจากเซิร์ฟเวอร์เท่านั้น ถ้าออฟไลน์ก็แค่ยังไม่มีประวัติ ไม่กระทบรายการใบลาในเครื่อง */
+function ensureLeaveArchive(scope) {
+  const m = /^([pt]):(.+)$/.exec(String(scope || '')), A = leaveArchive;
+  if (!m || !A || !firebaseReady() || !fbSignedIn()) return Promise.resolve(false);
+  if (A.scopes[scope]) return Promise.resolve(false);
+  if (A.busy[scope]) return A.busy[scope];
+  if (Date.now() - (A.failAt[scope] || 0) < 5 * 60 * 1000) return Promise.resolve(false);   // ออฟไลน์อยู่ อย่ายิงซ้ำทุกครั้งที่วาดจอ
+  const col = fbDb.collection('leaves'), ids = m[1] === 't' ? leaveTeacherAliases(m[2]) : [m[2]];
+  const chunks = []; for (let i = 0; i < ids.length; i += 30) chunks.push(ids.slice(i, i + 30));
+  const field = m[1] === 'p' ? 'periodId' : 'teacherId';
+  return (A.busy[scope] = Promise.all(chunks.map(c => (c.length > 1 ? col.where(field, 'in', c) : col.where(field, '==', c[0])).get({ source: 'server' })))
+    .then(snaps => {
+      const map = storedTeacherIdMap();
+      snaps.forEach(snap => snap.docs.forEach(d => {
+        const x = Object.assign({}, fbDecodeNested(d.data()), { id: d.id });
+        if (map.has(x.teacherId)) x.teacherId = map.get(x.teacherId);   // ใช้รหัสครูปัจจุบันแบบเดียวกับชั้นสด
+        A.items.set(x.id, x);
+      }));
+      A.scopes[scope] = true; render(); return true;
+    }).catch(() => { A.failAt[scope] = Date.now(); return false; }).finally(() => { delete A.busy[scope]; }));
+}
+/** ใบลาทั้งหมดที่เครื่องนี้รู้ (ชั้นสดชนะเมื่อรหัสซ้ำ) — ใช้กับหน้าประวัติ สถิติ และแบบใบลา */
+function leavesAll() {
+  const live = DB.timetable.leaveRequests || [], have = new Set(live.map(l => l.id));
+  if (!leaveArchive) return live.slice();   // ก่อนบรรทัดประกาศทำงาน (render แรกตอนเปิดแอป)
+  return live.concat(Array.from(leaveArchive.items.values()).filter(l => !have.has(l.id) && l.status !== 'deleted'));
+}
+const findLeave = id => id ? leavesAll().find(l => l.id === id) || null : null;
+/** ใบลาที่จะแก้ (ลบ/อนุมัติ/ผูกคำขอ) ต้องอยู่ในชั้นสด เพราะตะกร้าส่งและตัวฟังทำงานกับชั้นสดเท่านั้น
+    ใบเก่าจากชั้นประวัติจึงถูกยกเข้าชั้นสดก่อน พอส่งขึ้นแล้วหลุดช่วง leaveArchiveAfterLive จะอ่านฉบับใหม่กลับมา */
+function leaveForEdit(id) {
+  const live = (DB.timetable.leaveRequests || []).find(l => l.id === id); if (live) return live;
+  const old = leaveArchive.items.get(id); if (!old) return null;
+  const copy = JSON.parse(JSON.stringify(old));
+  DB.timetable.leaveRequests = (DB.timetable.leaveRequests || []).concat([copy]);
+  leaveArchive.items.delete(id);
+  return copy;
 }
 
 function stopFirebaseSync() { fbUnsub.forEach(fn => { try { fn(); } catch (e) { } }); fbUnsub = []; dpaRequests = []; dpaMine = []; personalReqIn = []; personalReqOut = []; personalSharesIn = []; personalPublicAll = null; }
