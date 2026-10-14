@@ -280,6 +280,24 @@ table.wall td.bad { background: var(--bad-bg); }
 .wallsheet table.wall td.bad { background: #fbe3df !important; } .wallsheet table.wall td.tmp { background: repeating-linear-gradient(135deg, #f3e7cc 0 8px, #fff 8px 16px) !important; }
 .sheet .leg.leg3 { columns: 3; font-size: 10px; }
 
+/* คาบที่ครูรับไว้แทนตำแหน่งว่าง = สีส้ม (ต่างจากคาบรอครูที่เป็นลายทางเหลือง) */
+:root { --cov: #c2410c; --cov-bg: #ffedd5; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --cov: #fb923c; --cov-bg: #431407; } }
+:root[data-theme="dark"] { --cov: #fb923c; --cov-bg: #431407; }
+.blk.cov, :root .blk.cov { background: var(--cov-bg); border-left-color: var(--cov); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--cov) 75%, transparent); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .blk.cov { background: var(--cov-bg); } }
+:root[data-theme="dark"] .blk.cov { background: var(--cov-bg); }
+/* สอนแทนที่ชนกัน: สีแดงต้องชนะสีส้ม (กฎ .cov ด้านบนเจาะจงเท่ากันและอยู่หลัง .blk.bad.cov) */
+.blk.bad.cov, :root .blk.bad.cov, :root[data-theme="dark"] .blk.bad.cov { background: var(--bad-bg); border-left-color: var(--bad); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--bad) 75%, transparent); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .blk.bad.cov { background: var(--bad-bg); } }
+.blk.cov .tb { background: var(--cov); color: #fff; }
+table.wall td.cov, :root table.wall td.cov[style] { background: var(--cov-bg) !important; border-left-color: var(--cov); }
+.wallsheet table.wall td.cov, :root .wallsheet table.wall td.cov[style] { background: #ffedd5 !important; }
+table.wall td .cv { display: block; max-width: 18em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; font-weight: 700; color: var(--cov); }
+.wallsheet table.wall td .cv { max-width: 10em; font-size: 7.5px; color: #c2410c; }
+.sheet td.cov { background: #ffedd5; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.sheet .cv i, .sheet td.cov i { color: #c2410c; font-style: normal; font-weight: 700; }
+
 </style>
 </head>
 <body>
@@ -452,13 +470,13 @@ table.wall td.bad { background: var(--bad-bg); }
     const ix = {
       year: col(['ปีการศึกษา']), sem: col(['ภาคเรียน']), email: col(['อีเมลครู', 'email']), teacher: col(['ชื่อครู', 'ครูผู้สอน']),
       phone: col(['เบอร์โทร']), area: col(['กลุ่มสาระ']), day: col(['วัน']), slot: col(['คาบ']),
-      code: col(['รหัสวิชา']), subj: col(['ชื่อวิชา', 'รายวิชา']), cls: col(['ห้องเรียน', 'ชั้นเรียน']), room: col(['สถานที่', 'ห้องสอน'])
+      code: col(['รหัสวิชา']), subj: col(['ชื่อวิชา', 'รายวิชา']), cls: col(['ห้องเรียน', 'ชั้นเรียน']), room: col(['สถานที่', 'ห้องสอน']), cv: col(['สอนแทน'])
     };
     const miss = [['ชื่อครู', ix.teacher], ['วัน', ix.day], ['คาบ', ix.slot], ['รหัสวิชา', ix.code], ['ห้องเรียน', ix.cls]].filter(x => x[1] < 0).map(x => x[0]);
     if (miss.length) throw new Error('ขาดคอลัมน์สำคัญ: ' + miss.join(', '));
     const model = newModel();
     if (prev) { model.school = prev.school; model.settings = prev.settings; }
-    const issues = [], seenT = {};
+    const issues = [], seenT = {}, covs = [];
     const get = (r, i) => i >= 0 && r[i] != null ? String(r[i]).trim() : '';
     rows.slice(1).forEach((r, n) => {
       const tname = normName(get(r, ix.teacher)), cname = normName(get(r, ix.cls)), code = normName(get(r, ix.code));
@@ -481,6 +499,17 @@ table.wall td.bad { background: var(--bad-bg); }
       model.seq++;
       const id = 'e' + model.seq.toString(36);
       model.entries[id] = { id: id, teacherId: tid, subjectId: sid, classId: cid, day: day, slot: slot, room: loc };
+      // คอลัมน์ "สอนแทน (ตำแหน่งว่าง)" จาก EMS: คาบที่ครูรับไว้แทนครูที่ยังไม่มา
+      const cvn = normName(get(r, ix.cv));
+      if (cvn && cvn !== tname) covs.push({ id: id, name: cvn, area: t.area || '', row: n + 2 });
+    });
+    // ตั้งตำแหน่งว่างหลังอ่านครบทุกแถว — ชื่อที่เป็นครูจริง (มีแถวของตัวเอง/มีอีเมล ชื่อไม่ใช่ "รอครู …") ห้ามกลายเป็นตำแหน่งว่าง
+    const wasTemp = name => !!(prev && Object.values(prev.teachers || {}).some(x => x.temp && x.name === name));
+    covs.forEach(c => {
+      const vid = 'tn:' + c.name, v = model.teachers[vid];
+      if (v && (seenT[vid] || v.email) && !v.temp && !TEMP_NAME.test(c.name) && !wasTemp(c.name)) { issues.push({ row: c.row, warn: true, msg: 'ช่องสอนแทน “' + c.name + '” เป็นครูที่มีคาบของตัวเอง ไม่ใช่ตำแหน่งว่าง (ไม่ตั้งเป็นคาบสอนแทน)' }); return; }
+      if (!v) model.teachers[vid] = { id: vid, name: c.name, email: '', area: c.area, unavail: [], roles: [], temp: { note: 'จาก EMS', expect: '' } }; else if (!v.temp) v.temp = { note: 'จาก EMS', expect: '' };
+      model.entries[c.id].cover = vid;
     });
     classRelations(model);
     migrate(model);
@@ -1455,6 +1484,31 @@ table.wall td.bad { background: var(--bad-bg); }
     } else { delete vac.temp; if (newName) vac.name = normName(newName); }
     return model;
   }
+  /** แบ่งคาบของตำแหน่งว่างให้ครูที่สอนรายวิชาเดียวกัน (รหัสวิชาเดียวกัน) ที่ว่างคาบนั้น — ไม่ชนกัน กระจายให้คนที่รับไว้น้อยก่อน
+      area = true: ถ้าไม่มีครูวิชาเดียวกันว่าง ใช้ครูกลุ่มสาระเดียวกันแทน · ไม่แตะโมเดล คืน { assign:[{ids, tid}], left:[[ids]] } */
+  function autoCoverPlan(model, vacId, area) {
+    const idx = new Index(model), st = model.settings, vac = model.teachers[vacId] || {};
+    const mine = Object.values(model.entries).filter(e => e.teacherId === vacId && !e.cover).sort((a, b) => a.day - b.day || a.slot - b.slot);
+    const code = sid => (model.subjects[sid] || {}).code || '', real = t => t && !t.temp && t.id !== vacId;
+    const bySubj = {}; Object.values(model.entries).concat(Object.values(model.pool)).forEach(e => { const t = model.teachers[e.teacherId]; if (real(t)) (bySubj[code(e.subjectId)] || (bySubj[code(e.subjectId)] = new Set())).add(t.id); });
+    const coverN = {}; Object.values(model.entries).forEach(e => { if (e.cover && model.teachers[e.cover]) coverN[e.teacherId] = (coverN[e.teacherId] || 0) + 1; });
+    const done = new Set(), blocks = [];
+    mine.forEach(e => { if (done.has(e.id)) return; const b = [e]; done.add(e.id); let nx; while (!(st.noBlockAfter || []).includes(b[b.length - 1].slot) && (nx = mine.find(x => !done.has(x.id) && x.day === e.day && x.slot === b[b.length - 1].slot + 1 && x.subjectId === e.subjectId && x.classId === e.classId && x.room === e.room))) { b.push(nx); done.add(nx.id); } blocks.push(b); });
+    const assign = [], left = [];
+    blocks.forEach(b => {
+      const ign = new Set(b.map(x => x.id)), fits = tid => idx.canPlace(b.map(x => Object.assign({}, x, { teacherId: tid })), b[0].day, b[0].slot, ign).ok;
+      const rank = ids => Array.from(ids).filter(fits).map(tid => ({ tid: tid, cov: coverN[tid] || 0, day: idx.perDay.get(tid + '|' + b[0].day) || 0 })).sort((x, y) => x.cov - y.cov || x.day - y.day);
+      let cands = rank(bySubj[code(b[0].subjectId)] || []);
+      if (!cands.length && area && vac.area) cands = rank(Object.values(model.teachers).filter(t => real(t) && t.area === vac.area).map(t => t.id));
+      const pick = cands.find(x => x.day + b.length <= st.maxPerDay) || cands[0];
+      if (!pick) { left.push(b.map(x => x.id)); return; }
+      // ลงในดัชนีทันที ใบถัดไปจะไม่ชนกับใบนี้
+      b.forEach(x => { idx.remove(x); idx.add(Object.assign({}, x, { teacherId: pick.tid, cover: vacId })); });
+      coverN[pick.tid] = (coverN[pick.tid] || 0) + b.length;
+      assign.push({ ids: b.map(x => x.id), tid: pick.tid });
+    });
+    return { assign: assign, left: left };
+  }
   /** ชีตเสริมตอนส่งออก/นำเข้า .xlsx ให้สถานะชั่วคราวไม่หาย */
   function exportTempRows(model) {
     const vac = [['ชื่อตำแหน่งว่าง/ครูชั่วคราว', 'หมายเหตุ', 'คาดว่าครูมา']].concat(Object.values(model.teachers).filter(t => t.temp).map(t => [t.name, t.temp.note || '', t.temp.expect || '']));
@@ -1703,7 +1757,7 @@ table.wall td.bad { background: var(--bad-bg); }
     return { model: model, issues: issues, stats: stats };
   }
 
-  return { MOE_COURSES, moeCurriculum, sameCourseName, mergeCurriculum, respanCard, parseBlock, trimSnaps, subBasic, areaFromCode, levelsFromCode, levelsFromText, curriculumItem, parseCurriculum, deriveCurriculum, curriculumClasses, curriculumCoverage, fillFromCurriculum, exportCurriculumRows, CURR_HEAD, TYPE_TH, TEMP_NAME, isTempT, tempKind, vacancies, planAssign, applyAssign, exportTempRows, applyTempRows, markTempByName, subjectType, siblingGroups, makeRef, mimicStats, mergeStaff, parseStaffRows, LOAD_HEAD, exportLoadRows, parseLoad, meetingTeachers, exportMeetingRows, exportRoleRows, parseMeetings, LOC_KINDS, DEFAULT_LUNCH, inferLocKind, migrate, parseActivities, exportActivityRows, moveUnit, modelFromCloud, matchCloud, planPublish, DAYS, DEFAULT_TIMES, XLS_HEAD, normName, fbStaffId, dayFromText, slotFromText, classInfo, defaultBuilding, buildingOf, buildingName,
+  return { autoCoverPlan, MOE_COURSES, moeCurriculum, sameCourseName, mergeCurriculum, respanCard, parseBlock, trimSnaps, subBasic, areaFromCode, levelsFromCode, levelsFromText, curriculumItem, parseCurriculum, deriveCurriculum, curriculumClasses, curriculumCoverage, fillFromCurriculum, exportCurriculumRows, CURR_HEAD, TYPE_TH, TEMP_NAME, isTempT, tempKind, vacancies, planAssign, applyAssign, exportTempRows, applyTempRows, markTempByName, subjectType, siblingGroups, makeRef, mimicStats, mergeStaff, parseStaffRows, LOAD_HEAD, exportLoadRows, parseLoad, meetingTeachers, exportMeetingRows, exportRoleRows, parseMeetings, LOC_KINDS, DEFAULT_LUNCH, inferLocKind, migrate, parseActivities, exportActivityRows, moveUnit, modelFromCloud, matchCloud, planPublish, DAYS, DEFAULT_TIMES, XLS_HEAD, normName, fbStaffId, dayFromText, slotFromText, classInfo, defaultBuilding, buildingOf, buildingName,
     newModel, nextId, classRelations, defaultSolveRules, ruleMatcher, ruleEmpty, parseRows, exportRows, Index, blockOf, report, runSolve, K };
 });
 
@@ -2284,7 +2338,7 @@ table.wall td.bad { background: var(--bad-bg); }
       for (let s = 1; s <= n; s++) {
         const oc = by[d.v + '-' + s] || [], mc = mtgCell(d.v, s);
         if (oc.length === 0 && mc) { h += '<td>' + mc + '</td>'; continue; }
-        if (oc.length === 1 && !mc) { const e = oc[0]; let span = 1; while (s + span <= n) { const nx = by[d.v + '-' + (s + span)]; if (nx && nx.length === 1 && nx[0].subjectId === e.subjectId && nx[0].classId === e.classId && nx[0].teacherId === e.teacherId && !(m.settings.noBlockAfter || []).includes(s + span - 1)) span++; else break; } h += '<td' + (span > 1 ? ' colspan="' + span + '"' : '') + '>' + cell(e) + '</td>'; s += span - 1; }
+        if (oc.length === 1 && !mc) { const e = oc[0]; let span = 1; while (s + span <= n) { const nx = by[d.v + '-' + (s + span)]; if (nx && nx.length === 1 && nx[0].subjectId === e.subjectId && nx[0].classId === e.classId && nx[0].teacherId === e.teacherId && !(m.settings.noBlockAfter || []).includes(s + span - 1)) span++; else break; } h += '<td' + (span > 1 ? ' colspan="' + span + '"' : '') + (e.cover && m.teachers[e.cover] ? ' class="cov"' : '') + '>' + cell(e) + '</td>'; s += span - 1; }
         else h += '<td>' + oc.map(cell).join('<hr>') + (mc ? '<hr>' + mc : '') + '</td>';
       }
       h += '</tr>';
@@ -2424,7 +2478,7 @@ table.wall td.bad { background: var(--bad-bg); }
       const go = () => { replaceModel(r.model, title); changed(); S.tab = 'grid'; render(); toast('นำเข้า ' + Object.keys(r.model.entries).length + ' คาบ · ครู ' + Object.keys(r.model.teachers).length + ' คน'); };
       const m = r.model, nb = new Set(Object.keys(m.locations).map(l => TT.buildingOf(m, l)).filter(b => b !== 'X')).size;
       const body = '<div class="kpis"><div><b class="num">' + Object.keys(m.entries).length + '</b><span>คาบ</span></div><div><b class="num">' + Object.keys(m.teachers).length + '</b><span>ครู</span></div><div><b class="num">' + Object.values(m.classes).filter(c => !TT.classInfo(c.name).parent).length + '</b><span>ห้องเรียน</span></div><div><b class="num">' + nb + '</b><span>อาคาร</span></div></div>' +
-        (r.meets ? '<div class="note ok">พบการประชุม/ภารกิจ ' + r.meets + ' รายการ</div>' : '') + (r.acts ? '<div class="note ok">พบชีต “กิจกรรมร่วม” ' + r.acts + ' คาบ (ไม่ระบุครู)</div>' : '') + (r.issues.length ? '<div class="note">ข้าม ' + r.issues.length + ' แถวที่ข้อมูลไม่ครบ (แถว ' + r.issues.slice(0, 8).map(i => i.row).join(', ') + (r.issues.length > 8 ? '…' : '') + ')</div>' : '') +
+        (r.meets ? '<div class="note ok">พบการประชุม/ภารกิจ ' + r.meets + ' รายการ</div>' : '') + (r.acts ? '<div class="note ok">พบชีต “กิจกรรมร่วม” ' + r.acts + ' คาบ (ไม่ระบุครู)</div>' : '') + (r.issues.filter(x => !x.warn).length ? '<div class="note">ข้าม ' + r.issues.filter(x => !x.warn).length + ' แถวที่ข้อมูลไม่ครบ (แถว ' + r.issues.filter(x => !x.warn).slice(0, 8).map(i => i.row).join(', ') + (r.issues.filter(x => !x.warn).length > 8 ? '…' : '') + ')</div>' : '') + (r.issues.some(x => x.warn) ? '<div class="note">' + r.issues.filter(x => x.warn).slice(0, 8).map(i => 'แถว ' + i.row + ': ' + esc(i.msg)).join('<br>') + '</div>' : '') +
         (Object.keys(M().entries).length ? '<div class="note bad">ข้อมูลตารางที่เปิดอยู่ตอนนี้จะถูกแทนที่ (ควรสำรอง .json ก่อน)</div>' : '');
       modal(title, body, [{ label: 'ยกเลิก' }, { label: 'นำเข้า', cls: 'pri', act: go }]);
   }
@@ -2618,7 +2672,7 @@ table.wall td.bad { background: var(--bad-bg); }
   function vacBarHTML() {
     if (S.mode !== 'teacher') return '';
     const t = M().teachers[S.sel.teacher]; if (!t) return '';
-    if (t.temp) return '<span class="tbadge">⏳ ตำแหน่งว่าง' + (t.temp.expect ? ' · คาดว่ามา ' + esc(t.temp.expect) : '') + '</span><button class="btn pri" data-act="vacAssign">รับครูตัวจริง</button><button class="btn" data-act="vacEdit">แก้ตำแหน่งว่าง</button>';
+    if (t.temp) return '<span class="tbadge">⏳ ตำแหน่งว่าง' + (t.temp.expect ? ' · คาดว่ามา ' + esc(t.temp.expect) : '') + '</span>' + (Object.values(M().entries).some(e => e.teacherId === t.id && !e.cover) ? '<button class="btn" data-act="vacSplit" title="ให้ครูที่สอนรายวิชาเดียวกันรับคาบไว้ก่อน ไม่ชนกัน — ครูใหม่มาแล้วกด “รับครูตัวจริง” ย้ายกลับได้ทันที">แบ่งคาบให้ครูวิชาเดียวกัน</button>' : '') + '<button class="btn pri" data-act="vacAssign">รับครูตัวจริง</button><button class="btn" data-act="vacEdit">แก้ตำแหน่งว่าง</button>';
     return '<button class="btn" data-act="vacEdit" title="เช่น ครูอัตราจ้างที่จะหมดสัญญา — คาบจะขึ้นสีเตือนและรับครูตัวจริงทีหลังได้">ตั้งเป็นครูชั่วคราว</button>';
   }
   function coverBtnHTML(e) {
@@ -2651,6 +2705,28 @@ table.wall td.bad { background: var(--bad-bg); }
     // ชื่อที่ระบบตั้งให้ เปลี่ยนตามกลุ่มสาระที่เลือก (ถ้ายังไม่ได้แก้ชื่อเอง)
     const nI = $('#tpN'), aI = $('#tpA'), auto = a => 'รอครู ' + ((a || '').replace(/และ.*$/, '').trim() || 'ใหม่') + ' ' + n;
     if (nI && aI) aI.addEventListener('input', () => { if (/^รอครู .* \d+$/.test(nI.value)) nI.value = auto(aI.value); });
+  }
+  /** แบ่งคาบของตำแหน่งว่างให้ครูที่สอนรายวิชาเดียวกัน — ดูผลก่อนแล้วค่อยใช้ (ย้อนกลับได้ในครั้งเดียว) */
+  function splitDialog(vacId) {
+    const m = M(), v = m.teachers[vacId]; if (!v) return;
+    let area = false, plan;
+    const desc = () => {
+      plan = TT.autoCoverPlan(m, vacId, area);
+      const per = {}; plan.assign.forEach(a => { per[a.tid] = (per[a.tid] || 0) + a.ids.length; });
+      const nLeft = plan.left.reduce((n, g) => n + g.length, 0);
+      return '<div class="kpis"><div><b class="num">' + plan.assign.reduce((n, a) => n + a.ids.length, 0) + '</b><span>คาบที่แบ่งได้</span></div><div><b class="num">' + Object.keys(per).length + '</b><span>ครูที่รับไว้</span></div><div><b class="num ' + (nLeft ? 'bad' : '') + '">' + nLeft + '</b><span>คาบที่ยังไม่มีคนว่าง</span></div></div>' +
+        (Object.keys(per).length ? '<table class="t"><tbody>' + Object.keys(per).sort((a, b) => per[b] - per[a]).map(tid => '<tr><td>' + esc(m.teachers[tid].name) + '</td><td class="r">' + per[tid] + ' คาบ</td><td class="q">' + esc(Array.from(new Set(plan.assign.filter(a => a.tid === tid).map(a => (m.subjects[m.entries[a.ids[0]].subjectId] || {}).code))).join(', ')) + '</td></tr>').join('') + '</tbody></table>' : '') +
+        (nLeft ? '<div class="note">คาบที่ยังไม่มีคนว่าง: ' + plan.left.map(g => { const e = m.entries[g[0]]; return esc(DAYS[e.day - 1].label + ' คาบ ' + g.map(id => m.entries[id].slot).join('–') + ' ' + ((m.subjects[e.subjectId] || {}).code || '') + ' ' + ((m.classes[e.classId] || {}).name || '')); }).join(' · ') + ' — คลิกคาบนั้นแล้วกด “ให้ครูสอนแทนชั่วคราว” เลือกเองได้</div>' : '');
+    };
+    modal('แบ่งคาบของ ' + v.name, '<p class="q">ให้ครูที่สอน<b>รายวิชาเดียวกัน</b>รับคาบไว้ชั่วคราว เฉพาะคนที่ว่างคาบนั้น ไม่ชนกัน กระจายให้คนที่รับไว้น้อยก่อน · คาบที่รับไว้ขึ้น<b style="color:var(--cov)">สีส้ม</b>ในตารางของครูคนนั้น · ครูใหม่มาแล้วกด “รับครูตัวจริง” ย้ายทุกคาบไปให้ทันที</p>' +
+      '<label class="rcheck"><input type="checkbox" id="spA"> ถ้าไม่มีครูวิชาเดียวกันว่าง ให้ใช้ครูกลุ่มสาระเดียวกัน</label><div id="spBody">' + desc() + '</div>',
+      [{ label: 'ยกเลิก' }, { label: 'แบ่งคาบ', cls: 'pri', act: () => {
+        if (!plan.assign.length) { toast('ไม่มีคาบที่แบ่งได้', true); return false; }
+        S.selBlock = '';
+        tx('แบ่งคาบตำแหน่งว่าง', api => plan.assign.forEach(a => a.ids.forEach(id => api.setE(id, Object.assign({}, m.entries[id], { teacherId: a.tid, cover: vacId })))));
+        toast('แบ่ง ' + plan.assign.reduce((n, a) => n + a.ids.length, 0) + ' คาบให้ครู ' + new Set(plan.assign.map(a => a.tid)).size + ' คน');
+      } }]);
+    $('#spA').addEventListener('change', e => { area = e.target.checked; $('#spBody').innerHTML = desc(); });
   }
   /** ครูที่ว่างทุกคาบของบล็อก — กลุ่มสาระเดียวกันขึ้นก่อน แล้วคนที่วันนั้นสอนน้อย */
   function coverDialog() {
@@ -2734,6 +2810,10 @@ table.wall td.bad { background: var(--bad-bg); }
   function emsSend() {
     const m = M(), rows = TT.exportRows(m);
     if (rows.length < 2) return toast('ยังไม่มีคาบในตารางให้ส่ง', true);
+    // คาบที่ครูรับไว้แทนตำแหน่งว่าง: ส่งชื่อตำแหน่งว่างไปด้วย EMS แสดงเป็นสีส้มในตารางของครูคนนั้น
+    const covKey = {}; Object.values(m.entries).forEach(e => { const t = m.teachers[e.teacherId], v = e.cover && m.teachers[e.cover]; if (t && v) covKey[t.name + '|' + e.day + '|' + e.slot] = v.name; });
+    const hd = rows[0], iT = hd.indexOf('ชื่อครู'), iD = hd.indexOf('วัน'), iS = hd.indexOf('คาบ');
+    if (iT >= 0 && iD >= 0 && iS >= 0) { hd.push('สอนแทน (ตำแหน่งว่าง)'); rows.slice(1).forEach(r => { r.push(covKey[r[iT] + '|' + (TT.DAYS.findIndex(x => x.label === r[iD]) + 1) + '|' + r[iS]] || ''); }); }
     const c = S.idx.allClashes(), n = c.teacher.length + c.cls.length + c.loc.length;
     const send = () => {
       try { localStorage.setItem(EK_OUT, JSON.stringify({ at: new Date().toISOString(), period: m.period, rows: rows, pool: Object.keys(m.pool).length, vacant: TT.vacancies(m).map(v => ({ name: v.name, area: v.area, note: v.note, expect: v.expect })) })); }
@@ -2928,7 +3008,7 @@ table.wall td.bad { background: var(--bad-bg); }
   function wallTable(forPrint) {
     const m = M(), w = S.wb, n = slotsN(), d = +w.day, by = {};
     Object.values(m.entries).forEach(e => { if (e.day !== d) return; const k = w.persp === 'class' ? e.classId : e.teacherId; (by[k + '|' + e.slot] = by[k + '|' + e.slot] || []).push(e); });
-    const lab = e => { const sb = m.subjects[e.subjectId] || {}, t = m.teachers[e.teacherId], c = m.classes[e.classId] || {}; return '<b>' + esc(sb.code || '') + '</b>' + esc(w.persp === 'class' ? (t ? shortName(t.name) : 'กิจกรรม') : c.name); };
+    const lab = e => { const sb = m.subjects[e.subjectId] || {}, t = m.teachers[e.teacherId], c = m.classes[e.classId] || {}; const v = TT.tempKind(m, e) === 'cover' && m.teachers[e.cover]; return '<b>' + esc(sb.code || '') + '</b>' + esc(w.persp === 'class' ? (t ? shortName(t.name) : 'กิจกรรม') : c.name) + (v ? '<small class="cv" title="สอนแทน ' + esc(v.name) + '">สอนแทน ' + esc(shortName(v.name)) + '</small>' : ''); };
     let h = '<table class="wall"><thead><tr><th>' + (w.persp === 'class' ? 'ห้อง' : 'ครู') + '</th>' + Array.from({ length: n }, (_, i) => '<th>' + (i + 1) + '<small>' + esc(timeOf(i + 1)) + '</small></th>').join('') + '</tr></thead><tbody>';
     wallRows().forEach(r => {
       const rel = r.kind === 'class' ? (S.idx.rel[r.id] || new Set([r.id])) : null;
@@ -2941,7 +3021,7 @@ table.wall td.bad { background: var(--bad-bg); }
         // คาบคู่ (ห้อง/ครู/วิชาเดียวกันคาบติดกัน) รวมช่อง
         if (es.length === 1) while (s + span <= n) { const nx = r.kind === 'class' ? [].concat(...Array.from(rel).map(cid => by[cid + '|' + (s + span)] || [])) : (by[r.id + '|' + (s + span)] || []); if (nx.length === 1 && nx[0].subjectId === e.subjectId && nx[0].teacherId === e.teacherId && nx[0].classId === e.classId) span++; else break; }
         const tk = TT.tempKind(m, e), clash = es.length > 1 && r.kind === 'teacher';
-        h += '<td' + (span > 1 ? ' colspan="' + span + '"' : '') + ' class="' + (clash ? 'bad' : tk ? 'tmp' : '') + '" style="--h:' + subjHue(e) + '">' + es.map(lab).join('<br>') + '</td>';
+        h += '<td' + (span > 1 ? ' colspan="' + span + '"' : '') + ' class="' + (clash ? 'bad' : tk === 'cover' ? 'cov' : tk ? 'tmp' : '') + '" style="--h:' + subjHue(e) + '">' + es.map(lab).join('<br>') + '</td>';
         s += span - 1;
       }
       h += '</tr>';
@@ -2951,7 +3031,7 @@ table.wall td.bad { background: var(--bad-bg); }
   function ovWall() {
     const m = M(), w = S.wb || (S.wb = { day: 1, persp: 'class', lv: '', area: '' }), areas = Array.from(new Set(Object.values(m.teachers).map(t => t.area).filter(Boolean))).sort(sortTh);
     const seg = (k, v, lab) => '<button data-wb="' + k + '" data-v="' + v + '" aria-pressed="' + (String(w[k]) === String(v)) + '">' + lab + '</button>';
-    return '<p class="q">ทุก' + (w.persp === 'class' ? 'ห้องเรียน' : 'ครู') + ' × ทุกคาบของวันที่เลือก — คลิกชื่อเพื่อไปแก้ในหน้าจัดตาราง · ช่องลายทาง = คาบชั่วคราว (รอครู/สอนแทน) · ช่องแดง = ครูสอนซ้อน</p>' +
+    return '<p class="q">ทุก' + (w.persp === 'class' ? 'ห้องเรียน' : 'ครู') + ' × ทุกคาบของวันที่เลือก — คลิกชื่อเพื่อไปแก้ในหน้าจัดตาราง · ลายทาง = คาบรอครู · สีส้ม = คาบที่ครูรับไว้แทน · สีแดง = ครูสอนซ้อน</p>' +
       '<div class="subseg">' + DAYS.map(d => seg('day', d.v, d.label)).join('') + '</div><div class="subseg">' + seg('persp', 'class', 'รายห้องเรียน') + seg('persp', 'teacher', 'รายครู') + '</div>' +
       '<div class="form"><label>' + (w.persp === 'class' ? 'ระดับชั้น<select id="wbF" data-k="lv"><option value="">ทั้งหมด</option><option value="lo"' + (w.lv === 'lo' ? ' selected' : '') + '>ม.ต้น</option><option value="hi"' + (w.lv === 'hi' ? ' selected' : '') + '>ม.ปลาย</option>' + [1, 2, 3, 4, 5, 6].map(l => '<option value="' + l + '"' + (String(w.lv) === String(l) ? ' selected' : '') + '>ม.' + l + '</option>').join('') :
         'กลุ่มสาระ<select id="wbF" data-k="area"><option value="">ทั้งหมด</option>' + areas.map(a => '<option' + (w.area === a ? ' selected' : '') + '>' + esc(a) + '</option>').join('')) + '</select></label></div>' +
@@ -3213,6 +3293,7 @@ table.wall td.bad { background: var(--bad-bg); }
       case 'vacNew': return tempDialog('');
       case 'vacEdit': return tempDialog(S.sel.teacher);
       case 'vacAssign': return assignDialog(S.sel.teacher);
+      case 'vacSplit': return splitDialog(S.sel.teacher);
       case 'cover': return coverDialog();
       case 'uncover': return uncover();
       case 'emsStaff': { const h = lsJ(EK_IN); if (!h || !(h.staff || []).length) return toast('ยังไม่มีรายชื่อจาก EMS — ในหน้า EMS (ตั้งค่าโรงเรียน › ตารางสอนทั้งโรงเรียน) กด “ส่งตาราง/รายชื่อครูให้แอปจัด” ก่อน', true); return staffMergeDialog(h.staff, 'EMS'); }
