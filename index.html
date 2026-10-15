@@ -3262,7 +3262,7 @@ const PINNED_TABS = ['dashboard', 'attendance', 'scores', 'groups'];
 const isPinnedTab = (tab, mode) => PINNED_TABS.indexOf(tab) >= 0 || (mode !== 'teacher' && tab === homeTabOfRole(mode));
 /* ทุกหน้าที่บทบาทนี้เข้าได้ (รวมที่อยู่ในเมนู) */
 const canOpenTimetableStudio = () => ['admin', 'academic', 'measure'].includes(DB.ui.staffMode || 'teacher');
-const openTimetableStudio = () => window.open('./timetable/', '_blank', 'noopener');
+const openTimetableStudio = () => window.open('https://dss-pc.web.app/timetable/', '_blank', 'noopener');   // ย้ายไปอยู่กับ EMS (2026-10-15)
 const allowedTabs = () => $$('#tabs button[data-tab]').map(b => b.dataset.tab).filter(t => canSeeTab(t, DB.ui.staffMode || 'teacher'));
 const visibleTabButtons = () => $$('#tabs button[data-tab]').filter(b => allowedTabs().indexOf(b.dataset.tab) >= 0);
 
